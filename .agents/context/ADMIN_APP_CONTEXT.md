@@ -12,7 +12,7 @@ one. Read `DATA_STRUCTURE.md` first; nothing here overrides it.
 A single-admin (you) internal tool to manage the GitHub-hosted JSON data that powers
 the public hero shooter info app. It needs to:
 
-- Create/edit/delete heroes, maps, modes, patches, and per-game schemas across all
+- Create/edit/delete heroes, maps, modes, patches, items/equipment, and per-game schemas across all
   supported games, without hand-editing JSON or making raw commits.
 - Show a **diff/review step before anything is written** — you should always see
   exactly what will change before it's committed.
@@ -40,6 +40,15 @@ Out of scope for v1: multi-admin roles/permissions, public user accounts, analyt
    You (single admin), browser
 ```
 
+Route param validation pattern: every route that interpolates `params.game`, `params.type`, or
+`params.id` into a GitHub API path calls `assertSafeGameSlug`, `assertSafeEntityId`, or
+`assertSafeEntityType` from `app/lib/safe-path.ts` before any API call. These use strict
+allow-list regexes (not blocklists) — `..`, `/`, `\`, and URL-encoded variants are rejected
+because the allowed charset `[a-z0-9.-]` simply has no character that can escape the intended
+`data/<game>/` directory. The entity type list (`ENTITY_TYPES`) is a single exported const array
+from `safe-path.ts` that derives both the regex and the raw editor's `typeValidators` map,
+preventing drift when adding new entity types.
+
 Key implication: **the admin app is a GitHub API client, not a database client.**
 There is no admin-app database. Every "save" is a commit. Every "list heroes" is a
 directory read via the GitHub Contents API. This keeps the whole system to one source
@@ -59,11 +68,11 @@ unless a cache-purge step is wired in (see §7.7).
 | Framework | **React Router v7**, framework (SSR) mode — file-based routes, `loader`/`action` per route | You already chose this. Framework mode (the old Remix model) is what makes this whole design work: loaders/actions run **server-side only**, so the GitHub write token never reaches the browser. |
 | Language | TypeScript | Data model has enough nested structure (kit/params) that type safety catches shape mistakes before they become bad commits. |
 | Styling | Tailwind CSS + shadcn/ui | Fast to build data-heavy CRUD UIs (tables, dialogs, forms) without writing custom CSS. |
-| Forms | React Hook Form + Zod (`@hookform/resolvers/zod`) | Zod schemas double as both form validation and the "is this file shape valid" check before commit — one schema, two uses. |
+| Forms | HTML Form + Zod (validate in action) | Zod schemas double as both form validation and the "is this file shape valid" check before commit — one schema, two uses. |
 | GitHub integration | `@octokit/rest`, used only inside `loader`/`action` functions | Never import Octokit or reference the token in any client component. |
 | Auth | Cookie session (e.g. `react-router`'s session storage) gating a single admin password *or* GitHub OAuth device flow | Single-admin tool — a hashed password in an env var is enough; GitHub OAuth is the upgrade path if you add collaborators later (see §9). |
 | Deployment | Cloudflare Pages (via `@react-router/cloudflare` adapter, react-router 8.1.x) Node.js (`@react-router/serve`) for local dev | Same platform as the public Worker — one dashboard, one billing surface, and it can share Cloudflare KV for session storage if needed. Local dev uses `npm run dev` (Vite HMR) or `npm start` (Node.js serve). |
-| Diffing | `deep-diff` or a small hand-rolled recursive diff | Powers the "review before commit" screen (§7.3). |
+| Diffing | Hand-rolled recursive diff (`app/lib/diff.ts`) | Powers the "review before commit" screen (§7.3). Rejects `..` and encoded variants via allow-list regexes. |
 
 ---
 
@@ -114,6 +123,10 @@ app/routes/
   _admin.$game.patches.new.tsx       GET/POST — new patch, changelog builder
   _admin.$game.patches.$id.tsx       GET/POST/DELETE — edit/delete a patch
 
+  _admin.$game.items._index.tsx      GET — item/equipment list (hero-specific or universal)
+  _admin.$game.items.new.tsx         GET/POST — create item with effects, hero/mode scoping
+  _admin.$game.items.$id.tsx         GET/POST/DELETE — edit/delete item
+
   _admin.$game.raw.$type.$id.tsx     GET/POST — raw JSON escape hatch (§6.10)
 
   _admin.activity.tsx                GET — recent commits made through this app
@@ -121,7 +134,7 @@ app/routes/
 
 `_admin.tsx` is a layout route: its loader checks the session cookie and redirects to
 `/login` if absent, and its component renders the sidebar nav (Games → per-game
-Heroes/Maps/Modes/Patches/Schema) shared by every child route.
+Heroes/Maps/Modes/Patches/Items/Schema) shared by every child route.
 
 ---
 
@@ -213,13 +226,22 @@ This is the most complex page — see §7.1–§7.4 for the logic in detail. Str
 - **Action:** validate `field` path actually resolves on the referenced hero's current
   file (catches typos before they ship), write the patch file.
 
-### 6.10 `/:game/raw/:type/:id` — raw JSON escape hatch
-- A "view/edit raw JSON" page reachable from any entity's edit page, for the rare case
-  the structured form can't express something yet. Still runs through the same Zod
-  validation and review-diff step before commit — this is an alternate *input method*,
-  not a bypass of validation.
+### 6.10 `/:game/items` (list/new/edit/delete)
+- **Data model:** Items/equipment represent mid-match ability transformations — a single item can override one or more abilities' name, type, description, and params on a specific hero in a specific mode. Hero and mode are optional (universal items omit both).
+- **Cross-reference validation:** On save, the action checks:
+  - If `hero` is set, it must exist in `data/<game>/heroes/`.
+  - If `mode` is set, it must exist in `data/<game>/modes/`.
+  - Every `effects[].ability_id` must exist in that hero's `kit[]`.
+- **Client rendering contract:** When displaying a hero with items equipped, shallow-merge all matching items' `effects` onto the base `kit[]` entry. Multiple items can stack on the same ability.
 
-### 6.11 `/activity`
+### 6.11 `/:game/raw/:type/:id` — raw JSON escape hatch
+- A "view/edit raw JSON" page reachable from any entity's edit page, for the rare case
+  the structured form can't express something yet. Runs through per-type Zod validation
+  (HeroSchema, MapSchema, ModeSchema, PatchSchema, ItemSchema) before commit — this is
+  an alternate *input method*, not a bypass of validation. Entity type is validated
+  against `ENTITY_TYPES` const from `safe-path.ts`.
+
+### 6.12 `/activity`
 - **Loader:** `GET /repos/:owner/:repo/commits` filtered to commits authored by the
   admin app's token/bot identity, most recent first.
 - **UI:** simple list — commit message, timestamp, link to the commit on GitHub. Your
@@ -243,6 +265,11 @@ const { data } = await octokit.repos.getContent({ owner, repo, path, ref: branch
 // data.sha  -> needed for update/delete
 // data.content is base64 -> Buffer.from(data.content, "base64").toString("utf-8")
 ```
+
+Hero abilities also support optional `mode_overrides` — per-mode numeric overrides on `params`.
+When saving a hero, the action validates that every `mode_overrides` key corresponds to a real
+file in `data/<game>/modes/` (same cross-reference pattern as item effects). The rendering
+contract: for a selected mode, shallow-merge `mode_overrides[mode_id]` onto `params`.
 
 ### 7.2 Schema-driven hero form
 
@@ -322,6 +349,8 @@ app/schemas/
   schema-file.ts   # SchemaFileSchema  — mirrors §3.3
   hero.ts          # HeroSchema, KitItemSchema — mirrors §3.4, params validated
                      # dynamically against that game's stat_fields types
+                     # KitItemSchema also has optional mode_overrides for per-mode stat variance
+  item.ts          # ItemSchema, AbilityEffectSchema — mirrors items/equipment (§3.8)
   map.ts           # MapSchema         — mirrors §3.5
   mode.ts          # ModeSchema        — mirrors §3.6
   patch.ts         # PatchSchema, ChangeSchema — mirrors §3.7
@@ -353,6 +382,8 @@ admin-app/
     lib/
       github.server.ts        # Octokit client + all Contents API wrapper functions
       diff.ts                  # shared diff util used by review-before-commit
+      safe-path.ts             # Route param allow-list validation (SAFE_SLUG, SAFE_ENTITY_ID, ENTITY_TYPES, SAFE_STAT_FIELD_KEY)
+      parse-kit.ts             # Shared form-data → hero object builder (extracted from duplicate inline code)
       session.server.ts        # cookie session helpers
     components/
       HeroForm/
@@ -406,3 +437,10 @@ Secrets are set via `wrangler secret put` (see `wrangler.toml` for the full list
   this app's in-app diff step.
 - Bulk import/export (e.g. CSV → many heroes at once).
 - Localization/i18n of hero bios/descriptions.
+- Item shop pools / rarity tiers — the item data model supports adding `rarity` and `pool` fields
+  later, but the game client handles how/when items are offered mid-match; the repo only catalogs
+  what each item does.
+- Image upload (portrait URL paste is sufficient for v1).
+- `:game` validation against the actual `games.json` registry (currently only format-checked via
+  `assertSafeGameSlug`). Add by passing the active slug list from `_admin.tsx`'s loader to child
+  routes via `useRouteLoaderData`.
