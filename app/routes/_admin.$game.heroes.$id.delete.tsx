@@ -1,8 +1,12 @@
 import { redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.$game.heroes.$id.delete";
 import { getFile, deleteFile, listDirectory } from "~/lib/github.server";
+import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 
 export async function action({ request, params }: Route.ActionArgs) {
+  assertSafeGameSlug(params.game);
+  assertSafeEntityId(params.id);
+
   const formData = await request.formData();
   const confirmed = formData.get("confirmed") === "true";
 
@@ -30,6 +34,9 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export async function loader({ params }: Route.LoaderArgs) {
+  assertSafeGameSlug(params.game);
+  assertSafeEntityId(params.id);
+
   const file = await getFile(`data/${params.game}/heroes/${params.id}.json`);
   if (!file) throw data("Hero not found", { status: 404 });
   const hero = file.content as { name: string };

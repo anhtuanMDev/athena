@@ -5,15 +5,36 @@ import { computeDiff, type DiffEntry } from "~/lib/diff";
 import { DiffView } from "~/components/DiffView";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
+import { assertSafeGameSlug, assertSafeEntityId, assertSafeEntityType } from "~/lib/safe-path";
+import { HeroSchema } from "~/schemas/hero";
+import { MapSchema } from "~/schemas/map";
+import { ModeSchema } from "~/schemas/mode";
+import { PatchSchema } from "~/schemas/patch";
+import { SchemaFileSchema } from "~/schemas/schema-file";
+
+const typeValidators: Record<string, (data: unknown) => { success: boolean }> = {
+  heroes: HeroSchema.safeParse,
+  maps: MapSchema.safeParse,
+  modes: ModeSchema.safeParse,
+  patches: PatchSchema.safeParse,
+};
 
 export async function loader({ params }: Route.LoaderArgs) {
+  assertSafeGameSlug(params.game);
+  assertSafeEntityType(params.type);
+  assertSafeEntityId(params.id);
+
   const path = `data/${params.game}/${params.type}/${params.id}.json`;
   const file = await getFile(path);
   if (!file) throw data("File not found", { status: 404 });
-  return { content: file.content, sha: file.sha, path };
+  return { content: file.content, sha: file.sha, path, type: params.type };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
+  assertSafeGameSlug(params.game);
+  assertSafeEntityType(params.type);
+  assertSafeEntityId(params.id);
+
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
   const path = `data/${params.game}/${params.type}/${params.id}.json`;
@@ -21,7 +42,15 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   let parsed: unknown;
   try { parsed = JSON.parse(rawJson); } catch {
-    return data({ error: "Invalid JSON", intent: "validate" }, { status: 400 });
+    return data({ error: "Invalid JSON", intent: "validate" as const }, { status: 400 });
+  }
+
+  const validator = typeValidators[params.type];
+  if (validator) {
+    const result = validator(parsed);
+    if (!result.success) {
+      return data({ error: `Validation failed for ${params.type}: the data doesn't match the expected schema` }, { status: 400 });
+    }
   }
 
   const current = await getFile(path);
@@ -29,11 +58,11 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   if (intent === "commit") {
     await updateFile(path, parsed, current.sha, `Update ${params.type}: ${params.id} (raw edit)`);
-    return data({ success: true });
+    return data({ success: true as const });
   }
 
   const diffs = computeDiff(current.content, parsed);
-  return data({ diffs, rawJson, sha: current.sha, intent: "preview" });
+  return data({ diffs, rawJson, sha: current.sha, intent: "preview" as const });
 }
 
 export default function RawEditor({ loaderData }: Route.ComponentProps) {

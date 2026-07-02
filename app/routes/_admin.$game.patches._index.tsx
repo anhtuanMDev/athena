@@ -3,6 +3,7 @@ import type { Route } from "./+types/_admin.$game.patches._index";
 import { listDirectory, getFile } from "~/lib/github.server";
 import { DataTable, type Column } from "~/components/DataTable";
 import { Button } from "~/components/ui/button";
+import { assertSafeGameSlug } from "~/lib/safe-path";
 
 interface PatchRow {
   patch: string;
@@ -12,6 +13,7 @@ interface PatchRow {
 }
 
 export async function loader({ params }: Route.LoaderArgs) {
+  assertSafeGameSlug(params.game);
   const ids = await listDirectory(params.game, "patches");
   ids.sort().reverse();
   const patches = await Promise.all(

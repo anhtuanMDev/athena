@@ -4,8 +4,10 @@ import { ModeSchema } from "~/schemas/mode";
 import { getFile, createFile } from "~/lib/github.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
+import { assertSafeGameSlug } from "~/lib/safe-path";
 
 export async function action({ request, params }: Route.ActionArgs) {
+  assertSafeGameSlug(params.game);
   const formData = Object.fromEntries(await request.formData());
   const parsed = ModeSchema.safeParse({ ...formData });
   if (!parsed.success) {

@@ -6,8 +6,13 @@ import { computeDiff } from "~/lib/diff";
 import { DiffView } from "~/components/DiffView";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
+import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
+import { buildHeroFromFormData } from "~/lib/parse-kit";
 
 export async function loader({ params }: Route.LoaderArgs) {
+  assertSafeGameSlug(params.game);
+  assertSafeEntityId(params.id);
+
   const file = await getFile<Hero>(`data/${params.game}/heroes/${params.id}.json`);
   if (!file) throw data("Hero not found", { status: 404 });
   const schemaFile = await getFile<{ roles: string[]; ability_types: string[] }>(`data/${params.game}/schema.json`);
@@ -15,47 +20,22 @@ export async function loader({ params }: Route.LoaderArgs) {
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
+  assertSafeGameSlug(params.game);
+  assertSafeEntityId(params.id);
+
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 
+  const hero = buildHeroFromFormData(formData, params.game, params.id);
   const raw = Object.fromEntries(formData);
-  const kit: Hero["kit"] = [];
-  const kitCount = parseInt(raw._kitCount as string || "0");
-  for (let i = 0; i < kitCount; i++) {
-    const paramsEntries: Record<string, unknown> = {};
-    const paramKeys = (raw[`_kit_${i}_params_keys`] as string || "").split(",").filter(Boolean);
-    for (const key of paramKeys) {
-      paramsEntries[key] = raw[`kit_${i}_params_${key}`] ?? "";
-    }
-    kit.push({
-      id: raw[`kit_${i}_id`] as string,
-      name: raw[`kit_${i}_name`] as string,
-      type: raw[`kit_${i}_type`] as string,
-      description: raw[`kit_${i}_description`] as string || undefined,
-      params: paramsEntries,
-    });
-  }
 
-  const hero: Record<string, unknown> = {
-    id: params.id,
-    game: params.game,
-    name: raw.name as string,
-    roles: (raw.roles as string || "").split(",").map((s: string) => s.trim()).filter(Boolean),
-    difficulty: raw.difficulty ? parseInt(raw.difficulty as string) : undefined,
-    health: { health: raw.health ? parseInt(raw.health as string) : undefined },
-    portrait: raw.portrait as string,
-    bio: raw.bio as string || undefined,
-    tags: (raw.tags as string || "").split(",").map((s: string) => s.trim()).filter(Boolean),
-    kit,
-  };
-
-  const parsed = HeroSchema.safeParse(hero as unknown);
+  const parsed = HeroSchema.safeParse(hero);
   if (!parsed.success) {
     return data({ errors: parsed.error.flatten().fieldErrors, values: raw, intent: "validate" as const }, { status: 400 });
   }
 
   const current = await getFile<Hero>(`data/${params.game}/heroes/${params.id}.json`);
-  if (!current) return data({ errors: { _form: ["Hero file not found on GitHub"] } }, { status: 500 });
+  if (!current) return data({ errors: { _form: ["Hero file not found on GitHub"] } as const }, { status: 500 });
 
   if (intent === "commit") {
     await updateFile(`data/${params.game}/heroes/${params.id}.json`, parsed.data, current.sha, `Update hero: ${parsed.data.name}`);

@@ -4,8 +4,10 @@ import { PatchSchema } from "~/schemas/patch";
 import { getFile, createFile } from "~/lib/github.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
+import { assertSafeGameSlug } from "~/lib/safe-path";
 
 export async function action({ request, params }: Route.ActionArgs) {
+  assertSafeGameSlug(params.game);
   const formData = await request.formData();
   const changesRaw = formData.get("_changes") as string;
   let changes: Array<{ hero: string; field: string; from?: string; to?: string; note?: string }> = [];

@@ -9,7 +9,7 @@ export const ChangeSchema = z.object({
 });
 
 export const PatchSchema = z.object({
-  patch: z.string().min(1),
+  patch: z.string().min(1).regex(/^[a-z0-9][a-z0-9.-]*[a-z0-9]$|^[a-z0-9]$/, "Must be a valid patch ID (e.g. 2026.07)"),
   date: z.string().min(1),
   summary: z.string().optional(),
   changes: z.array(ChangeSchema).min(1, "At least one change required"),

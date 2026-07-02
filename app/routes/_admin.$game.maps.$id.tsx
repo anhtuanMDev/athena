@@ -4,14 +4,19 @@ import { MapSchema, type Map } from "~/schemas/map";
 import { getFile, updateFile, deleteFile } from "~/lib/github.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
+import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 
 export async function loader({ params }: Route.LoaderArgs) {
+  assertSafeGameSlug(params.game);
+  assertSafeEntityId(params.id);
   const file = await getFile<Map>(`data/${params.game}/maps/${params.id}.json`);
   if (!file) throw data("Map not found", { status: 404 });
   return { map: file.content, sha: file.sha };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
+  assertSafeGameSlug(params.game);
+  assertSafeEntityId(params.id);
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 

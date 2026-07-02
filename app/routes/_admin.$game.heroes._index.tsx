@@ -3,6 +3,7 @@ import type { Route } from "./+types/_admin.$game.heroes._index";
 import { listDirectory, getFile } from "~/lib/github.server";
 import { DataTable, type Column } from "~/components/DataTable";
 import { Button } from "~/components/ui/button";
+import { assertSafeGameSlug } from "~/lib/safe-path";
 
 interface HeroRow {
   id: string;
@@ -13,6 +14,7 @@ interface HeroRow {
 }
 
 export async function loader({ params }: Route.LoaderArgs) {
+  assertSafeGameSlug(params.game);
   const ids = await listDirectory(params.game, "heroes");
   const heroes = await Promise.all(
     ids.map(async (id) => {

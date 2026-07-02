@@ -1,50 +1,26 @@
 import { Form, redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.$game.heroes.new";
-import { HeroSchema, type Hero } from "~/schemas/hero";
+import { HeroSchema } from "~/schemas/hero";
 import { getFile, createFile } from "~/lib/github.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
+import { assertSafeGameSlug } from "~/lib/safe-path";
+import { buildHeroFromFormData } from "~/lib/parse-kit";
 
 export async function loader({ params }: Route.LoaderArgs) {
+  assertSafeGameSlug(params.game);
   const schemaFile = await getFile<{ roles: string[]; ability_types: string[] }>(`data/${params.game}/schema.json`);
   if (!schemaFile) throw data("Game schema not found", { status: 404 });
   return { roles: schemaFile.content.roles, abilityTypes: schemaFile.content.ability_types, game: params.game };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
+  assertSafeGameSlug(params.game);
   const formData = await request.formData();
   const raw = Object.fromEntries(formData);
+  const id = raw.id as string;
 
-  const kit: Hero["kit"] = [];
-  const kitCount = parseInt(raw._kitCount as string || "0");
-  for (let i = 0; i < kitCount; i++) {
-    const paramsEntries: Record<string, unknown> = {};
-    const paramKeys = (raw[`_kit_${i}_params_keys`] as string || "").split(",").filter(Boolean);
-    for (const key of paramKeys) {
-      paramsEntries[key] = raw[`kit_${i}_params_${key}`] ?? "";
-    }
-    kit.push({
-      id: raw[`kit_${i}_id`] as string,
-      name: raw[`kit_${i}_name`] as string,
-      type: raw[`kit_${i}_type`] as string,
-      description: raw[`kit_${i}_description`] as string || undefined,
-      params: paramsEntries,
-    });
-  }
-
-  const hero: Record<string, unknown> = {
-    id: raw.id as string,
-    game: params.game,
-    name: raw.name as string,
-    roles: (raw.roles as string || "").split(",").map((s: string) => s.trim()).filter(Boolean),
-    difficulty: raw.difficulty ? parseInt(raw.difficulty as string) : undefined,
-    health: { health: raw.health ? parseInt(raw.health as string) : undefined },
-    portrait: raw.portrait as string,
-    bio: raw.bio as string || undefined,
-    tags: (raw.tags as string || "").split(",").map((s: string) => s.trim()).filter(Boolean),
-    kit,
-  };
-
+  const hero = buildHeroFromFormData(formData, params.game, id);
   const parsed = HeroSchema.safeParse(hero);
   if (!parsed.success) {
     return data({ errors: parsed.error.flatten().fieldErrors, values: raw }, { status: 400 });

@@ -7,16 +7,19 @@ import { Button } from "~/components/ui/button";
 import { computeDiff, type DiffEntry } from "~/lib/diff";
 import { DiffView } from "~/components/DiffView";
 import { useState } from "react";
+import { assertSafeGameSlug, assertSafeStatFieldKey } from "~/lib/safe-path";
 
 type StatFieldType = "number" | "text" | "boolean" | "list";
 
 export async function loader({ params }: Route.LoaderArgs) {
+  assertSafeGameSlug(params.game);
   const file = await getFile<SchemaFile>(`data/${params.game}/schema.json`);
   if (!file) throw data("Schema not found", { status: 404 });
   return { schema: file.content, sha: file.sha, game: params.game };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
+  assertSafeGameSlug(params.game);
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
   const sha = formData.get("sha") as string;
@@ -29,6 +32,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     const match = key.match(/^stat_field_(.+)_(label|unit|type)$/);
     if (match) {
       const fieldKey = match[1];
+      assertSafeStatFieldKey(fieldKey);
       const fieldProp = match[2] as "label" | "unit" | "type";
       rawStatFields[fieldKey] = rawStatFields[fieldKey] ?? { label: "", unit: "", type: "number" as StatFieldType };
       if (fieldProp === "type") {
