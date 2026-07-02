@@ -2,6 +2,7 @@ import { redirect, useActionData, Form, data } from "react-router";
 import type { Route } from "./+types/login";
 import { login, createAdminSession, getAdminSession, SESSION_KEY } from "~/lib/session.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
+import { checkRateLimit, getClientIp, recordAttempt } from "~/lib/rate-limit.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await getAdminSession(request);
@@ -15,10 +16,21 @@ export async function action({ request }: Route.ActionArgs) {
   const formData = await request.formData();
   const password = formData.get("password") as string;
 
+  const ip = getClientIp(request);
+  const { allowed, retryAfter } = checkRateLimit(ip);
+  if (!allowed) {
+    return data(
+      { error: `Too many attempts. Try again in ${retryAfter} seconds.` },
+      { status: 429 },
+    );
+  }
+
   if (!password || !(await login(password))) {
+    recordAttempt(ip, false);
     return data({ error: "Invalid password" }, { status: 401 });
   }
 
+  recordAttempt(ip, true);
   const cookie = await createAdminSession(request);
   return redirect("/dashboard", { headers: { "Set-Cookie": cookie } });
 }

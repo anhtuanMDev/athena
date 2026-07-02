@@ -14,7 +14,7 @@ function getStorage(): SessionStorage {
         sameSite: "lax",
         path: "/",
         httpOnly: true,
-        secure: getEnv("NODE_ENV") === "production",
+        secure: getEnv("COOKIE_SECURE") !== "false",
         maxAge: 60 * 60 * 8,
       },
     });

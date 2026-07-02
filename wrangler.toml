@@ -4,9 +4,6 @@ compatibility_flags = ["nodejs_compat"]
 
 pages_build_output_dir = "./build/client"
 
-[env.production]
-vars = { NODE_ENV = "production" }
-
 # ==========================================================
 # Required secrets (set via `wrangler secret put`):
 #   GITHUB_TOKEN
@@ -15,4 +12,8 @@ vars = { NODE_ENV = "production" }
 #   GITHUB_BRANCH
 #   ADMIN_PASSWORD_HASH
 #   SESSION_SECRET
+#
+# Set these in the Cloudflare Pages dashboard (Settings → Environment variables):
+#   NODE_ENV = production
+#   COOKIE_SECURE = true   (set to "false" for local dev)
 # ==========================================================
