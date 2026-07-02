@@ -4,9 +4,8 @@ import { SchemaFileSchema, type SchemaFile } from "~/schemas/schema-file";
 import { getFile, updateFile } from "~/lib/github.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
-import { computeDiff, type DiffEntry } from "~/lib/diff";
+import { computeDiff } from "~/lib/diff";
 import { DiffView } from "~/components/DiffView";
-import { useState } from "react";
 import { assertSafeGameSlug, assertSafeStatFieldKey } from "~/lib/safe-path";
 
 type StatFieldType = "number" | "text" | "boolean" | "list";
@@ -22,7 +21,21 @@ export async function action({ request, params }: Route.ActionArgs) {
   assertSafeGameSlug(params.game);
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
-  const sha = formData.get("sha") as string;
+
+  if (intent === "commit") {
+    const json = formData.get("_schemaJson") as string;
+    let schemaData: unknown;
+    try { schemaData = JSON.parse(json); } catch {
+      return data({ errors: { _form: ["Invalid schema data in commit"] } as const }, { status: 400 });
+    }
+    const parsed = SchemaFileSchema.safeParse(schemaData);
+    if (!parsed.success) {
+      return data({ errors: { _form: ["Schema failed validation on commit"] } as const }, { status: 400 });
+    }
+    const sha = formData.get("sha") as string;
+    await updateFile(`data/${params.game}/schema.json`, parsed.data, sha, `Update schema: ${params.game}`);
+    return data({ success: true as const });
+  }
 
   const roles = (formData.get("roles") as string || "").split(",").map((s) => s.trim()).filter(Boolean);
   const abilityTypes = (formData.get("ability_types") as string || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -46,31 +59,25 @@ export async function action({ request, params }: Route.ActionArgs) {
   const schema: SchemaFile = { roles, ability_types: abilityTypes, stat_fields: rawStatFields };
   const parsed = SchemaFileSchema.safeParse(schema);
   if (!parsed.success) {
-    return data({ errors: parsed.error.flatten().fieldErrors, values: schema, sha, intent: "validate" as const }, { status: 400 });
+    return data({ errors: parsed.error.flatten().fieldErrors, values: schema, sha: formData.get("sha") as string, intent: "validate" as const }, { status: 400 });
   }
 
   const current = await getFile<SchemaFile>(`data/${params.game}/schema.json`);
   if (!current) return data({ errors: { _form: ["Could not read current schema"] } as const }, { status: 500 });
 
-  if (intent === "commit") {
-    await updateFile(`data/${params.game}/schema.json`, parsed.data, current.sha, `Update schema: ${params.game}`);
-    return data({ success: true as const, sha });
-  }
-
   const diffs = computeDiff(current.content, parsed.data);
-  return data({ diffs, values: parsed.data, sha: current.sha, intent: "preview" as const, game: params.game });
+  return data({ diffs, schemaJson: JSON.stringify(parsed.data), sha: current.sha, intent: "preview" as const });
 }
 
 export default function SchemaEditor({ loaderData, actionData }: Route.ComponentProps) {
   const { schema } = loaderData;
-  const [preview, setPreview] = useState<{ diffs: DiffEntry[]; values: SchemaFile; sha: string } | null>(null);
 
   const previewData = actionData && "diffs" in actionData && "intent" in actionData
-    ? actionData as { diffs: DiffEntry[]; values: SchemaFile; sha: string; intent: string }
+    ? actionData as { diffs: import("~/lib/diff").DiffEntry[]; schemaJson: string; sha: string; intent: string }
     : null;
-  const showDiffs = previewData?.diffs ?? preview?.diffs ?? null;
-  const currentSha = previewData?.sha ?? preview?.sha;
-  const currentValues = previewData?.values ?? preview?.values;
+  const showDiffs = previewData?.diffs ?? null;
+  const currentSha = previewData?.sha;
+  const currentValues: SchemaFile | undefined = previewData?.schemaJson ? JSON.parse(previewData.schemaJson) : undefined;
 
   if (showDiffs) {
     return (
@@ -80,8 +87,7 @@ export default function SchemaEditor({ loaderData, actionData }: Route.Component
         <Form method="post" className="flex gap-2">
           <input type="hidden" name="intent" value="commit" />
           <input type="hidden" name="sha" value={currentSha} />
-          <input type="hidden" name="roles" value={currentValues?.roles?.join(",") ?? schema.roles.join(",")} />
-          <input type="hidden" name="ability_types" value={currentValues?.ability_types?.join(",") ?? schema.ability_types.join(",")} />
+          <input type="hidden" name="_schemaJson" value={JSON.stringify(currentValues ?? schema)} />
           <Button type="submit">Confirm Commit</Button>
           <Button type="button" variant="secondary" onClick={() => window.history.back()}>Cancel</Button>
         </Form>

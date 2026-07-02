@@ -285,9 +285,20 @@ The hero form does not have a hardcoded field list for `params`. On load it:
 This is the same principle as the public app's rendering (`DATA_STRUCTURE.md` §3.3),
 reused here so the form and the eventual public display never drift apart.
 
-### 7.3 Review-before-commit step (every write action)
+### 7.3 Review-before-commit step (select entities)
 
-No action commits directly from a form submit. The flow is always:
+The review-before-commit two-phase flow (validate → preview diff → confirm commit) is
+implemented for **heroes**, **schemas**, and the **raw JSON editor** — these are the
+entities where a mistaken write is most destructive (schema wipes affect every hero
+form rendering; hero edits can silently drop fields).
+
+**Maps, modes, patches, items, and games** commit directly on the first form submit
+without a diff preview. This is an intentional v1 shortcut for simpler data types where
+the form fields map 1:1 to the file contents and the risk of silent data loss is lower.
+If these entities grow more complex form logic later, they should be migrated to the
+two-phase pattern.
+
+Where implemented, the flow is:
 1. Form submits to the route's `action` with `intent: "validate"`.
 2. Action validates with Zod, computes a diff against the current GitHub file
    (fetched fresh — not trusted from the loader, in case it changed since page load),
@@ -307,6 +318,14 @@ variables. On Cloudflare Pages Functions, `getLoadContext` receives `context.env
 the wrangler secrets/vars — `initEnv()` stores these, and `getEnv()`/`requireEnv()` read
 from them first, falling back to `process.env` for Node.js local dev. This ensures
 `GITHUB_TOKEN`, `SESSION_SECRET`, etc. work correctly in both runtimes.
+
+**Caveat: `NODE_ENV` on Cloudflare Pages.** The session cookie's `secure` flag depends on
+`getEnv("NODE_ENV") === "production"`. The `wrangler.toml` sets `NODE_ENV` under the
+`[env.production]` block, which is a Workers-style configuration. Cloudflare Pages
+environment variables are configured separately via the dashboard or CLI — they do not
+automatically inherit from `wrangler.toml`. Verify that `NODE_ENV` is set to `"production"`
+in the Pages project's environment variables before deploying, or the session cookie will
+ship without the `Secure` flag in production.
 
 ### 7.5 "Log as patch" shortcut
 
@@ -366,9 +385,12 @@ app/schemas/
 ```
 
 `hero.ts`'s `params` validation is the one dynamic case: since valid keys differ per
-game, the schema is built at request time as `z.record(z.string(), z.any())` and then
-individually checked against the current game's `stat_fields[key].type` in the action,
-rather than a single static Zod shape.
+game, the schema is built at request time as `z.record(z.string(), z.any())`. Before
+validation, the action's `buildHeroFromFormData` output is run through `coerceKitParams`,
+which reads the game's `schema.json` and coerces string values to numbers for any param
+key typed as `"number"` in `stat_fields`. This prevents `FormData.get()` (which always
+returns strings) from silently storing numeric values as strings, which would break
+client-side DPS calculators and type-aware rendering.
 
 ---
 

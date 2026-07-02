@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Form, redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.$game.heroes.new";
-import { HeroSchema } from "~/schemas/hero";
+import { HeroSchema, type Hero } from "~/schemas/hero";
 import { getFile, createFile } from "~/lib/github.server";
+import type { SchemaFile } from "~/schemas/schema-file";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
-import { buildHeroFromFormData } from "~/lib/parse-kit";
+import { buildHeroFromFormData, coerceKitParams } from "~/lib/parse-kit";
 
 interface AbilityForm {
   id: string; name: string; type: string; description: string;
@@ -26,6 +27,15 @@ export async function action({ request, params }: Route.ActionArgs) {
   const id = raw.id as string;
 
   const hero = buildHeroFromFormData(formData, params.game, id);
+
+  const schemaFile = await getFile<SchemaFile>(`data/${params.game}/schema.json`);
+  if (schemaFile) {
+    const rawKit = hero.kit;
+    if (Array.isArray(rawKit)) {
+      hero.kit = coerceKitParams(rawKit as Hero["kit"], schemaFile.content.stat_fields);
+    }
+  }
+
   const parsed = HeroSchema.safeParse(hero);
   if (!parsed.success) {
     return data({ errors: parsed.error.flatten().fieldErrors, values: raw }, { status: 400 });

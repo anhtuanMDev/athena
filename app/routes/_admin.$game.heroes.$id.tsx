@@ -3,12 +3,13 @@ import { Form, redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.$game.heroes.$id";
 import { HeroSchema, type Hero } from "~/schemas/hero";
 import { getFile, updateFile } from "~/lib/github.server";
+import type { SchemaFile } from "~/schemas/schema-file";
 import { computeDiff } from "~/lib/diff";
 import { DiffView } from "~/components/DiffView";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
-import { buildHeroFromFormData } from "~/lib/parse-kit";
+import { buildHeroFromFormData, coerceKitParams } from "~/lib/parse-kit";
 
 export async function loader({ params }: Route.LoaderArgs) {
   assertSafeGameSlug(params.game);
@@ -45,6 +46,15 @@ export async function action({ request, params }: Route.ActionArgs) {
   }
 
   const hero = buildHeroFromFormData(formData, params.game, params.id);
+
+  const schemaFile = await getFile<SchemaFile>(`data/${params.game}/schema.json`);
+  if (schemaFile) {
+    const rawKit = hero.kit;
+    if (Array.isArray(rawKit)) {
+      hero.kit = coerceKitParams(rawKit as Hero["kit"], schemaFile.content.stat_fields);
+    }
+  }
+
 
   const parsed = HeroSchema.safeParse(hero);
   if (!parsed.success) {

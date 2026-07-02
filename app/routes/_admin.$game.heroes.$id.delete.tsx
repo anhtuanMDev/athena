@@ -23,7 +23,16 @@ export async function action({ request, params }: Route.ActionArgs) {
       }
     }
 
-    return data({ hero: params.id, referencingPatches, needsConfirm: true });
+    const itemIds = await listDirectory(params.game, "items");
+    const referencingItems: string[] = [];
+    for (const itemId of itemIds) {
+      const itemFile = await getFile<{ hero?: string; effects: Array<{ ability_id: string }> }>(`data/${params.game}/items/${itemId}.json`);
+      if (itemFile?.content.hero === params.id) {
+        referencingItems.push(itemId);
+      }
+    }
+
+    return data({ hero: params.id, referencingPatches, referencingItems, needsConfirm: true });
   }
 
   const file = await getFile(`data/${params.game}/heroes/${params.id}.json`);
