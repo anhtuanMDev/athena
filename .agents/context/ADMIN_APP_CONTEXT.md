@@ -62,7 +62,7 @@ unless a cache-purge step is wired in (see §7.7).
 | Forms | React Hook Form + Zod (`@hookform/resolvers/zod`) | Zod schemas double as both form validation and the "is this file shape valid" check before commit — one schema, two uses. |
 | GitHub integration | `@octokit/rest`, used only inside `loader`/`action` functions | Never import Octokit or reference the token in any client component. |
 | Auth | Cookie session (e.g. `react-router`'s session storage) gating a single admin password *or* GitHub OAuth device flow | Single-admin tool — a hashed password in an env var is enough; GitHub OAuth is the upgrade path if you add collaborators later (see §9). |
-| Deployment | Cloudflare Pages (via the official RR7 Cloudflare adapter) | Same platform as the public Worker — one dashboard, one billing surface, and it can share Cloudflare KV for session storage if needed. |
+| Deployment | Cloudflare Pages (via `@react-router/cloudflare` adapter, react-router 8.1.x) Node.js (`@react-router/serve`) for local dev | Same platform as the public Worker — one dashboard, one billing surface, and it can share Cloudflare KV for session storage if needed. Local dev uses `npm run dev` (Vite HMR) or `npm start` (Node.js serve). |
 | Diffing | `deep-diff` or a small hand-rolled recursive diff | Powers the "review before commit" screen (§7.3). |
 
 ---
@@ -367,7 +367,37 @@ admin-app/
 
 ---
 
-## 11. Explicitly deferred (not v1)
+## 11. Deployment
+
+### Local development (Node.js)
+
+```bash
+npm run dev          # Vite HMR dev server (react-router dev)
+npm start            # Production Node.js server (react-router-serve)
+```
+
+Requires `.env` with `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO`, `GITHUB_BRANCH`, `ADMIN_PASSWORD_HASH`, `SESSION_SECRET`.
+
+### Cloudflare Pages (production)
+
+The app uses `@react-router/cloudflare` with a Pages Functions entry point at `functions/[[page]].ts`. The adapter's `createPagesFunctionHandler` serves both static assets and SSR requests.
+
+```bash
+npm run pages:dev    # wrangler pages dev (local CF preview)
+npm run pages:deploy # build + wrangler pages deploy
+```
+
+Secrets are set via `wrangler secret put` (see `wrangler.toml` for the full list). The `nodejs_compat` flag is enabled for Node.js API compatibility (bcryptjs, @octokit/rest).
+
+### Build output
+
+- `build/client/` — static assets (deployed to Cloudflare Pages CDN)
+- `build/server/index.js` — SSR server build (imported by `functions/[[page]].ts`)
+- `functions/[[page]].ts` — Cloudflare Pages Functions catch-all handler
+
+---
+
+## 12. Explicitly deferred (not v1)
 
 - Multi-admin roles/permissions.
 - PR-based review workflow (commit to a branch + open a PR instead of committing

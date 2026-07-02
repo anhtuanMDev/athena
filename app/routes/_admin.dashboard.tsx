@@ -1,0 +1,58 @@
+import type { Route } from "./+types/_admin.dashboard";
+import { listGames } from "~/lib/github.server";
+import { listDirectory } from "~/lib/github.server";
+import { Card, CardContent, CardHeader } from "~/components/ui/card";
+import { Link } from "react-router";
+
+export async function loader() {
+  const games = await listGames();
+  const gameStats = await Promise.all(
+    games.map(async (game) => {
+      if (!game.active) return { ...game, heroCount: 0, patchCount: 0 };
+      const heroes = await listDirectory(game.slug, "heroes");
+      const patches = await listDirectory(game.slug, "patches");
+      return { ...game, heroCount: heroes.length, patchCount: patches.length };
+    })
+  );
+  return { games: gameStats };
+}
+
+export default function Dashboard({ loaderData }: Route.ComponentProps) {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {loaderData.games.map((game) => (
+          <Card key={game.slug}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{game.name}</h2>
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${game.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
+                  {game.active ? "Active" : "Inactive"}
+                </span>
+              </div>
+              {game.developer && <p className="text-sm text-gray-500">{game.developer}</p>}
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-4 text-sm">
+                <div>
+                  <span className="font-semibold text-gray-900 dark:text-white">{game.heroCount}</span>
+                  <span className="text-gray-500 ml-1">heroes</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-900 dark:text-white">{game.patchCount}</span>
+                  <span className="text-gray-500 ml-1">patches</span>
+                </div>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <Link to={`/${game.slug}/heroes`} className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">Heroes</Link>
+                <Link to={`/${game.slug}/patches`} className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">Patches</Link>
+                <Link to={`/${game.slug}/schema`} className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">Schema</Link>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
