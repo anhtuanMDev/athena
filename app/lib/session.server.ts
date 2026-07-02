@@ -1,22 +1,29 @@
-import { createCookieSessionStorage, redirect } from "react-router";
+import { createCookieSessionStorage, redirect, type SessionStorage } from "react-router";
 import { getEnv, requireEnv } from "~/lib/env.server";
 
 const SESSION_KEY = "admin_session";
 
-const { getSession, commitSession, destroySession } = createCookieSessionStorage({
-  cookie: {
-    name: "__admin_session",
-    secrets: [requireEnv("SESSION_SECRET")],
-    sameSite: "lax",
-    path: "/",
-    httpOnly: true,
-    secure: getEnv("NODE_ENV") === "production",
-    maxAge: 60 * 60 * 8,
-  },
-});
+let _storage: SessionStorage | null = null;
+
+function getStorage(): SessionStorage {
+  if (!_storage) {
+    _storage = createCookieSessionStorage({
+      cookie: {
+        name: "__admin_session",
+        secrets: [requireEnv("SESSION_SECRET")],
+        sameSite: "lax",
+        path: "/",
+        httpOnly: true,
+        secure: getEnv("NODE_ENV") === "production",
+        maxAge: 60 * 60 * 8,
+      },
+    });
+  }
+  return _storage;
+}
 
 export async function getAdminSession(request: Request) {
-  const session = await getSession(request.headers.get("Cookie"));
+  const session = await getStorage().getSession(request.headers.get("Cookie"));
   return session;
 }
 
@@ -37,14 +44,16 @@ export async function login(password: string): Promise<boolean> {
 }
 
 export async function createAdminSession(request: Request) {
-  const session = await getSession(request.headers.get("Cookie"));
+  const storage = getStorage();
+  const session = await storage.getSession(request.headers.get("Cookie"));
   session.set(SESSION_KEY, true);
-  return commitSession(session);
+  return storage.commitSession(session);
 }
 
 export async function destroyAdminSession(request: Request) {
-  const session = await getSession(request.headers.get("Cookie"));
-  return destroySession(session);
+  const storage = getStorage();
+  const session = await storage.getSession(request.headers.get("Cookie"));
+  return storage.destroySession(session);
 }
 
 export { SESSION_KEY };

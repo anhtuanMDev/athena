@@ -62,28 +62,42 @@ export async function createFile(path: string, content: unknown, message?: strin
 export async function updateFile(path: string, content: unknown, sha: string, message?: string): Promise<void> {
   const octokit = getOctokit();
   const { owner, repo, branch } = getConfig();
-  await octokit.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path,
-    message: message ?? `Update ${path}`,
-    content: Buffer.from(JSON.stringify(content, null, 2)).toString("base64"),
-    sha,
-    branch,
-  });
+  try {
+    await octokit.repos.createOrUpdateFileContents({
+      owner,
+      repo,
+      path,
+      message: message ?? `Update ${path}`,
+      content: Buffer.from(JSON.stringify(content, null, 2)).toString("base64"),
+      sha,
+      branch,
+    });
+  } catch (err: unknown) {
+    if (err instanceof Error && "status" in err && (err as { status: number }).status === 409) {
+      throw new Error("Conflict: the file was modified since you loaded it. Please refresh and re-apply your changes.");
+    }
+    throw err;
+  }
 }
 
 export async function deleteFile(path: string, sha: string, message?: string): Promise<void> {
   const octokit = getOctokit();
   const { owner, repo, branch } = getConfig();
-  await octokit.repos.deleteFile({
-    owner,
-    repo,
-    path,
-    message: message ?? `Delete ${path}`,
-    sha,
-    branch,
-  });
+  try {
+    await octokit.repos.deleteFile({
+      owner,
+      repo,
+      path,
+      message: message ?? `Delete ${path}`,
+      sha,
+      branch,
+    });
+  } catch (err: unknown) {
+    if (err instanceof Error && "status" in err && (err as { status: number }).status === 409) {
+      throw new Error("Conflict: the file was modified since you loaded it. Please refresh and re-apply your changes.");
+    }
+    throw err;
+  }
 }
 
 export async function listDirectory(game: string, subpath: string): Promise<string[]> {

@@ -144,6 +144,7 @@ function HeroForm({ hero, roles }: { hero: Hero; roles: string[] }) {
                   className="text-xs text-red-500 hover:text-red-700">Remove</button>
               </div>
               <input type="hidden" name={`_kit_${i}_params_keys`} value={Object.keys(ability.params).join(",")} />
+              {ability.mode_overrides ? <input type="hidden" name={`_kit_${i}_mode_overrides`} value={JSON.stringify(ability.mode_overrides)} /> : null}
               <div className="grid grid-cols-3 gap-2 mb-2">
                 <input name={`kit_${i}_id`} defaultValue={ability.id} placeholder="id"
                   className="block w-full rounded border-gray-300 px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />

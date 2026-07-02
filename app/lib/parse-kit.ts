@@ -14,12 +14,19 @@ export function parseKitFromFormData(formData: FormData): Hero["kit"] {
       paramsEntries[key] = formData.get(`kit_${i}_params_${key}`) ?? "";
     }
 
+    const modeOverridesRaw = formData.get(`_kit_${i}_mode_overrides`) as string || "";
+    let mode_overrides: Record<string, Record<string, unknown>> | undefined;
+    if (modeOverridesRaw) {
+      try { mode_overrides = JSON.parse(modeOverridesRaw); } catch { mode_overrides = undefined; }
+    }
+
     kit.push({
       id: formData.get(`kit_${i}_id`) as string,
       name: formData.get(`kit_${i}_name`) as string,
       type: formData.get(`kit_${i}_type`) as string,
       description: (formData.get(`kit_${i}_description`) as string) || undefined,
       params: paramsEntries,
+      ...(mode_overrides && Object.keys(mode_overrides).length > 0 ? { mode_overrides } : {}),
     });
   }
 
@@ -57,13 +64,4 @@ export function buildHeroFromFormData(formData: FormData, game: string, id: stri
   };
 }
 
-export function serializeKitForForm(kit: Hero["kit"]): Record<string, unknown> {
-  return { _kitCount: String(kit.length), ...Object.assign({}, ...kit.flatMap((ability, i) => [
-    { [`kit_${i}_id`]: ability.id },
-    { [`kit_${i}_name`]: ability.name },
-    { [`kit_${i}_type`]: ability.type },
-    { [`kit_${i}_description`]: ability.description ?? "" },
-    { [`_kit_${i}_params_keys`]: Object.keys(ability.params).join(",") },
-    ...Object.entries(ability.params).map(([key, val]) => ({ [`kit_${i}_params_${key}`]: String(val ?? "") })),
-  ]))};
-}
+

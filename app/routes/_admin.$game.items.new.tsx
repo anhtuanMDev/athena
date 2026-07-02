@@ -47,7 +47,13 @@ export async function action({ request, params }: Route.ActionArgs) {
     return data({ errors: { _form: [`Unknown mode "${parsed.data.mode}"`] }, values: raw }, { status: 400 });
   }
 
-  if (parsed.data.hero) {
+  if (!parsed.data.hero) {
+    for (const effect of parsed.data.effects) {
+      if (effect.ability_id) {
+        return data({ errors: { _form: [`Universal items (no hero) cannot reference a hero-specific ability. Remove "ability_id" from effects or associate this item with a hero.`] }, values: raw }, { status: 400 });
+      }
+    }
+  } else {
     const heroFile = await getFile<{ kit: Array<{ id: string }> }>(`data/${params.game}/heroes/${parsed.data.hero}.json`);
     const abilityIds = new Set(heroFile?.content.kit.map(k => k.id) ?? []);
     for (const effect of parsed.data.effects) {

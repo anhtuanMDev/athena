@@ -31,7 +31,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   try { changes = JSON.parse(changesRaw); } catch { /* ignore */ }
 
   const parsed = PatchSchema.safeParse({
-    patch: formData.get("patch"),
+    patch: params.id,
     date: formData.get("date"),
     summary: formData.get("summary") || undefined,
     changes,
@@ -56,7 +56,11 @@ export default function EditPatch({ loaderData }: Route.ComponentProps) {
         <CardContent>
           <Form method="post" className="space-y-4">
             <input type="hidden" name="intent" value="update" />
-            <FormField name="patch" label="Patch ID" defaultValue={p.patch} />
+            <input type="hidden" name="patch" value={p.patch} />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Patch ID</label>
+              <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{p.patch}</p>
+            </div>
             <FormField name="date" label="Date" defaultValue={p.date} type="date" />
             <FormField name="summary" label="Summary" defaultValue={p.summary ?? ""} required={false} />
             <div className="space-y-2">
