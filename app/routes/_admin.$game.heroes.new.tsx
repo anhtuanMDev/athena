@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Form, redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.$game.heroes.new";
 import { HeroSchema } from "~/schemas/hero";
@@ -6,6 +7,10 @@ import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { buildHeroFromFormData } from "~/lib/parse-kit";
+
+interface AbilityForm {
+  id: string; name: string; type: string; description: string;
+}
 
 export async function loader({ params }: Route.LoaderArgs) {
   assertSafeGameSlug(params.game);
@@ -26,6 +31,10 @@ export async function action({ request, params }: Route.ActionArgs) {
     return data({ errors: parsed.error.flatten().fieldErrors, values: raw }, { status: 400 });
   }
 
+  if (!parsed.data.kit.length) {
+    return data({ errors: { _form: ["At least one ability is required"] } }, { status: 400 });
+  }
+
   const exists = await getFile(`data/${params.game}/heroes/${parsed.data.id}.json`);
   if (exists) {
     return data({ errors: { id: ["A hero with this ID already exists"] }, values: raw }, { status: 400 });
@@ -43,33 +52,74 @@ export default function NewHero({ loaderData }: Route.ComponentProps) {
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">New Hero — {loaderData.game}</h1>
         </CardHeader>
         <CardContent>
-          <Form method="post" className="space-y-4">
-            <input type="hidden" name="_kitCount" value="0" id="kitCount" />
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField name="id" label="Hero ID" placeholder="e.g. tracer" />
-              <FormField name="name" label="Name" placeholder="e.g. Tracer" />
-            </div>
-
-            <FormField name="roles" label={`Roles (${loaderData.roles.join(", ")})`} placeholder="e.g. damage" />
-            <FormField name="portrait" label="Portrait URL" placeholder="https://..." />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField name="difficulty" label="Difficulty (1-5)" type="number" required={false} />
-              <FormField name="health" label="Health" type="number" required={false} />
-            </div>
-            <FormField name="bio" label="Bio (optional)" required={false} />
-            <FormField name="tags" label="Tags (comma-separated, optional)" required={false} />
-
-            <div id="kitSection">
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Kit Abilities</h3>
-              <p className="text-xs text-gray-500 mb-2">Kit editor supports adding abilities. For v1, add abilities by editing the JSON directly.</p>
-            </div>
-
-            <Button type="submit">Create Hero</Button>
-          </Form>
+          <HeroForm roles={loaderData.roles} abilityTypes={loaderData.abilityTypes} />
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function HeroForm({ roles }: { roles: string[]; abilityTypes: string[] }) {
+  const [abilities, setAbilities] = useState<AbilityForm[]>([]);
+
+  function addAbility() {
+    setAbilities([...abilities, { id: "", name: "", type: "", description: "" }]);
+  }
+
+  function removeAbility(i: number) {
+    setAbilities(abilities.filter((_, idx) => idx !== i));
+  }
+
+  return (
+    <Form method="post" className="space-y-4">
+      <input type="hidden" name="_kitCount" value={String(abilities.length)} />
+
+      <div className="grid grid-cols-2 gap-4">
+        <FormField name="id" label="Hero ID" placeholder="e.g. tracer" />
+        <FormField name="name" label="Name" placeholder="e.g. Tracer" />
+      </div>
+
+      <FormField name="roles" label={`Roles (${roles.join(", ")})`} placeholder="e.g. damage" />
+      <FormField name="portrait" label="Portrait URL" placeholder="https://..." />
+      <div className="grid grid-cols-2 gap-4">
+        <FormField name="difficulty" label="Difficulty (1-5)" type="number" required={false} />
+        <FormField name="health" label="Health (JSON)" placeholder='{"health": 200}' required={false} />
+      </div>
+      <FormField name="bio" label="Bio (optional)" required={false} />
+      <FormField name="tags" label="Tags (comma-separated, optional)" required={false} />
+
+      <div>
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Kit Abilities</h3>
+        <div className="space-y-3">
+          {abilities.map((_, i) => (
+            <div key={i} className="p-3 border border-gray-200 dark:border-gray-700 rounded-md">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-500">Ability {i + 1}</span>
+                <button type="button" onClick={() => removeAbility(i)}
+                  className="text-xs text-red-500 hover:text-red-700">Remove</button>
+              </div>
+              <input type="hidden" name={`_kit_${i}_params_keys`} value="" />
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                <input name={`kit_${i}_id`} placeholder="id (kebab-case)"
+                  className="block w-full rounded border-gray-300 px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                <input name={`kit_${i}_name`} placeholder="name"
+                  className="block w-full rounded border-gray-300 px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                <input name={`kit_${i}_type`} placeholder="type"
+                  className="block w-full rounded border-gray-300 px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+              </div>
+              <input name={`kit_${i}_description`} placeholder="description (optional)"
+                className="mt-1 block w-full rounded border-gray-300 px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+            </div>
+          ))}
+        </div>
+        <button type="button" onClick={addAbility}
+          className="mt-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400">
+          + Add Ability
+        </button>
+      </div>
+
+      <Button type="submit">Create Hero</Button>
+    </Form>
   );
 }
 

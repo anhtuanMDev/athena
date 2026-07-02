@@ -187,21 +187,22 @@ This is the most complex page — see §7.1–§7.4 for the logic in detail. Str
   delete a file, to prevent silently overwriting someone else's concurrent edit).
   Also fetch this game's `schema.json` to drive the dynamic form.
 - **UI sections:**
-  1. **Core fields** — name, roles (multi-select from `schema.roles`), difficulty
-     (1–5), health/shields/armor, movement speed, portrait (URL or upload, §7.5), bio,
-     released date, tags.
-  2. **Kit builder** — repeatable list of ability blocks. Each block: name, `type`
-     (dropdown from `schema.ability_types`), description, and a **params editor**:
-     for every key already known in `schema.stat_fields`, render the correctly-typed
-     input (number/text/boolean/list) with its label and unit shown as a suffix; below
-     that, an "add custom field" control for a brand-new stat not yet in the schema —
-     picking this prompts "add `<key>` to this game's schema too?" and, if confirmed,
-     writes both the hero file and `schema.json` in the same review step.
-  3. **Review & commit** — see §7.3.
+  1. **Core fields** — name, roles (comma-separated input), difficulty
+     (1–5), health (JSON text field — supports freeform record like `{"health": 200, "shields": 50}`),
+     portrait (URL), bio, tags.
+  2. **Kit builder** — dynamic list of ability blocks managed via React `useState`.
+     Each block: `id`, `name`, `type`, `description`, and param inputs
+     (key-value pairs from `_kit_i_params_keys`). Add/Remove buttons update the list,
+     with `_kitCount` reflecting the current count for server-side parsing.
+  3. **Review & commit** — see §7.3. The commit step sends a `_heroJson` hidden field
+     containing the full validated hero object (JSON), avoiding form-field serialization
+     issues with dynamic kit data. The action re-validates this JSON against
+     `HeroSchema` before writing.
 - **Action:** validate full hero object against `HeroSchema` (Zod), diff against the
-  previous version (edit) or confirm as net-new (create), show the diff, on
-  confirmation call GitHub Contents API to write the file, commit message
-  auto-filled as `"Update hero: <name>"` / `"Add hero: <name>"` (editable).
+  previous version (edit) or confirm as net-new (create), show the diff on preview,
+  on confirmation (second POST with `intent=commit` + `_heroJson`) write the file.
+  For new heroes, creation is a single POST (no review step — the action validates,
+  checks for duplicates, and writes).
 
 ### 6.7 `/:game/heroes/:id/delete`
 - **Action only**, triggered from a confirm dialog on the edit page (not its own nav
@@ -299,7 +300,15 @@ No action commits directly from a form submit. The flow is always:
    conflict error and the user is told to refresh and redo the edit — this is the
    optimistic-concurrency guard mentioned in §6.6.
 
-### 7.4 "Log as patch" shortcut
+### 7.4 Environment variable handling (Cloudflare + Node.js)
+
+The app uses `app/lib/env.server.ts` as a single abstraction layer over environment
+variables. On Cloudflare Pages Functions, `getLoadContext` receives `context.env` with
+the wrangler secrets/vars — `initEnv()` stores these, and `getEnv()`/`requireEnv()` read
+from them first, falling back to `process.env` for Node.js local dev. This ensures
+`GITHUB_TOKEN`, `SESSION_SECRET`, etc. work correctly in both runtimes.
+
+### 7.5 "Log as patch" shortcut
 
 When step 2 above (the diff) touches any `kit[].params` value on an **edit** (not a
 create), the review screen offers a checkbox: "also record this as a patch change."

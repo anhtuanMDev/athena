@@ -1,19 +1,16 @@
 import { createCookieSessionStorage, redirect } from "react-router";
+import { getEnv, requireEnv } from "~/lib/env.server";
 
 const SESSION_KEY = "admin_session";
-
-if (!process.env.SESSION_SECRET) {
-  throw new Error("SESSION_SECRET env var is required — set a random string for cookie signing");
-}
 
 const { getSession, commitSession, destroySession } = createCookieSessionStorage({
   cookie: {
     name: "__admin_session",
-    secrets: [process.env.SESSION_SECRET],
+    secrets: [requireEnv("SESSION_SECRET")],
     sameSite: "lax",
     path: "/",
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: getEnv("NODE_ENV") === "production",
     maxAge: 60 * 60 * 8,
   },
 });
@@ -33,7 +30,7 @@ export async function requireAdmin(request: Request) {
 }
 
 export async function login(password: string): Promise<boolean> {
-  const hash = process.env.ADMIN_PASSWORD_HASH;
+  const hash = getEnv("ADMIN_PASSWORD_HASH");
   if (!hash) return false;
   const bcrypt = await import("bcryptjs");
   return bcrypt.compareSync(password, hash);

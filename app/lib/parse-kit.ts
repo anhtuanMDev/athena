@@ -29,16 +29,41 @@ export function parseKitFromFormData(formData: FormData): Hero["kit"] {
 export function buildHeroFromFormData(formData: FormData, game: string, id: string): Record<string, unknown> {
   const get = (name: string) => formData.get(name) as string | null;
 
+  const tagsRaw = get("tags") ?? "";
+  const tags = tagsRaw ? tagsRaw.split(",").map((s: string) => s.trim()).filter(Boolean) : undefined;
+
+  const rolesRaw = get("roles") ?? "";
+  const roles = rolesRaw.split(",").map((s: string) => s.trim()).filter(Boolean);
+
+  const healthRaw = get("health");
+  let health: Record<string, number> | undefined;
+  if (healthRaw) {
+    try { health = JSON.parse(healthRaw); } catch { health = { health: parseInt(healthRaw) }; }
+  }
+
+  const kit = parseKitFromFormData(formData);
+
   return {
     id,
     game,
     name: get("name") ?? "",
-    roles: (get("roles") ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
+    roles,
     difficulty: get("difficulty") ? parseInt(get("difficulty") as string) : undefined,
-    health: get("health") ? { health: parseInt(get("health") as string) } : undefined,
+    health,
     portrait: get("portrait") ?? "",
     bio: get("bio") || undefined,
-    tags: (get("tags") ?? "").split(",").map((s: string) => s.trim()).filter(Boolean),
-    kit: parseKitFromFormData(formData),
+    tags,
+    kit,
   };
+}
+
+export function serializeKitForForm(kit: Hero["kit"]): Record<string, unknown> {
+  return { _kitCount: String(kit.length), ...Object.assign({}, ...kit.flatMap((ability, i) => [
+    { [`kit_${i}_id`]: ability.id },
+    { [`kit_${i}_name`]: ability.name },
+    { [`kit_${i}_type`]: ability.type },
+    { [`kit_${i}_description`]: ability.description ?? "" },
+    { [`_kit_${i}_params_keys`]: Object.keys(ability.params).join(",") },
+    ...Object.entries(ability.params).map(([key, val]) => ({ [`kit_${i}_params_${key}`]: String(val ?? "") })),
+  ]))};
 }

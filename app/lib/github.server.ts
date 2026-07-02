@@ -1,21 +1,20 @@
 import { Octokit } from "@octokit/rest";
+import { requireEnv, getEnv } from "~/lib/env.server";
 
 let _octokit: Octokit | null = null;
 
 function getOctokit(): Octokit {
   if (!_octokit) {
-    const token = process.env.GITHUB_TOKEN;
-    if (!token) throw new Error("GITHUB_TOKEN env var is required");
-    _octokit = new Octokit({ auth: token });
+    _octokit = new Octokit({ auth: requireEnv("GITHUB_TOKEN") });
   }
   return _octokit;
 }
 
 function getConfig() {
   return {
-    owner: process.env.GITHUB_OWNER ?? "YOUR_ORG",
-    repo: process.env.GITHUB_REPO ?? "YOUR_REPO",
-    branch: process.env.GITHUB_BRANCH ?? "main",
+    owner: requireEnv("GITHUB_OWNER"),
+    repo: requireEnv("GITHUB_REPO"),
+    branch: getEnv("GITHUB_BRANCH") ?? "main",
   };
 }
 

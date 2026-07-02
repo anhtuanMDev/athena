@@ -1,10 +1,11 @@
 import type { Route } from "./+types/_admin.activity";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
+import { getEnv } from "~/lib/env.server";
 
 export async function loader() {
-  const token = process.env.GITHUB_TOKEN;
-  const owner = process.env.GITHUB_OWNER ?? "YOUR_ORG";
-  const repo = process.env.GITHUB_REPO ?? "YOUR_REPO";
+  const token = getEnv("GITHUB_TOKEN");
+  const owner = getEnv("GITHUB_OWNER") ?? "YOUR_ORG";
+  const repo = getEnv("GITHUB_REPO") ?? "YOUR_REPO";
 
   if (!token) {
     return { commits: [], error: "GITHUB_TOKEN not configured" };
