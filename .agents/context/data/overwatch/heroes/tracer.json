@@ -1,0 +1,59 @@
+{
+  "id": "tracer",
+  "game": "overwatch",
+  "name": "Tracer",
+  "roles": ["damage"],
+  "difficulty": 3,
+  "health": { "health": 150, "shields": 0, "armor": 0 },
+  "movement_speed": 6.0,
+  "portrait": "https://raw.githubusercontent.com/YOUR_ORG/YOUR_REPO/main/data/overwatch/heroes/img/tracer.png",
+  "bio": "A former test pilot who can manipulate her personal chronal flow, blinking through space and rewinding her recent past.",
+  "released": "2016-05-24",
+  "last_updated_patch": "2026.06",
+  "kit": [
+    {
+      "id": "pulse_pistols",
+      "name": "Pulse Pistols",
+      "type": "primary",
+      "description": "Dual-wielded automatic pistols effective at close range.",
+      "params": {
+        "damage_per_shot": 3,
+        "fire_rate": 20,
+        "ammo": 40
+      }
+    },
+    {
+      "id": "blink",
+      "name": "Blink",
+      "type": "mobility",
+      "description": "Teleport a short distance in the direction Tracer is moving.",
+      "params": {
+        "charges": 3,
+        "recharge_time_s": 3,
+        "distance_m": 7
+      }
+    },
+    {
+      "id": "recall",
+      "name": "Recall",
+      "type": "secondary",
+      "description": "Rewind several seconds, returning to a prior position, health, and ammo state.",
+      "params": {
+        "recharge_time_s": 12,
+        "rewind_window_s": 3
+      }
+    },
+    {
+      "id": "pulse_bomb",
+      "name": "Pulse Bomb",
+      "type": "ultimate",
+      "description": "Throw an adhesive bomb that detonates after a short delay, dealing heavy area damage.",
+      "params": {
+        "cost_ult_percent": 100,
+        "damage": 400,
+        "radius_m": 4
+      }
+    }
+  ],
+  "tags": ["mobility", "flanker", "high-skill-ceiling"]
+}

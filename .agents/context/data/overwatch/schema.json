@@ -1,0 +1,19 @@
+{
+  "roles": ["tank", "damage", "support"],
+  "ability_types": ["primary", "secondary", "mobility", "ultimate", "passive"],
+  "stat_fields": {
+    "damage_per_shot": { "label": "Damage / Shot", "unit": "", "type": "number" },
+    "fire_rate": { "label": "Fire Rate", "unit": "/s", "type": "number" },
+    "ammo": { "label": "Ammo", "unit": "", "type": "number" },
+    "charges": { "label": "Charges", "unit": "", "type": "number" },
+    "recharge_time_s": { "label": "Recharge Time", "unit": "s", "type": "number" },
+    "distance_m": { "label": "Distance", "unit": "m", "type": "number" },
+    "cost_ult_percent": { "label": "Ult Cost", "unit": "%", "type": "number" },
+    "damage": { "label": "Damage", "unit": "", "type": "number" },
+    "radius_m": { "label": "Radius", "unit": "m", "type": "number" },
+    "health": { "label": "Health", "unit": "", "type": "number" },
+    "shields": { "label": "Shields", "unit": "", "type": "number" },
+    "armor": { "label": "Armor", "unit": "", "type": "number" },
+    "movement_speed": { "label": "Movement Speed", "unit": "m/s", "type": "number" }
+  }
+}

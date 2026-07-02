@@ -1,0 +1,13 @@
+{
+  "roles": ["vanguard", "duelist", "strategist"],
+  "ability_types": ["primary", "secondary", "mobility", "ultimate", "passive", "team_up"],
+  "stat_fields": {
+    "damage_per_shot": { "label": "Damage / Shot", "unit": "", "type": "number" },
+    "health": { "label": "Health", "unit": "", "type": "number" },
+    "cooldown_s": { "label": "Cooldown", "unit": "s", "type": "number" },
+    "heal_per_second": { "label": "Healing", "unit": "/s", "type": "number" },
+    "cost_ult_percent": { "label": "Ult Cost", "unit": "%", "type": "number" },
+    "team_up_partners": { "label": "Team-Up Partners", "unit": "", "type": "list" },
+    "team_up_effect": { "label": "Team-Up Effect", "unit": "", "type": "text" }
+  }
+}
