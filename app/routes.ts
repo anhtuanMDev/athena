@@ -46,6 +46,12 @@ export default [
       route(":id", "routes/_admin.$game.patches.$id.tsx"),
     ]),
 
+    ...prefix(":game/items", [
+      index("routes/_admin.$game.items._index.tsx"),
+      route("new", "routes/_admin.$game.items.new.tsx"),
+      route(":id", "routes/_admin.$game.items.$id.tsx"),
+    ]),
+
     route(":game/raw/:type/:id", "routes/_admin.$game.raw.$type.$id.tsx"),
   ]),
 ] satisfies RouteConfig;

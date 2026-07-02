@@ -6,6 +6,7 @@ export const KitItemSchema = z.object({
   type: z.string().min(1, "Type is required"),
   description: z.string().optional(),
   params: z.record(z.string(), z.any()),
+  mode_overrides: z.record(z.string(), z.record(z.string(), z.any())).optional(),
 });
 
 export const HealthSchema = z.record(z.string(), z.number()).optional();

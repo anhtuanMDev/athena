@@ -38,6 +38,7 @@ export function SidebarNav({ games }: { games: GameSection[] }) {
             <NavLink href={`/${game.slug}/maps`} label="Maps" isActive={isActive(`/${game.slug}/maps`)} />
             <NavLink href={`/${game.slug}/modes`} label="Modes" isActive={isActive(`/${game.slug}/modes`)} />
             <NavLink href={`/${game.slug}/patches`} label="Patches" isActive={isActive(`/${game.slug}/patches`)} />
+            <NavLink href={`/${game.slug}/items`} label="Items" isActive={isActive(`/${game.slug}/items`)} />
             <NavLink href={`/${game.slug}/schema`} label="Schema" isActive={isActive(`/${game.slug}/schema`)} />
           </div>
         ))}

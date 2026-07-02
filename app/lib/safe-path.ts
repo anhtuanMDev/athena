@@ -1,6 +1,8 @@
 const SAFE_SLUG = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
-const SAFE_ENTITY_ID = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
-const SAFE_ENTITY_TYPE = /^(heroes|maps|modes|patches)$/;
+const SAFE_ENTITY_ID = /^[a-z0-9][a-z0-9.-]*[a-z0-9]$|^[a-z0-9]$/;
+export const ENTITY_TYPES = ["heroes", "maps", "modes", "patches", "items"] as const;
+type EntityType = (typeof ENTITY_TYPES)[number];
+const SAFE_ENTITY_TYPE = new RegExp(`^(${ENTITY_TYPES.join("|")})$`);
 const SAFE_STAT_FIELD_KEY = /^[a-z_][a-z0-9_]*$/;
 
 export function assertSafeGameSlug(slug: string): void {
@@ -15,7 +17,7 @@ export function assertSafeEntityId(id: string): void {
   }
 }
 
-export function assertSafeEntityType(type: string): asserts type is "heroes" | "maps" | "modes" | "patches" {
+export function assertSafeEntityType(type: string): asserts type is EntityType {
   if (!SAFE_ENTITY_TYPE.test(type)) {
     throw new Response(`Invalid entity type: ${type}`, { status: 400 });
   }
@@ -26,5 +28,3 @@ export function assertSafeStatFieldKey(key: string): void {
     throw new Response(`Invalid stat field key: ${key} — must match /^[a-z_][a-z0-9_]*$/`, { status: 400 });
   }
 }
-
-export { SAFE_SLUG, SAFE_ENTITY_ID, SAFE_ENTITY_TYPE, SAFE_STAT_FIELD_KEY };

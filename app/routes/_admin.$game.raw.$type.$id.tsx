@@ -5,18 +5,19 @@ import { computeDiff, type DiffEntry } from "~/lib/diff";
 import { DiffView } from "~/components/DiffView";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
-import { assertSafeGameSlug, assertSafeEntityId, assertSafeEntityType } from "~/lib/safe-path";
+import { assertSafeGameSlug, assertSafeEntityId, assertSafeEntityType, ENTITY_TYPES } from "~/lib/safe-path";
 import { HeroSchema } from "~/schemas/hero";
 import { MapSchema } from "~/schemas/map";
 import { ModeSchema } from "~/schemas/mode";
 import { PatchSchema } from "~/schemas/patch";
-import { SchemaFileSchema } from "~/schemas/schema-file";
+import { ItemSchema } from "~/schemas/item";
 
 const typeValidators: Record<string, (data: unknown) => { success: boolean }> = {
   heroes: HeroSchema.safeParse,
   maps: MapSchema.safeParse,
   modes: ModeSchema.safeParse,
   patches: PatchSchema.safeParse,
+  items: ItemSchema.safeParse,
 };
 
 export async function loader({ params }: Route.LoaderArgs) {
