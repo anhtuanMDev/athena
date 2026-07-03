@@ -5,8 +5,9 @@
   "scripts": {
     "build": "react-router build",
     "dev": "react-router dev",
+    "dev:api": "npx wrangler pages dev --port 8788",
     "typecheck": "react-router typegen && tsc",
-    "pages:dev": "npm run build && wrangler pages dev",
+    "pages:dev": "npm run build && npx wrangler pages dev",
     "pages:deploy": "npm run build && wrangler pages deploy"
   },
   "dependencies": {
@@ -17,6 +18,7 @@
     "@mui/icons-material": "^9.1.1",
     "@mui/material": "^9.1.2",
     "@octokit/rest": "^22.0.1",
+    "@react-router/node": "^8.1.0",
     "animejs": "^4.5.0",
     "bcryptjs": "^3.0.3",
     "cookie": "^2.0.1",
@@ -25,7 +27,8 @@
     "react-dom": "^19.2.7",
     "react-hook-form": "^7.80.0",
     "react-router": "^8.1.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "isbot": "^5"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260702.1",
