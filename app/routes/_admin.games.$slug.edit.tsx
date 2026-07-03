@@ -2,8 +2,10 @@ import { Form, redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.games.$slug.edit";
 import { GameSchema } from "~/schemas/game";
 import { listGames, getFile, updateFile } from "~/lib/github.server";
+import { checkAdminRateLimit, recordAdminAttempt } from "~/lib/admin-rate-limit.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
+import { FormField } from "~/components/FormField";
 
 export async function loader({ params }: Route.LoaderArgs) {
   const games = await listGames();
@@ -13,6 +15,11 @@ export async function loader({ params }: Route.LoaderArgs) {
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
+  const { allowed } = checkAdminRateLimit(request);
+  if (!allowed) {
+    return data({ errors: { _form: ["Too many requests. Try again later."] } }, { status: 429 });
+  }
+
   const formData = Object.fromEntries(await request.formData());
   const parsed = GameSchema.safeParse({
     ...formData,
@@ -32,6 +39,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     ),
   };
   await updateFile("data/_meta/games.json", updated, file.sha, `Update game: ${parsed.data.name}`);
+  recordAdminAttempt(request, true);
   throw redirect("/games");
 }
 
@@ -67,18 +75,4 @@ export default function EditGame({ loaderData }: Route.ComponentProps) {
   );
 }
 
-function FormField({ name, label, defaultValue, required = true }: { name: string; label: string; defaultValue?: string; required?: boolean }) {
-  return (
-    <div>
-      <label htmlFor={name} className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
-      <input
-        id={name}
-        name={name}
-        type="text"
-        required={required}
-        defaultValue={defaultValue}
-        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-      />
-    </div>
-  );
-}
+

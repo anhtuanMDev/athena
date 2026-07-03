@@ -60,7 +60,17 @@ export function buildHeroFromFormData(formData: FormData, game: string, id: stri
   const healthRaw = get("health");
   let health: Record<string, number> | undefined;
   if (healthRaw) {
-    try { health = JSON.parse(healthRaw); } catch { health = { health: parseInt(healthRaw) }; }
+    try {
+      const parsed = JSON.parse(healthRaw);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        health = Object.fromEntries(
+          Object.entries(parsed).map(([k, v]) => [k, typeof v === "number" ? v : NaN]),
+        );
+      }
+    } catch {
+      const parsed = parseInt(healthRaw);
+      health = isNaN(parsed) ? undefined : { health: parsed };
+    }
   }
 
   const kit = parseKitFromFormData(formData);

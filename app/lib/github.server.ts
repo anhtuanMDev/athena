@@ -123,7 +123,11 @@ export async function listDirectory(game: string, subpath: string): Promise<stri
 
 export async function listGames(): Promise<Array<{ slug: string; name: string; developer?: string; active: boolean; icon?: string }>> {
   const file = await getFile<{ games: Array<{ slug: string; name: string; developer?: string; active: boolean; icon?: string }> }>("data/_meta/games.json");
-  return file?.content.games ?? [];
+  if (!file) {
+    console.error("listGames: data/_meta/games.json not found — check GITHUB_OWNER, GITHUB_REPO, GITHUB_BRANCH env vars and that the file exists in the target repo.");
+    return [];
+  }
+  return file.content.games ?? [];
 }
 
 export async function getFileSha(path: string): Promise<string | null> {

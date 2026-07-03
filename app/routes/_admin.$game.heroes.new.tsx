@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { buildHeroFromFormData, coerceKitParams } from "~/lib/parse-kit";
+import { FormField } from "~/components/FormField";
+import { checkAdminRateLimit, recordAdminAttempt } from "~/lib/admin-rate-limit.server";
 
 interface AbilityForm {
   id: string; name: string; type: string; description: string;
@@ -22,6 +24,10 @@ export async function loader({ params }: Route.LoaderArgs) {
 
 export async function action({ request, params }: Route.ActionArgs) {
   assertSafeGameSlug(params.game);
+  const { allowed } = checkAdminRateLimit(request);
+  if (!allowed) {
+    return data({ errors: { _form: ["Too many requests. Try again later."] } }, { status: 429 });
+  }
   const formData = await request.formData();
   const raw = Object.fromEntries(formData);
   const id = raw.id as string;
@@ -51,6 +57,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   }
 
   await createFile(`data/${params.game}/heroes/${parsed.data.id}.json`, parsed.data, `Add hero: ${parsed.data.name}`);
+  recordAdminAttempt(request, true);
   throw redirect(`/${params.game}/heroes`);
 }
 
@@ -133,18 +140,3 @@ function HeroForm({ roles }: { roles: string[]; abilityTypes: string[] }) {
   );
 }
 
-function FormField({ name, label, placeholder, type = "text", required = true }: { name: string; label: string; placeholder?: string; type?: string; required?: boolean }) {
-  return (
-    <div>
-      <label htmlFor={name} className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
-      <input
-        id={name}
-        name={name}
-        type={type}
-        required={required}
-        placeholder={placeholder}
-        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-      />
-    </div>
-  );
-}

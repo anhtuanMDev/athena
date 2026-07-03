@@ -1,12 +1,15 @@
-import { Outlet, redirect } from "react-router";
+import { data, Outlet, redirect, useRouteLoaderData } from "react-router";
 import type { Route } from "./+types/_admin";
 import { requireAdmin } from "~/lib/session.server";
 import { listGames } from "~/lib/github.server";
 import { SidebarNav } from "~/components/SidebarNav";
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, params }: Route.LoaderArgs) {
   await requireAdmin(request);
   const games = await listGames();
+  if (params.game && !games.some((g) => g.slug === params.game)) {
+    throw data(`Game "${params.game}" not found`, { status: 404 });
+  }
   return { games: games.filter((g) => g.active).map((g) => ({ slug: g.slug, name: g.name })) };
 }
 

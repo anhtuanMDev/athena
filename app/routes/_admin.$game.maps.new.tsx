@@ -5,9 +5,15 @@ import { getFile, createFile } from "~/lib/github.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
+import { FormField } from "~/components/FormField";
+import { checkAdminRateLimit, recordAdminAttempt } from "~/lib/admin-rate-limit.server";
 
 export async function action({ request, params }: Route.ActionArgs) {
   assertSafeGameSlug(params.game);
+  const { allowed } = checkAdminRateLimit(request);
+  if (!allowed) {
+    return data({ errors: { _form: ["Too many requests. Try again later."] } }, { status: 429 });
+  }
   const formData = Object.fromEntries(await request.formData());
   const parsed = MapSchema.safeParse({
     ...formData,
@@ -20,6 +26,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   const exists = await getFile(`data/${params.game}/maps/${parsed.data.id}.json`);
   if (exists) return data({ errors: { id: ["A map with this ID already exists"] } }, { status: 400 });
   await createFile(`data/${params.game}/maps/${parsed.data.id}.json`, parsed.data, `Add map: ${parsed.data.name}`);
+  recordAdminAttempt(request, true);
   throw redirect(`/${params.game}/maps`);
 }
 
@@ -42,12 +49,3 @@ export default function NewMap() {
   );
 }
 
-function FormField({ name, label, required = true }: { name: string; label: string; required?: boolean }) {
-  return (
-    <div>
-      <label htmlFor={name} className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
-      <input id={name} name={name} type="text" required={required}
-        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
-    </div>
-  );
-}

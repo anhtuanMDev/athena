@@ -1,11 +1,18 @@
 import { Form, redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.games.new";
 import { GameSchema } from "~/schemas/game";
-import { listGames, getFile, updateFile } from "~/lib/github.server";
+import { getFile, updateFile } from "~/lib/github.server";
+import { checkAdminRateLimit, recordAdminAttempt } from "~/lib/admin-rate-limit.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
+import { FormField } from "~/components/FormField";
 
 export async function action({ request }: Route.ActionArgs) {
+  const { allowed } = checkAdminRateLimit(request);
+  if (!allowed) {
+    return data({ errors: { _form: ["Too many requests. Try again later."] } }, { status: 429 });
+  }
+
   const formData = Object.fromEntries(await request.formData());
   const parsed = GameSchema.safeParse({
     ...formData,
@@ -16,16 +23,16 @@ export async function action({ request }: Route.ActionArgs) {
     return data({ errors: parsed.error.flatten().fieldErrors, values: formData }, { status: 400 });
   }
 
-  const existing = await listGames();
-  if (existing.some((g) => g.slug === parsed.data.slug)) {
-    return data({ errors: { slug: ["A game with this slug already exists"] }, values: formData }, { status: 400 });
-  }
-
   const file = await getFile<{ games: unknown[] }>("data/_meta/games.json");
   if (!file) return data({ errors: { _form: ["Could not read games.json"] } }, { status: 500 });
 
+  if (file.content.games.some((g: unknown) => typeof g === "object" && g !== null && (g as Record<string, unknown>).slug === parsed.data.slug)) {
+    return data({ errors: { slug: ["A game with this slug already exists"] }, values: formData }, { status: 400 });
+  }
+
   const updated = { games: [...file.content.games, parsed.data] };
   await updateFile("data/_meta/games.json", updated, file.sha, `Add game: ${parsed.data.name}`);
+  recordAdminAttempt(request, true);
   throw redirect("/games");
 }
 
@@ -49,22 +56,6 @@ export default function NewGame() {
           </Form>
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-function FormField({ name, label, placeholder, required = true }: { name: string; label: string; placeholder?: string; required?: boolean }) {
-  return (
-    <div>
-      <label htmlFor={name} className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
-      <input
-        id={name}
-        name={name}
-        type="text"
-        required={required}
-        placeholder={placeholder}
-        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-      />
     </div>
   );
 }

@@ -5,6 +5,8 @@ import { getFile, updateFile, deleteFile } from "~/lib/github.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
+import { FormField } from "~/components/FormField";
+import { checkAdminRateLimit, recordAdminAttempt } from "~/lib/admin-rate-limit.server";
 
 export async function loader({ params }: Route.LoaderArgs) {
   assertSafeGameSlug(params.game);
@@ -17,12 +19,17 @@ export async function loader({ params }: Route.LoaderArgs) {
 export async function action({ request, params }: Route.ActionArgs) {
   assertSafeGameSlug(params.game);
   assertSafeEntityId(params.id);
+  const { allowed } = checkAdminRateLimit(request);
+  if (!allowed) {
+    return data({ errors: { _form: ["Too many requests. Try again later."] } }, { status: 429 });
+  }
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 
   if (intent === "delete") {
     const sha = formData.get("sha") as string;
     await deleteFile(`data/${params.game}/patches/${params.id}.json`, sha, `Delete patch: ${params.id}`);
+    recordAdminAttempt(request, true);
     throw redirect(`/${params.game}/patches`);
   }
 
@@ -44,6 +51,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   const current = await getFile(`data/${params.game}/patches/${params.id}.json`);
   if (!current) throw data("Patch not found", { status: 404 });
   await updateFile(`data/${params.game}/patches/${params.id}.json`, parsed.data, current.sha, `Update patch: ${parsed.data.patch}`);
+  recordAdminAttempt(request, true);
   throw redirect(`/${params.game}/patches`);
 }
 
@@ -85,12 +93,3 @@ export default function EditPatch({ loaderData }: Route.ComponentProps) {
   );
 }
 
-function FormField({ name, label, defaultValue, type = "text", required = true }: { name: string; label: string; defaultValue?: string; type?: string; required?: boolean }) {
-  return (
-    <div>
-      <label htmlFor={name} className="block text-sm font-medium">{label}</label>
-      <input id={name} name={name} type={type} required={required} defaultValue={defaultValue}
-        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
-    </div>
-  );
-}
