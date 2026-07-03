@@ -122,9 +122,16 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
+class AuthError extends Error {
+  constructor() {
+    super("unauthorized");
+    this.name = "AuthError";
+  }
+}
+
 function requireAuth(context: PagesFunctionContext): Promise<void> {
   return verifySession(context.request, context.env.SESSION_SECRET).then((ok) => {
-    if (!ok) throw new Response(null, { status: 401 });
+    if (!ok) throw new AuthError();
   });
 }
 
@@ -141,17 +148,18 @@ export async function onRequest(context: PagesFunctionContext): Promise<Response
   const path = url.pathname.replace(/^\/api\//, "").replace(/\/$/, "");
 
   try {
-    if (path === "auth/login" && request.method === "POST") return handleLogin(request, env);
-    if (path === "auth/logout" && request.method === "POST") return handleLogout(request, env);
-    if (path === "auth/check" && request.method === "GET") return handleCheck(request, env);
-    if (path === "data/file" && request.method === "GET") return handleGetFile(request, env);
-    if (path === "data/file" && request.method === "POST") return handleWriteFile(request, env);
-    if (path === "data/file" && request.method === "DELETE") return handleDeleteFile(request, env);
-    if (path === "data/directory" && request.method === "GET") return handleListDirectory(request, env);
-    if (path === "data/games" && request.method === "GET") return handleListGames(request, env);
-    if (path === "data/commits" && request.method === "GET") return handleCommits(request, env);
+    if (path === "auth/login" && request.method === "POST") return await handleLogin(request, env);
+    if (path === "auth/logout" && request.method === "POST") return await handleLogout(request, env);
+    if (path === "auth/check" && request.method === "GET") return await handleCheck(request, env);
+    if (path === "data/file" && request.method === "GET") return await handleGetFile(request, env);
+    if (path === "data/file" && request.method === "POST") return await handleWriteFile(request, env);
+    if (path === "data/file" && request.method === "DELETE") return await handleDeleteFile(request, env);
+    if (path === "data/directory" && request.method === "GET") return await handleListDirectory(request, env);
+    if (path === "data/games" && request.method === "GET") return await handleListGames(request, env);
+    if (path === "data/commits" && request.method === "GET") return await handleCommits(request, env);
     return json({ error: "Not found" }, 404);
   } catch (err) {
+    if (err instanceof AuthError) return json({ error: "Unauthorized" }, 401);
     if (err instanceof Response) return err;
     const message = err instanceof Error ? err.message : "Internal server error";
     return json({ error: message }, 500);
