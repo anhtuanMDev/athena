@@ -1,6 +1,6 @@
 import { redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.$game.heroes.$id.delete";
-import { getFile, deleteFile, listDirectory } from "~/lib/github.server";
+import { getFile, deleteFile, listDirectory, ConflictError, isConflictError, conflictResponse } from "~/lib/github.server";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -38,7 +38,14 @@ export async function action({ request, params }: Route.ActionArgs) {
   const file = await getFile(`data/${params.game}/heroes/${params.id}.json`);
   if (!file) throw data("Hero not found", { status: 404 });
 
-  await deleteFile(`data/${params.game}/heroes/${params.id}.json`, file.sha, `Delete hero: ${params.id}`);
+  try {
+    await deleteFile(`data/${params.game}/heroes/${params.id}.json`, file.sha, `Delete hero: ${params.id}`);
+  } catch (err) {
+    if (isConflictError(err)) {
+      return data(conflictResponse(), { status: 409 });
+    }
+    throw err;
+  }
   throw redirect(`/${params.game}/heroes`);
 }
 

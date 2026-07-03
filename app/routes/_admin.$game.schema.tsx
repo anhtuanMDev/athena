@@ -1,7 +1,7 @@
 import { Form, redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.$game.schema";
 import { SchemaFileSchema, type SchemaFile } from "~/schemas/schema-file";
-import { getFile, updateFile } from "~/lib/github.server";
+import { getFile, updateFile, ConflictError, isConflictError, conflictResponse } from "~/lib/github.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { computeDiff } from "~/lib/diff";
@@ -33,7 +33,14 @@ export async function action({ request, params }: Route.ActionArgs) {
       return data({ errors: { _form: ["Schema failed validation on commit"] } as const }, { status: 400 });
     }
     const sha = formData.get("sha") as string;
-    await updateFile(`data/${params.game}/schema.json`, parsed.data, sha, `Update schema: ${params.game}`);
+    try {
+      await updateFile(`data/${params.game}/schema.json`, parsed.data, sha, `Update schema: ${params.game}`);
+    } catch (err) {
+      if (isConflictError(err)) {
+        return data(conflictResponse(), { status: 409 });
+      }
+      throw err;
+    }
     return data({ success: true as const });
   }
 

@@ -1,7 +1,7 @@
 import { Form, redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.$game.patches.$id";
 import { PatchSchema, type Patch } from "~/schemas/patch";
-import { getFile, updateFile, deleteFile } from "~/lib/github.server";
+import { getFile, updateFile, deleteFile, ConflictError, isConflictError, conflictResponse } from "~/lib/github.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
@@ -28,7 +28,14 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   if (intent === "delete") {
     const sha = formData.get("sha") as string;
-    await deleteFile(`data/${params.game}/patches/${params.id}.json`, sha, `Delete patch: ${params.id}`);
+    try {
+      await deleteFile(`data/${params.game}/patches/${params.id}.json`, sha, `Delete patch: ${params.id}`);
+    } catch (err) {
+      if (isConflictError(err)) {
+        return data(conflictResponse(), { status: 409 });
+      }
+      throw err;
+    }
     recordAdminAttempt(request, true);
     throw redirect(`/${params.game}/patches`);
   }
@@ -48,10 +55,17 @@ export async function action({ request, params }: Route.ActionArgs) {
     return data({ errors: parsed.error.flatten().fieldErrors }, { status: 400 });
   }
 
-  const current = await getFile(`data/${params.game}/patches/${params.id}.json`);
-  if (!current) throw data("Patch not found", { status: 404 });
-  await updateFile(`data/${params.game}/patches/${params.id}.json`, parsed.data, current.sha, `Update patch: ${parsed.data.patch}`);
-  recordAdminAttempt(request, true);
+    const current = await getFile(`data/${params.game}/patches/${params.id}.json`);
+    if (!current) throw data("Patch not found", { status: 404 });
+    try {
+      await updateFile(`data/${params.game}/patches/${params.id}.json`, parsed.data, current.sha, `Update patch: ${parsed.data.patch}`);
+    } catch (err) {
+      if (isConflictError(err)) {
+        return data(conflictResponse(), { status: 409 });
+      }
+      throw err;
+    }
+    recordAdminAttempt(request, true);
   throw redirect(`/${params.game}/patches`);
 }
 

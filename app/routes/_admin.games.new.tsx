@@ -1,7 +1,7 @@
 import { Form, redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.games.new";
 import { GameSchema } from "~/schemas/game";
-import { getFile, updateFile } from "~/lib/github.server";
+import { getFile, updateFile, ConflictError, isConflictError, conflictResponse } from "~/lib/github.server";
 import { checkAdminRateLimit, recordAdminAttempt } from "~/lib/admin-rate-limit.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -31,7 +31,14 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   const updated = { games: [...file.content.games, parsed.data] };
-  await updateFile("data/_meta/games.json", updated, file.sha, `Add game: ${parsed.data.name}`);
+  try {
+    await updateFile("data/_meta/games.json", updated, file.sha, `Add game: ${parsed.data.name}`);
+  } catch (err) {
+    if (isConflictError(err)) {
+      return data(conflictResponse(), { status: 409 });
+    }
+    throw err;
+  }
   recordAdminAttempt(request, true);
   throw redirect("/games");
 }

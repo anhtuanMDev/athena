@@ -1,7 +1,7 @@
 import { Form, redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.$game.maps.$id";
 import { MapSchema, type Map } from "~/schemas/map";
-import { getFile, updateFile, deleteFile } from "~/lib/github.server";
+import { getFile, updateFile, deleteFile, ConflictError, isConflictError, conflictResponse } from "~/lib/github.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
@@ -28,7 +28,14 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   if (intent === "delete") {
     const sha = formData.get("sha") as string;
-    await deleteFile(`data/${params.game}/maps/${params.id}.json`, sha, `Delete map: ${params.id}`);
+    try {
+      await deleteFile(`data/${params.game}/maps/${params.id}.json`, sha, `Delete map: ${params.id}`);
+    } catch (err) {
+      if (isConflictError(err)) {
+        return data(conflictResponse(), { status: 409 });
+      }
+      throw err;
+    }
     recordAdminAttempt(request, true);
     throw redirect(`/${params.game}/maps`);
   }
@@ -42,10 +49,17 @@ export async function action({ request, params }: Route.ActionArgs) {
   if (!parsed.success) {
     return data({ errors: parsed.error.flatten().fieldErrors }, { status: 400 });
   }
-  const current = await getFile(`data/${params.game}/maps/${params.id}.json`);
-  if (!current) throw data("Map not found", { status: 404 });
-  await updateFile(`data/${params.game}/maps/${params.id}.json`, parsed.data, current.sha, `Update map: ${parsed.data.name}`);
-  recordAdminAttempt(request, true);
+    const current = await getFile(`data/${params.game}/maps/${params.id}.json`);
+    if (!current) throw data("Map not found", { status: 404 });
+    try {
+      await updateFile(`data/${params.game}/maps/${params.id}.json`, parsed.data, current.sha, `Update map: ${parsed.data.name}`);
+    } catch (err) {
+      if (isConflictError(err)) {
+        return data(conflictResponse(), { status: 409 });
+      }
+      throw err;
+    }
+    recordAdminAttempt(request, true);
   throw redirect(`/${params.game}/maps`);
 }
 

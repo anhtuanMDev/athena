@@ -1,7 +1,7 @@
 import { Form, redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.$game.items.$id";
 import { ItemSchema, type Item } from "~/schemas/item";
-import { getFile, updateFile, deleteFile, listDirectory } from "~/lib/github.server";
+import { getFile, updateFile, deleteFile, listDirectory, ConflictError, isConflictError, conflictResponse } from "~/lib/github.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
@@ -30,7 +30,14 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   if (intent === "delete") {
     const sha = formData.get("sha") as string;
-    await deleteFile(`data/${params.game}/items/${params.id}.json`, sha, `Delete item: ${params.id}`);
+    try {
+      await deleteFile(`data/${params.game}/items/${params.id}.json`, sha, `Delete item: ${params.id}`);
+    } catch (err) {
+      if (isConflictError(err)) {
+        return data(conflictResponse(), { status: 409 });
+      }
+      throw err;
+    }
     recordAdminAttempt(request, true);
     throw redirect(`/${params.game}/items`);
   }
@@ -82,10 +89,17 @@ export async function action({ request, params }: Route.ActionArgs) {
     }
   }
 
-  const current = await getFile(`data/${params.game}/items/${params.id}.json`);
-  if (!current) throw data("Item not found", { status: 404 });
-  await updateFile(`data/${params.game}/items/${params.id}.json`, parsed.data, current.sha, `Update item: ${parsed.data.name}`);
-  recordAdminAttempt(request, true);
+    const current = await getFile(`data/${params.game}/items/${params.id}.json`);
+    if (!current) throw data("Item not found", { status: 404 });
+    try {
+      await updateFile(`data/${params.game}/items/${params.id}.json`, parsed.data, current.sha, `Update item: ${parsed.data.name}`);
+    } catch (err) {
+      if (isConflictError(err)) {
+        return data(conflictResponse(), { status: 409 });
+      }
+      throw err;
+    }
+    recordAdminAttempt(request, true);
   throw redirect(`/${params.game}/items`);
 }
 

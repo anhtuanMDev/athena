@@ -59,6 +59,15 @@ export async function createFile(path: string, content: unknown, message?: strin
   });
 }
 
+export class ConflictError extends Error {
+  path: string;
+  constructor(path: string) {
+    super(`Conflict on ${path}: the file was modified since you loaded it. Please refresh and re-apply your changes.`);
+    this.name = "ConflictError";
+    this.path = path;
+  }
+}
+
 export async function updateFile(path: string, content: unknown, sha: string, message?: string): Promise<void> {
   const octokit = getOctokit();
   const { owner, repo, branch } = getConfig();
@@ -74,7 +83,7 @@ export async function updateFile(path: string, content: unknown, sha: string, me
     });
   } catch (err: unknown) {
     if (err instanceof Error && "status" in err && (err as { status: number }).status === 409) {
-      throw new Error("Conflict: the file was modified since you loaded it. Please refresh and re-apply your changes.");
+      throw new ConflictError(path);
     }
     throw err;
   }
@@ -94,10 +103,18 @@ export async function deleteFile(path: string, sha: string, message?: string): P
     });
   } catch (err: unknown) {
     if (err instanceof Error && "status" in err && (err as { status: number }).status === 409) {
-      throw new Error("Conflict: the file was modified since you loaded it. Please refresh and re-apply your changes.");
+      throw new ConflictError(path);
     }
     throw err;
   }
+}
+
+export function isConflictError(err: unknown): err is ConflictError {
+  return err instanceof ConflictError;
+}
+
+export function conflictResponse() {
+  return { errors: { _form: ["Conflict: file was modified since loading. Refresh and re-apply."] } };
 }
 
 export async function listDirectory(game: string, subpath: string): Promise<string[]> {

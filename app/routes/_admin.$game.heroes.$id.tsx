@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Form, redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.$game.heroes.$id";
 import { HeroSchema, type Hero } from "~/schemas/hero";
-import { getFile, updateFile } from "~/lib/github.server";
+import { getFile, updateFile, ConflictError, isConflictError, conflictResponse } from "~/lib/github.server";
 import type { SchemaFile } from "~/schemas/schema-file";
 import { computeDiff } from "~/lib/diff";
 import { DiffView } from "~/components/DiffView";
@@ -47,7 +47,14 @@ export async function action({ request, params }: Route.ActionArgs) {
     }
     const current = await getFile<Hero>(`data/${params.game}/heroes/${params.id}.json`);
     if (!current) return data({ errors: { _form: ["Hero file not found on GitHub"] } as const }, { status: 500 });
-    await updateFile(`data/${params.game}/heroes/${params.id}.json`, parsed.data, current.sha, `Update hero: ${parsed.data.name}`);
+    try {
+      await updateFile(`data/${params.game}/heroes/${params.id}.json`, parsed.data, current.sha, `Update hero: ${parsed.data.name}`);
+    } catch (err) {
+      if (isConflictError(err)) {
+        return data(conflictResponse(), { status: 409 });
+      }
+      throw err;
+    }
     recordAdminAttempt(request, true);
     return data({ success: true as const });
   }

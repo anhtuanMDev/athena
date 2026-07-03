@@ -1,7 +1,7 @@
 import { Form, redirect, data } from "react-router";
 import type { Route } from "./+types/_admin.$game.modes.$id";
 import { ModeSchema, type Mode } from "~/schemas/mode";
-import { getFile, updateFile, deleteFile, listDirectory } from "~/lib/github.server";
+import { getFile, updateFile, deleteFile, listDirectory, ConflictError, isConflictError, conflictResponse } from "~/lib/github.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
@@ -48,18 +48,32 @@ export async function action({ request, params }: Route.ActionArgs) {
     }
     const current = await getFile(`data/${params.game}/modes/${params.id}.json`);
     if (!current) throw data("Mode not found", { status: 404 });
-    await deleteFile(`data/${params.game}/modes/${params.id}.json`, current.sha, `Delete mode: ${params.id}`);
+    try {
+      await deleteFile(`data/${params.game}/modes/${params.id}.json`, current.sha, `Delete mode: ${params.id}`);
+    } catch (err) {
+      if (isConflictError(err)) {
+        return data(conflictResponse(), { status: 409 });
+      }
+      throw err;
+    }
     recordAdminAttempt(request, true);
     throw redirect(`/${params.game}/modes`);
   }
   const raw = Object.fromEntries(formData);
   const parsed = ModeSchema.safeParse(raw);
   if (!parsed.success) return data({ errors: parsed.error.flatten().fieldErrors }, { status: 400 });
-  const current = await getFile(`data/${params.game}/modes/${params.id}.json`);
-  if (!current) throw data("Mode not found", { status: 404 });
-  await updateFile(`data/${params.game}/modes/${params.id}.json`, parsed.data, current.sha, `Update mode: ${parsed.data.name}`);
-  recordAdminAttempt(request, true);
-  throw redirect(`/${params.game}/modes`);
+    const current = await getFile(`data/${params.game}/modes/${params.id}.json`);
+    if (!current) throw data("Mode not found", { status: 404 });
+    try {
+      await updateFile(`data/${params.game}/modes/${params.id}.json`, parsed.data, current.sha, `Update mode: ${parsed.data.name}`);
+    } catch (err) {
+      if (isConflictError(err)) {
+        return data(conflictResponse(), { status: 409 });
+      }
+      throw err;
+    }
+    recordAdminAttempt(request, true);
+    throw redirect(`/${params.game}/modes`);
 }
 
 export default function EditMode({ loaderData, actionData }: Route.ComponentProps) {

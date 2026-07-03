@@ -1,6 +1,6 @@
 import { Form, redirect, data, useActionData } from "react-router";
 import type { Route } from "./+types/_admin.$game.raw.$type.$id";
-import { getFile, updateFile } from "~/lib/github.server";
+import { getFile, updateFile, ConflictError, isConflictError, conflictResponse } from "~/lib/github.server";
 import { computeDiff, type DiffEntry } from "~/lib/diff";
 import { DiffView } from "~/components/DiffView";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
@@ -58,7 +58,14 @@ export async function action({ request, params }: Route.ActionArgs) {
   if (!current) throw data("File not found", { status: 404 });
 
   if (intent === "commit") {
-    await updateFile(path, parsed, current.sha, `Update ${params.type}: ${params.id} (raw edit)`);
+    try {
+      await updateFile(path, parsed, current.sha, `Update ${params.type}: ${params.id} (raw edit)`);
+    } catch (err) {
+      if (isConflictError(err)) {
+        return data(conflictResponse(), { status: 409 });
+      }
+      throw err;
+    }
     return data({ success: true as const });
   }
 
