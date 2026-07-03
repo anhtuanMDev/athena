@@ -127,8 +127,10 @@ export default function EditItem() {
     setSubmitting(true);
     setError(null);
     try {
+      const current = await getFile(`data/${game}/items/${id}.json`);
+      if (!current) { setError("Item not found"); setSubmitting(false); return; }
       try {
-        await deleteFile(`data/${game}/items/${id}.json`, sha, `Delete item: ${id}`);
+        await deleteFile(`data/${game}/items/${id}.json`, current.sha, `Delete item: ${id}`);
       } catch (err) {
         if (isConflictError(err)) {
           setError("Conflict detected. Please try again.");

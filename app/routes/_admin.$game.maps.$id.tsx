@@ -73,11 +73,11 @@ export default function EditMap() {
     if (!confirm("Delete this map?")) return;
     setSubmitting(true);
     setError(null);
-    const formData = new FormData(e.currentTarget);
     try {
-      const sha = formData.get("sha") as string;
+      const current = await getFile(`data/${game}/maps/${id}.json`);
+      if (!current) { setError("Map not found"); setSubmitting(false); return; }
       try {
-        await deleteFile(`data/${game}/maps/${id}.json`, sha, `Delete map: ${id}`);
+        await deleteFile(`data/${game}/maps/${id}.json`, current.sha, `Delete map: ${id}`);
       } catch (err) {
         if (isConflictError(err)) {
           setError("Conflict detected. Please try again.");

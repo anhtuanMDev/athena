@@ -107,6 +107,14 @@ function destroySessionCookie(): string {
   return `${SESSION_KEY}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 }
 
+const SAFE_FILE_PATH = /^data\/[a-z0-9][a-z0-9-]*\/[a-z]+\/[a-z0-9][a-z0-9.-]*\.json$/;
+
+function assertSafeFilePath(path: string): void {
+  if (path.includes("..")) {
+    throw new Response(null, { status: 400 });
+  }
+}
+
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -154,7 +162,7 @@ async function handleLogin(request: Request, env: Record<string, string>): Promi
   const ip = getClientIp(request);
   const { allowed, retryAfter } = checkRateLimit(ip);
   if (!allowed) {
-    return json({ error: "Too many attempts", retryAfter, ip }, 429);
+    return json({ error: "Too many attempts", retryAfter }, 429);
   }
 
   const body: { password?: string } = await request.json().catch(() => ({}));
@@ -202,6 +210,7 @@ async function handleGetFile(request: Request, env: Record<string, string>): Pro
   const url = new URL(request.url);
   const path = url.searchParams.get("path");
   if (!path) return json({ error: "path is required" }, 400);
+  assertSafeFilePath(path);
 
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
   const owner = env.GITHUB_OWNER;
@@ -227,6 +236,7 @@ async function handleWriteFile(request: Request, env: Record<string, string>): P
   await requireAuth({ request, env } as PagesFunctionContext);
   const body: { path: string; content: unknown; message?: string; sha?: string } = await request.json().catch(() => ({}));
   if (!body.path) return json({ error: "path is required" }, 400);
+  assertSafeFilePath(body.path);
 
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
   const owner = env.GITHUB_OWNER;
@@ -256,6 +266,7 @@ async function handleDeleteFile(request: Request, env: Record<string, string>): 
   await requireAuth({ request, env } as PagesFunctionContext);
   const body: { path: string; sha: string; message?: string } = await request.json().catch(() => ({}));
   if (!body.path || !body.sha) return json({ error: "path and sha are required" }, 400);
+  assertSafeFilePath(body.path);
 
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
   const owner = env.GITHUB_OWNER;
@@ -292,6 +303,8 @@ async function handleListDirectory(request: Request, env: Record<string, string>
   const repo = env.GITHUB_REPO;
   const branch = env.GITHUB_BRANCH ?? "main";
 
+  assertSafeFilePath(`data/${game}/${subpath}/dummy.json`);
+
   try {
     const { data } = await octokit.repos.getContent({
       owner,
@@ -312,7 +325,8 @@ async function handleListDirectory(request: Request, env: Record<string, string>
   }
 }
 
-async function handleListGames(_request: Request, env: Record<string, string>): Promise<Response> {
+async function handleListGames(request: Request, env: Record<string, string>): Promise<Response> {
+  await requireAuth({ request, env } as PagesFunctionContext);
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
   const owner = env.GITHUB_OWNER;
   const repo = env.GITHUB_REPO;
@@ -327,11 +341,13 @@ async function handleListGames(_request: Request, env: Record<string, string>): 
     }
     return json([]);
   } catch {
+    console.error("listGames: data/_meta/games.json not found — check GITHUB_OWNER, GITHUB_REPO, GITHUB_BRANCH env vars");
     return json([]);
   }
 }
 
-async function handleCommits(_request: Request, env: Record<string, string>): Promise<Response> {
+async function handleCommits(request: Request, env: Record<string, string>): Promise<Response> {
+  await requireAuth({ request, env } as PagesFunctionContext);
   const token = env.GITHUB_TOKEN;
   const owner = env.GITHUB_OWNER ?? "YOUR_ORG";
   const repo = env.GITHUB_REPO ?? "YOUR_REPO";

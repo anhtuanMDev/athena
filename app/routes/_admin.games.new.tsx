@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { GameSchema } from "~/schemas/game";
-import { getFile, updateFile, ConflictError, isConflictError, conflictResponse } from "~/lib/github";
+import { getFile, updateFile, isConflictError, conflictResponse } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { FormField } from "~/components/FormField";

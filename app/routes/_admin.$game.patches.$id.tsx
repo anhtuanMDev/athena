@@ -78,8 +78,10 @@ export default function EditPatch() {
     setSubmitting(true);
     setError(null);
     try {
+      const current = await getFile(`data/${game}/patches/${id}.json`);
+      if (!current) { setError("Patch not found"); setSubmitting(false); return; }
       try {
-        await deleteFile(`data/${game}/patches/${id}.json`, sha, `Delete patch: ${id}`);
+        await deleteFile(`data/${game}/patches/${id}.json`, current.sha, `Delete patch: ${id}`);
       } catch (err) {
         if (isConflictError(err)) {
           setError("Conflict detected. Please try again.");
