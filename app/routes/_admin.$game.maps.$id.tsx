@@ -1,90 +1,116 @@
-import { Form, redirect, data } from "react-router";
-import type { Route } from "./+types/_admin.$game.maps.$id";
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router";
 import { MapSchema, type Map } from "~/schemas/map";
-import { getFile, updateFile, deleteFile, ConflictError, isConflictError, conflictResponse } from "~/lib/github.server";
+import { getFile, updateFile, deleteFile, isConflictError } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 import { FormField } from "~/components/FormField";
-import { checkAdminRateLimit, recordAdminAttempt } from "~/lib/admin-rate-limit.server";
+import { useData } from "~/lib/use-data";
 
-export async function loader({ params }: Route.LoaderArgs) {
-  assertSafeGameSlug(params.game);
-  assertSafeEntityId(params.id);
-  const file = await getFile<Map>(`data/${params.game}/maps/${params.id}.json`);
-  if (!file) throw data("Map not found", { status: 404 });
-  return { map: file.content, sha: file.sha };
-}
+export default function EditMap() {
+  const { game, id } = useParams();
+  const navigate = useNavigate();
+  assertSafeGameSlug(game!);
+  assertSafeEntityId(id!);
 
-export async function action({ request, params }: Route.ActionArgs) {
-  assertSafeGameSlug(params.game);
-  assertSafeEntityId(params.id);
-  const { allowed } = checkAdminRateLimit(request);
-  if (!allowed) {
-    return data({ errors: { _form: ["Too many requests. Try again later."] } }, { status: 429 });
-  }
-  const formData = await request.formData();
-  const intent = formData.get("intent") as string;
+  const result = useData<{ content: Map; sha: string } | null>(
+    () => getFile<Map>(`data/${game}/maps/${id}.json`),
+    [game, id]
+  );
 
-  if (intent === "delete") {
-    const sha = formData.get("sha") as string;
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  if (result.loading) return <div className="text-gray-500 p-4">Loading...</div>;
+  if (result.error) return <div className="text-red-500 p-4">Error: {String(result.error)}</div>;
+  if (!result.data) return <div className="text-red-500 p-4">Map not found</div>;
+
+  const m = result.data.content;
+  const sha = result.data.sha;
+
+  async function handleUpdate(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    const formData = new FormData(e.currentTarget);
     try {
-      await deleteFile(`data/${params.game}/maps/${params.id}.json`, sha, `Delete map: ${params.id}`);
-    } catch (err) {
-      if (isConflictError(err)) {
-        return data(conflictResponse(), { status: 409 });
+      const raw = Object.fromEntries(formData);
+      const parsed = MapSchema.safeParse({
+        ...raw,
+        game,
+        game_modes: (raw.game_modes as string || "").split(",").map((s) => s.trim()).filter(Boolean),
+      });
+      if (!parsed.success) {
+        const msgs = Object.values(parsed.error.flatten().fieldErrors).flat();
+        setError(msgs.length > 0 ? msgs.join("; ") : "Validation failed");
+        return;
       }
-      throw err;
+      const current = await getFile(`data/${game}/maps/${id}.json`);
+      if (!current) {
+        setError("Map not found");
+        return;
+      }
+      try {
+        await updateFile(`data/${game}/maps/${id}.json`, parsed.data, current.sha, `Update map: ${parsed.data.name}`);
+      } catch (err) {
+        if (isConflictError(err)) {
+          setError("Conflict detected. Please try again.");
+          return;
+        }
+        throw err;
+      }
+      navigate(`/${game}/maps`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setSubmitting(false);
     }
-    recordAdminAttempt(request, true);
-    throw redirect(`/${params.game}/maps`);
   }
 
-  const raw = Object.fromEntries(formData);
-  const parsed = MapSchema.safeParse({
-    ...raw,
-    game: params.game,
-    game_modes: (raw.game_modes as string || "").split(",").map((s) => s.trim()).filter(Boolean),
-  });
-  if (!parsed.success) {
-    return data({ errors: parsed.error.flatten().fieldErrors }, { status: 400 });
-  }
-    const current = await getFile(`data/${params.game}/maps/${params.id}.json`);
-    if (!current) throw data("Map not found", { status: 404 });
+  async function handleDelete(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!confirm("Delete this map?")) return;
+    setSubmitting(true);
+    setError(null);
+    const formData = new FormData(e.currentTarget);
     try {
-      await updateFile(`data/${params.game}/maps/${params.id}.json`, parsed.data, current.sha, `Update map: ${parsed.data.name}`);
-    } catch (err) {
-      if (isConflictError(err)) {
-        return data(conflictResponse(), { status: 409 });
+      const sha = formData.get("sha") as string;
+      try {
+        await deleteFile(`data/${game}/maps/${id}.json`, sha, `Delete map: ${id}`);
+      } catch (err) {
+        if (isConflictError(err)) {
+          setError("Conflict detected. Please try again.");
+          return;
+        }
+        throw err;
       }
-      throw err;
+      navigate(`/${game}/maps`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setSubmitting(false);
     }
-    recordAdminAttempt(request, true);
-  throw redirect(`/${params.game}/maps`);
-}
+  }
 
-export default function EditMap({ loaderData }: Route.ComponentProps) {
-  const m = loaderData.map;
   return (
     <div className="max-w-lg mx-auto">
       <Card>
         <CardHeader><h1 className="text-xl font-bold">Edit Map: {m.name}</h1></CardHeader>
         <CardContent>
-          <Form method="post" className="space-y-4">
-            <input type="hidden" name="intent" value="update" />
+          {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+          <form onSubmit={handleUpdate} className="space-y-4">
             <FormField name="name" label="Name" defaultValue={m.name} />
             <FormField name="game_modes" label="Game Modes (comma-separated)" defaultValue={m.game_modes?.join(", ") ?? ""} required={false} />
             <FormField name="location" label="Location" defaultValue={m.location ?? ""} required={false} />
-            <Button type="submit">Save</Button>
-          </Form>
-          <Form method="post" className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700" onSubmit={(e) => { if (!confirm("Delete this map?")) e.preventDefault(); }}>
-            <input type="hidden" name="intent" value="delete" />
-            <input type="hidden" name="sha" value={loaderData.sha} />
-            <Button type="submit" variant="destructive">Delete Map</Button>
-          </Form>
+            <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
+          </form>
+          <form onSubmit={handleDelete} className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <input type="hidden" name="sha" value={sha} />
+            <Button type="submit" variant="destructive" disabled={submitting}>Delete Map</Button>
+          </form>
         </CardContent>
       </Card>
     </div>
   );
 }
-

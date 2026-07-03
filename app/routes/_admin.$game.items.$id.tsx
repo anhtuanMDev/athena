@@ -1,117 +1,156 @@
-import { Form, redirect, data } from "react-router";
-import type { Route } from "./+types/_admin.$game.items.$id";
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router";
 import { ItemSchema, type Item } from "~/schemas/item";
-import { getFile, updateFile, deleteFile, listDirectory, ConflictError, isConflictError, conflictResponse } from "~/lib/github.server";
+import { getFile, updateFile, deleteFile, listDirectory, isConflictError } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 import { FormField } from "~/components/FormField";
-import { checkAdminRateLimit, recordAdminAttempt } from "~/lib/admin-rate-limit.server";
+import { useData } from "~/lib/use-data";
 
-export async function loader({ params }: Route.LoaderArgs) {
-  assertSafeGameSlug(params.game);
-  assertSafeEntityId(params.id);
-  const file = await getFile<Item>(`data/${params.game}/items/${params.id}.json`);
-  if (!file) throw data("Item not found", { status: 404 });
-  const heroIds = await listDirectory(params.game, "heroes");
-  const modeIds = await listDirectory(params.game, "modes");
-  return { item: file.content, sha: file.sha, heroes: heroIds, modes: modeIds };
-}
+export default function EditItem() {
+  const { game, id } = useParams();
+  const navigate = useNavigate();
+  assertSafeGameSlug(game!);
+  assertSafeEntityId(id!);
 
-export async function action({ request, params }: Route.ActionArgs) {
-  assertSafeGameSlug(params.game);
-  assertSafeEntityId(params.id);
-  const { allowed } = checkAdminRateLimit(request);
-  if (!allowed) {
-    return data({ errors: { _form: ["Too many requests. Try again later."] } }, { status: 429 });
+  const itemResult = useData<{ content: Item; sha: string } | null>(
+    () => getFile<Item>(`data/${game}/items/${id}.json`),
+    [game, id]
+  );
+  const heroesResult = useData<string[]>(
+    () => listDirectory(game!, "heroes"),
+    [game]
+  );
+  const modesResult = useData<string[]>(
+    () => listDirectory(game!, "modes"),
+    [game]
+  );
+
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  if (itemResult.loading || heroesResult.loading || modesResult.loading) {
+    return <div className="text-gray-500 p-4">Loading...</div>;
   }
-  const formData = await request.formData();
-  const intent = formData.get("intent") as string;
+  if (itemResult.error) return <div className="text-red-500 p-4">Error: {String(itemResult.error)}</div>;
+  if (!itemResult.data) return <div className="text-red-500 p-4">Item not found</div>;
 
-  if (intent === "delete") {
-    const sha = formData.get("sha") as string;
+  const item = itemResult.data.content;
+  const sha = itemResult.data.sha;
+  const heroIds = heroesResult.data ?? [];
+  const modeIds = modesResult.data ?? [];
+
+  async function handleUpdate(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    const formData = new FormData(e.currentTarget);
     try {
-      await deleteFile(`data/${params.game}/items/${params.id}.json`, sha, `Delete item: ${params.id}`);
+      const raw = Object.fromEntries(formData);
+
+      let effects: Array<{ ability_id: string }> = [];
+      try {
+        effects = (raw.effects_raw as string) ? JSON.parse(raw.effects_raw as string) : [];
+      } catch { /* ignore */ }
+
+      const parsed = ItemSchema.safeParse({
+        id,
+        game,
+        name: raw.name,
+        description: (raw.description as string) || undefined,
+        hero: (raw.hero as string) || undefined,
+        mode: (raw.mode as string) || undefined,
+        effects,
+      });
+      if (!parsed.success) {
+        const msgs = Object.values(parsed.error.flatten().fieldErrors).flat();
+        setError(msgs.length > 0 ? msgs.join("; ") : "Validation failed");
+        return;
+      }
+
+      const heroSet = new Set(heroIds);
+      const modeSet = new Set(modeIds);
+
+      if (parsed.data.hero && !heroSet.has(parsed.data.hero)) {
+        setError(`Unknown hero "${parsed.data.hero}"`);
+        return;
+      }
+      if (parsed.data.mode && !modeSet.has(parsed.data.mode)) {
+        setError(`Unknown mode "${parsed.data.mode}"`);
+        return;
+      }
+
+      if (!parsed.data.hero) {
+        for (const effect of parsed.data.effects) {
+          if (effect.ability_id) {
+            setError('Universal items (no hero) cannot reference a hero-specific ability. Remove "ability_id" from effects or associate this item with a hero.');
+            return;
+          }
+        }
+      } else {
+        const heroFile = await getFile<{ kit: Array<{ id: string }> }>(`data/${game}/heroes/${parsed.data.hero}.json`);
+        const abilityIds = new Set(heroFile?.content.kit.map(k => k.id) ?? []);
+        for (const effect of parsed.data.effects) {
+          if (!abilityIds.has(effect.ability_id)) {
+            setError(`Hero "${parsed.data.hero}" has no ability "${effect.ability_id}"`);
+            return;
+          }
+        }
+      }
+
+      const current = await getFile(`data/${game}/items/${id}.json`);
+      if (!current) {
+        setError("Item not found");
+        return;
+      }
+      try {
+        await updateFile(`data/${game}/items/${id}.json`, parsed.data, current.sha, `Update item: ${parsed.data.name}`);
+      } catch (err) {
+        if (isConflictError(err)) {
+          setError("Conflict detected. Please try again.");
+          return;
+        }
+        throw err;
+      }
+      navigate(`/${game}/items`);
     } catch (err) {
-      if (isConflictError(err)) {
-        return data(conflictResponse(), { status: 409 });
-      }
-      throw err;
-    }
-    recordAdminAttempt(request, true);
-    throw redirect(`/${params.game}/items`);
-  }
-
-  const raw = Object.fromEntries(formData);
-
-  let effects: Array<{ ability_id: string }> = [];
-  try {
-    effects = (raw.effects_raw as string) ? JSON.parse(raw.effects_raw as string) : [];
-  } catch { /* ignore */ }
-
-  const parsed = ItemSchema.safeParse({
-    id: params.id,
-    game: params.game,
-    name: raw.name,
-    description: raw.description || undefined,
-    hero: (raw.hero as string) || undefined,
-    mode: (raw.mode as string) || undefined,
-    effects,
-  });
-
-  if (!parsed.success) {
-    return data({ errors: parsed.error.flatten().fieldErrors }, { status: 400 });
-  }
-
-  const heroIds = new Set(await listDirectory(params.game, "heroes"));
-  const modeIds = new Set(await listDirectory(params.game, "modes"));
-
-  if (parsed.data.hero && !heroIds.has(parsed.data.hero)) {
-    return data({ errors: { _form: [`Unknown hero "${parsed.data.hero}"`] } }, { status: 400 });
-  }
-  if (parsed.data.mode && !modeIds.has(parsed.data.mode)) {
-    return data({ errors: { _form: [`Unknown mode "${parsed.data.mode}"`] } }, { status: 400 });
-  }
-
-  if (!parsed.data.hero) {
-    for (const effect of parsed.data.effects) {
-      if (effect.ability_id) {
-        return data({ errors: { _form: [`Universal items (no hero) cannot reference a hero-specific ability. Remove "ability_id" from effects or associate this item with a hero.`] } }, { status: 400 });
-      }
-    }
-  } else {
-    const heroFile = await getFile<{ kit: Array<{ id: string }> }>(`data/${params.game}/heroes/${parsed.data.hero}.json`);
-    const abilityIds = new Set(heroFile?.content.kit.map(k => k.id) ?? []);
-    for (const effect of parsed.data.effects) {
-      if (!abilityIds.has(effect.ability_id)) {
-        return data({ errors: { _form: [`Hero "${parsed.data.hero}" has no ability "${effect.ability_id}"`] } }, { status: 400 });
-      }
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setSubmitting(false);
     }
   }
 
-    const current = await getFile(`data/${params.game}/items/${params.id}.json`);
-    if (!current) throw data("Item not found", { status: 404 });
+  async function handleDelete(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!confirm("Delete this item?")) return;
+    setSubmitting(true);
+    setError(null);
     try {
-      await updateFile(`data/${params.game}/items/${params.id}.json`, parsed.data, current.sha, `Update item: ${parsed.data.name}`);
-    } catch (err) {
-      if (isConflictError(err)) {
-        return data(conflictResponse(), { status: 409 });
+      try {
+        await deleteFile(`data/${game}/items/${id}.json`, sha, `Delete item: ${id}`);
+      } catch (err) {
+        if (isConflictError(err)) {
+          setError("Conflict detected. Please try again.");
+          return;
+        }
+        throw err;
       }
-      throw err;
+      navigate(`/${game}/items`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setSubmitting(false);
     }
-    recordAdminAttempt(request, true);
-  throw redirect(`/${params.game}/items`);
-}
+  }
 
-export default function EditItem({ loaderData }: Route.ComponentProps) {
-  const item = loaderData.item;
   return (
     <div className="max-w-2xl mx-auto">
       <Card>
         <CardHeader><h1 className="text-xl font-bold">Edit Item: {item.name}</h1></CardHeader>
         <CardContent>
-          <Form method="post" className="space-y-4">
-            <input type="hidden" name="intent" value="update" />
+          {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+          <form onSubmit={handleUpdate} className="space-y-4">
             <FormField name="name" label="Name" defaultValue={item.name} />
 
             <div className="grid grid-cols-2 gap-4">
@@ -120,7 +159,7 @@ export default function EditItem({ loaderData }: Route.ComponentProps) {
                 <select id="hero" name="hero" defaultValue={item.hero ?? ""}
                   className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                   <option value="">— Any —</option>
-                  {loaderData.heroes.map(h => <option key={h} value={h}>{h}</option>)}
+                  {heroIds.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
               <div>
@@ -128,7 +167,7 @@ export default function EditItem({ loaderData }: Route.ComponentProps) {
                 <select id="mode" name="mode" defaultValue={item.mode ?? ""}
                   className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                   <option value="">— Any —</option>
-                  {loaderData.modes.map(m => <option key={m} value={m}>{m}</option>)}
+                  {modeIds.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
             </div>
@@ -146,19 +185,16 @@ export default function EditItem({ loaderData }: Route.ComponentProps) {
             </div>
 
             <div className="flex gap-2">
-              <Button type="submit">Save</Button>
+              <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
               <Button type="button" variant="secondary" onClick={() => window.history.back()}>Cancel</Button>
             </div>
-          </Form>
+          </form>
 
-          <Form method="post" className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700" onSubmit={(e) => { if (!confirm("Delete this item?")) e.preventDefault(); }}>
-            <input type="hidden" name="intent" value="delete" />
-            <input type="hidden" name="sha" value={loaderData.sha} />
-            <Button type="submit" variant="destructive">Delete Item</Button>
-          </Form>
+          <form onSubmit={handleDelete} className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <Button type="submit" variant="destructive" disabled={submitting}>Delete Item</Button>
+          </form>
         </CardContent>
       </Card>
     </div>
   );
 }
-

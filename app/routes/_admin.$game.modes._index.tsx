@@ -1,9 +1,9 @@
-import { Link } from "react-router";
-import type { Route } from "./+types/_admin.$game.modes._index";
-import { listDirectory, getFile } from "~/lib/github.server";
+import { Link, useParams } from "react-router";
+import { listDirectory, getFile } from "~/lib/github";
 import { DataTable, type Column } from "~/components/DataTable";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
+import { useData } from "~/lib/use-data";
 
 interface ModeRow {
   id: string;
@@ -11,33 +11,38 @@ interface ModeRow {
   description?: string;
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
-  assertSafeGameSlug(params.game);
-  const ids = await listDirectory(params.game, "modes");
-  const modes = await Promise.all(
-    ids.map(async (id) => {
-      const file = await getFile<ModeRow>(`data/${params.game}/modes/${id}.json`);
-      return file?.content ?? null;
-    })
-  );
-  return { modes: modes.filter(Boolean) as ModeRow[], game: params.game };
-}
-
 const columns: Column<ModeRow>[] = [
   { key: "name", header: "Name" },
   { key: "description", header: "Description", render: (m) => m.description ?? "" },
 ];
 
-export default function ModesIndex({ loaderData }: Route.ComponentProps) {
+export default function ModesIndex() {
+  const { game } = useParams();
+  assertSafeGameSlug(game!);
+  const { data, loading, error } = useData(async () => {
+    const ids = await listDirectory(game!, "modes");
+    const modes = await Promise.all(
+      ids.map(async (id) => {
+        const file = await getFile<ModeRow>(`data/${game!}/modes/${id}.json`);
+        return file?.content ?? null;
+      })
+    );
+    return { modes: modes.filter(Boolean) as ModeRow[], game: game! };
+  }, [game]);
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error loading data</div>;
+  if (!data) return null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize">{loaderData.game} Modes</h1>
-        <Link to={`/${loaderData.game}/modes/new`}>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize">{data.game} Modes</h1>
+        <Link to={`/${data.game}/modes/new`}>
           <Button>New Mode</Button>
         </Link>
       </div>
-      <DataTable columns={columns} data={loaderData.modes} baseUrl={`/${loaderData.game}/modes`} />
+      <DataTable columns={columns} data={data.modes} baseUrl={`/${data.game}/modes`} />
     </div>
   );
 }

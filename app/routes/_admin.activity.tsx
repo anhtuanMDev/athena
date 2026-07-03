@@ -1,46 +1,29 @@
-import type { Route } from "./+types/_admin.activity";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import { getEnv } from "~/lib/env.server";
+import { Card, CardContent } from "~/components/ui/card";
+import { useData } from "~/lib/use-data";
 
-export async function loader() {
-  const token = getEnv("GITHUB_TOKEN");
-  const owner = getEnv("GITHUB_OWNER") ?? "YOUR_ORG";
-  const repo = getEnv("GITHUB_REPO") ?? "YOUR_REPO";
+interface Commit { sha: string; message: string; date: string; url: string; }
 
-  if (!token) {
-    return { commits: [], error: "GITHUB_TOKEN not configured" };
-  }
-
-  try {
-    const response = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/commits?per_page=20`,
-      { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github.v3+json", "User-Agent": "athena-admin" } }
-    );
-    if (!response.ok) return { commits: [], error: `GitHub API returned ${response.status}` };
-    const data = await response.json();
-    const commits = Array.isArray(data) ? data.map((c: { sha: string; commit: { message: string; committer: { date: string } }; html_url: string }) => ({
-      sha: c.sha,
-      message: c.commit.message,
-      date: c.commit.committer.date,
-      url: c.html_url,
-    })) : [];
-    return { commits, error: null };
-  } catch (err) {
-    return { commits: [], error: err instanceof Error ? err.message : "Unknown error" };
-  }
+async function fetchCommits() {
+  const res = await fetch("/api/data/commits");
+  const data: { commits: Commit[]; error: string | null } = await res.json();
+  return data;
 }
 
-export default function Activity({ loaderData }: Route.ComponentProps) {
+export default function Activity() {
+  const { data, loading } = useData(fetchCommits);
+
+  if (loading) return <div>Loading...</div>;
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Activity</h1>
-      {loaderData.error && (
+      {data?.error && (
         <Card>
-          <CardContent><p className="text-sm text-red-500">{loaderData.error}</p></CardContent>
+          <CardContent><p className="text-sm text-red-500">{data.error}</p></CardContent>
         </Card>
       )}
       <div className="space-y-2">
-        {loaderData.commits.map((commit) => (
+        {data?.commits.map((commit) => (
           <Card key={commit.sha}>
             <CardContent className="flex items-center justify-between py-3">
               <div className="flex-1 min-w-0">
@@ -51,7 +34,7 @@ export default function Activity({ loaderData }: Route.ComponentProps) {
             </CardContent>
           </Card>
         ))}
-        {loaderData.commits.length === 0 && !loaderData.error && (
+        {data && data.commits.length === 0 && !data.error && (
           <p className="text-sm text-gray-500">No commits found.</p>
         )}
       </div>

@@ -1,84 +1,107 @@
-import { Form, redirect, data } from "react-router";
-import type { Route } from "./+types/_admin.$game.patches.$id";
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router";
 import { PatchSchema, type Patch } from "~/schemas/patch";
-import { getFile, updateFile, deleteFile, ConflictError, isConflictError, conflictResponse } from "~/lib/github.server";
+import { getFile, updateFile, deleteFile, isConflictError } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 import { FormField } from "~/components/FormField";
-import { checkAdminRateLimit, recordAdminAttempt } from "~/lib/admin-rate-limit.server";
+import { useData } from "~/lib/use-data";
 
-export async function loader({ params }: Route.LoaderArgs) {
-  assertSafeGameSlug(params.game);
-  assertSafeEntityId(params.id);
-  const file = await getFile<Patch>(`data/${params.game}/patches/${params.id}.json`);
-  if (!file) throw data("Patch not found", { status: 404 });
-  return { patch: file.content, sha: file.sha };
-}
+export default function EditPatch() {
+  const { game, id } = useParams();
+  const navigate = useNavigate();
+  assertSafeGameSlug(game!);
+  assertSafeEntityId(id!);
 
-export async function action({ request, params }: Route.ActionArgs) {
-  assertSafeGameSlug(params.game);
-  assertSafeEntityId(params.id);
-  const { allowed } = checkAdminRateLimit(request);
-  if (!allowed) {
-    return data({ errors: { _form: ["Too many requests. Try again later."] } }, { status: 429 });
-  }
-  const formData = await request.formData();
-  const intent = formData.get("intent") as string;
+  const result = useData<{ content: Patch; sha: string } | null>(
+    () => getFile<Patch>(`data/${game}/patches/${id}.json`),
+    [game, id]
+  );
 
-  if (intent === "delete") {
-    const sha = formData.get("sha") as string;
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  if (result.loading) return <div className="text-gray-500 p-4">Loading...</div>;
+  if (result.error) return <div className="text-red-500 p-4">Error: {String(result.error)}</div>;
+  if (!result.data) return <div className="text-red-500 p-4">Patch not found</div>;
+
+  const p = result.data.content;
+  const sha = result.data.sha;
+
+  async function handleUpdate(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    const formData = new FormData(e.currentTarget);
     try {
-      await deleteFile(`data/${params.game}/patches/${params.id}.json`, sha, `Delete patch: ${params.id}`);
-    } catch (err) {
-      if (isConflictError(err)) {
-        return data(conflictResponse(), { status: 409 });
+      const changesRaw = formData.get("_changes") as string;
+      let changes: Array<{ hero: string; field: string; from?: string; to?: string; note?: string }> = [];
+      try { changes = changesRaw ? JSON.parse(changesRaw) : []; } catch { /* ignore */ }
+
+      const parsed = PatchSchema.safeParse({
+        patch: id,
+        date: formData.get("date"),
+        summary: formData.get("summary") || undefined,
+        changes,
+      });
+      if (!parsed.success) {
+        const msgs = Object.values(parsed.error.flatten().fieldErrors).flat();
+        setError(msgs.length > 0 ? msgs.join("; ") : "Validation failed");
+        return;
       }
-      throw err;
+      const current = await getFile(`data/${game}/patches/${id}.json`);
+      if (!current) {
+        setError("Patch not found");
+        return;
+      }
+      try {
+        await updateFile(`data/${game}/patches/${id}.json`, parsed.data, current.sha, `Update patch: ${parsed.data.patch}`);
+      } catch (err) {
+        if (isConflictError(err)) {
+          setError("Conflict detected. Please try again.");
+          return;
+        }
+        throw err;
+      }
+      navigate(`/${game}/patches`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setSubmitting(false);
     }
-    recordAdminAttempt(request, true);
-    throw redirect(`/${params.game}/patches`);
   }
 
-  const changesRaw = formData.get("_changes") as string;
-  let changes = [];
-  try { changes = JSON.parse(changesRaw); } catch { /* ignore */ }
-
-  const parsed = PatchSchema.safeParse({
-    patch: params.id,
-    date: formData.get("date"),
-    summary: formData.get("summary") || undefined,
-    changes,
-  });
-
-  if (!parsed.success) {
-    return data({ errors: parsed.error.flatten().fieldErrors }, { status: 400 });
-  }
-
-    const current = await getFile(`data/${params.game}/patches/${params.id}.json`);
-    if (!current) throw data("Patch not found", { status: 404 });
+  async function handleDelete(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!confirm("Delete this patch?")) return;
+    setSubmitting(true);
+    setError(null);
     try {
-      await updateFile(`data/${params.game}/patches/${params.id}.json`, parsed.data, current.sha, `Update patch: ${parsed.data.patch}`);
-    } catch (err) {
-      if (isConflictError(err)) {
-        return data(conflictResponse(), { status: 409 });
+      try {
+        await deleteFile(`data/${game}/patches/${id}.json`, sha, `Delete patch: ${id}`);
+      } catch (err) {
+        if (isConflictError(err)) {
+          setError("Conflict detected. Please try again.");
+          return;
+        }
+        throw err;
       }
-      throw err;
+      navigate(`/${game}/patches`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setSubmitting(false);
     }
-    recordAdminAttempt(request, true);
-  throw redirect(`/${params.game}/patches`);
-}
+  }
 
-export default function EditPatch({ loaderData }: Route.ComponentProps) {
-  const p = loaderData.patch;
   return (
     <div className="max-w-lg mx-auto">
       <Card>
         <CardHeader><h1 className="text-xl font-bold">Edit Patch: {p.patch}</h1></CardHeader>
         <CardContent>
-          <Form method="post" className="space-y-4">
-            <input type="hidden" name="intent" value="update" />
-            <input type="hidden" name="patch" value={p.patch} />
+          {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+          <form onSubmit={handleUpdate} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Patch ID</label>
               <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{p.patch}</p>
@@ -94,16 +117,13 @@ export default function EditPatch({ loaderData }: Route.ComponentProps) {
                 className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-mono shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
               />
             </div>
-            <Button type="submit">Save</Button>
-          </Form>
-          <Form method="post" className="mt-6 pt-4 border-t" onSubmit={(e) => { if (!confirm("Delete this patch?")) e.preventDefault(); }}>
-            <input type="hidden" name="intent" value="delete" />
-            <input type="hidden" name="sha" value={loaderData.sha} />
-            <Button type="submit" variant="destructive">Delete Patch</Button>
-          </Form>
+            <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
+          </form>
+          <form onSubmit={handleDelete} className="mt-6 pt-4 border-t">
+            <Button type="submit" variant="destructive" disabled={submitting}>Delete Patch</Button>
+          </form>
         </CardContent>
       </Card>
     </div>
   );
 }
-

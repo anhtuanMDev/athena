@@ -1,44 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { data, Form, redirect, useActionData, useNavigation } from "react-router";
+import { useNavigate } from "react-router";
 import { animate, createTimeline, stagger, type JSAnimation } from "animejs";
 import { AlertCircle, Eye, EyeOff, LoaderCircle } from "lucide-react";
-import type { Route } from "./+types/login";
-import { login, createAdminSession, getAdminSession, SESSION_KEY } from "~/lib/session.server";
-import { checkRateLimit, getClientIp, recordAttempt } from "~/lib/rate-limit.server";
-import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
-
-export async function loader({ request }: Route.LoaderArgs) {
-  const session = await getAdminSession(request);
-  if (session.get(SESSION_KEY)) {
-    throw redirect("/dashboard");
-  }
-  return null;
-}
-
-type ActionData = { error: string; retryAfter?: number } | Record<string, never>;
-
-export async function action({ request }: Route.ActionArgs) {
-  const formData = await request.formData();
-  const password = formData.get("password") as string;
-
-  const ip = getClientIp(request);
-  const { allowed, retryAfter } = checkRateLimit(ip);
-  if (!allowed) {
-    return data({ error: "Too many attempts", retryAfter } satisfies ActionData, { status: 429 });
-  }
-
-  if (!password || !(await login(password))) {
-    recordAttempt(ip, false);
-    return data({ error: "Invalid password" } satisfies ActionData, { status: 401 });
-  }
-
-  recordAttempt(ip, true);
-  const cookie = await createAdminSession(request);
-  return redirect("/dashboard", { headers: { "Set-Cookie": cookie } });
-}
+import Alert from "@mui/material/Alert";
+import AlertTitle from "@mui/material/AlertTitle";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import { checkSession, login as authLogin } from "~/lib/auth";
 
 function Countdown({ seconds, onDone }: { seconds: number; onDone: () => void }) {
   const [remaining, setRemaining] = useState(seconds);
@@ -63,16 +37,27 @@ function Countdown({ seconds, onDone }: { seconds: number; onDone: () => void })
   return <span className="tabular-nums">{remaining}s</span>;
 }
 
-export default function Login({ actionData }: Route.ComponentProps) {
+export default function Login() {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<{ message: string; retryAfter?: number } | null>(null);
   const [retrySeconds, setRetrySeconds] = useState<number | null>(null);
-  const navigation = useNavigation();
-  const isSubmitting = navigation.state === "submitting";
   const inputRef = useRef<HTMLInputElement>(null);
 
   const cardRef = useRef<HTMLDivElement>(null);
-  const glowRef = useRef<HTMLDivElement>(null);
-  const staggerRef = useRef<(HTMLDivElement | null)[]>([]);
+  const logoRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLDivElement>(null);
+  const subtitleRef = useRef<HTMLDivElement>(null);
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const alertRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    checkSession().then((authenticated) => {
+      if (authenticated) navigate("/dashboard");
+    });
+  }, [navigate]);
 
   useEffect(() => {
     const bgEl = document.getElementById("login-bg-glow");
@@ -121,31 +106,18 @@ export default function Login({ actionData }: Route.ComponentProps) {
     return () => anims.forEach((a) => a.pause());
   }, []);
 
-  useEffect(() => {
-    const err = actionData as ActionData | undefined;
-    if (err?.retryAfter != null) {
-      setRetrySeconds(err.retryAfter);
-    }
-  }, [actionData]);
-
   const runEntrance = useCallback(() => {
     const card = cardRef.current;
-    const glow = glowRef.current;
-    if (!card || !glow) return;
+    if (!card) return;
 
+    const els = [logoRef, titleRef, subtitleRef, fieldRef, btnRef].map((r) => r.current).filter(Boolean);
     const tl = createTimeline({ playbackEase: "easeOutExpo" });
 
-    tl.add(glow, { opacity: [0, 1], duration: 600 })
-      .add(
-        card,
-        { opacity: [0, 1], translateY: [24, 0], duration: 700 },
-        "-=400",
-      )
-      .add(
-        staggerRef.current.filter(Boolean),
-        { opacity: [0, 1], translateY: [10, 0], duration: 400, delay: stagger(60) },
-        "-=300",
-      );
+    tl.add(card, { opacity: [0, 1], translateY: [24, 0], duration: 700 }).add(
+      els,
+      { opacity: [0, 1], translateY: [10, 0], duration: 400, delay: stagger(60) },
+      "-=300",
+    );
   }, []);
 
   useEffect(() => {
@@ -161,245 +133,227 @@ export default function Login({ actionData }: Route.ComponentProps) {
     });
   }, []);
 
-  const handleError = useCallback(() => {
-    handleShake();
-  }, [handleShake]);
-
   const handleRetryDone = useCallback(() => {
     setRetrySeconds(null);
     inputRef.current?.focus();
   }, []);
 
-  const err = actionData as ActionData | undefined;
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+
+    const formData = new FormData(e.currentTarget);
+    const password = formData.get("password") as string;
+
+    try {
+      await authLogin(password);
+      navigate("/dashboard");
+    } catch (err: unknown) {
+      const retryAfter = (err as Record<string, unknown>).retryAfter as number | undefined;
+      if (retryAfter != null) {
+        setError({ message: "Too many attempts", retryAfter });
+        setRetrySeconds(retryAfter);
+      } else {
+        setError({ message: (err as Error).message || "Invalid password" });
+      }
+      handleShake();
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-background">
-      <div
+    <Box sx={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", bgcolor: "background.default" }}>
+      <Box
         id="login-bg-glow"
         className="absolute inset-0 pointer-events-none"
-        style={{
+        sx={{
           background:
             "radial-gradient(ellipse 60% 40% at 50% 20%, oklch(0.45 0.15 270) 0%, transparent 60%), radial-gradient(ellipse 40% 30% at 80% 80%, oklch(0.4 0.12 290) 0%, transparent 50%)",
         }}
       />
-
-      <div
+      <Box
         id="login-bg-grid"
         className="absolute inset-0 pointer-events-none"
-        style={{
+        sx={{
           backgroundImage:
             "linear-gradient(oklch(1 0 0 / 0.03) 1px, transparent 1px), linear-gradient(90deg, oklch(1 0 0 / 0.03) 1px, transparent 1px)",
           backgroundSize: "64px 64px",
         }}
       />
-
-      <div
+      <Box
         id="login-bg-scan"
-        className="absolute inset-0 pointer-events-none opacity-[0.02]"
-        style={{
-          background:
-            "repeating-linear-gradient(0deg, transparent, transparent 2px, oklch(1 0 0) 2px, oklch(1 0 0) 3px)",
-        }}
+        className="absolute inset-0 pointer-events-none"
+        sx={{ opacity: 0.02, background: "repeating-linear-gradient(0deg, transparent, transparent 2px, oklch(1 0 0) 2px, oklch(1 0 0) 3px)" }}
       />
 
-      <div className="relative w-full max-w-md px-6">
-        <div ref={glowRef} className="rounded-2xl" style={{ opacity: 0 }}>
-          <Card
-            ref={cardRef}
-            className="border-none shadow-2xl"
-            style={{
-              opacity: 0,
-              background:
-                "linear-gradient(135deg, oklch(0.2 0.02 270 / 0.9), oklch(0.15 0.02 280 / 0.95))",
-              boxShadow:
-                "0 0 40px oklch(0.45 0.15 270 / 0.08), 0 0 80px oklch(0.45 0.15 270 / 0.04)",
-            }}
-          >
-            <CardHeader className="text-center border-none pb-2">
-              <div
-                ref={(el) => {
-                  staggerRef.current[0] = el;
-                }}
-                className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl"
-                style={{
-                  background:
-                    "linear-gradient(135deg, oklch(0.6 0.2 270 / 0.2), oklch(0.5 0.15 290 / 0.1))",
-                  border: "1px solid oklch(0.6 0.2 270 / 0.15)",
+      <Box sx={{ position: "relative", width: "100%", maxWidth: 448, px: 3 }}>
+        <Card
+          ref={cardRef}
+          sx={{
+            opacity: 0,
+            backdropFilter: "blur(24px)",
+            bgcolor: "rgba(18, 18, 30, 0.85)",
+            border: "1px solid",
+            borderColor: "rgba(99, 102, 241, 0.15)",
+            boxShadow: "0 0 60px rgba(99, 102, 241, 0.08), 0 0 120px rgba(99, 102, 241, 0.04)",
+            borderRadius: 3,
+          }}
+        >
+          <CardContent sx={{ px: 4, py: 5 }}>
+            <Box sx={{ textAlign: "center", mb: 4 }}>
+              <Box
+                ref={logoRef}
+                sx={{
+                  mx: "auto",
+                  mb: 2,
+                  width: 48,
+                  height: 48,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 2,
+                  background: "linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.1))",
+                  border: "1px solid rgba(99,102,241,0.15)",
                 }}
               >
-                <span
-                  className="text-xl font-bold"
-                  style={{
+                <Box
+                  component="span"
+                  sx={{
+                    fontSize: 20,
+                    fontWeight: 700,
                     background: "linear-gradient(135deg, #a5b4fc, #c4b5fd)",
                     WebkitBackgroundClip: "text",
                     WebkitTextFillColor: "transparent",
                   }}
                 >
                   Z
-                </span>
-              </div>
-              <CardTitle
-                ref={(el) => {
-                  staggerRef.current[1] = el;
-                }}
-                className="text-2xl font-semibold tracking-tight text-white"
+                </Box>
+              </Box>
+              <Typography
+                ref={titleRef}
+                variant="h5"
+                sx={{ fontWeight: 600, letterSpacing: "-0.02em", color: "grey.100" }}
               >
                 Welcome back
-              </CardTitle>
-              <CardDescription
-                ref={(el) => {
-                  staggerRef.current[2] = el;
-                }}
-                className="text-sm"
-                style={{ color: "oklch(1 0 0 / 0.45)" }}
+              </Typography>
+              <Typography
+                ref={subtitleRef}
+                variant="body2"
+                sx={{ color: "rgba(255,255,255,0.45)", mt: 0.5 }}
               >
                 Enter your credentials to access the panel
-              </CardDescription>
-            </CardHeader>
+              </Typography>
+            </Box>
 
-            <CardContent>
-              <Form method="post" className="space-y-6">
-                <div
-                  ref={(el) => {
-                    staggerRef.current[3] = el;
+            <form onSubmit={handleSubmit}>
+              <Box ref={fieldRef} sx={{ mb: 3 }}>
+                <TextField
+                  inputRef={inputRef}
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  label="Password"
+                  autoFocus
+                  disabled={isSubmitting}
+                  autoComplete="current-password"
+                  fullWidth
+                  size="small"
+                  slotProps={{
+                    input: {
+                      sx: {
+                        borderRadius: 2,
+                        bgcolor: "rgba(255,255,255,0.04)",
+                        "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.08)" },
+                        "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.15)" },
+                        "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(99,102,241,0.5)" },
+                        "&.Mui-focused": { bgcolor: "rgba(99,102,241,0.06)" },
+                      },
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            onClick={() => setShowPassword((v) => !v)}
+                            edge="end"
+                            size="small"
+                            sx={{ color: "rgba(255,255,255,0.25)" }}
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                          >
+                            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
+                    inputLabel: {
+                      sx: { color: "rgba(255,255,255,0.35)", "&.Mui-focused": { color: "rgba(99,102,241,0.7)" } },
+                    },
                   }}
-                  className="relative"
-                >
-                  <Input
-                    ref={inputRef}
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder=" "
-                    autoFocus
-                    disabled={isSubmitting}
-                    autoComplete="current-password"
-                    className="peer h-12 rounded-xl border px-4 pt-5 pb-1 text-sm text-white shadow-none transition-all duration-200 placeholder:text-transparent focus-visible:ring-2 focus-visible:ring-offset-0 disabled:opacity-40"
-                    style={{
-                      backgroundColor: "oklch(1 0 0 / 0.04)",
-                      borderColor: "oklch(1 0 0 / 0.08)",
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = "oklch(0.6 0.2 270 / 0.5)";
-                      e.currentTarget.style.backgroundColor = "oklch(0.6 0.2 270 / 0.06)";
-                      animate(e.currentTarget, {
-                        boxShadow: [
-                          "0 0 0 0 oklch(0.6 0.2 270 / 0)",
-                          "0 0 0 4px oklch(0.6 0.2 270 / 0.1)",
-                        ],
-                        duration: 300,
-                        easing: "easeOutQuad",
-                      });
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = "oklch(1 0 0 / 0.08)";
-                      e.currentTarget.style.backgroundColor = "oklch(1 0 0 / 0.04)";
-                      e.currentTarget.style.boxShadow = "none";
-                    }}
-                  />
-                  <Label
-                    htmlFor="password"
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-sm transition-all duration-200 pointer-events-none peer-focus:-translate-y-5 peer-focus:text-xs peer-focus:top-3 peer-[:not(:placeholder-shown)]:-translate-y-5 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:top-3"
-                    style={{ color: "oklch(1 0 0 / 0.35)" }}
-                  >
-                    Password
-                  </Label>
+                />
+              </Box>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    tabIndex={-1}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted-foreground/40 transition-colors hover:text-muted-foreground/70"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  </button>
-                </div>
-
-                {err?.error && (
-                  <div
-                    ref={(el) => {
-                      staggerRef.current[4] = el;
-                    }}
-                    className="flex items-start gap-2.5 rounded-xl px-4 py-3 text-sm"
-                    style={{
-                      backgroundColor: "oklch(0.6 0.2 25 / 0.1)",
-                      border: "1px solid oklch(0.6 0.2 25 / 0.2)",
-                      color: "oklch(0.75 0.15 25 / 0.9)",
+              {error && (
+                <Box ref={alertRef} sx={{ mb: 3 }}>
+                  <Alert
+                    severity="error"
+                    icon={<AlertCircle className="size-4" />}
+                    sx={{
+                      borderRadius: 2,
+                      bgcolor: "rgba(239,68,68,0.1)",
+                      border: "1px solid rgba(239,68,68,0.2)",
+                      "& .MuiAlert-message": { color: "rgba(252,165,165,0.9)" },
                     }}
                   >
-                    <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                    <span>
+                    <AlertTitle sx={{ mb: 0, fontWeight: 400 }}>
                       {retrySeconds !== null ? (
                         <>
                           Too many attempts. Try again in{" "}
                           <Countdown seconds={retrySeconds} onDone={handleRetryDone} />
                         </>
                       ) : (
-                        err.error
+                        error.message
                       )}
-                    </span>
-                  </div>
-                )}
+                    </AlertTitle>
+                  </Alert>
+                </Box>
+              )}
 
-                <div
-                  ref={(el) => {
-                    staggerRef.current[5] = el;
+              <Box ref={btnRef}>
+                <Button
+                  type="submit"
+                  fullWidth
+                  disabled={isSubmitting || retrySeconds !== null}
+                  variant="contained"
+                  sx={{
+                    py: 1.4,
+                    borderRadius: 2,
+                    fontWeight: 500,
+                    textTransform: "none",
+                    background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                    "&:hover": { background: "linear-gradient(135deg, #5558e6, #7c4fe6)" },
+                    "&.Mui-disabled": { opacity: 0.4 },
                   }}
                 >
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting || retrySeconds !== null}
-                    className="relative w-full h-11 rounded-xl text-sm font-medium text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 disabled:opacity-40 disabled:cursor-not-allowed"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, oklch(0.55 0.2 270), oklch(0.5 0.18 290))",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isSubmitting && retrySeconds === null) {
-                        animate(e.currentTarget, {
-                          boxShadow: [
-                            "0 0 0 0 oklch(0.55 0.2 270 / 0)",
-                            "0 4px 20px oklch(0.55 0.2 270 / 0.3)",
-                          ],
-                          duration: 200,
-                          easing: "easeOutQuad",
-                        });
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      animate(e.currentTarget, {
-                        boxShadow: [
-                          "0 4px 20px oklch(0.55 0.2 270 / 0.3)",
-                          "0 0 0 0 oklch(0.55 0.2 270 / 0)",
-                        ],
-                        duration: 200,
-                        easing: "easeOutQuad",
-                      });
-                    }}
-                  >
-                    {isSubmitting ? (
-                      <span className="inline-flex items-center gap-2">
-                        <LoaderCircle className="size-4 animate-spin" />
-                        Authenticating...
-                      </span>
-                    ) : (
-                      "Sign in"
-                    )}
-                  </Button>
-                </div>
-              </Form>
-            </CardContent>
-          </Card>
-        </div>
+                  {isSubmitting ? (
+                    <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
+                      <LoaderCircle className="size-4" style={{ animation: "spin 0.8s linear infinite" }} />
+                      Authenticating...
+                    </Box>
+                  ) : (
+                    "Sign in"
+                  )}
+                </Button>
+              </Box>
+            </form>
+          </CardContent>
+        </Card>
 
-        <p
-          className="text-center text-xs mt-6"
-          style={{ color: "oklch(1 0 0 / 0.2)" }}
+        <Typography
+          variant="caption"
+          sx={{ textAlign: "center", display: "block", mt: 3, color: "rgba(255,255,255,0.2)" }}
         >
           Athena Admin Panel
-        </p>
-      </div>
-    </div>
+        </Typography>
+      </Box>
+    </Box>
   );
 }

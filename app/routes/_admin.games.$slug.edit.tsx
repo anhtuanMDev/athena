@@ -1,57 +1,69 @@
-import { Form, redirect, data } from "react-router";
-import type { Route } from "./+types/_admin.games.$slug.edit";
+import { useNavigate, useParams } from "react-router";
+import { useState } from "react";
 import { GameSchema } from "~/schemas/game";
-import { listGames, getFile, updateFile, ConflictError, isConflictError, conflictResponse } from "~/lib/github.server";
-import { checkAdminRateLimit, recordAdminAttempt } from "~/lib/admin-rate-limit.server";
+import { listGames, getFile, updateFile, isConflictError } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { FormField } from "~/components/FormField";
+import { useData } from "~/lib/use-data";
 
-export async function loader({ params }: Route.LoaderArgs) {
-  const games = await listGames();
-  const game = games.find((g) => g.slug === params.slug);
-  if (!game) throw data("Game not found", { status: 404 });
-  return { game };
-}
+export default function EditGame() {
+  const { slug } = useParams();
+  const navigate = useNavigate();
 
-export async function action({ request, params }: Route.ActionArgs) {
-  const { allowed } = checkAdminRateLimit(request);
-  if (!allowed) {
-    return data({ errors: { _form: ["Too many requests. Try again later."] } }, { status: 429 });
-  }
+  const { data: game, loading, error: loadError } = useData(async () => {
+    const games = await listGames();
+    const found = games.find((g) => g.slug === slug);
+    if (!found) throw new Error("Game not found");
+    return found;
+  }, [slug]);
 
-  const formData = Object.fromEntries(await request.formData());
-  const parsed = GameSchema.safeParse({
-    ...formData,
-    active: formData.active === "true",
-  });
+  const [errors, setErrors] = useState<Record<string, string[]> | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  if (!parsed.success) {
-    return data({ errors: parsed.error.flatten().fieldErrors, values: formData }, { status: 400 });
-  }
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErrors(null);
+    setSubmitError(null);
+    const formData = Object.fromEntries(new FormData(e.currentTarget));
+    const parsed = GameSchema.safeParse({
+      ...formData,
+      active: formData.active === "true",
+    });
 
-  const file = await getFile<{ games: Array<Record<string, unknown>> }>("data/_meta/games.json");
-  if (!file) return data({ errors: { _form: ["Could not read games.json"] } }, { status: 500 });
-
-  const updated = {
-    games: file.content.games.map((g) =>
-      g.slug === params.slug ? { ...parsed.data } : g
-    ),
-  };
-  try {
-    await updateFile("data/_meta/games.json", updated, file.sha, `Update game: ${parsed.data.name}`);
-  } catch (err) {
-    if (isConflictError(err)) {
-      return data(conflictResponse(), { status: 409 });
+    if (!parsed.success) {
+      setErrors(parsed.error.flatten().fieldErrors);
+      return;
     }
-    throw err;
-  }
-  recordAdminAttempt(request, true);
-  throw redirect("/games");
-}
 
-export default function EditGame({ loaderData }: Route.ComponentProps) {
-  const game = loaderData.game;
+    const file = await getFile<{ games: Array<Record<string, unknown>> }>("data/_meta/games.json");
+    if (!file) {
+      setSubmitError("Could not read games.json");
+      return;
+    }
+
+    const updated = {
+      games: file.content.games.map((g) =>
+        g.slug === slug ? { ...parsed.data } : g
+      ),
+    };
+
+    try {
+      await updateFile("data/_meta/games.json", updated, file.sha, `Update game: ${parsed.data.name}`);
+      navigate("/games");
+    } catch (err) {
+      if (isConflictError(err)) {
+        setSubmitError("Conflict: file was modified since loading. Refresh and re-apply.");
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  if (loading) return <div>Loading...</div>;
+  if (loadError) return <div>Error: {(loadError as Error).message}</div>;
+  if (!game) return null;
+
   return (
     <div className="max-w-lg mx-auto">
       <Card>
@@ -59,7 +71,7 @@ export default function EditGame({ loaderData }: Route.ComponentProps) {
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">Edit Game</h1>
         </CardHeader>
         <CardContent>
-          <Form method="post" className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <input type="hidden" name="slug" value={game.slug} />
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Slug</label>
@@ -71,15 +83,21 @@ export default function EditGame({ loaderData }: Route.ComponentProps) {
               <input type="checkbox" name="active" value="true" defaultChecked={game.active} className="rounded border-gray-300" />
               <span className="text-gray-700 dark:text-gray-300">Active</span>
             </label>
+            {errors && (
+              <div className="text-sm text-red-500">
+                {Object.entries(errors).map(([key, msgs]) => (
+                  <p key={key}>{key}: {msgs.join(", ")}</p>
+                ))}
+              </div>
+            )}
+            {submitError && <p className="text-sm text-red-500">{submitError}</p>}
             <div className="flex gap-2">
               <Button type="submit">Save Changes</Button>
               <a href="/games" className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</a>
             </div>
-          </Form>
+          </form>
         </CardContent>
       </Card>
     </div>
   );
 }
-
-

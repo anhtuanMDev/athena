@@ -1,82 +1,49 @@
 import { useState } from "react";
-import { Form, redirect, data } from "react-router";
-import type { Route } from "./+types/_admin.$game.heroes.new";
+import { useParams, useNavigate } from "react-router";
 import { HeroSchema, type Hero } from "~/schemas/hero";
-import { getFile, createFile } from "~/lib/github.server";
-import type { SchemaFile } from "~/schemas/schema-file";
+import { getFile, createFile } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { buildHeroFromFormData, coerceKitParams } from "~/lib/parse-kit";
 import { FormField } from "~/components/FormField";
-import { checkAdminRateLimit, recordAdminAttempt } from "~/lib/admin-rate-limit.server";
+import { useData } from "~/lib/use-data";
 
 interface AbilityForm {
   id: string; name: string; type: string; description: string;
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
-  assertSafeGameSlug(params.game);
-  const schemaFile = await getFile<{ roles: string[]; ability_types: string[] }>(`data/${params.game}/schema.json`);
-  if (!schemaFile) throw data("Game schema not found", { status: 404 });
-  return { roles: schemaFile.content.roles, abilityTypes: schemaFile.content.ability_types, game: params.game };
-}
+export default function NewHero() {
+  const { game } = useParams();
+  assertSafeGameSlug(game!);
+  const { data, loading, error } = useData(async () => {
+    const schemaFile = await getFile<{ roles: string[]; ability_types: string[]; stat_fields: Record<string, { type: string }> }>(`data/${game!}/schema.json`);
+    if (!schemaFile) throw new Error("Game schema not found");
+    return { roles: schemaFile.content.roles, abilityTypes: schemaFile.content.ability_types, statFields: schemaFile.content.stat_fields, game: game! };
+  }, [game]);
 
-export async function action({ request, params }: Route.ActionArgs) {
-  assertSafeGameSlug(params.game);
-  const { allowed } = checkAdminRateLimit(request);
-  if (!allowed) {
-    return data({ errors: { _form: ["Too many requests. Try again later."] } }, { status: 429 });
-  }
-  const formData = await request.formData();
-  const raw = Object.fromEntries(formData);
-  const id = raw.id as string;
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error loading data</div>;
+  if (!data) return null;
 
-  const hero = buildHeroFromFormData(formData, params.game, id);
-
-  const schemaFile = await getFile<SchemaFile>(`data/${params.game}/schema.json`);
-  if (schemaFile) {
-    const rawKit = hero.kit;
-    if (Array.isArray(rawKit)) {
-      hero.kit = coerceKitParams(rawKit as Hero["kit"], schemaFile.content.stat_fields);
-    }
-  }
-
-  const parsed = HeroSchema.safeParse(hero);
-  if (!parsed.success) {
-    return data({ errors: parsed.error.flatten().fieldErrors, values: raw }, { status: 400 });
-  }
-
-  if (!parsed.data.kit.length) {
-    return data({ errors: { _form: ["At least one ability is required"] } }, { status: 400 });
-  }
-
-  const exists = await getFile(`data/${params.game}/heroes/${parsed.data.id}.json`);
-  if (exists) {
-    return data({ errors: { id: ["A hero with this ID already exists"] }, values: raw }, { status: 400 });
-  }
-
-  await createFile(`data/${params.game}/heroes/${parsed.data.id}.json`, parsed.data, `Add hero: ${parsed.data.name}`);
-  recordAdminAttempt(request, true);
-  throw redirect(`/${params.game}/heroes`);
-}
-
-export default function NewHero({ loaderData }: Route.ComponentProps) {
   return (
     <div className="max-w-2xl mx-auto">
       <Card>
         <CardHeader>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">New Hero — {loaderData.game}</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">New Hero — {data.game}</h1>
         </CardHeader>
         <CardContent>
-          <HeroForm roles={loaderData.roles} abilityTypes={loaderData.abilityTypes} />
+          <HeroForm roles={data.roles} abilityTypes={data.abilityTypes} statFields={data.statFields} game={data.game} />
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function HeroForm({ roles }: { roles: string[]; abilityTypes: string[] }) {
+function HeroForm({ roles, abilityTypes, statFields, game }: { roles: string[]; abilityTypes: string[]; statFields: Record<string, { type: string }>; game: string }) {
+  const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string[]> | null>(null);
   const [abilities, setAbilities] = useState<AbilityForm[]>([]);
 
   function addAbility() {
@@ -87,9 +54,54 @@ function HeroForm({ roles }: { roles: string[]; abilityTypes: string[] }) {
     setAbilities(abilities.filter((_, idx) => idx !== i));
   }
 
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSubmitting(true);
+    setErrors(null);
+    const formData = new FormData(e.currentTarget);
+    const raw = Object.fromEntries(formData);
+    const id = raw.id as string;
+
+    try {
+      const hero = buildHeroFromFormData(formData, game, id);
+      const rawKit = hero.kit;
+      if (Array.isArray(rawKit)) {
+        hero.kit = coerceKitParams(rawKit as Hero["kit"], statFields);
+      }
+
+      const parsed = HeroSchema.safeParse(hero);
+      if (!parsed.success) {
+        setErrors(parsed.error.flatten().fieldErrors);
+        return;
+      }
+
+      if (!parsed.data.kit.length) {
+        setErrors({ _form: ["At least one ability is required"] });
+        return;
+      }
+
+      const exists = await getFile(`data/${game}/heroes/${parsed.data.id}.json`);
+      if (exists) {
+        setErrors({ id: ["A hero with this ID already exists"] });
+        return;
+      }
+
+      await createFile(`data/${game}/heroes/${parsed.data.id}.json`, parsed.data, `Add hero: ${parsed.data.name}`);
+      navigate(`/${game}/heroes`);
+    } catch (err) {
+      setErrors({ _form: [(err as Error).message] });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
-    <Form method="post" className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <input type="hidden" name="_kitCount" value={String(abilities.length)} />
+
+      {errors?._form && (
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">{errors._form.join(", ")}</div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <FormField name="id" label="Hero ID" placeholder="e.g. tracer" />
@@ -135,8 +147,7 @@ function HeroForm({ roles }: { roles: string[]; abilityTypes: string[] }) {
         </button>
       </div>
 
-      <Button type="submit">Create Hero</Button>
-    </Form>
+      <Button type="submit" disabled={submitting}>{submitting ? "Creating..." : "Create Hero"}</Button>
+    </form>
   );
 }
-

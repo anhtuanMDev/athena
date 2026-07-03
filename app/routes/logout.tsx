@@ -1,12 +1,13 @@
-import { redirect } from "react-router";
-import type { Route } from "./+types/logout";
-import { destroyAdminSession } from "~/lib/session.server";
+import { useEffect } from "react";
+import { useNavigate } from "react-router";
+import { logout as authLogout } from "~/lib/auth";
 
-export async function action({ request }: Route.ActionArgs) {
-  const cookie = await destroyAdminSession(request);
-  throw redirect("/login", { headers: { "Set-Cookie": cookie } });
-}
+export default function Logout() {
+  const navigate = useNavigate();
 
-export async function loader() {
-  throw redirect("/login");
+  useEffect(() => {
+    authLogout().then(() => navigate("/login"));
+  }, [navigate]);
+
+  return <div>Logging out...</div>;
 }

@@ -1,15 +1,19 @@
 import { Link } from "react-router";
-import type { Route } from "./+types/_admin.games";
-import { listGames } from "~/lib/github.server";
+import { listGames } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
+import { useData } from "~/lib/use-data";
 
-export async function loader() {
-  const games = await listGames();
-  return { games };
-}
+export default function GamesList() {
+  const { data, loading, error } = useData(async () => {
+    const games = await listGames();
+    return { games };
+  });
 
-export default function GamesList({ loaderData }: Route.ComponentProps) {
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error loading games</div>;
+  if (!data) return null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -19,7 +23,7 @@ export default function GamesList({ loaderData }: Route.ComponentProps) {
         </Link>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {loaderData.games.map((game) => (
+        {data.games.map((game) => (
           <Card key={game.slug}>
             <CardHeader>
               <div className="flex items-center justify-between">

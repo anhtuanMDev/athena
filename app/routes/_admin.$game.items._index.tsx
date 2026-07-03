@@ -1,9 +1,9 @@
-import { Link } from "react-router";
-import type { Route } from "./+types/_admin.$game.items._index";
-import { listDirectory, getFile } from "~/lib/github.server";
+import { Link, useParams } from "react-router";
+import { listDirectory, getFile } from "~/lib/github";
 import { DataTable, type Column } from "~/components/DataTable";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
+import { useData } from "~/lib/use-data";
 
 interface ItemRow {
   id: string;
@@ -13,18 +13,6 @@ interface ItemRow {
   description?: string;
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
-  assertSafeGameSlug(params.game);
-  const ids = await listDirectory(params.game, "items");
-  const items = await Promise.all(
-    ids.map(async (id) => {
-      const file = await getFile<ItemRow>(`data/${params.game}/items/${id}.json`);
-      return file?.content ?? null;
-    })
-  );
-  return { items: items.filter(Boolean) as ItemRow[], game: params.game };
-}
-
 const columns: Column<ItemRow>[] = [
   { key: "name", header: "Name" },
   { key: "hero", header: "Hero", render: (i) => i.hero ?? "—" },
@@ -32,16 +20,33 @@ const columns: Column<ItemRow>[] = [
   { key: "description", header: "Description", render: (i) => i.description ?? "" },
 ];
 
-export default function ItemsIndex({ loaderData }: Route.ComponentProps) {
+export default function ItemsIndex() {
+  const { game } = useParams();
+  assertSafeGameSlug(game!);
+  const { data, loading, error } = useData(async () => {
+    const ids = await listDirectory(game!, "items");
+    const items = await Promise.all(
+      ids.map(async (id) => {
+        const file = await getFile<ItemRow>(`data/${game!}/items/${id}.json`);
+        return file?.content ?? null;
+      })
+    );
+    return { items: items.filter(Boolean) as ItemRow[], game: game! };
+  }, [game]);
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error loading data</div>;
+  if (!data) return null;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize">{loaderData.game} Items</h1>
-        <Link to={`/${loaderData.game}/items/new`}>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize">{data.game} Items</h1>
+        <Link to={`/${data.game}/items/new`}>
           <Button>New Item</Button>
         </Link>
       </div>
-      <DataTable columns={columns} data={loaderData.items} baseUrl={`/${loaderData.game}/items`} />
+      <DataTable columns={columns} data={data.items} baseUrl={`/${data.game}/items`} />
     </div>
   );
 }

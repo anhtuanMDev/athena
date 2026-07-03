@@ -1,10 +1,9 @@
-import type { Route } from "./+types/_admin.dashboard";
-import { listGames } from "~/lib/github.server";
-import { listDirectory } from "~/lib/github.server";
+import { listGames, listDirectory } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Link } from "react-router";
+import { useData } from "~/lib/use-data";
 
-export async function loader() {
+async function fetchDashboardData() {
   const games = await listGames();
   const gameStats = await Promise.all(
     games.map(async (game) => {
@@ -17,12 +16,18 @@ export async function loader() {
   return { games: gameStats };
 }
 
-export default function Dashboard({ loaderData }: Route.ComponentProps) {
+export default function Dashboard() {
+  const { data, loading, error } = useData(fetchDashboardData);
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error loading dashboard</div>;
+  if (!data) return null;
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {loaderData.games.map((game) => (
+        {data.games.map((game) => (
           <Card key={game.slug}>
             <CardHeader>
               <div className="flex items-center justify-between">

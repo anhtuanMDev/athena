@@ -1,103 +1,118 @@
-import { Form, redirect, data } from "react-router";
-import type { Route } from "./+types/_admin.$game.schema";
+import { useNavigate, useParams } from "react-router";
+import { useState } from "react";
 import { SchemaFileSchema, type SchemaFile } from "~/schemas/schema-file";
-import { getFile, updateFile, ConflictError, isConflictError, conflictResponse } from "~/lib/github.server";
+import { getFile, updateFile, isConflictError } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { computeDiff } from "~/lib/diff";
 import { DiffView } from "~/components/DiffView";
+import { useData } from "~/lib/use-data";
 import { assertSafeGameSlug, assertSafeStatFieldKey } from "~/lib/safe-path";
 
 type StatFieldType = "number" | "text" | "boolean" | "list";
 
-export async function loader({ params }: Route.LoaderArgs) {
-  assertSafeGameSlug(params.game);
-  const file = await getFile<SchemaFile>(`data/${params.game}/schema.json`);
-  if (!file) throw data("Schema not found", { status: 404 });
-  return { schema: file.content, sha: file.sha, game: params.game };
-}
+export default function SchemaEditor() {
+  const { game } = useParams();
+  const navigate = useNavigate();
+  assertSafeGameSlug(game);
 
-export async function action({ request, params }: Route.ActionArgs) {
-  assertSafeGameSlug(params.game);
-  const formData = await request.formData();
-  const intent = formData.get("intent") as string;
+  const { data: loaderData, loading, error: loadError } = useData(async () => {
+    const file = await getFile<SchemaFile>(`data/${game}/schema.json`);
+    if (!file) throw new Error("Schema not found");
+    return { schema: file.content, sha: file.sha, game };
+  }, [game]);
 
-  if (intent === "commit") {
-    const json = formData.get("_schemaJson") as string;
+  const [step, setStep] = useState<"form" | "preview">("form");
+  const [diffs, setDiffs] = useState<import("~/lib/diff").DiffEntry[] | null>(null);
+  const [commitSchemaJson, setCommitSchemaJson] = useState<string | null>(null);
+  const [commitSha, setCommitSha] = useState<string | null>(null);
+  const [commitError, setCommitError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string[]> | null>(null);
+
+  async function handlePreview(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setValidationErrors(null);
+    setCommitError(null);
+    const formData = new FormData(e.currentTarget);
+
+    const roles = (formData.get("roles") as string || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const abilityTypes = (formData.get("ability_types") as string || "").split(",").map((s) => s.trim()).filter(Boolean);
+
+    const rawStatFields: Record<string, { label: string; unit: string; type: StatFieldType }> = {};
+    for (const [key, value] of formData.entries()) {
+      const match = key.match(/^stat_field_(.+)_(label|unit|type)$/);
+      if (match) {
+        const fieldKey = match[1];
+        assertSafeStatFieldKey(fieldKey);
+        const fieldProp = match[2] as "label" | "unit" | "type";
+        rawStatFields[fieldKey] = rawStatFields[fieldKey] ?? { label: "", unit: "", type: "number" as StatFieldType };
+        if (fieldProp === "type") {
+          rawStatFields[fieldKey][fieldProp] = value as StatFieldType;
+        } else {
+          rawStatFields[fieldKey][fieldProp] = value as string;
+        }
+      }
+    }
+
+    const schema: SchemaFile = { roles, ability_types: abilityTypes, stat_fields: rawStatFields };
+    const parsed = SchemaFileSchema.safeParse(schema);
+    if (!parsed.success) {
+      setValidationErrors(parsed.error.flatten().fieldErrors as unknown as Record<string, string[]>);
+      return;
+    }
+
+    const current = await getFile<SchemaFile>(`data/${game}/schema.json`);
+    if (!current) {
+      setCommitError("Could not read current schema");
+      return;
+    }
+
+    const resultDiffs = computeDiff(current.content, parsed.data);
+    setDiffs(resultDiffs);
+    setCommitSchemaJson(JSON.stringify(parsed.data));
+    setCommitSha(current.sha);
+    setStep("preview");
+  }
+
+  async function handleCommit() {
+    if (!commitSchemaJson || !commitSha) return;
+    setCommitError(null);
     let schemaData: unknown;
-    try { schemaData = JSON.parse(json); } catch {
-      return data({ errors: { _form: ["Invalid schema data in commit"] } as const }, { status: 400 });
+    try { schemaData = JSON.parse(commitSchemaJson); } catch {
+      setCommitError("Invalid schema data in commit");
+      return;
     }
     const parsed = SchemaFileSchema.safeParse(schemaData);
     if (!parsed.success) {
-      return data({ errors: { _form: ["Schema failed validation on commit"] } as const }, { status: 400 });
+      setCommitError("Schema failed validation on commit");
+      return;
     }
-    const sha = formData.get("sha") as string;
     try {
-      await updateFile(`data/${params.game}/schema.json`, parsed.data, sha, `Update schema: ${params.game}`);
+      await updateFile(`data/${game}/schema.json`, parsed.data, commitSha, `Update schema: ${game}`);
+      navigate(0);
     } catch (err) {
       if (isConflictError(err)) {
-        return data(conflictResponse(), { status: 409 });
-      }
-      throw err;
-    }
-    return data({ success: true as const });
-  }
-
-  const roles = (formData.get("roles") as string || "").split(",").map((s) => s.trim()).filter(Boolean);
-  const abilityTypes = (formData.get("ability_types") as string || "").split(",").map((s) => s.trim()).filter(Boolean);
-
-  const rawStatFields: Record<string, { label: string; unit: string; type: StatFieldType }> = {};
-  for (const [key, value] of formData.entries()) {
-    const match = key.match(/^stat_field_(.+)_(label|unit|type)$/);
-    if (match) {
-      const fieldKey = match[1];
-      assertSafeStatFieldKey(fieldKey);
-      const fieldProp = match[2] as "label" | "unit" | "type";
-      rawStatFields[fieldKey] = rawStatFields[fieldKey] ?? { label: "", unit: "", type: "number" as StatFieldType };
-      if (fieldProp === "type") {
-        rawStatFields[fieldKey][fieldProp] = value as StatFieldType;
+        setCommitError("Conflict: file was modified since loading. Refresh and re-apply.");
       } else {
-        rawStatFields[fieldKey][fieldProp] = value as string;
+        throw err;
       }
     }
   }
 
-  const schema: SchemaFile = { roles, ability_types: abilityTypes, stat_fields: rawStatFields };
-  const parsed = SchemaFileSchema.safeParse(schema);
-  if (!parsed.success) {
-    return data({ errors: parsed.error.flatten().fieldErrors, values: schema, sha: formData.get("sha") as string, intent: "validate" as const }, { status: 400 });
-  }
+  if (loading) return <div>Loading...</div>;
+  if (loadError) return <div>Error: {(loadError as Error).message}</div>;
+  if (!loaderData) return null;
 
-  const current = await getFile<SchemaFile>(`data/${params.game}/schema.json`);
-  if (!current) return data({ errors: { _form: ["Could not read current schema"] } as const }, { status: 500 });
-
-  const diffs = computeDiff(current.content, parsed.data);
-  return data({ diffs, schemaJson: JSON.stringify(parsed.data), sha: current.sha, intent: "preview" as const });
-}
-
-export default function SchemaEditor({ loaderData, actionData }: Route.ComponentProps) {
-  const { schema } = loaderData;
-
-  const previewData = actionData && "diffs" in actionData && "intent" in actionData
-    ? actionData as { diffs: import("~/lib/diff").DiffEntry[]; schemaJson: string; sha: string; intent: string }
-    : null;
-  const showDiffs = previewData?.diffs ?? null;
-  const currentSha = previewData?.sha;
-  const currentValues: SchemaFile | undefined = previewData?.schemaJson ? JSON.parse(previewData.schemaJson) : undefined;
-
-  if (showDiffs) {
+  if (step === "preview" && diffs) {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Review Schema Changes</h1>
-        <DiffView diffs={showDiffs} />
-        <Form method="post" className="flex gap-2">
-          <input type="hidden" name="intent" value="commit" />
-          <input type="hidden" name="sha" value={currentSha} />
-          <input type="hidden" name="_schemaJson" value={JSON.stringify(currentValues ?? schema)} />
-          <Button type="submit">Confirm Commit</Button>
-          <Button type="button" variant="secondary" onClick={() => window.history.back()}>Cancel</Button>
-        </Form>
+        <DiffView diffs={diffs} />
+        {commitError && <p className="text-sm text-red-500">{commitError}</p>}
+        <div className="flex gap-2">
+          <Button onClick={handleCommit}>Confirm Commit</Button>
+          <Button onClick={() => setStep("form")} variant="secondary">Cancel</Button>
+        </div>
       </div>
     );
   }
@@ -106,20 +121,18 @@ export default function SchemaEditor({ loaderData, actionData }: Route.Component
     <div className="max-w-2xl">
       <Card>
         <CardHeader>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Schema: {loaderData.game}</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Schema: {game}</h1>
         </CardHeader>
         <CardContent>
-          <Form method="post" className="space-y-6">
-            <input type="hidden" name="intent" value="validate" />
-            <input type="hidden" name="sha" value={loaderData.sha} />
-
+          {commitError && <p className="text-sm text-red-500 mb-4">{commitError}</p>}
+          <form onSubmit={handlePreview} className="space-y-6">
             <div>
               <label htmlFor="roles" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Roles (comma-separated)</label>
               <input
                 id="roles"
                 name="roles"
                 type="text"
-                defaultValue={schema.roles.join(", ")}
+                defaultValue={loaderData.schema.roles.join(", ")}
                 className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
               />
             </div>
@@ -130,7 +143,7 @@ export default function SchemaEditor({ loaderData, actionData }: Route.Component
                 id="ability_types"
                 name="ability_types"
                 type="text"
-                defaultValue={schema.ability_types.join(", ")}
+                defaultValue={loaderData.schema.ability_types.join(", ")}
                 className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
               />
             </div>
@@ -138,7 +151,7 @@ export default function SchemaEditor({ loaderData, actionData }: Route.Component
             <div>
               <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Stat Fields</h3>
               <div className="space-y-2">
-                {Object.entries(schema.stat_fields).map(([key, field]) => (
+                {Object.entries(loaderData.schema.stat_fields).map(([key, field]) => (
                   <div key={key} className="flex gap-2 items-start">
                     <div className="flex-1">
                       <label className="text-xs text-gray-500">Key</label>
@@ -166,8 +179,16 @@ export default function SchemaEditor({ loaderData, actionData }: Route.Component
               </div>
             </div>
 
+            {validationErrors && (
+              <div className="text-sm text-red-500">
+                {Object.entries(validationErrors).map(([key, msgs]) => (
+                  <p key={key}>{key}: {msgs.join(", ")}</p>
+                ))}
+              </div>
+            )}
+
             <Button type="submit">Preview Changes</Button>
-          </Form>
+          </form>
         </CardContent>
       </Card>
     </div>

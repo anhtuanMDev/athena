@@ -1,0 +1,75 @@
+export interface GitHubFile<T = unknown> {
+  sha: string;
+  content: T;
+}
+
+export class ConflictError extends Error {
+  path: string;
+  constructor(path: string) {
+    super(`Conflict on ${path}: the file was modified since you loaded it. Please refresh and re-apply your changes.`);
+    this.name = "ConflictError";
+    this.path = path;
+  }
+}
+
+export function isConflictError(err: unknown): err is ConflictError {
+  return err instanceof ConflictError;
+}
+
+export function conflictResponse() {
+  return { errors: { _form: ["Conflict: file was modified since loading. Refresh and re-apply."] } };
+}
+
+async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const opts: RequestInit = {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  };
+  const res = await fetch(`/api/${path}`, opts);
+  const data = await res.json();
+  if (!res.ok) {
+    if (res.status === 409 && (data as Record<string, unknown>).conflict) {
+      const pathMatch = (body as Record<string, unknown>)?.path as string | undefined;
+      throw new ConflictError(pathMatch ?? "unknown");
+    }
+    throw new Error((data as Record<string, unknown>).error as string ?? res.statusText);
+  }
+  return data as T;
+}
+
+export async function getFile<T = unknown>(path: string): Promise<GitHubFile<T> | null> {
+  return api<T>("GET", `data/file?path=${encodeURIComponent(path)}`);
+}
+
+export async function fileExists(path: string): Promise<boolean> {
+  const file = await getFile(path);
+  return file !== null;
+}
+
+export async function createFile(path: string, content: unknown, message?: string): Promise<void> {
+  await api("POST", "data/file", { path, content, message });
+}
+
+export async function updateFile(path: string, content: unknown, sha: string, message?: string): Promise<void> {
+  await api("POST", "data/file", { path, content, message, sha });
+}
+
+export async function deleteFile(path: string, sha: string, message?: string): Promise<void> {
+  await api("DELETE", "data/file", { path, sha, message });
+}
+
+export async function listDirectory(game: string, subpath: string): Promise<string[]> {
+  return api<string[]>("GET", `data/directory?game=${encodeURIComponent(game)}&subpath=${encodeURIComponent(subpath)}`);
+}
+
+export async function listGames(): Promise<Array<{ slug: string; name: string; developer?: string; active: boolean; icon?: string }>> {
+  return api("GET", "data/games");
+}
+
+export async function getFileSha(path: string): Promise<string | null> {
+  const file = await getFile(path);
+  return file?.sha ?? null;
+}
+
+export type { GitHubFile };

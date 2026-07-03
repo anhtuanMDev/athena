@@ -1,18 +1,17 @@
-import * as React from "react"
+import Typography from "@mui/material/Typography";
+import type { ReactNode } from "react";
 
-import { cn } from "~/lib/utils"
-
-function Label({ className, ...props }: React.ComponentProps<"label">) {
+export function Label({ children, htmlFor, className = "", ...props }: { children?: ReactNode; htmlFor?: string; className?: string; [key: string]: unknown }) {
   return (
-    <label
-      data-slot="label"
-      className={cn(
-        "flex items-center gap-2 text-sm leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
-        className
-      )}
+    <Typography
+      component="label"
+      htmlFor={htmlFor}
+      variant="body2"
+      className={className}
+      sx={{ fontWeight: 500, mb: 0.5, display: "block" }}
       {...props}
-    />
-  )
+    >
+      {children}
+    </Typography>
+  );
 }
-
-export { Label }
