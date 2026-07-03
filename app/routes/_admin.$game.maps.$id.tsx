@@ -58,7 +58,7 @@ export default function EditMap({ loaderData }: Route.ComponentProps) {
           <Form method="post" className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700" onSubmit={(e) => { if (!confirm("Delete this map?")) e.preventDefault(); }}>
             <input type="hidden" name="intent" value="delete" />
             <input type="hidden" name="sha" value={loaderData.sha} />
-            <Button type="submit" variant="danger">Delete Map</Button>
+            <Button type="submit" variant="destructive">Delete Map</Button>
           </Form>
         </CardContent>
       </Card>

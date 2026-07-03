@@ -132,7 +132,7 @@ export default function EditItem({ loaderData }: Route.ComponentProps) {
           <Form method="post" className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700" onSubmit={(e) => { if (!confirm("Delete this item?")) e.preventDefault(); }}>
             <input type="hidden" name="intent" value="delete" />
             <input type="hidden" name="sha" value={loaderData.sha} />
-            <Button type="submit" variant="danger">Delete Item</Button>
+            <Button type="submit" variant="destructive">Delete Item</Button>
           </Form>
         </CardContent>
       </Card>

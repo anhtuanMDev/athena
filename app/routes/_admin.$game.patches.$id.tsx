@@ -77,7 +77,7 @@ export default function EditPatch({ loaderData }: Route.ComponentProps) {
           <Form method="post" className="mt-6 pt-4 border-t" onSubmit={(e) => { if (!confirm("Delete this patch?")) e.preventDefault(); }}>
             <input type="hidden" name="intent" value="delete" />
             <input type="hidden" name="sha" value={loaderData.sha} />
-            <Button type="submit" variant="danger">Delete Patch</Button>
+            <Button type="submit" variant="destructive">Delete Patch</Button>
           </Form>
         </CardContent>
       </Card>

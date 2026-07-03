@@ -89,7 +89,7 @@ export default function EditMode({ loaderData, actionData }: Route.ComponentProp
                 <input type="hidden" name="intent" value="delete" />
                 <input type="hidden" name="sha" value={loaderData.sha} />
                 <input type="hidden" name="confirmed" value="true" />
-                <Button type="submit" variant="danger">Delete Anyway</Button>
+                <Button type="submit" variant="destructive">Delete Anyway</Button>
               </Form>
               <Button type="button" variant="secondary" onClick={() => window.history.back()}>Cancel</Button>
             </div>
@@ -113,7 +113,7 @@ export default function EditMode({ loaderData, actionData }: Route.ComponentProp
           <Form method="post" className="mt-6 pt-4 border-t">
             <input type="hidden" name="intent" value="delete" />
             <input type="hidden" name="sha" value={loaderData.sha} />
-            <Button type="submit" variant="danger">Delete Mode</Button>
+            <Button type="submit" variant="destructive">Delete Mode</Button>
           </Form>
         </CardContent>
       </Card>
