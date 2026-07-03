@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useLayoutEffect,
+} from "react";
 import { useNavigate } from "react-router";
 import { animate, createTimeline, stagger, type JSAnimation } from "animejs";
 import { AlertCircle, Eye, EyeOff, LoaderCircle } from "lucide-react";
@@ -62,7 +68,7 @@ export default function Login() {
   const alertRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     checkSession().then((authenticated) => {
       if (authenticated) navigate("/dashboard");
     });
