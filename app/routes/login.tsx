@@ -14,7 +14,13 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { checkSession, login as authLogin } from "~/lib/auth";
 
-function Countdown({ seconds, onDone }: { seconds: number; onDone: () => void }) {
+function Countdown({
+  seconds,
+  onDone,
+}: {
+  seconds: number;
+  onDone: () => void;
+}) {
   const [remaining, setRemaining] = useState(seconds);
   const doneRef = useRef(onDone);
   doneRef.current = onDone;
@@ -41,7 +47,10 @@ export default function Login() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<{ message: string; retryAfter?: number } | null>(null);
+  const [error, setError] = useState<{
+    message: string;
+    retryAfter?: number;
+  } | null>(null);
   const [retrySeconds, setRetrySeconds] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -110,12 +119,19 @@ export default function Login() {
     const card = cardRef.current;
     if (!card) return;
 
-    const els = [logoRef, titleRef, subtitleRef, fieldRef, btnRef].map((r) => r.current).filter(Boolean);
+    const els = [logoRef, titleRef, subtitleRef, fieldRef, btnRef]
+      .map((r) => r.current)
+      .filter(Boolean);
     const tl = createTimeline({ playbackEase: "easeOutExpo" });
 
     tl.add(card, { opacity: [0, 1], translateY: [24, 0], duration: 700 }).add(
       els,
-      { opacity: [0, 1], translateY: [10, 0], duration: 400, delay: stagger(60) },
+      {
+        opacity: [0, 1],
+        translateY: [10, 0],
+        duration: 400,
+        delay: stagger(60),
+      },
       "-=300",
     );
   }, []);
@@ -150,7 +166,8 @@ export default function Login() {
       await authLogin(password);
       navigate("/dashboard");
     } catch (err: unknown) {
-      const retryAfter = (err as Record<string, unknown>).retryAfter as number | undefined;
+      const retryAfter = (err as Record<string, unknown>).retryAfter as
+        number | undefined;
       if (retryAfter != null) {
         setError({ message: "Too many attempts", retryAfter });
         setRetrySeconds(retryAfter);
@@ -164,7 +181,17 @@ export default function Login() {
   }
 
   return (
-    <Box sx={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", bgcolor: "background.default" }}>
+    <Box
+      sx={{
+        position: "relative",
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+        bgcolor: "background.default",
+      }}
+    >
       <Box
         id="login-bg-glow"
         className="absolute inset-0 pointer-events-none"
@@ -185,7 +212,11 @@ export default function Login() {
       <Box
         id="login-bg-scan"
         className="absolute inset-0 pointer-events-none"
-        sx={{ opacity: 0.02, background: "repeating-linear-gradient(0deg, transparent, transparent 2px, oklch(1 0 0) 2px, oklch(1 0 0) 3px)" }}
+        sx={{
+          opacity: 0.02,
+          background:
+            "repeating-linear-gradient(0deg, transparent, transparent 2px, oklch(1 0 0) 2px, oklch(1 0 0) 3px)",
+        }}
       />
 
       <Box sx={{ position: "relative", width: "100%", maxWidth: 448, px: 3 }}>
@@ -197,7 +228,8 @@ export default function Login() {
             bgcolor: "rgba(18, 18, 30, 0.85)",
             border: "1px solid",
             borderColor: "rgba(99, 102, 241, 0.15)",
-            boxShadow: "0 0 60px rgba(99, 102, 241, 0.08), 0 0 120px rgba(99, 102, 241, 0.04)",
+            boxShadow:
+              "0 0 60px rgba(99, 102, 241, 0.08), 0 0 120px rgba(99, 102, 241, 0.04)",
             borderRadius: 3,
           }}
         >
@@ -214,7 +246,8 @@ export default function Login() {
                   alignItems: "center",
                   justifyContent: "center",
                   borderRadius: 2,
-                  background: "linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.1))",
+                  background:
+                    "linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.1))",
                   border: "1px solid rgba(99,102,241,0.15)",
                 }}
               >
@@ -234,7 +267,11 @@ export default function Login() {
               <Typography
                 ref={titleRef}
                 variant="h5"
-                sx={{ fontWeight: 600, letterSpacing: "-0.02em", color: "grey.100" }}
+                sx={{
+                  fontWeight: 600,
+                  letterSpacing: "-0.02em",
+                  color: "grey.100",
+                }}
               >
                 Welcome back
               </Typography>
@@ -265,9 +302,15 @@ export default function Login() {
                       sx: {
                         borderRadius: 2,
                         bgcolor: "rgba(255,255,255,0.04)",
-                        "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.08)" },
-                        "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.15)" },
-                        "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(99,102,241,0.5)" },
+                        "& .MuiOutlinedInput-notchedOutline": {
+                          borderColor: "rgba(255,255,255,0.08)",
+                        },
+                        "&:hover .MuiOutlinedInput-notchedOutline": {
+                          borderColor: "rgba(255,255,255,0.15)",
+                        },
+                        "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                          borderColor: "rgba(99,102,241,0.5)",
+                        },
                         "&.Mui-focused": { bgcolor: "rgba(99,102,241,0.06)" },
                       },
                       endAdornment: (
@@ -277,15 +320,24 @@ export default function Login() {
                             edge="end"
                             size="small"
                             sx={{ color: "rgba(255,255,255,0.25)" }}
-                            aria-label={showPassword ? "Hide password" : "Show password"}
+                            aria-label={
+                              showPassword ? "Hide password" : "Show password"
+                            }
                           >
-                            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                            {showPassword ? (
+                              <EyeOff className="size-4" />
+                            ) : (
+                              <Eye className="size-4" />
+                            )}
                           </IconButton>
                         </InputAdornment>
                       ),
                     },
                     inputLabel: {
-                      sx: { color: "rgba(255,255,255,0.35)", "&.Mui-focused": { color: "rgba(99,102,241,0.7)" } },
+                      sx: {
+                        color: "rgba(255,255,255,0.35)",
+                        "&.Mui-focused": { color: "rgba(99,102,241,0.7)" },
+                      },
                     },
                   }}
                 />
@@ -307,7 +359,10 @@ export default function Login() {
                       {retrySeconds !== null ? (
                         <>
                           Too many attempts. Try again in{" "}
-                          <Countdown seconds={retrySeconds} onDone={handleRetryDone} />
+                          <Countdown
+                            seconds={retrySeconds}
+                            onDone={handleRetryDone}
+                          />
                         </>
                       ) : (
                         error.message
@@ -329,13 +384,25 @@ export default function Login() {
                     fontWeight: 500,
                     textTransform: "none",
                     background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                    "&:hover": { background: "linear-gradient(135deg, #5558e6, #7c4fe6)" },
+                    "&:hover": {
+                      background: "linear-gradient(135deg, #5558e6, #7c4fe6)",
+                    },
                     "&.Mui-disabled": { opacity: 0.4 },
                   }}
                 >
                   {isSubmitting ? (
-                    <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
-                      <LoaderCircle className="size-4" style={{ animation: "spin 0.8s linear infinite" }} />
+                    <Box
+                      component="span"
+                      sx={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 1,
+                      }}
+                    >
+                      <LoaderCircle
+                        className="size-4"
+                        style={{ animation: "spin 0.8s linear infinite" }}
+                      />
                       Authenticating...
                     </Box>
                   ) : (
@@ -349,9 +416,14 @@ export default function Login() {
 
         <Typography
           variant="caption"
-          sx={{ textAlign: "center", display: "block", mt: 3, color: "rgba(255,255,255,0.2)" }}
+          sx={{
+            textAlign: "center",
+            display: "block",
+            mt: 3,
+            color: "rgba(255,255,255,0.2)",
+          }}
         >
-          Athena Admin Panel
+          Admin Panel
         </Typography>
       </Box>
     </Box>
