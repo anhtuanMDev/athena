@@ -38,6 +38,7 @@ export const theme = createTheme({
           padding: "8px 16px",
           transition: "all 0.2s ease-in-out",
         },
+        // @ts-expect-error type mismatch
         containedPrimary: {
           backgroundImage: "linear-gradient(to right, #ea580c, #f97316)",
           boxShadow: "0 4px 14px 0 rgba(249, 115, 22, 0.39)",

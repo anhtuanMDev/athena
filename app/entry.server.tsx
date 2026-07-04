@@ -19,7 +19,7 @@ export default function handleRequest(
           const body = new PassThrough();
           responseHeaders.set("Content-Type", "text/html");
           resolve(
-            new Response(body, {
+            new Response(body as any, {
               status: responseStatusCode,
               headers: responseHeaders,
             })
