@@ -96,40 +96,15 @@ app/routes/
   logout.tsx                         POST      — clear session
 
   _admin.tsx                         layout route: auth guard + nav shell
-
   _admin.dashboard.tsx               GET — overview across all games
+  _admin.activity.tsx                GET — recent commits made through this app
 
   _admin.games.tsx                   GET — list all games (from games.json)
   _admin.games.new.tsx               GET/POST — add a game
-  _admin.games.$slug.edit.tsx        GET/POST — edit a game entry / toggle active
+  _admin.games.$slug.edit.tsx        GET/POST — edit a game entry
 
-  _admin.$game.schema.tsx            GET/POST — edit that game's schema.json
-                                        (roles, ability_types, stat_fields)
-
-  _admin.$game.heroes._index.tsx     GET — hero table (search/filter/sort)
-  _admin.$game.heroes.new.tsx        GET/POST — create hero form
-  _admin.$game.heroes.$id.tsx        GET/POST — edit hero form
-  _admin.$game.heroes.$id.delete.tsx POST — delete confirmation action
-
-  _admin.$game.maps._index.tsx       GET — map list
-  _admin.$game.maps.new.tsx          GET/POST
-  _admin.$game.maps.$id.tsx          GET/POST/DELETE
-
-  _admin.$game.modes._index.tsx      GET — mode list
-  _admin.$game.modes.new.tsx         GET/POST
-  _admin.$game.modes.$id.tsx         GET/POST/DELETE
-
-  _admin.$game.patches._index.tsx    GET — patch list, newest first
-  _admin.$game.patches.new.tsx       GET/POST — new patch, changelog builder
-  _admin.$game.patches.$id.tsx       GET/POST/DELETE — edit/delete a patch
-
-  _admin.$game.items._index.tsx      GET — item/equipment list (hero-specific or universal)
-  _admin.$game.items.new.tsx         GET/POST — create item with effects, hero/mode scoping
-  _admin.$game.items.$id.tsx         GET/POST/DELETE — edit/delete item
-
-  _admin.$game.raw.$type.$id.tsx     GET/POST — raw JSON escape hatch (§6.10)
-
-  _admin.activity.tsx                GET — recent commits made through this app
+  _admin.$game.tsx                   Unified SPA route for all game entities
+                                     (loads components dynamically based on URL)
 ```
 
 `_admin.tsx` is a layout route: its loader checks the session cookie and redirects to
@@ -408,22 +383,21 @@ in commit authorship instead of everything showing as one bot identity in `/acti
 ```
 admin-app/
   app/
-    routes/                 # §5
-    schemas/                 # §8
+    routes/                  # §5, minimal core routes (SPA wrapper)
+    schemas/                 # §8, zod schemas
     lib/
-      github.server.ts        # Octokit client + all Contents API wrapper functions
-      diff.ts                  # shared diff util used by review-before-commit
-      safe-path.ts             # Route param allow-list validation (SAFE_SLUG, SAFE_ENTITY_ID, ENTITY_TYPES, SAFE_STAT_FIELD_KEY)
-      parse-kit.ts             # Shared form-data → hero object builder (extracted from duplicate inline code)
-      session.server.ts        # cookie session helpers
+      github.server.ts       # Octokit client + all Contents API wrapper functions
+      diff.ts                # shared diff util used by review-before-commit
+      safe-path.ts           # Route param allow-list validation
+      parse-kit.ts           # Shared form-data → hero object builder
+      session.server.ts      # cookie session helpers
     components/
-      HeroForm/
-        CoreFields.tsx
-        KitBuilder.tsx
-        ParamsEditor.tsx        # §7.2's dynamic renderer
-      DiffView.tsx               # §7.3's shared diff UI
-      DataTable.tsx              # shared table for heroes/maps/modes/patches lists
-  wrangler.toml (or platform config for chosen deploy target)
+      views/                 # SPA view components (HeroesList, MapEdit, etc.)
+      ToastProvider.tsx      # Global notification context
+      DiffView.tsx           # §7.3's shared diff UI
+      DataTable.tsx          # shared table for entity lists
+      DataTableSkeleton.tsx  # loading placeholder for lists
+  wrangler.toml
   .env.example
 ```
 

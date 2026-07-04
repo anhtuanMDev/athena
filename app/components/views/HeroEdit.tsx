@@ -12,6 +12,7 @@ import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 import { buildHeroFromFormData, coerceKitParams } from "~/lib/parse-kit";
 import { FormField } from "~/components/FormField";
 import { useData } from "~/lib/use-data";
+import { useToast } from "~/components/ToastProvider";
 
 const EMPTY_ARRAYS: never[] = [];
 
@@ -30,10 +31,27 @@ export default function EditHero() {
   );
 
   if (heroResult.loading || schemaResult.loading) {
-    return <div className="text-gray-500 p-4">Loading...</div>;
+    return (
+      <div className="max-w-2xl mx-auto space-y-6 animate-pulse">
+        <div className="h-10 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
+        <div className="space-y-4 bg-white/50 dark:bg-gray-900/30 p-6 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
+            <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
+          </div>
+          <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
+          <div className="h-40 bg-gray-200 dark:bg-gray-800 rounded-lg mt-8"></div>
+        </div>
+      </div>
+    );
   }
   if (heroResult.error) {
-    return <div className="text-red-500 p-4">Error: {String(heroResult.error)}</div>;
+    return (
+      <div className="max-w-2xl mx-auto p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
+        <h3 className="font-bold text-lg mb-2">Failed to load hero</h3>
+        <p>{String(heroResult.error)}</p>
+      </div>
+    );
   }
   if (!heroResult.data) {
     return <div className="text-red-500 p-4">Hero not found</div>;
@@ -57,9 +75,9 @@ function EditHeroForm({
   hero: Hero; sha: string; roles: string[]; game: string; id: string;
 }) {
   const navigate = useNavigate();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [abilities, setAbilities] = useState(hero.kit);
   const [preview, setPreview] = useState<{ diffs: DiffEntry[]; heroJson: string; sha: string } | null>(null);
-  const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submittingCommit, setSubmittingCommit] = useState(false);
@@ -91,20 +109,27 @@ function EditHeroForm({
       if (!parsed.success) {
         const msgs = Object.values(parsed.error.flatten().fieldErrors).flat();
         setError(msgs.length > 0 ? msgs.join("; ") : "Validation failed");
+        toastError("Form validation failed. Check fields.");
         return;
       }
 
       const current = await getFile<Hero>(`data/${game}/heroes/${id}.json`);
       if (!current) {
         setError("Hero file not found");
+        toastError("Hero file not found");
         return;
       }
 
       const diffs = computeDiff(current.content, parsed.data);
       setPreview({ diffs, heroJson: JSON.stringify(parsed.data), sha: current.sha });
     } catch (err) {
-      if (err instanceof Error) setError(err.message);
-      else setError("Error");
+      if (err instanceof Error) {
+        setError(err.message);
+        toastError(err.message);
+      } else {
+        setError("Error");
+        toastError("An unknown error occurred");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -119,54 +144,43 @@ function EditHeroForm({
       const parsed = HeroSchema.safeParse(JSON.parse(preview.heroJson));
       if (!parsed.success) {
         setError("Hero data failed validation on commit");
-        return;
-      }
-      const current = await getFile<Hero>(`data/${game}/heroes/${id}.json`);
-      if (!current) {
-        setError("Hero file not found on GitHub");
+        toastError("Validation failed on commit");
         return;
       }
       await updateFile(
         `data/${game}/heroes/${id}.json`,
         parsed.data,
-        current.sha,
+        sha, // Use the original SHA from initial load
         `Update hero: ${parsed.data.name}`
       );
-      setSuccess(true);
-      setPreview(null);
+      toastSuccess(`Hero ${parsed.data.name} updated successfully!`);
+      navigate(`/${game}/heroes`);
     } catch (err) {
       if (isConflictError(err)) {
         setError("Conflict detected. The file has been modified. Please try again.");
+        toastError("Conflict detected! Someone else modified this file.");
       } else {
-        setError(err instanceof Error ? err.message : "Error");
+        const msg = err instanceof Error ? err.message : "Error";
+        setError(msg);
+        toastError(`Failed to save: ${msg}`);
       }
     } finally {
       setSubmittingCommit(false);
     }
   }
 
-  if (success) {
-    return (
-      <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Hero Updated</h1>
-        <p className="text-green-600">Changes committed successfully.</p>
-        <a href={`/${game}/heroes`} className="text-blue-600 hover:underline">Back to heroes</a>
-      </div>
-    );
-  }
-
   if (preview) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Review Changes</h1>
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Review Changes</h1>
         <DiffView diffs={preview.diffs} />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <form onSubmit={handleCommit} className="flex gap-2">
+        {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800/50">{error}</p>}
+        <form onSubmit={handleCommit} className="flex gap-4 pt-4">
           <input type="hidden" name="_heroJson" value={preview.heroJson} />
-          <Button type="submit" disabled={submittingCommit}>
+          <Button type="submit" disabled={submittingCommit} className="shadow-lg shadow-violet-500/20 w-40">
             {submittingCommit ? "Committing..." : "Confirm Commit"}
           </Button>
-          <Button type="button" variant="secondary" onClick={() => { setPreview(null); setError(null); }}>
+          <Button type="button" variant="secondary" onClick={() => { setPreview(null); setError(null); }} className="w-32 bg-gray-100 dark:bg-gray-800">
             Cancel
           </Button>
         </form>

@@ -9,13 +9,13 @@ import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 export default function DeleteHero() {
   const { game, id } = useParams();
   const navigate = useNavigate();
-  assertSafeGameSlug(game);
-  assertSafeEntityId(id);
+  assertSafeGameSlug(game!);
+  assertSafeEntityId(id!);
 
   const { data: heroData, loading, error: loadError } = useData(async () => {
     const file = await getFile<{ name: string }>(`data/${game}/heroes/${id}.json`);
     if (!file) throw new Error("Hero not found");
-    return { name: file.content.name ?? id! };
+    return { name: file.content.name ?? id!, sha: file.sha };
   }, [game, id]);
 
   const [step, setStep] = useState<"confirm" | "references" | "deleting">("confirm");
@@ -60,14 +60,10 @@ export default function DeleteHero() {
     setError(null);
     setStep("deleting");
 
-    const file = await getFile(`data/${game}/heroes/${id}.json`);
-    if (!file) {
-      setError("Hero not found");
-      return;
-    }
+    if (!heroData) return;
 
     try {
-      await deleteFile(`data/${game}/heroes/${id}.json`, file.sha, `Delete hero: ${id}`);
+      await deleteFile(`data/${game}/heroes/${id}.json`, heroData.sha, `Delete hero: ${id}`);
       navigate(`/${game}/heroes`);
     } catch (err) {
       if (isConflictError(err)) {
