@@ -62,6 +62,10 @@ export async function updateFile(path: string, content: unknown, sha: string, me
   await api("POST", "data/file", { path, content, message, sha });
 }
 
+export async function uploadAsset(path: string, base64Content: string, sha?: string, message?: string): Promise<void> {
+  await api("POST", "data/file", { path, content: base64Content, isBase64: true, sha, message });
+}
+
 export async function deleteFile(path: string, sha: string, message?: string): Promise<void> {
   await api("DELETE", "data/file", { path, sha, message });
 }

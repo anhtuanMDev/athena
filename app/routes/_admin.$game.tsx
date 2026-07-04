@@ -49,7 +49,7 @@ export default function GameDashboardRouter() {
     switch (entity) {
     case "heroes":
       if (!idOrAction) return <HeroesList />;
-      if (idOrAction === "new") return <><HeroesList /><HeroNew /></>;
+      if (idOrAction === "new") return <HeroNew />;
       if (subAction === "delete") return <HeroDelete />;
       return <HeroEdit />;
       

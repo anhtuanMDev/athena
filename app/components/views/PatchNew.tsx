@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { PatchSchema } from "~/schemas/patch";
@@ -67,7 +68,8 @@ export default function NewPatch() {
     }
   }
 
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="max-w-lg mx-auto animate-in fade-in zoom-in-95 duration-200">
       <Card>
@@ -101,5 +103,6 @@ export default function NewPatch() {
       </Card>
     </div>
     </div>
+    , document.body
   );
 }

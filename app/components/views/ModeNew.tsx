@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ModeSchema } from "~/schemas/mode";
@@ -46,7 +47,8 @@ export default function NewMode() {
     }
   }
 
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="max-w-lg mx-auto animate-in fade-in zoom-in-95 duration-200">
       <Card>
@@ -71,5 +73,6 @@ export default function NewMode() {
       </Card>
     </div>
     </div>
+    , document.body
   );
 }

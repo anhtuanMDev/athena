@@ -1,7 +1,9 @@
+
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { HeroSchema, type Hero } from "~/schemas/hero";
-import { getFile, createFile } from "~/lib/github";
+import { getFile, createFile, uploadAsset } from "~/lib/github";
+import { MultiImageUploadField, type ImageEntry } from "~/components/MultiImageUploadField";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
@@ -12,6 +14,7 @@ import { useToast } from "~/components/ToastProvider";
 
 interface AbilityForm {
   id: string; name: string; type: string; description: string;
+  icons: ImageEntry[];
 }
 
 export default function NewHero() {
@@ -19,8 +22,12 @@ export default function NewHero() {
   assertSafeGameSlug(game!);
   const { data, loading, error } = useData(async () => {
     const schemaFile = await getFile<{ roles: string[]; ability_types: string[]; stat_fields: Record<string, { type: string }> }>(`data/${game!}/schema.json`);
-    if (!schemaFile) throw new Error("Game schema not found");
-    return { roles: schemaFile.content.roles, abilityTypes: schemaFile.content.ability_types, statFields: schemaFile.content.stat_fields, game: game! };
+    const content = schemaFile?.content || {
+      roles: ["damage", "tank", "support"],
+      ability_types: ["passive", "weapon", "ability", "ultimate"],
+      stat_fields: { health: { type: "number", label: "Health", unit: "HP" } }
+    };
+    return { roles: content.roles, abilityTypes: content.ability_types, statFields: content.stat_fields, game: game! };
   }, [game]);
 
   if (loading) {
@@ -48,8 +55,7 @@ export default function NewHero() {
   if (!data) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="max-w-2xl mx-auto animate-in fade-in zoom-in-95 duration-200">
+    <div className="max-w-2xl mx-auto py-8">
       <Card>
         <CardHeader>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">New Hero — {data.game}</h1>
@@ -58,7 +64,6 @@ export default function NewHero() {
           <HeroForm roles={data.roles} abilityTypes={data.abilityTypes} statFields={data.statFields} game={data.game} />
         </CardContent>
       </Card>
-      </div>
     </div>
   );
 }
@@ -69,9 +74,10 @@ function HeroForm({ roles, abilityTypes, statFields, game }: { roles: string[]; 
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string[]> | null>(null);
   const [abilities, setAbilities] = useState<AbilityForm[]>([]);
+  const [portraits, setPortraits] = useState<ImageEntry[]>([]);
 
   function addAbility() {
-    setAbilities([...abilities, { id: "", name: "", type: "", description: "" }]);
+    setAbilities([...abilities, { id: "", name: "", type: "", description: "", icons: [] }]);
   }
 
   function removeAbility(i: number) {
@@ -84,14 +90,55 @@ function HeroForm({ roles, abilityTypes, statFields, game }: { roles: string[]; 
     setErrors(null);
     const formData = new FormData(e.currentTarget);
     const raw = Object.fromEntries(formData);
-    const id = raw.id as string;
+    const nameField = (raw.name as string) || "";
+    const id = nameField.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
     try {
+      if (!id || !/^[a-z0-9-]+$/.test(id)) {
+        setErrors({ _form: ["Agent Code Name is required to generate a valid ID"] });
+        setSubmitting(false);
+        return;
+      }
+      
       const hero = buildHeroFromFormData(formData, game, id);
       const rawKit = hero.kit;
       if (Array.isArray(rawKit)) {
         hero.kit = coerceKitParams(rawKit as Hero["kit"], statFields);
       }
+
+      let portraitData: string | Record<string, string> = raw.portrait as string;
+      if (portraits.length === 1 && portraits[0].key === "main") {
+        const ext = portraits[0].name?.split(".").pop() || "png";
+        portraitData = `assets/${game}/heroes/${id}/portrait.${ext}`;
+      } else if (portraits.length > 0) {
+        portraitData = {};
+        for (const p of portraits) {
+          const ext = p.name?.split(".").pop() || "png";
+          portraitData[p.key] = `assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
+        }
+      }
+      if (portraits.length > 0) {
+        hero.portrait = portraitData;
+      }
+
+      const abilityUploads: { path: string; base64: string; message: string }[] = [];
+      (hero.kit as any[]).forEach((ability, i) => {
+        const aIcons = abilities[i]?.icons || [];
+        if (aIcons.length === 1 && aIcons[0].key === "main") {
+          const ext = aIcons[0].name?.split(".").pop() || "png";
+          const path = `assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
+          ability.icon = path;
+          if (aIcons[0].base64) abilityUploads.push({ path, base64: aIcons[0].base64, message: `Add ${ability.name} icon for ${id}` });
+        } else if (aIcons.length > 0) {
+          ability.icon = {};
+          for (const icon of aIcons) {
+            const ext = icon.name?.split(".").pop() || "png";
+            const path = `assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
+            ability.icon[icon.key] = path;
+            if (icon.base64) abilityUploads.push({ path, base64: icon.base64, message: `Add ${ability.name} ${icon.key} icon for ${id}` });
+          }
+        }
+      });
 
       const parsed = HeroSchema.safeParse(hero);
       if (!parsed.success) {
@@ -112,6 +159,21 @@ function HeroForm({ roles, abilityTypes, statFields, game }: { roles: string[]; 
         toastError("A hero with this ID already exists.");
         return;
       }
+
+      const uploads = [];
+      for (const p of portraits) {
+        if (p.base64) {
+          const ext = p.name?.split(".").pop() || "png";
+          const path = (portraits.length === 1 && p.key === "main")
+            ? `assets/${game}/heroes/${id}/portrait.${ext}`
+            : `assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
+          uploads.push(uploadAsset(path, p.base64, undefined, `Add portrait ${p.key} for ${id}`));
+        }
+      }
+      for (const upload of abilityUploads) {
+        uploads.push(uploadAsset(upload.path, upload.base64, undefined, upload.message));
+      }
+      if (uploads.length > 0) await Promise.all(uploads);
 
       await createFile(`data/${game}/heroes/${parsed.data.id}.json`, parsed.data, `Add hero: ${parsed.data.name}`);
       toastSuccess(`Hero ${parsed.data.name} created successfully!`);
@@ -134,12 +196,19 @@ function HeroForm({ roles, abilityTypes, statFields, game }: { roles: string[]; 
       )}
 
       <div className="grid grid-cols-2 gap-4">
-        <FormField name="id" label="Hero ID" placeholder="e.g. tracer" />
-        <FormField name="name" label="Name" placeholder="e.g. Tracer" />
+        <FormField name="name" label="Agent Code Name" placeholder="e.g. Tracer" />
+        <FormField name="real_name" label="Real Fullname (optional)" placeholder="e.g. Lena Oxton" required={false} />
       </div>
 
       <FormField name="roles" label={`Roles (${roles.join(", ")})`} placeholder="e.g. damage" />
-      <FormField name="portrait" label="Portrait URL" placeholder="https://..." />
+      <div className="border border-gray-200 dark:border-gray-800 p-4 rounded-xl bg-gray-50/50 dark:bg-gray-800/30">
+        <MultiImageUploadField label="Portraits" entries={portraits} onChange={setPortraits} defaultKey="main" />
+        {portraits.length === 0 && (
+          <div className="mt-4">
+            <FormField name="portrait" label="Or Image URL" placeholder="https://..." required={false} />
+          </div>
+        )}
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <FormField name="difficulty" label="Difficulty (1-5)" type="number" required={false} />
         <FormField name="health" label="Health (JSON)" placeholder='{"health": 200}' required={false} />
@@ -157,17 +226,33 @@ function HeroForm({ roles, abilityTypes, statFields, game }: { roles: string[]; 
                 <button type="button" onClick={() => removeAbility(i)}
                   className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">Remove</button>
               </div>
-              <input type="hidden" name={`_kit_${i}_params_keys`} value="" />
-              <div className="grid grid-cols-3 gap-3 mb-3">
-                <input name={`kit_${i}_id`} placeholder="id (kebab-case)"
-                  className="block w-full rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900/50 dark:text-gray-100" />
-                <input name={`kit_${i}_name`} placeholder="name"
-                  className="block w-full rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900/50 dark:text-gray-100" />
-                <input name={`kit_${i}_type`} placeholder="type"
-                  className="block w-full rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900/50 dark:text-gray-100" />
+              <div className="flex flex-col md:flex-row gap-6">
+                <div className="w-full md:w-64">
+                  <MultiImageUploadField 
+                    label="Icons" 
+                    entries={abilities[i].icons}
+                    onChange={(newIcons) => {
+                      const newAbilities = [...abilities];
+                      newAbilities[i].icons = newIcons;
+                      setAbilities(newAbilities);
+                    }} 
+                    defaultKey="main"
+                  />
+                </div>
+                <div className="flex-1 space-y-3">
+                  <input type="hidden" name={`_kit_${i}_params_keys`} value="" />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input name={`kit_${i}_id`} placeholder="id (kebab-case)"
+                      className="block w-full rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900/50 dark:text-gray-100" />
+                    <input name={`kit_${i}_name`} placeholder="name"
+                      className="block w-full rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900/50 dark:text-gray-100" />
+                    <input name={`kit_${i}_type`} placeholder="type"
+                      className="block w-full rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900/50 dark:text-gray-100" />
+                  </div>
+                  <input name={`kit_${i}_description`} placeholder="description (optional)"
+                    className="block w-full rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900/50 dark:text-gray-100" />
+                </div>
               </div>
-              <input name={`kit_${i}_description`} placeholder="description (optional)"
-                className="block w-full rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900/50 dark:text-gray-100" />
             </div>
           ))}
         </div>

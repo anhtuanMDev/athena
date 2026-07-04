@@ -79,6 +79,7 @@ export function buildHeroFromFormData(formData: FormData, game: string, id: stri
     id,
     game,
     name: get("name") ?? "",
+    real_name: get("real_name") || undefined,
     roles,
     difficulty: get("difficulty") ? parseInt(get("difficulty") as string) : undefined,
     health,

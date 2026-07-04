@@ -242,7 +242,7 @@ async function handleGetFile(request: Request, env: Record<string, string>): Pro
 
 async function handleWriteFile(request: Request, env: Record<string, string>): Promise<Response> {
   await requireAuth({ request, env } as PagesFunctionContext);
-  const body: { path: string; content: unknown; message?: string; sha?: string } = await request.json().catch(() => ({}));
+  const body: { path: string; content: unknown; message?: string; sha?: string; isBase64?: boolean } = await request.json().catch(() => ({}));
   if (!body.path) return json({ error: "path is required" }, 400);
   assertSafeFilePath(body.path);
 
@@ -257,7 +257,7 @@ async function handleWriteFile(request: Request, env: Record<string, string>): P
       repo,
       path: body.path,
       message: body.message ?? (body.sha ? `Update ${body.path}` : `Add ${body.path}`),
-      content: btoa(JSON.stringify(body.content, null, 2)),
+      content: body.isBase64 ? (body.content as string) : btoa(JSON.stringify(body.content, null, 2)),
       sha: body.sha,
       branch,
     });

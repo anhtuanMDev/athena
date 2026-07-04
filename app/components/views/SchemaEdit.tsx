@@ -18,7 +18,17 @@ export default function SchemaEditor() {
 
   const { data: loaderData, loading, error: loadError } = useData(async () => {
     const file = await getFile<SchemaFile>(`data/${game}/schema.json`);
-    if (!file) throw new Error("Schema not found");
+    if (!file) {
+      return {
+        schema: {
+          roles: ["damage", "tank", "support"],
+          ability_types: ["passive", "weapon", "ability", "ultimate"],
+          stat_fields: { health: { type: "number", label: "Health", unit: "HP" } }
+        },
+        sha: null,
+        game
+      };
+    }
     return { schema: file.content, sha: file.sha, game };
   }, [game]);
 
@@ -74,7 +84,7 @@ export default function SchemaEditor() {
   }
 
   async function handleCommit() {
-    if (!commitSchemaJson || !commitSha) return;
+    if (!commitSchemaJson) return;
     setCommitError(null);
     let schemaData: unknown;
     try { schemaData = JSON.parse(commitSchemaJson); } catch {
@@ -87,7 +97,13 @@ export default function SchemaEditor() {
       return;
     }
     try {
-      await updateFile(`data/${game}/schema.json`, parsed.data, commitSha, `Update schema: ${game}`);
+      if (!commitSha) {
+        // use createFile from github.ts
+        const { createFile } = await import("~/lib/github");
+        await createFile(`data/${game}/schema.json`, parsed.data, `Create schema: ${game}`);
+      } else {
+        await updateFile(`data/${game}/schema.json`, parsed.data, commitSha, `Update schema: ${game}`);
+      }
       navigate(0);
     } catch (err) {
       if (isConflictError(err)) {
