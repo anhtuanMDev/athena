@@ -195,7 +195,7 @@ function HeroForm({ roles, abilityTypes, statFields, game }: { roles: string[]; 
         <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">{errors._form.join(", ")}</div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormField name="name" label="Agent Code Name" placeholder="e.g. Tracer" />
         <FormField name="real_name" label="Real Fullname (optional)" placeholder="e.g. Lena Oxton" required={false} />
       </div>
@@ -209,7 +209,7 @@ function HeroForm({ roles, abilityTypes, statFields, game }: { roles: string[]; 
           </div>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormField name="difficulty" label="Difficulty (1-5)" type="number" required={false} />
         <FormField name="health" label="Health (JSON)" placeholder='{"health": 200}' required={false} />
       </div>
