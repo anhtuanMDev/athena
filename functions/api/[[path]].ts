@@ -191,9 +191,14 @@ async function handleLogin(request: Request, env: Record<string, string>): Promi
     return json({ error: "Invalid password" }, 401);
   }
 
+  const secret = env.SESSION_SECRET;
+  if (!secret) {
+    return json({ error: "Server misconfigured: SESSION_SECRET is not set" }, 500);
+  }
+
   recordAttempt(ip, true);
   const secure = env.COOKIE_SECURE !== "false";
-  const cookie = await createSessionCookie(env.SESSION_SECRET, secure);
+  const cookie = await createSessionCookie(secret, secure);
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
     headers: { "Content-Type": "application/json", "Set-Cookie": cookie },
