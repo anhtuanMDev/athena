@@ -15,18 +15,18 @@ export const theme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: "#8b5cf6", // Vibrant Purple
-      light: "#a78bfa",
-      dark: "#6d28d9",
+      main: "#f97316", // Orange 500
+      light: "#fb923c",
+      dark: "#ea580c",
     },
     secondary: {
-      main: "#06b6d4", // Cyan
-      light: "#22d3ee",
-      dark: "#0891b2",
+      main: "#3b82f6", // Blue 500
+      light: "#60a5fa",
+      dark: "#2563eb",
     },
     background: {
-      default: "#030712", // gray-950
-      paper: "#111827", // gray-900
+      default: "#09090b", // zinc-950
+      paper: "#18181b", // zinc-900
     },
     divider: "rgba(255, 255, 255, 0.08)",
   },
@@ -39,11 +39,11 @@ export const theme = createTheme({
           transition: "all 0.2s ease-in-out",
         },
         containedPrimary: {
-          backgroundImage: "linear-gradient(to right, #6d28d9, #8b5cf6)",
-          boxShadow: "0 4px 14px 0 rgba(139, 92, 246, 0.39)",
+          backgroundImage: "linear-gradient(to right, #ea580c, #f97316)",
+          boxShadow: "0 4px 14px 0 rgba(249, 115, 22, 0.39)",
           "&:hover": {
-            backgroundImage: "linear-gradient(to right, #5b21b6, #7c3aed)",
-            boxShadow: "0 6px 20px rgba(139, 92, 246, 0.23)",
+            backgroundImage: "linear-gradient(to right, #c2410c, #ea580c)",
+            boxShadow: "0 6px 20px rgba(249, 115, 22, 0.23)",
           },
         },
       },

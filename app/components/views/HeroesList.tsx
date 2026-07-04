@@ -43,14 +43,14 @@ export default function HeroesIndex() {
   );
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">{game} Heroes</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Manage the hero roster, stats, and abilities.</p>
         </div>
         <Link to={`/${game}/heroes/new`}>
-          <Button className="gap-2 shadow-lg shadow-violet-500/20 transition-all hover:shadow-violet-500/40">
+          <Button className="gap-2 shadow-lg shadow-orange-500/20 transition-all hover:shadow-orange-500/40">
             <Plus className="w-4 h-4" />
             New Hero
           </Button>

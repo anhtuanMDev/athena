@@ -199,7 +199,7 @@ export default function EditItem() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-2xl mx-auto">
       <Card>
         <CardHeader>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">Edit Item: {item.name}</h1>
@@ -213,7 +213,7 @@ export default function EditItem() {
               <div>
                 <label htmlFor="hero" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Hero (optional)</label>
                 <select id="hero" name="hero" defaultValue={item.hero ?? ""}
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                   <option value="">— Any —</option>
                   {heroIds.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
@@ -221,7 +221,7 @@ export default function EditItem() {
               <div>
                 <label htmlFor="mode" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Mode (optional)</label>
                 <select id="mode" name="mode" defaultValue={item.mode ?? ""}
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                   <option value="">— Any —</option>
                   {modeIds.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
@@ -236,12 +236,12 @@ export default function EditItem() {
                 name="effects_raw"
                 rows={8}
                 defaultValue={JSON.stringify(item.effects, null, 2)}
-                className="block w-full rounded-xl border border-gray-300/50 bg-white/50 px-4 py-3 text-sm font-mono shadow-inner focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 dark:border-gray-600/50 dark:bg-gray-900/50 dark:text-gray-100 transition-colors"
+                className="block w-full rounded-xl border border-gray-300/50 bg-white/50 px-4 py-3 text-sm font-mono shadow-inner focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600/50 dark:bg-gray-900/50 dark:text-gray-100 transition-colors"
               />
             </div>
 
             <div className="flex gap-4 pt-4">
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-violet-500/20 w-1/2 sm:w-auto">
+              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20 w-1/2 sm:w-auto">
                 {submitting ? "Saving..." : "Save Changes"}
               </Button>
               <Button type="button" variant="secondary" onClick={() => navigate(`/${game}/items`)} className="w-1/2 sm:w-auto bg-gray-100 dark:bg-gray-800">

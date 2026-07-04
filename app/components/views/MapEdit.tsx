@@ -121,7 +121,7 @@ export default function EditMap() {
   }
 
   return (
-    <div className="max-w-lg mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-lg mx-auto">
       <Card>
         <CardHeader>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">Edit Map: {m.name}</h1>
@@ -134,7 +134,7 @@ export default function EditMap() {
             <FormField name="location" label="Location" defaultValue={m.location ?? ""} required={false} />
             
             <div className="pt-4">
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-violet-500/20 w-full sm:w-auto">
+              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20 w-full sm:w-auto">
                 {submitting ? "Saving..." : "Save Changes"}
               </Button>
             </div>

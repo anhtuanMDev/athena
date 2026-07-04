@@ -68,7 +68,8 @@ export default function NewPatch() {
   }
 
   return (
-    <div className="max-w-lg mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="max-w-lg mx-auto animate-in fade-in zoom-in-95 duration-200">
       <Card>
         <CardHeader><h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">New Patch — {game}</h1></CardHeader>
         <CardContent>
@@ -85,18 +86,20 @@ export default function NewPatch() {
                 name="_changes"
                 rows={5}
                 defaultValue={JSON.stringify([{ hero: "", field: "", from: "", to: "", note: "" }], null, 2)}
-                className="block w-full rounded-xl border border-gray-300/50 bg-white/50 px-4 py-3 text-sm font-mono shadow-inner focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 dark:border-gray-600/50 dark:bg-gray-900/50 dark:text-gray-100 transition-colors"
+                className="block w-full rounded-xl border border-gray-300/50 bg-white/50 px-4 py-3 text-sm font-mono shadow-inner focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600/50 dark:bg-gray-900/50 dark:text-gray-100 transition-colors"
               />
             </div>
             
             <div className="pt-4">
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-violet-500/20 w-full sm:w-auto">
+              <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/patchs`)} className="mr-3">Cancel</Button>
+              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20 w-full sm:w-auto">
                 {submitting ? "Creating..." : "Create Patch"}
               </Button>
             </div>
           </form>
         </CardContent>
       </Card>
+    </div>
     </div>
   );
 }

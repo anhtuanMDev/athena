@@ -1,3 +1,5 @@
+import { clearDataCache } from "~/lib/use-data";
+
 export interface GitHubFile<T = unknown> {
   sha: string;
   content: T;
@@ -35,11 +37,16 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
     }
     throw new Error((data as Record<string, unknown>).error as string ?? res.statusText);
   }
+
+  if (method !== "GET") {
+    clearDataCache();
+  }
+
   return data as T;
 }
 
 export async function getFile<T = unknown>(path: string): Promise<GitHubFile<T> | null> {
-  return api<T>("GET", `data/file?path=${encodeURIComponent(path)}`);
+  return api<GitHubFile<T> | null>("GET", `data/file?path=${encodeURIComponent(path)}`);
 }
 
 export async function fileExists(path: string): Promise<boolean> {
@@ -71,5 +78,3 @@ export async function getFileSha(path: string): Promise<string | null> {
   const file = await getFile(path);
   return file?.sha ?? null;
 }
-
-export type { GitHubFile };

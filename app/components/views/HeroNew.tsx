@@ -48,7 +48,8 @@ export default function NewHero() {
   if (!data) return null;
 
   return (
-    <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="max-w-2xl mx-auto animate-in fade-in zoom-in-95 duration-200">
       <Card>
         <CardHeader>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">New Hero — {data.game}</h1>
@@ -57,6 +58,7 @@ export default function NewHero() {
           <HeroForm roles={data.roles} abilityTypes={data.abilityTypes} statFields={data.statFields} game={data.game} />
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
@@ -170,13 +172,14 @@ function HeroForm({ roles, abilityTypes, statFields, game }: { roles: string[]; 
           ))}
         </div>
         <button type="button" onClick={addAbility}
-          className="mt-4 text-sm font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300 inline-flex items-center gap-1">
+          className="mt-4 text-sm font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 inline-flex items-center gap-1">
           + Add Ability
         </button>
       </div>
 
       <div className="pt-4">
-        <Button type="submit" disabled={submitting} className="shadow-lg shadow-violet-500/20 w-40">
+        <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/heroes`)} className="mr-3">Cancel</Button>
+        <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20 w-40">
           {submitting ? "Creating..." : "Create Hero"}
         </Button>
       </div>

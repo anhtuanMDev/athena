@@ -17,7 +17,7 @@ interface DataTableProps<T> {
   emptyMessage?: string;
 }
 
-export function DataTable<T extends Record<string, unknown>>({
+export function DataTable<T extends Record<string, any>>({
   columns,
   data,
   baseUrl,
@@ -58,7 +58,7 @@ export function DataTable<T extends Record<string, unknown>>({
                 <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                   <Link 
                     to={`${baseUrl}/${id}`} 
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-violet-600 hover:text-violet-700 hover:bg-violet-50 dark:text-violet-400 dark:hover:text-violet-300 dark:hover:bg-violet-500/10 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:text-orange-300 dark:hover:bg-orange-500/10 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
                   >
                     <Edit2 className="w-4 h-4" />
                     <span>Edit</span>

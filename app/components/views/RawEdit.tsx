@@ -12,6 +12,7 @@ import { MapSchema } from "~/schemas/map";
 import { ModeSchema } from "~/schemas/mode";
 import { PatchSchema } from "~/schemas/patch";
 import { ItemSchema } from "~/schemas/item";
+import { useToast } from "~/components/ToastProvider";
 
 const typeValidators: Record<string, (data: unknown) => { success: boolean }> = {
   heroes: HeroSchema.safeParse,
@@ -24,9 +25,10 @@ const typeValidators: Record<string, (data: unknown) => { success: boolean }> = 
 export default function RawEditor() {
   const { game, type, id } = useParams();
   const navigate = useNavigate();
-  assertSafeGameSlug(game);
-  assertSafeEntityType(type);
-  assertSafeEntityId(id);
+  const { success: toastSuccess, error: toastError } = useToast();
+  assertSafeGameSlug(game!);
+  assertSafeEntityType(type!);
+  assertSafeEntityId(id!);
 
   const path = `data/${game}/${type}/${id}.json`;
 
@@ -63,16 +65,15 @@ export default function RawEditor() {
       }
     }
 
-    const current = await getFile(path);
-    if (!current) {
+    if (!loaderData) {
       setError("File not found");
       return;
     }
 
-    const resultDiffs = computeDiff(current.content, parsed);
+    const resultDiffs = computeDiff(loaderData.content, parsed);
     setDiffs(resultDiffs);
     setCommitRawJson(rawJson);
-    setCommitSha(current.sha);
+    setCommitSha(loaderData.sha);
     setStep("preview");
   }
 
@@ -88,11 +89,14 @@ export default function RawEditor() {
 
     try {
       await updateFile(path, parsed, commitSha, `Update ${type}: ${id} (raw edit)`);
-      navigate(0);
+      toastSuccess("Raw edit saved successfully!");
+      navigate(`/${game}/${type}`);
     } catch (err) {
       if (isConflictError(err)) {
         setError("Conflict: file was modified since loading. Refresh and re-apply.");
+        toastError("Conflict detected! Someone else modified this file.");
       } else {
+        toastError("Failed to save changes.");
         throw err;
       }
     }

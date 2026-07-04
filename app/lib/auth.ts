@@ -9,7 +9,7 @@ export async function login(password: string): Promise<void> {
   const data = await res.json();
   if (!res.ok) {
     const err = new Error((data as Record<string, unknown>).error as string ?? "Login failed");
-    (err as Record<string, unknown>).retryAfter = (data as Record<string, unknown>).retryAfter;
+    (err as any).retryAfter = (data as any).retryAfter;
     throw err;
   }
 }

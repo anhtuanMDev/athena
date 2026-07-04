@@ -47,7 +47,8 @@ export default function NewMode() {
   }
 
   return (
-    <div className="max-w-lg mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="max-w-lg mx-auto animate-in fade-in zoom-in-95 duration-200">
       <Card>
         <CardHeader><h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">New Mode — {game}</h1></CardHeader>
         <CardContent>
@@ -60,13 +61,15 @@ export default function NewMode() {
             <FormField name="description" label="Description" placeholder="Push the payload to the end." required={false} />
             
             <div className="pt-4">
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-violet-500/20 w-full sm:w-auto">
+              <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/modes`)} className="mr-3">Cancel</Button>
+              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20 w-full sm:w-auto">
                 {submitting ? "Creating..." : "Create Mode"}
               </Button>
             </div>
           </form>
         </CardContent>
       </Card>
+    </div>
     </div>
   );
 }

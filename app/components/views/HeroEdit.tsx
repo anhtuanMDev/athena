@@ -113,15 +113,8 @@ function EditHeroForm({
         return;
       }
 
-      const current = await getFile<Hero>(`data/${game}/heroes/${id}.json`);
-      if (!current) {
-        setError("Hero file not found");
-        toastError("Hero file not found");
-        return;
-      }
-
-      const diffs = computeDiff(current.content, parsed.data);
-      setPreview({ diffs, heroJson: JSON.stringify(parsed.data), sha: current.sha });
+      const diffs = computeDiff(hero, parsed.data);
+      setPreview({ diffs, heroJson: JSON.stringify(parsed.data), sha: sha });
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
@@ -171,13 +164,13 @@ function EditHeroForm({
 
   if (preview) {
     return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="space-y-6">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Review Changes</h1>
         <DiffView diffs={preview.diffs} />
         {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800/50">{error}</p>}
         <form onSubmit={handleCommit} className="flex gap-4 pt-4">
           <input type="hidden" name="_heroJson" value={preview.heroJson} />
-          <Button type="submit" disabled={submittingCommit} className="shadow-lg shadow-violet-500/20 w-40">
+          <Button type="submit" disabled={submittingCommit} className="shadow-lg shadow-orange-500/20 w-40">
             {submittingCommit ? "Committing..." : "Confirm Commit"}
           </Button>
           <Button type="button" variant="secondary" onClick={() => { setPreview(null); setError(null); }} className="w-32 bg-gray-100 dark:bg-gray-800">

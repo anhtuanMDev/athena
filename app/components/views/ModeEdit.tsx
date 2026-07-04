@@ -154,7 +154,7 @@ export default function EditMode() {
 
   if (deleteConfirm) {
     return (
-      <div className="max-w-lg mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="max-w-lg mx-auto">
         <Card className="border-red-200/50 dark:border-red-800/50 bg-white/30 dark:bg-gray-900/30 backdrop-blur-sm">
           <CardHeader>
             <h1 className="text-2xl font-bold text-red-600 dark:text-red-400">Delete Mode: {m.name}?</h1>
@@ -195,7 +195,7 @@ export default function EditMode() {
   }
 
   return (
-    <div className="max-w-lg mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-lg mx-auto">
       <Card>
         <CardHeader>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">Edit Mode: {m.name}</h1>
@@ -207,7 +207,7 @@ export default function EditMode() {
             <FormField name="description" label="Description" defaultValue={m.description ?? ""} required={false} />
             
             <div className="pt-4">
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-violet-500/20 w-full sm:w-auto">
+              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20 w-full sm:w-auto">
                 {submitting ? "Saving..." : "Save Changes"}
               </Button>
             </div>

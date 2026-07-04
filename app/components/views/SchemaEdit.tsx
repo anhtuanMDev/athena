@@ -14,7 +14,7 @@ type StatFieldType = "number" | "text" | "boolean" | "list";
 export default function SchemaEditor() {
   const { game } = useParams();
   const navigate = useNavigate();
-  assertSafeGameSlug(game);
+  assertSafeGameSlug(game!);
 
   const { data: loaderData, loading, error: loadError } = useData(async () => {
     const file = await getFile<SchemaFile>(`data/${game}/schema.json`);
@@ -34,6 +34,11 @@ export default function SchemaEditor() {
     setValidationErrors(null);
     setCommitError(null);
     const formData = new FormData(e.currentTarget);
+
+    if (!loaderData) {
+      setCommitError("Schema not loaded");
+      return;
+    }
 
     const roles = (formData.get("roles") as string || "").split(",").map((s) => s.trim()).filter(Boolean);
     const abilityTypes = (formData.get("ability_types") as string || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -61,16 +66,10 @@ export default function SchemaEditor() {
       return;
     }
 
-    const current = await getFile<SchemaFile>(`data/${game}/schema.json`);
-    if (!current) {
-      setCommitError("Could not read current schema");
-      return;
-    }
-
-    const resultDiffs = computeDiff(current.content, parsed.data);
+    const resultDiffs = computeDiff(loaderData.schema, parsed.data);
     setDiffs(resultDiffs);
     setCommitSchemaJson(JSON.stringify(parsed.data));
-    setCommitSha(current.sha);
+    setCommitSha(loaderData.sha);
     setStep("preview");
   }
 
