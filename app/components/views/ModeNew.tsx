@@ -22,8 +22,11 @@ export default function NewMode() {
     setSubmitting(true);
     setErrors(null);
     const formData = Object.fromEntries(new FormData(e.currentTarget));
+    const nameStr = formData.name as string || "";
+    const generatedId = nameStr.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    
     try {
-      const parsed = ModeSchema.safeParse({ ...formData });
+      const parsed = ModeSchema.safeParse({ id: generatedId, ...formData });
       if (!parsed.success) {
         setErrors(parsed.error.flatten().fieldErrors);
         toastError("Validation failed. Check your inputs.");
@@ -58,7 +61,7 @@ export default function NewMode() {
             <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200 mb-4">{errors._form.join(", ")}</div>
           )}
           <form onSubmit={handleSubmit} className="space-y-5">
-            <FormField name="id" label="Mode ID (kebab-case)" placeholder="e.g. payload" />
+            <input type="hidden" name="id" value="" />
             <FormField name="name" label="Name" placeholder="e.g. Payload" />
             <FormField name="description" label="Description" placeholder="Push the payload to the end." required={false} />
             

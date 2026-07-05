@@ -19,7 +19,35 @@ async function fetchDashboardData() {
 export default function Dashboard() {
   const { data, loading, error } = useData(fetchDashboardData);
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return (
+    <div className="space-y-6">
+      <div className="h-8 w-48 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="animate-pulse">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded" />
+                <div className="h-5 w-16 bg-gray-200 dark:bg-gray-800 rounded-full" />
+              </div>
+              <div className="h-4 w-24 bg-gray-200 dark:bg-gray-800 rounded mt-2" />
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-4">
+                <div className="h-5 w-16 bg-gray-200 dark:bg-gray-800 rounded" />
+                <div className="h-5 w-16 bg-gray-200 dark:bg-gray-800 rounded" />
+              </div>
+              <div className="mt-4 flex gap-2">
+                <div className="h-4 w-12 bg-gray-200 dark:bg-gray-800 rounded" />
+                <div className="h-4 w-12 bg-gray-200 dark:bg-gray-800 rounded" />
+                <div className="h-4 w-12 bg-gray-200 dark:bg-gray-800 rounded" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
   if (error) return <div>Error loading dashboard</div>;
   if (!data) return null;
 

@@ -12,7 +12,7 @@ export default function AdminLayout() {
     const ok = await checkSession();
     if (!ok) throw new Error("unauthorized");
     const allGames = await listGames();
-    return allGames.filter((g) => g.active).map((g) => ({ slug: g.slug, name: g.name }));
+    return allGames.filter((g) => g.active).map((g) => ({ slug: g.slug, name: g.name, icon: g.icon }));
   }, []);
 
   useEffect(() => {
@@ -35,7 +35,7 @@ export default function AdminLayout() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-[#030712] selection:bg-orange-500/30">
+    <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-[#030712] selection:bg-orange-500/30">
       {/* Background ambient glow */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-orange-500/10 rounded-full blur-[100px]" />

@@ -79,8 +79,9 @@ export default function EditGame() {
             </div>
             <FormField name="name" label="Name" defaultValue={game.name} />
             <FormField name="developer" label="Developer" defaultValue={game.developer ?? ""} required={false} />
+            <FormField name="icon" label="Icon URL" defaultValue={game.icon ?? ""} placeholder="https://..." required={false} />
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="active" value="true" defaultChecked={game.active} className="rounded border-gray-300" />
+              <input type="checkbox" name="active" value="true" defaultChecked={game.active} className="rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900" />
               <span className="text-gray-700 dark:text-gray-300">Active</span>
             </label>
             {errors && (

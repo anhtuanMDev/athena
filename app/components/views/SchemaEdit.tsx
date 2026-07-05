@@ -114,7 +114,39 @@ export default function SchemaEditor() {
     }
   }
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return (
+    <div className="max-w-2xl space-y-6">
+      <Card className="animate-pulse">
+        <CardHeader>
+          <div className="h-6 w-48 bg-gray-200 dark:bg-gray-800 rounded" />
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div>
+            <div className="h-4 w-48 bg-gray-200 dark:bg-gray-800 rounded mb-2" />
+            <div className="h-10 w-full bg-gray-200 dark:bg-gray-800 rounded" />
+          </div>
+          <div>
+            <div className="h-4 w-56 bg-gray-200 dark:bg-gray-800 rounded mb-2" />
+            <div className="h-10 w-full bg-gray-200 dark:bg-gray-800 rounded" />
+          </div>
+          <div>
+            <div className="h-4 w-24 bg-gray-200 dark:bg-gray-800 rounded mb-4" />
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex gap-2">
+                  <div className="flex-1 h-8 bg-gray-200 dark:bg-gray-800 rounded" />
+                  <div className="flex-1 h-8 bg-gray-200 dark:bg-gray-800 rounded" />
+                  <div className="w-16 h-8 bg-gray-200 dark:bg-gray-800 rounded" />
+                  <div className="w-20 h-8 bg-gray-200 dark:bg-gray-800 rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="h-10 w-32 bg-gray-200 dark:bg-gray-800 rounded" />
+        </CardContent>
+      </Card>
+    </div>
+  );
   if (loadError) return <div>Error: {(loadError as Error).message}</div>;
   if (!loaderData) return null;
 

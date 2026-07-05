@@ -62,7 +62,34 @@ export default function GamesList() {
     }
   }
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="h-8 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+        <div className="h-10 w-24 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="animate-pulse">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="h-6 w-6 bg-gray-200 dark:bg-gray-800 rounded-md" />
+                  <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded" />
+                </div>
+                <div className="h-5 w-16 bg-gray-200 dark:bg-gray-800 rounded-full" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-4 w-48 bg-gray-200 dark:bg-gray-800 rounded mb-2" />
+              <div className="h-4 w-32 bg-gray-200 dark:bg-gray-800 rounded" />
+              <div className="mt-3 h-4 w-12 bg-gray-200 dark:bg-gray-800 rounded" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
   if (error) return <div>Error loading games</div>;
   if (!data) return null;
 
@@ -77,7 +104,12 @@ export default function GamesList() {
           <Card key={game.slug}>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{game.name}</h2>
+                <div className="flex items-center gap-3">
+                  {game.icon ? (
+                    <img src={game.icon} alt={game.name} className="w-6 h-6 rounded-md object-cover" />
+                  ) : null}
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{game.name}</h2>
+                </div>
                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${game.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
                   {game.active ? "Active" : "Inactive"}
                 </span>
@@ -111,6 +143,7 @@ export default function GamesList() {
                   <FormField name="slug" label="Slug" placeholder="e.g. overwatch" />
                   <FormField name="name" label="Name" placeholder="e.g. Overwatch 2" />
                   <FormField name="developer" label="Developer" placeholder="e.g. Blizzard Entertainment" required={false} />
+                  <FormField name="icon" label="Icon URL" placeholder="https://..." required={false} />
                   <label className="flex items-center gap-2 text-sm">
                     <input type="checkbox" name="active" value="true" defaultChecked className="rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900" />
                     <span className="text-gray-700 dark:text-gray-300">Active</span>

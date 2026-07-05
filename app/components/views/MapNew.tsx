@@ -22,8 +22,14 @@ export default function NewMap() {
     setSubmitting(true);
     setErrors(null);
     const formData = Object.fromEntries(new FormData(e.currentTarget));
+    
+    // Auto-generate ID from name if not provided
+    const nameStr = formData.name as string || "";
+    const generatedId = nameStr.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    
     try {
       const parsed = MapSchema.safeParse({
+        id: generatedId,
         ...formData,
         game,
         game_modes: (formData.game_modes as string || "").split(",").map((s) => s.trim()).filter(Boolean),
@@ -62,7 +68,7 @@ export default function NewMap() {
             <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200 mb-4">{errors._form.join(", ")}</div>
           )}
           <form onSubmit={handleSubmit} className="space-y-5">
-            <FormField name="id" label="Map ID (kebab-case)" placeholder="e.g. kings-row" />
+            <input type="hidden" name="id" value="" />
             <FormField name="name" label="Name" placeholder="e.g. King's Row" />
             <FormField name="game_modes" label="Game Modes (comma-separated)" placeholder="e.g. payload, hybrid" required={false} />
             <FormField name="location" label="Location" placeholder="e.g. London, UK" required={false} />

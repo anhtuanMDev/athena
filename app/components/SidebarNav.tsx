@@ -24,6 +24,7 @@ interface NavItem {
 interface GameSection {
   slug: string;
   name: string;
+  icon?: string;
 }
 
 export function SidebarNav({ games }: { games: GameSection[] }) {
@@ -34,10 +35,10 @@ export function SidebarNav({ games }: { games: GameSection[] }) {
   const isActive = (href: string) => location.pathname === href || location.pathname.startsWith(href + "/");
 
   return (
-    <aside className="w-64 min-h-screen bg-white/50 dark:bg-gray-950/50 backdrop-blur-xl border-r border-gray-200/50 dark:border-gray-800/50 flex flex-col relative z-10 transition-all duration-300">
+    <aside className="w-64 h-full bg-white/50 dark:bg-gray-950/50 backdrop-blur-xl border-r border-gray-200/50 dark:border-gray-800/50 flex flex-col relative z-10 transition-all duration-300">
       <div className="p-6 border-b border-gray-200/50 dark:border-gray-800/50 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-xl bg-linear-to-tr from-blue-600 to-orange-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
-          <Database className="w-4 h-4 text-white" />
+        <div className="w-8 h-8 rounded-xl bg-linear-to-tr from-blue-600 to-orange-500 flex items-center justify-center shadow-lg shadow-blue-500/30 overflow-hidden p-1.5">
+          <img src="/favicon.ico" alt="Athena Logo" className="w-full h-full object-contain filter brightness-0 invert" />
         </div>
         <Link to="/dashboard" className="text-xl font-bold bg-clip-text text-transparent bg-linear-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 tracking-tight">
           Athena
@@ -102,9 +103,16 @@ function CollapsibleGameSection({ game, isActive }: { game: GameSection; isActiv
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex items-center justify-between px-3 mb-2 group cursor-pointer"
       >
-        <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
-          {game.name}
-        </span>
+        <div className="flex items-center gap-2">
+          {game.icon ? (
+            <img src={game.icon} alt={game.name} className="w-4 h-4 rounded-md object-cover" />
+          ) : (
+            <Gamepad2 className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors" />
+          )}
+          <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
+            {game.name}
+          </span>
+        </div>
         <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
       </button>
       
