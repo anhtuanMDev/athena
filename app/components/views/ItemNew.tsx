@@ -1,4 +1,5 @@
 
+import { type DynamicSchemaFile, type DynamicField } from "~/schemas/dynamic-schema";
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ItemSchema } from "~/schemas/item";
@@ -21,7 +22,22 @@ export default function NewItem() {
   const { data, loading, error } = useData(async () => {
     const heroIds = await listDirectory(game!, "heroes");
     const modeIds = await listDirectory(game!, "modes");
-    return { heroes: heroIds, modes: modeIds, game: game! };
+    
+    // Load schemas
+    const files = await listDirectory(game!, "schemas");
+    const schemas = await Promise.all(
+      files.map(async (file) => {
+        const content = await getFile<DynamicSchemaFile>(`data/${game}/schemas/${file}`);
+        return content?.content;
+      })
+    );
+    const itemSchemas = schemas.filter(s => s && s.category === "item") as DynamicSchemaFile[];
+    const allFields: DynamicField[] = [];
+    for (const s of itemSchemas) {
+      if (s.fields) allFields.push(...s.fields);
+    }
+    
+    return { heroes: heroIds, modes: modeIds, fields: allFields, schemaCount: itemSchemas.length, game: game! };
   }, [game]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -55,7 +71,7 @@ export default function NewItem() {
       });
 
       if (!parsed.success) {
-        setErrors(parsed.error.flatten().fieldErrors);
+        setErrors(parsed.error.flatten().fieldErrors as Record<string, string[]>);
         toastError("Validation failed. Check your inputs.");
         return;
       }
@@ -119,7 +135,7 @@ export default function NewItem() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6 animate-pulse">
+      <div className="w-full space-y-6 animate-pulse">
         <div className="h-10 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
         <div className="space-y-4 bg-white/50 dark:bg-gray-900/30 p-6 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
           <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
@@ -136,7 +152,7 @@ export default function NewItem() {
   }
   
   if (error) return (
-    <div className="max-w-2xl mx-auto p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
+    <div className="w-full p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
       <h3 className="font-bold text-lg mb-2">Failed to load dependencies</h3>
       <p>{String(error)}</p>
     </div>
@@ -144,8 +160,22 @@ export default function NewItem() {
   
   if (!data) return null;
 
+  if (data.schemaCount === 0) {
+    return (
+      <div className="w-full py-8">
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">No Schema Configured</h3>
+            <p className="text-sm text-gray-500 mt-2 mb-4">You must create a schema for Items before adding entries.</p>
+            <Button onClick={() => navigate(`/${data.game}/schemas/new`)}>Create Schema</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-2xl mx-auto py-8">
+    <div className="w-full py-8">
       <Card>
         <CardHeader><h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">New Item — {data.game}</h1></CardHeader>
         <CardContent>
@@ -175,7 +205,27 @@ export default function NewItem() {
               </div>
             </div>
 
-            <FormField name="description" label="Description" placeholder="Optional description..." required={false} />
+            {data.fields.map((f) => {
+              if (["id", "name", "hero", "mode", "effects", "effects_raw"].includes(f.key)) return null;
+              if (f.type === "enum" || f.type === "list") {
+                return (
+                  <div key={f.key}>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 capitalize mb-1">{f.label}</label>
+                    {f.type === "enum" ? (
+                      <select name={f.key} required={f.required} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                        <option value="">— Select {f.label} —</option>
+                        {f.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    ) : (
+                      <input name={f.key} placeholder={`${f.label} (comma-separated)`} required={f.required} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <FormField key={f.key} name={f.key} label={f.label} required={f.required} type={f.type === "number" ? "number" : "text"} />
+              );
+            })}
 
             <div className="space-y-2 pt-2">
               <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Effects (JSON array)</label>

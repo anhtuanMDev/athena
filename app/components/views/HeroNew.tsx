@@ -23,6 +23,7 @@ interface AbilityForm {
 export default function NewHero() {
   const { game } = useParams();
   assertSafeGameSlug(game!);
+  const navigate = useNavigate();
   const { data, loading, error } = useData(async () => {
     const files = await listDirectory(game!, "schemas");
     const schemas = await Promise.all(
@@ -36,12 +37,12 @@ export default function NewHero() {
     for (const s of heroSchemas) {
       if (s.fields) allFields.push(...s.fields);
     }
-    return { fields: allFields, game: game! };
+    return { fields: allFields, schemaCount: heroSchemas.length, game: game! };
   }, [game]);
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6 animate-pulse">
+      <div className="w-full space-y-6 animate-pulse">
         <div className="h-10 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
         <div className="space-y-4 bg-white/50 dark:bg-gray-900/30 p-6 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
           <div className="grid grid-cols-2 gap-4">
@@ -56,15 +57,29 @@ export default function NewHero() {
   }
 
   if (error) return (
-    <div className="max-w-2xl mx-auto p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
+    <div className="w-full p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
       <h3 className="font-bold text-lg mb-2">Failed to load schema</h3>
       <p>{String(error)}</p>
     </div>
   );
   if (!data) return null;
 
+  if (data.schemaCount === 0) {
+    return (
+      <div className="w-full py-8">
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">No Schema Configured</h3>
+            <p className="text-sm text-gray-500 mt-2 mb-4">You must create a schema for Heroes before adding entries.</p>
+            <Button onClick={() => navigate(`/${data.game}/schemas/new`)}>Create Schema</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-2xl mx-auto py-8">
+    <div className="w-full py-8">
       <Card>
         <CardHeader>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">New Hero — {data.game}</h1>
@@ -149,7 +164,7 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
 
       const parsed = HeroSchema.safeParse(hero);
       if (!parsed.success) {
-        setErrors(parsed.error.flatten().fieldErrors);
+        setErrors(parsed.error.flatten().fieldErrors as Record<string, string[]>);
         toastError("Form validation failed. Please check the fields.");
         return;
       }
@@ -229,12 +244,27 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
           </div>
         )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <FormField name="difficulty" label="Difficulty (1-5)" type="number" required={false} />
-        <FormField name="health" label="Health (JSON)" placeholder='{"health": 200}' required={false} />
-      </div>
-      <FormField name="bio" label="Bio (optional)" required={false} />
-      <FormField name="tags" label="Tags (comma-separated, optional)" required={false} />
+      {fields.map((f: DynamicField) => {
+        if (["id", "name", "real_name", "roles", "portrait", "kit", "abilities"].includes(f.key)) return null;
+        if (f.type === "enum" || f.type === "list") {
+          return (
+            <div key={f.key}>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 capitalize mb-1">{f.label}</label>
+              {f.type === "enum" ? (
+                <select name={f.key} required={f.required} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                  <option value="">— Select {f.label} —</option>
+                  {f.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              ) : (
+                <input name={f.key} placeholder={`${f.label} (comma-separated)`} required={f.required} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+              )}
+            </div>
+          );
+        }
+        return (
+          <FormField key={f.key} name={f.key} label={f.label} required={f.required} type={f.type === "number" ? "number" : "text"} />
+        );
+      })}
 
       <div className="pt-4">
         <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 tracking-wider uppercase">Kit Abilities</h3>

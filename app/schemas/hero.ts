@@ -30,6 +30,6 @@ export const HeroSchema = z.object({
   last_updated_patch: z.string().optional(),
   tags: z.array(z.string()).optional(),
   kit: z.array(KitItemSchema).min(1, "At least one kit ability required"),
-});
+}).passthrough();
 
 export type Hero = z.infer<typeof HeroSchema>;

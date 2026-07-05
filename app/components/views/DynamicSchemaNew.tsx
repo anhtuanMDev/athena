@@ -62,7 +62,7 @@ export default function DynamicSchemaNew() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-8">
+    <div className="w-full py-8">
       <Card>
         <CardHeader><h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">New Schema — {game}</h1></CardHeader>
         <CardContent>
@@ -79,6 +79,7 @@ export default function DynamicSchemaNew() {
                 className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
               >
                 <option value="hero">Hero</option>
+                <option value="map">Map</option>
                 <option value="mode">Mode</option>
                 <option value="patch">Patch</option>
                 <option value="event">Event</option>

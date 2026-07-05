@@ -14,7 +14,7 @@ export const DynamicFieldSchema = z.object({
 
 export type DynamicField = z.infer<typeof DynamicFieldSchema>;
 
-export const SchemaCategorySchema = z.enum(["hero", "mode", "patch", "event", "item"]);
+export const SchemaCategorySchema = z.enum(["hero", "mode", "patch", "event", "item", "map"]);
 export type SchemaCategory = z.infer<typeof SchemaCategorySchema>;
 
 export const DynamicSchemaFileSchema = z.object({

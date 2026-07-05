@@ -16,6 +16,6 @@ export const ItemSchema = z.object({
   hero: z.string().optional(),
   mode: z.string().optional(),
   effects: z.array(AbilityEffectSchema).min(1),
-});
+}).passthrough();
 
 export type Item = z.infer<typeof ItemSchema>;
