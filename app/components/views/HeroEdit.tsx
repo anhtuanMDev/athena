@@ -13,6 +13,9 @@ import { buildHeroFromFormData, coerceKitParams } from "~/lib/parse-kit";
 import { FormField } from "~/components/FormField";
 import { useData } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
+import { type DynamicSchemaFile, type DynamicField } from "~/schemas/dynamic-schema";
+import { listDirectory } from "~/lib/github";
+import { DynamicSelectField } from "~/components/DynamicSelectField";
 
 const EMPTY_ARRAYS: never[] = [];
 
@@ -25,8 +28,29 @@ export default function EditHero() {
     () => getFile<Hero>(`data/${game}/heroes/${id}.json`),
     [game, id]
   );
-  const schemaResult = useData<{ content: { roles: string[] } } | null>(
-    () => getFile<{ roles: string[]; ability_types: string[] }>(`data/${game}/schema.json`),
+  const schemaResult = useData<{ fields: DynamicField[] } | null>(
+    async () => {
+      try {
+        const files = await listDirectory(game!, "schemas");
+        const schemas = await Promise.all(
+          files.map(async (file) => {
+            const content = await getFile<DynamicSchemaFile>(`data/${game}/schemas/${file}`);
+            return content?.content;
+          })
+        );
+        const heroSchemas = schemas.filter(s => s && s.category === "hero") as DynamicSchemaFile[];
+        
+        // Merge all fields from all hero schemas
+        const allFields: DynamicField[] = [];
+        for (const s of heroSchemas) {
+          if (s.fields) allFields.push(...s.fields);
+        }
+        
+        return { fields: allFields };
+      } catch (e) {
+        return { fields: [] };
+      }
+    },
     [game]
   );
 
@@ -62,7 +86,7 @@ export default function EditHero() {
       key={heroResult.data.sha}
       hero={heroResult.data.content}
       sha={heroResult.data.sha}
-      roles={schemaResult.data?.content.roles ?? EMPTY_ARRAYS}
+      fields={schemaResult.data?.fields ?? []}
       game={game!}
       id={id!}
     />
@@ -70,9 +94,9 @@ export default function EditHero() {
 }
 
 function EditHeroForm({
-  hero, sha, roles, game, id,
+  hero, sha, fields, game, id,
 }: {
-  hero: Hero; sha: string; roles: string[]; game: string; id: string;
+  hero: Hero; sha: string; fields: DynamicField[]; game: string; id: string;
 }) {
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
@@ -81,6 +105,8 @@ function EditHeroForm({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submittingCommit, setSubmittingCommit] = useState(false);
+  
+  const rolesField = fields.find(f => f.key === "roles");
 
   function addAbility() {
     setAbilities([...abilities, { id: "", name: "", type: "", description: "", params: {} }]);
@@ -97,13 +123,8 @@ function EditHeroForm({
     const formData = new FormData(e.currentTarget);
     try {
       const heroData = buildHeroFromFormData(formData, game, id);
-      const schemaFile = await getFile<SchemaFile>(`data/${game}/schema.json`);
-      if (schemaFile) {
-        const rawKit = heroData.kit;
-        if (Array.isArray(rawKit)) {
-          heroData.kit = coerceKitParams(rawKit as Hero["kit"], schemaFile.content.stat_fields);
-        }
-      }
+      // Note: we might need a way to coerce kit params using dynamic fields here too in the future.
+
 
       const parsed = HeroSchema.safeParse(heroData);
       if (!parsed.success) {
@@ -197,7 +218,19 @@ function EditHeroForm({
               <FormField name="portrait" label="Portrait URL" defaultValue={hero.portrait} />
             </div>
 
-            <FormField name="roles" label={`Roles (${roles.join(", ")})`} defaultValue={hero.roles.join(", ")} />
+            {rolesField ? (
+              <DynamicSelectField 
+                name="roles" 
+                label="Roles" 
+                options={rolesField.options || []} 
+                defaultValue={hero.roles}
+                currentValue={hero.roles}
+                multiple={rolesField.type === "list"}
+                required={rolesField.required}
+              />
+            ) : (
+              <FormField name="roles" label="Roles (comma-separated)" defaultValue={hero.roles.join(", ")} />
+            )}
             <div className="grid grid-cols-2 gap-4">
               <FormField name="difficulty" label="Difficulty (1-5)" type="number" defaultValue={String(hero.difficulty ?? "")} required={false} />
               <FormField name="health" label="Health (JSON)" defaultValue={hero.health ? JSON.stringify(hero.health) : ""} required={false} />

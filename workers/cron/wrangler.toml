@@ -1,0 +1,15 @@
+name = "athena-cron-worker"
+main = "src/index.ts"
+compatibility_date = "2024-03-20"
+
+# Run this worker every hour (adjust as needed)
+[triggers]
+crons = ["0 * * * *"]
+
+# ==========================================================
+# Required secrets (set via `wrangler secret put`):
+#   GITHUB_TOKEN
+#   GITHUB_OWNER
+#   GITHUB_REPO
+#   GITHUB_BRANCH
+# ==========================================================

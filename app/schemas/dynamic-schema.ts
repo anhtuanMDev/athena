@@ -21,6 +21,7 @@ export const DynamicSchemaFileSchema = z.object({
   id: z.string().min(1).regex(/^[a-z0-9-]+$/, "ID must be kebab-case"),
   name: z.string().min(1),
   category: SchemaCategorySchema,
+  api_endpoint: z.string().url("Must be a valid URL").optional(),
   fields: z.array(DynamicFieldSchema),
 });
 

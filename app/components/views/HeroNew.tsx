@@ -11,6 +11,9 @@ import { buildHeroFromFormData, coerceKitParams } from "~/lib/parse-kit";
 import { FormField } from "~/components/FormField";
 import { useData } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
+import { type DynamicSchemaFile, type DynamicField } from "~/schemas/dynamic-schema";
+import { listDirectory } from "~/lib/github";
+import { DynamicSelectField } from "~/components/DynamicSelectField";
 
 interface AbilityForm {
   id: string; name: string; type: string; description: string;
@@ -21,13 +24,19 @@ export default function NewHero() {
   const { game } = useParams();
   assertSafeGameSlug(game!);
   const { data, loading, error } = useData(async () => {
-    const schemaFile = await getFile<{ roles: string[]; ability_types: string[]; stat_fields: Record<string, { type: string }> }>(`data/${game!}/schema.json`);
-    const content = schemaFile?.content || {
-      roles: ["damage", "tank", "support"],
-      ability_types: ["passive", "weapon", "ability", "ultimate"],
-      stat_fields: { health: { type: "number", label: "Health", unit: "HP" } }
-    };
-    return { roles: content.roles, abilityTypes: content.ability_types, statFields: content.stat_fields, game: game! };
+    const files = await listDirectory(game!, "schemas");
+    const schemas = await Promise.all(
+      files.map(async (file) => {
+        const content = await getFile<DynamicSchemaFile>(`data/${game}/schemas/${file}`);
+        return content?.content;
+      })
+    );
+    const heroSchemas = schemas.filter(s => s && s.category === "hero") as DynamicSchemaFile[];
+    const allFields: DynamicField[] = [];
+    for (const s of heroSchemas) {
+      if (s.fields) allFields.push(...s.fields);
+    }
+    return { fields: allFields, game: game! };
   }, [game]);
 
   if (loading) {
@@ -61,14 +70,14 @@ export default function NewHero() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">New Hero — {data.game}</h1>
         </CardHeader>
         <CardContent>
-          <HeroForm roles={data.roles} abilityTypes={data.abilityTypes} statFields={data.statFields} game={data.game} />
+          <HeroForm fields={data.fields} game={data.game} />
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function HeroForm({ roles, abilityTypes, statFields, game }: { roles: string[]; abilityTypes: string[]; statFields: Record<string, { type: string }>; game: string }) {
+function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
   const [submitting, setSubmitting] = useState(false);
@@ -102,9 +111,7 @@ function HeroForm({ roles, abilityTypes, statFields, game }: { roles: string[]; 
       
       const hero = buildHeroFromFormData(formData, game, id);
       const rawKit = hero.kit;
-      if (Array.isArray(rawKit)) {
-        hero.kit = coerceKitParams(rawKit as Hero["kit"], statFields);
-      }
+      // Note: we might need a way to coerce kit params using dynamic fields here too in the future.
 
       let portraitData: string | Record<string, string> = raw.portrait as string;
       if (portraits.length === 1 && portraits[0].key === "main") {
@@ -200,7 +207,20 @@ function HeroForm({ roles, abilityTypes, statFields, game }: { roles: string[]; 
         <FormField name="real_name" label="Real Fullname (optional)" placeholder="e.g. Lena Oxton" required={false} />
       </div>
 
-      <FormField name="roles" label={`Roles (${roles.join(", ")})`} placeholder="e.g. damage" />
+      {(() => {
+        const rolesField = fields.find(f => f.key === "roles");
+        return rolesField ? (
+          <DynamicSelectField 
+            name="roles" 
+            label="Roles" 
+            options={rolesField.options || []} 
+            multiple={rolesField.type === "list"}
+            required={rolesField.required}
+          />
+        ) : (
+          <FormField name="roles" label="Roles (comma-separated)" placeholder="e.g. damage" />
+        );
+      })()}
       <div className="border border-gray-200 dark:border-gray-800 p-4 rounded-xl bg-gray-50/50 dark:bg-gray-800/30">
         <MultiImageUploadField label="Portraits" entries={portraits} onChange={setPortraits} defaultKey="main" />
         {portraits.length === 0 && (

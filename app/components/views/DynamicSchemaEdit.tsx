@@ -21,6 +21,7 @@ export default function DynamicSchemaEdit() {
     return { schema: file.content, sha: file.sha };
   }, [game, id]);
 
+  const [apiEndpoint, setApiEndpoint] = useState<string>("");
   const [fields, setFields] = useState<DynamicField[] | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
@@ -28,6 +29,7 @@ export default function DynamicSchemaEdit() {
   // Initialize fields once loaded
   if (loaderData && fields === null) {
     setFields(loaderData.schema.fields || []);
+    setApiEndpoint(loaderData.schema.api_endpoint || "");
   }
 
   const handleAddField = () => {
@@ -62,6 +64,7 @@ export default function DynamicSchemaEdit() {
 
     const updatedSchema = {
       ...loaderData.schema,
+      api_endpoint: apiEndpoint || undefined,
       fields,
     };
 
@@ -112,7 +115,22 @@ export default function DynamicSchemaEdit() {
         <CardContent>
           {commitError && <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200 mb-6">{commitError}</div>}
           
-          <form onSubmit={handleCommit} className="space-y-6">
+          <form onSubmit={handleCommit} className="space-y-8">
+            <div className="bg-gray-50/50 dark:bg-gray-900/30 p-4 rounded-lg border border-gray-200/50 dark:border-gray-800/50">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Data Source API Endpoint (Optional)
+              </label>
+              <input 
+                value={apiEndpoint} 
+                onChange={(e) => setApiEndpoint(e.target.value)}
+                placeholder="https://api.example.com/latest-patch" 
+                className="block w-full rounded border-gray-300 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500" 
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                If configured, the automated background Cron worker will fetch data from this URL and process it based on this schema's rules.
+              </p>
+            </div>
+
             <div className="space-y-4">
               {fields.length === 0 ? (
                 <div className="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-lg">
