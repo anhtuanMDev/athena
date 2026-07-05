@@ -10,9 +10,10 @@ import {
   Box, 
   Database,
   LogOut,
-  ChevronRight
+  ChevronRight,
+  ChevronDown
 } from "lucide-react";
-import React from "react";
+import React, { useState } from "react";
 
 interface NavItem {
   label: string;
@@ -50,15 +51,7 @@ export function SidebarNav({ games }: { games: GameSection[] }) {
           <NavLink href="/games" label="Games" icon={Gamepad2} isActive={isActive("/games")} />
         </div>
         {games.map((game) => (
-          <div key={game.slug} className="space-y-1.5">
-            <p className="px-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 mt-6">{game.name}</p>
-            <NavLink href={`/${game.slug}/heroes`} label="Heroes" icon={Users} isActive={isActive(`/${game.slug}/heroes`)} />
-            <NavLink href={`/${game.slug}/maps`} label="Maps" icon={Map} isActive={isActive(`/${game.slug}/maps`)} />
-            <NavLink href={`/${game.slug}/modes`} label="Modes" icon={Swords} isActive={isActive(`/${game.slug}/modes`)} />
-            <NavLink href={`/${game.slug}/patches`} label="Patches" icon={FileClock} isActive={isActive(`/${game.slug}/patches`)} />
-            <NavLink href={`/${game.slug}/items`} label="Items" icon={Box} isActive={isActive(`/${game.slug}/items`)} />
-            <NavLink href={`/${game.slug}/schema`} label="Schema" icon={Database} isActive={isActive(`/${game.slug}/schema`)} />
-          </div>
+          <CollapsibleGameSection key={game.slug} game={game} isActive={isActive} />
         ))}
       </nav>
       <div className="p-4 border-t border-gray-200/50 dark:border-gray-800/50">
@@ -89,5 +82,40 @@ function NavLink({ href, label, icon: Icon, isActive }: NavItem & { isActive: bo
       </div>
       {isActive && <ChevronRight className="w-4 h-4 text-orange-600/50 dark:text-orange-400/50" />}
     </Link>
+  );
+}
+
+function CollapsibleGameSection({ game, isActive }: { game: GameSection; isActive: (href: string) => boolean }) {
+  const isAnyActive = 
+    isActive(`/${game.slug}/heroes`) || 
+    isActive(`/${game.slug}/maps`) || 
+    isActive(`/${game.slug}/modes`) || 
+    isActive(`/${game.slug}/patches`) || 
+    isActive(`/${game.slug}/items`) || 
+    isActive(`/${game.slug}/schema`);
+  
+  const [isOpen, setIsOpen] = useState(isAnyActive);
+
+  return (
+    <div className="space-y-1.5 mt-6">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-3 mb-2 group cursor-pointer"
+      >
+        <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
+          {game.name}
+        </span>
+        <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+      
+      <div className={`space-y-1.5 overflow-hidden transition-all duration-300 ${isOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"}`}>
+        <NavLink href={`/${game.slug}/heroes`} label="Heroes" icon={Users} isActive={isActive(`/${game.slug}/heroes`)} />
+        <NavLink href={`/${game.slug}/maps`} label="Maps" icon={Map} isActive={isActive(`/${game.slug}/maps`)} />
+        <NavLink href={`/${game.slug}/modes`} label="Modes" icon={Swords} isActive={isActive(`/${game.slug}/modes`)} />
+        <NavLink href={`/${game.slug}/patches`} label="Patches" icon={FileClock} isActive={isActive(`/${game.slug}/patches`)} />
+        <NavLink href={`/${game.slug}/items`} label="Items" icon={Box} isActive={isActive(`/${game.slug}/items`)} />
+        <NavLink href={`/${game.slug}/schema`} label="Schema" icon={Database} isActive={isActive(`/${game.slug}/schema`)} />
+      </div>
+    </div>
   );
 }

@@ -5,7 +5,7 @@ import { PanelTransition } from "~/components/PanelTransition";
 import HeroesList from "~/components/views/HeroesList";
 import HeroNew from "~/components/views/HeroNew";
 import HeroEdit from "~/components/views/HeroEdit";
-import HeroDelete from "~/components/views/HeroDelete";
+import EntityDelete from "~/components/views/EntityDelete";
 
 // Maps
 import MapsList from "~/components/views/MapsList";
@@ -50,27 +50,31 @@ export default function GameDashboardRouter() {
     case "heroes":
       if (!idOrAction) return <HeroesList />;
       if (idOrAction === "new") return <HeroNew />;
-      if (subAction === "delete") return <HeroDelete />;
+      if (subAction === "delete") return <EntityDelete entityType="heroes" />;
       return <HeroEdit />;
       
     case "maps":
       if (!idOrAction) return <MapsList />;
       if (idOrAction === "new") return <><MapsList /><MapNew /></>;
+      if (subAction === "delete") return <EntityDelete entityType="maps" />;
       return <MapEdit />;
       
     case "modes":
       if (!idOrAction) return <ModesList />;
       if (idOrAction === "new") return <><ModesList /><ModeNew /></>;
+      if (subAction === "delete") return <EntityDelete entityType="modes" />;
       return <ModeEdit />;
       
     case "patches":
       if (!idOrAction) return <PatchesList />;
       if (idOrAction === "new") return <><PatchesList /><PatchNew /></>;
+      if (subAction === "delete") return <EntityDelete entityType="patches" />;
       return <PatchEdit />;
       
     case "items":
       if (!idOrAction) return <ItemsList />;
       if (idOrAction === "new") return <><ItemsList /><ItemNew /></>;
+      if (subAction === "delete") return <EntityDelete entityType="items" />;
       return <ItemEdit />;
       
       default:
