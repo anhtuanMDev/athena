@@ -12,14 +12,9 @@ export default function SchemasList() {
   const { data, loading, error } = useData(async () => {
     try {
       // For Phase 1, we expect schemas to be stored in data/<game>/schemas/<id>.json
-      const files = await listDirectory(game!, "schemas");
-      const schemas = await Promise.all(
-        files.map(async (file) => {
-          const content = await getFile<DynamicSchemaFile>(`data/${game}/schemas/${file}`);
-          return content?.content;
-        })
-      );
-      return schemas.filter(Boolean) as DynamicSchemaFile[];
+      // Fetch schemas directly from the worker with includeContent=true
+      const schemas = await listDirectory<DynamicSchemaFile>(game!, "schemas", true);
+      return schemas;
     } catch (e) {
       // If folder doesn't exist yet, return empty array
       return [];

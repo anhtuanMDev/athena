@@ -25,14 +25,8 @@ export default function NewHero() {
   assertSafeGameSlug(game!);
   const navigate = useNavigate();
   const { data, loading, error } = useData(async () => {
-    const files = await listDirectory(game!, "schemas");
-    const schemas = await Promise.all(
-      files.map(async (file) => {
-        const content = await getFile<DynamicSchemaFile>(`data/${game}/schemas/${file}`);
-        return content?.content;
-      })
-    );
-    const heroSchemas = schemas.filter(s => s && s.category === "hero") as DynamicSchemaFile[];
+    const schemas = await listDirectory<DynamicSchemaFile>(game!, "schemas", true);
+    const heroSchemas = schemas.filter(s => s && s.category === "hero");
     const allFields: DynamicField[] = [];
     for (const s of heroSchemas) {
       if (s.fields) allFields.push(...s.fields);

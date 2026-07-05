@@ -16,14 +16,8 @@ export default function NewMode() {
   assertSafeGameSlug(game!);
   
   const { data, loading, error } = useData(async () => {
-    const files = await listDirectory(game!, "schemas");
-    const schemas = await Promise.all(
-      files.map(async (file) => {
-        const content = await getFile<DynamicSchemaFile>(`data/${game}/schemas/${file}`);
-        return content?.content;
-      })
-    );
-    const modeSchemas = schemas.filter(s => s && s.category === "mode") as DynamicSchemaFile[];
+    const schemas = await listDirectory<DynamicSchemaFile>(game!, "schemas", true);
+    const modeSchemas = schemas.filter(s => s && s.category === "mode");
     const allFields: DynamicField[] = [];
     for (const s of modeSchemas) {
       if (s.fields) allFields.push(...s.fields);

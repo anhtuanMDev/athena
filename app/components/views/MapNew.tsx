@@ -16,14 +16,8 @@ export default function NewMap() {
   assertSafeGameSlug(game!);
   
   const { data, loading, error } = useData(async () => {
-    const files = await listDirectory(game!, "schemas");
-    const schemas = await Promise.all(
-      files.map(async (file) => {
-        const content = await getFile<DynamicSchemaFile>(`data/${game}/schemas/${file}`);
-        return content?.content;
-      })
-    );
-    const mapSchemas = schemas.filter(s => s && s.category === "map") as DynamicSchemaFile[];
+    const schemas = await listDirectory<DynamicSchemaFile>(game!, "schemas", true);
+    const mapSchemas = schemas.filter(s => s && s.category === "map");
     const allFields: DynamicField[] = [];
     for (const s of mapSchemas) {
       if (s.fields) allFields.push(...s.fields);

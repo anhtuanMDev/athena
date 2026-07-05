@@ -31,14 +31,8 @@ export default function EditHero() {
   const schemaResult = useData<{ fields: DynamicField[] } | null>(
     async () => {
       try {
-        const files = await listDirectory(game!, "schemas");
-        const schemas = await Promise.all(
-          files.map(async (file) => {
-            const content = await getFile<DynamicSchemaFile>(`data/${game}/schemas/${file}`);
-            return content?.content;
-          })
-        );
-        const heroSchemas = schemas.filter(s => s && s.category === "hero") as DynamicSchemaFile[];
+        const schemas = await listDirectory<DynamicSchemaFile>(game!, "schemas", true);
+        const heroSchemas = schemas.filter(s => s && s.category === "hero");
         
         // Merge all fields from all hero schemas
         const allFields: DynamicField[] = [];

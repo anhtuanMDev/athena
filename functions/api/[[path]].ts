@@ -326,11 +326,38 @@ async function handleListDirectory(request: Request, env: Record<string, string>
       ref: branch,
     });
     if (Array.isArray(data)) {
-      return json(
-        data
-          .filter((entry) => entry.type === "file" && entry.name.endsWith(".json"))
-          .map((entry) => entry.name.replace(".json", ""))
-      );
+      const files = data.filter((entry) => entry.type === "file" && entry.name.endsWith(".json"));
+      const includeContent = url.searchParams.get("includeContent") === "true";
+
+      if (!includeContent) {
+        return json(files.map((entry) => entry.name.replace(".json", "")));
+      }
+
+      // Fetch the parsed JSON content for all files in parallel, but chunked to respect CF limits (max 50 concurrent) and GitHub limits
+      const items = [];
+      const CHUNK_SIZE = 10;
+      
+      for (let i = 0; i < files.length; i += CHUNK_SIZE) {
+        const chunk = files.slice(i, i + CHUNK_SIZE);
+        const chunkResults = await Promise.all(
+          chunk.map(async (entry) => {
+            try {
+              const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
+              const fileData = fileReq.data;
+              if (!Array.isArray(fileData) && fileData.type === "file" && "content" in fileData) {
+                const decoded = atob(fileData.content);
+                return JSON.parse(decoded);
+              }
+            } catch (e) {
+              console.error(`Failed to fetch content for ${entry.path}`, e);
+            }
+            return null;
+          })
+        );
+        items.push(...chunkResults);
+      }
+      
+      return json(items.filter(Boolean));
     }
     return json([]);
   } catch {

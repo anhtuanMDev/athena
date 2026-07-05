@@ -24,14 +24,8 @@ export default function NewItem() {
     const modeIds = await listDirectory(game!, "modes");
     
     // Load schemas
-    const files = await listDirectory(game!, "schemas");
-    const schemas = await Promise.all(
-      files.map(async (file) => {
-        const content = await getFile<DynamicSchemaFile>(`data/${game}/schemas/${file}`);
-        return content?.content;
-      })
-    );
-    const itemSchemas = schemas.filter(s => s && s.category === "item") as DynamicSchemaFile[];
+    const schemas = await listDirectory<DynamicSchemaFile>(game!, "schemas", true);
+    const itemSchemas = schemas.filter(s => s && s.category === "item");
     const allFields: DynamicField[] = [];
     for (const s of itemSchemas) {
       if (s.fields) allFields.push(...s.fields);
