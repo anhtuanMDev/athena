@@ -27,7 +27,7 @@ interface GameSection {
   icon?: string;
 }
 
-export function SidebarNav({ games }: { games: GameSection[] }) {
+export function SidebarNav({ games, onClose }: { games: GameSection[], onClose?: () => void }) {
   const location = useLocation();
   const params = useParams();
   const gameSlug = params.game;
@@ -47,12 +47,12 @@ export function SidebarNav({ games }: { games: GameSection[] }) {
       <nav className="flex-1 overflow-y-auto p-4 space-y-8 scrollbar-hide">
         <div className="space-y-1.5">
           <p className="px-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3">General</p>
-          <NavLink href="/dashboard" label="Dashboard" icon={LayoutDashboard} isActive={isActive("/dashboard")} />
-          <NavLink href="/activity" label="Activity" icon={Activity} isActive={isActive("/activity")} />
-          <NavLink href="/games" label="Games" icon={Gamepad2} isActive={isActive("/games")} />
+          <NavLink href="/dashboard" label="Dashboard" icon={LayoutDashboard} isActive={isActive("/dashboard")} onClick={onClose} />
+          <NavLink href="/activity" label="Activity" icon={Activity} isActive={isActive("/activity")} onClick={onClose} />
+          <NavLink href="/games" label="Games" icon={Gamepad2} isActive={isActive("/games")} onClick={onClose} />
         </div>
         {games.map((game) => (
-          <CollapsibleGameSection key={game.slug} game={game} isActive={isActive} />
+          <CollapsibleGameSection key={game.slug} game={game} isActive={isActive} onClose={onClose} />
         ))}
       </nav>
       <div className="p-4 border-t border-gray-200/50 dark:border-gray-800/50">
@@ -67,10 +67,11 @@ export function SidebarNav({ games }: { games: GameSection[] }) {
   );
 }
 
-function NavLink({ href, label, icon: Icon, isActive }: NavItem & { isActive: boolean }) {
+function NavLink({ href, label, icon: Icon, isActive, onClick }: NavItem & { isActive: boolean, onClick?: () => void }) {
   return (
     <Link
       to={href}
+      onClick={onClick}
       className={`group flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
         isActive
           ? "bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400 shadow-sm shadow-orange-500/5"
@@ -86,7 +87,7 @@ function NavLink({ href, label, icon: Icon, isActive }: NavItem & { isActive: bo
   );
 }
 
-function CollapsibleGameSection({ game, isActive }: { game: GameSection; isActive: (href: string) => boolean }) {
+function CollapsibleGameSection({ game, isActive, onClose }: { game: GameSection; isActive: (href: string) => boolean, onClose?: () => void }) {
   const isAnyActive = 
     isActive(`/${game.slug}/heroes`) || 
     isActive(`/${game.slug}/maps`) || 
@@ -117,12 +118,12 @@ function CollapsibleGameSection({ game, isActive }: { game: GameSection; isActiv
       </button>
       
       <div className={`space-y-1.5 overflow-hidden transition-all duration-300 ${isOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"}`}>
-        <NavLink href={`/${game.slug}/heroes`} label="Heroes" icon={Users} isActive={isActive(`/${game.slug}/heroes`)} />
-        <NavLink href={`/${game.slug}/maps`} label="Maps" icon={Map} isActive={isActive(`/${game.slug}/maps`)} />
-        <NavLink href={`/${game.slug}/modes`} label="Modes" icon={Swords} isActive={isActive(`/${game.slug}/modes`)} />
-        <NavLink href={`/${game.slug}/patches`} label="Patches" icon={FileClock} isActive={isActive(`/${game.slug}/patches`)} />
-        <NavLink href={`/${game.slug}/items`} label="Items" icon={Box} isActive={isActive(`/${game.slug}/items`)} />
-        <NavLink href={`/${game.slug}/schemas`} label="Schemas" icon={Database} isActive={isActive(`/${game.slug}/schemas`)} />
+        <NavLink href={`/${game.slug}/heroes`} label="Heroes" icon={Users} isActive={isActive(`/${game.slug}/heroes`)} onClick={onClose} />
+        <NavLink href={`/${game.slug}/maps`} label="Maps" icon={Map} isActive={isActive(`/${game.slug}/maps`)} onClick={onClose} />
+        <NavLink href={`/${game.slug}/modes`} label="Modes" icon={Swords} isActive={isActive(`/${game.slug}/modes`)} onClick={onClose} />
+        <NavLink href={`/${game.slug}/patches`} label="Patches" icon={FileClock} isActive={isActive(`/${game.slug}/patches`)} onClick={onClose} />
+        <NavLink href={`/${game.slug}/items`} label="Items" icon={Box} isActive={isActive(`/${game.slug}/items`)} onClick={onClose} />
+        <NavLink href={`/${game.slug}/schemas`} label="Schemas" icon={Database} isActive={isActive(`/${game.slug}/schemas`)} onClick={onClose} />
       </div>
     </div>
   );

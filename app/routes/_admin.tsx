@@ -1,5 +1,6 @@
 import { Outlet, useNavigate } from "react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Menu, X } from "lucide-react";
 import { checkSession } from "~/lib/auth";
 import { listGames } from "~/lib/github";
 import { SidebarNav } from "~/components/SidebarNav";
@@ -7,6 +8,7 @@ import { useData } from "~/lib/use-data";
 
 export default function AdminLayout() {
   const navigate = useNavigate();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const { data: games, loading, error } = useData(async () => {
     const ok = await checkSession();
@@ -42,11 +44,36 @@ export default function AdminLayout() {
         <div className="absolute top-1/2 left-1/4 w-64 h-64 bg-cyan-500/10 rounded-full blur-[100px]" />
       </div>
 
-      <SidebarNav games={games ?? []} />
+      {/* Mobile header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-[#030712]/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 z-40 flex items-center justify-between px-4">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-linear-to-tr from-blue-600 to-orange-500 flex items-center justify-center shadow-lg shadow-blue-500/30 overflow-hidden p-1.5">
+            <img src="/favicon.ico" alt="Athena Logo" className="w-full h-full object-contain filter brightness-0 invert" />
+          </div>
+          <span className="text-xl font-bold bg-clip-text text-transparent bg-linear-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 tracking-tight">
+            Athena
+          </span>
+        </div>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-gray-600 dark:text-gray-300">
+          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </div>
+
+      {/* Sidebar overlay for mobile */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden" 
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      <div className={`fixed inset-y-0 left-0 z-50 transform lg:transform-none lg:static transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+        <SidebarNav games={games ?? []} onClose={() => setIsMobileMenuOpen(false)} />
+      </div>
       
-      <main className="flex-1 flex flex-col h-screen overflow-hidden relative z-10">
-        <div className="flex-1 overflow-y-auto p-8 lg:px-12 xl:px-16 pb-24 scrollbar-hide">
-          <div className="w-full">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden relative z-10 pt-16 lg:pt-0">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 xl:px-16 pb-24 scrollbar-hide">
+          <div className="w-full max-w-[100vw]">
             <Outlet />
           </div>
         </div>
