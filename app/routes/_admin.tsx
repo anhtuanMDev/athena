@@ -59,16 +59,22 @@ export default function AdminLayout() {
         </button>
       </div>
 
-      {/* Sidebar overlay for mobile */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden" 
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
+      {/* Desktop Sidebar (hidden on mobile) */}
+      <div className="hidden lg:block z-20">
+        <SidebarNav games={games ?? []} />
+      </div>
 
-      <div className={`fixed inset-y-0 left-0 z-50 transform lg:transform-none lg:static transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
-        <SidebarNav games={games ?? []} onClose={() => setIsMobileMenuOpen(false)} />
+      {/* Mobile Sidebar (overlay) */}
+      <div className={`lg:hidden fixed inset-0 z-50 transition-opacity duration-300 ${isMobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}>
+        {/* Backdrop */}
+        <div 
+          className="absolute inset-0 bg-black/50" 
+          onClick={() => setIsMobileMenuOpen(false)} 
+        />
+        {/* Sidebar panel */}
+        <div className={`absolute inset-y-0 left-0 transform transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}>
+          <SidebarNav games={games ?? []} onClose={() => setIsMobileMenuOpen(false)} />
+        </div>
       </div>
       
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative z-10 pt-16 lg:pt-0">
