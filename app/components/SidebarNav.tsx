@@ -93,7 +93,7 @@ function CollapsibleGameSection({ game, isActive }: { game: GameSection; isActiv
     isActive(`/${game.slug}/modes`) || 
     isActive(`/${game.slug}/patches`) || 
     isActive(`/${game.slug}/items`) || 
-    isActive(`/${game.slug}/schema`);
+    isActive(`/${game.slug}/schemas`);
   
   const [isOpen, setIsOpen] = useState(isAnyActive);
 
@@ -122,7 +122,7 @@ function CollapsibleGameSection({ game, isActive }: { game: GameSection; isActiv
         <NavLink href={`/${game.slug}/modes`} label="Modes" icon={Swords} isActive={isActive(`/${game.slug}/modes`)} />
         <NavLink href={`/${game.slug}/patches`} label="Patches" icon={FileClock} isActive={isActive(`/${game.slug}/patches`)} />
         <NavLink href={`/${game.slug}/items`} label="Items" icon={Box} isActive={isActive(`/${game.slug}/items`)} />
-        <NavLink href={`/${game.slug}/schema`} label="Schema" icon={Database} isActive={isActive(`/${game.slug}/schema`)} />
+        <NavLink href={`/${game.slug}/schemas`} label="Schemas" icon={Database} isActive={isActive(`/${game.slug}/schemas`)} />
       </div>
     </div>
   );

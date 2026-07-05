@@ -29,6 +29,9 @@ import ItemEdit from "~/components/views/ItemEdit";
 
 // Misc
 import SchemaEdit from "~/components/views/SchemaEdit";
+import DynamicSchemasList from "~/components/views/DynamicSchemasList";
+import DynamicSchemaNew from "~/components/views/DynamicSchemaNew";
+import DynamicSchemaEdit from "~/components/views/DynamicSchemaEdit";
 import RawEdit from "~/components/views/RawEdit";
 
 export default function GameDashboardRouter() {
@@ -39,8 +42,16 @@ export default function GameDashboardRouter() {
   const idOrAction = parts[1];
   const subAction = parts[2];
 
-  // Route: /:game/schema
+  // Route: /:game/schema (Legacy)
   if (entity === "schema") return <PanelTransition><SchemaEdit /></PanelTransition>;
+  
+  // Route: /:game/schemas (New Dynamic)
+  if (entity === "schemas") {
+    if (!idOrAction) return <PanelTransition><DynamicSchemasList /></PanelTransition>;
+    if (idOrAction === "new") return <PanelTransition><><DynamicSchemasList /><DynamicSchemaNew /></></PanelTransition>;
+    // if (subAction === "delete") return <EntityDelete entityType="schemas" />;
+    return <PanelTransition><DynamicSchemaEdit /></PanelTransition>;
+  }
 
   // Route: /:game/raw/:type/:id
   if (entity === "raw") return <PanelTransition><RawEdit /></PanelTransition>;
