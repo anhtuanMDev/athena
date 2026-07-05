@@ -1,4 +1,4 @@
-import { createPortal } from "react-dom";
+
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { DynamicSchemaFileSchema } from "~/schemas/dynamic-schema";
@@ -61,10 +61,8 @@ export default function DynamicSchemaNew() {
     }
   }
 
-  if (typeof document === "undefined") return null;
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="max-w-lg mx-auto w-full animate-in fade-in zoom-in-95 duration-200">
+  return (
+    <div className="max-w-2xl mx-auto py-8">
       <Card>
         <CardHeader><h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">New Schema — {game}</h1></CardHeader>
         <CardContent>
@@ -89,9 +87,9 @@ export default function DynamicSchemaNew() {
               {errors?.category && <p className="mt-1 text-sm text-red-500">{errors.category.join(", ")}</p>}
             </div>
             
-            <div className="pt-4">
-              <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/schemas`)} className="mr-3">Cancel</Button>
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20 w-full sm:w-auto">
+            <div className="pt-4 flex items-center justify-between">
+              <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/schemas`)}>Cancel</Button>
+              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
                 {submitting ? "Creating..." : "Create & Add Fields"}
               </Button>
             </div>
@@ -99,7 +97,5 @@ export default function DynamicSchemaNew() {
         </CardContent>
       </Card>
     </div>
-    </div>
-    , document.body
   );
 }

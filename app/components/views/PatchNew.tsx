@@ -1,4 +1,4 @@
-import { createPortal } from "react-dom";
+
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { PatchSchema } from "~/schemas/patch";
@@ -68,10 +68,8 @@ export default function NewPatch() {
     }
   }
 
-  if (typeof document === "undefined") return null;
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="max-w-lg mx-auto animate-in fade-in zoom-in-95 duration-200">
+  return (
+    <div className="max-w-2xl mx-auto py-8">
       <Card>
         <CardHeader><h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">New Patch — {game}</h1></CardHeader>
         <CardContent>
@@ -92,9 +90,9 @@ export default function NewPatch() {
               />
             </div>
             
-            <div className="pt-4">
-              <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/patchs`)} className="mr-3">Cancel</Button>
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20 w-full sm:w-auto">
+            <div className="pt-4 flex items-center justify-between">
+              <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/patchs`)}>Cancel</Button>
+              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
                 {submitting ? "Creating..." : "Create Patch"}
               </Button>
             </div>
@@ -102,7 +100,5 @@ export default function NewPatch() {
         </CardContent>
       </Card>
     </div>
-    </div>
-    , document.body
   );
 }

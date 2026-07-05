@@ -48,7 +48,7 @@ export default function GameDashboardRouter() {
   // Route: /:game/schemas (New Dynamic)
   if (entity === "schemas") {
     if (!idOrAction) return <PanelTransition><DynamicSchemasList /></PanelTransition>;
-    if (idOrAction === "new") return <PanelTransition><><DynamicSchemasList /><DynamicSchemaNew /></></PanelTransition>;
+    if (idOrAction === "new") return <PanelTransition><DynamicSchemaNew /></PanelTransition>;
     // if (subAction === "delete") return <EntityDelete entityType="schemas" />;
     return <PanelTransition><DynamicSchemaEdit /></PanelTransition>;
   }
@@ -66,25 +66,25 @@ export default function GameDashboardRouter() {
       
     case "maps":
       if (!idOrAction) return <MapsList />;
-      if (idOrAction === "new") return <><MapsList /><MapNew /></>;
+      if (idOrAction === "new") return <MapNew />;
       if (subAction === "delete") return <EntityDelete entityType="maps" />;
       return <MapEdit />;
       
     case "modes":
       if (!idOrAction) return <ModesList />;
-      if (idOrAction === "new") return <><ModesList /><ModeNew /></>;
+      if (idOrAction === "new") return <ModeNew />;
       if (subAction === "delete") return <EntityDelete entityType="modes" />;
       return <ModeEdit />;
       
     case "patches":
       if (!idOrAction) return <PatchesList />;
-      if (idOrAction === "new") return <><PatchesList /><PatchNew /></>;
+      if (idOrAction === "new") return <PatchNew />;
       if (subAction === "delete") return <EntityDelete entityType="patches" />;
       return <PatchEdit />;
       
     case "items":
       if (!idOrAction) return <ItemsList />;
-      if (idOrAction === "new") return <><ItemsList /><ItemNew /></>;
+      if (idOrAction === "new") return <ItemNew />;
       if (subAction === "delete") return <EntityDelete entityType="items" />;
       return <ItemEdit />;
       

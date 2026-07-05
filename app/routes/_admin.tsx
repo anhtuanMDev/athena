@@ -46,7 +46,7 @@ export default function AdminLayout() {
       
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative z-10">
         <div className="flex-1 overflow-y-auto p-8 lg:px-12 xl:px-16 pb-24 scrollbar-hide">
-          <div className="max-w-7xl mx-auto">
+          <div className="w-full">
             <Outlet />
           </div>
         </div>

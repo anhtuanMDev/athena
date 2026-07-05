@@ -1,4 +1,4 @@
-import { createPortal } from "react-dom";
+
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ModeSchema } from "~/schemas/mode";
@@ -50,10 +50,8 @@ export default function NewMode() {
     }
   }
 
-  if (typeof document === "undefined") return null;
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="max-w-lg mx-auto animate-in fade-in zoom-in-95 duration-200">
+  return (
+    <div className="max-w-2xl mx-auto py-8">
       <Card>
         <CardHeader><h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">New Mode — {game}</h1></CardHeader>
         <CardContent>
@@ -63,11 +61,13 @@ export default function NewMode() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <input type="hidden" name="id" value="" />
             <FormField name="name" label="Name" placeholder="e.g. Payload" />
-            <FormField name="description" label="Description" placeholder="Push the payload to the end." required={false} />
+            <FormField name="description" label="Description" placeholder="Escort the payload..." required={false} />
+            <FormField name="type" label="Type" placeholder="e.g. core, arcade" required={false} />
+            <FormField name="team_size" label="Team Size" type="number" required={false} />
             
-            <div className="pt-4">
-              <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/modes`)} className="mr-3">Cancel</Button>
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20 w-full sm:w-auto">
+            <div className="pt-4 flex items-center justify-between">
+              <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/modes`)}>Cancel</Button>
+              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
                 {submitting ? "Creating..." : "Create Mode"}
               </Button>
             </div>
@@ -75,7 +75,5 @@ export default function NewMode() {
         </CardContent>
       </Card>
     </div>
-    </div>
-    , document.body
   );
 }
