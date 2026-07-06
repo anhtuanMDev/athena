@@ -77,8 +77,10 @@ export async function deleteFile(path: string, sha: string, message?: string): P
   await api("DELETE", "data/file", { path, sha, message });
 }
 
-export async function listDirectory<T = string>(game: string, subpath: string, includeContent?: boolean): Promise<T[]> {
-  const url = `data/directory?game=${encodeURIComponent(game)}&subpath=${encodeURIComponent(subpath)}${includeContent ? '&includeContent=true' : ''}`;
+export async function listDirectory<T = string>(game: string, subpath: string, includeContent?: boolean, keysOnly?: string[]): Promise<T[]> {
+  let url = `data/directory?game=${encodeURIComponent(game)}&subpath=${encodeURIComponent(subpath)}`;
+  if (includeContent) url += '&includeContent=true';
+  if (keysOnly && keysOnly.length > 0) url += `&keysOnly=${encodeURIComponent(keysOnly.join(','))}`;
   return api<T[]>("GET", url);
 }
 

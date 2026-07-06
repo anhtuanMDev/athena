@@ -12,6 +12,7 @@ export const FormField = forwardRef<HTMLDivElement, FormFieldProps>(
         variant="outlined"
         size="small"
         fullWidth
+        autoComplete="off"
         slotProps={{ ...slotProps }}
         inputRef={ref}
         {...props}

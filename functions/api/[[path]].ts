@@ -369,6 +369,8 @@ async function handleListDirectory(request: Request, env: Env): Promise<Response
     if (Array.isArray(data)) {
       const files = data.filter((entry) => entry.type === "file" && entry.name.endsWith(".json"));
       const includeContent = url.searchParams.get("includeContent") === "true";
+      const keysOnlyStr = url.searchParams.get("keysOnly");
+      const keysOnly = keysOnlyStr ? keysOnlyStr.split(",") : null;
 
       if (!includeContent) {
         return json(files.map((entry) => entry.name.replace(".json", "")));
@@ -387,7 +389,15 @@ async function handleListDirectory(request: Request, env: Env): Promise<Response
               const fileData = fileReq.data;
               if (!Array.isArray(fileData) && fileData.type === "file" && "content" in fileData) {
                 const decoded = atob(fileData.content);
-                return JSON.parse(decoded);
+                const parsed = JSON.parse(decoded);
+                if (keysOnly) {
+                  const filtered: Record<string, unknown> = {};
+                  for (const key of keysOnly) {
+                    if (parsed[key] !== undefined) filtered[key] = parsed[key];
+                  }
+                  return filtered;
+                }
+                return parsed;
               }
             } catch (e) {
               console.error(`Failed to fetch content for ${entry.path}`, e);

@@ -25,11 +25,7 @@ export default function NewHero() {
   const { data, loading, error: fetchError } = useData(async () => {
     const schemas = await listDirectory<DynamicSchemaFile>(game!, "schemas", true);
     const heroSchemas = schemas.filter(s => s && s.category === "hero");
-    const allFields: DynamicField[] = [];
-    for (const s of heroSchemas) {
-      if (s.fields) allFields.push(...s.fields);
-    }
-    return { fields: allFields, schemaCount: heroSchemas.length, game: game! };
+    return { schemas: heroSchemas, schemaCount: heroSchemas.length, game: game! };
   }, [game]);
 
   if (loading) {
@@ -73,18 +69,21 @@ export default function NewHero() {
   return (
     <div className="w-full py-8">
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">New Hero — {data.game}</h1>
+          <Button variant="outline" size="small" onClick={() => navigate(`/${data.game}/schemas`)} className="w-full md:w-auto">
+            Edit Schema
+          </Button>
         </CardHeader>
         <CardContent>
-          <HeroForm fields={data.fields} game={data.game} />
+          <HeroForm schemas={data.schemas} game={data.game} />
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
+function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: string }) {
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
   const [submitting, setSubmitting] = useState(false);
@@ -94,6 +93,10 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
   const [portraits, setPortraits] = useState<ImageEntry[]>([]);
   // We'll manage ability icons parallel to the react-hook-form array
   const [abilityIcons, setAbilityIcons] = useState<Record<string, ImageEntry[]>>({});
+
+  const [selectedSchemaId, setSelectedSchemaId] = useState<string>(schemas[0]?.id || "");
+  const activeSchema = useMemo(() => schemas.find(s => s.id === selectedSchemaId) || schemas[0], [schemas, selectedSchemaId]);
+  const fields = activeSchema?.fields || [];
 
   const dynamicZodSchema = useMemo(() => {
     let shape: Record<string, z.ZodTypeAny> = {};
@@ -129,6 +132,7 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
     defaultValues: {
       game,
       id: "",
+      schema_id: schemas[0]?.id || "",
       name: "",
       real_name: "",
       portrait: "",
@@ -253,6 +257,25 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
         <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">{submitError}</div>
       )}
 
+      {schemas.length > 1 && (
+        <div className="mb-8 p-4 bg-gray-50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-800 rounded-xl">
+          <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300">Hero Schema Profile</label>
+          <select 
+            className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
+            value={selectedSchemaId}
+            onChange={(e) => {
+              setSelectedSchemaId(e.target.value);
+              setValue("schema_id", e.target.value, { shouldDirty: true });
+            }}
+          >
+            {schemas.map(s => (
+              <option key={s.id} value={s.id}>{s.name} ({s.id})</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-2">Changing the schema will update the available fields below.</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormField 
           label="Agent Code Name" 
@@ -307,6 +330,7 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
                   errors={errors}
                   abilityIcons={abilityIcons}
                   setAbilityIcons={setAbilityIcons}
+                  subFields={f.subFields || []}
                 />
               </div>
             );

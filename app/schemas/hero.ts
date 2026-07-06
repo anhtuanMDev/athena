@@ -14,6 +14,7 @@ export const HealthSchema = z.record(z.string(), z.number()).optional();
 
 export const HeroSchema = z.object({
   id: z.string().min(1).regex(/^[a-z0-9-]+$/, "Must be kebab-case"),
+  schema_id: z.string().optional(),
   game: z.string().min(1),
   name: z.string().min(1, "Name is required"),
   real_name: z.string().optional(),

@@ -51,7 +51,7 @@ export default function GameDashboardRouter() {
   if (entity === "schemas") {
     if (!idOrAction) return <PanelTransition><DynamicSchemasList /></PanelTransition>;
     if (idOrAction === "new") return <PanelTransition><DynamicSchemaNew /></PanelTransition>;
-    // if (subAction === "delete") return <EntityDelete entityType="schemas" />;
+    if (subAction === "delete") return <PanelTransition><EntityDelete entityType="schemas" /></PanelTransition>;
     return <PanelTransition><DynamicSchemaEdit /></PanelTransition>;
   }
 

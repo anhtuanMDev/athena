@@ -36,12 +36,14 @@ export default function EditHero() {
   const id = splat?.split("/")[1];
   assertSafeGameSlug(game!);
   assertSafeEntityId(id!);
-
+  const navigate = useNavigate();
   const heroResult = useData<{ content: Hero; sha: string } | null>(
     () => getFile<Hero>(`data/${game}/heroes/${id}.json`),
     [game, id],
   );
-  const schemaResult = useData<{ fields: DynamicField[] } | null>(async () => {
+  const schemaResult = useData<{
+    schemas: DynamicSchemaFile[];
+  } | null>(async () => {
     try {
       const schemas = await listDirectory<DynamicSchemaFile>(
         game!,
@@ -49,13 +51,9 @@ export default function EditHero() {
         true,
       );
       const heroSchemas = schemas.filter((s) => s && s.category === "hero");
-      const allFields: DynamicField[] = [];
-      for (const s of heroSchemas) {
-        if (s.fields) allFields.push(...s.fields);
-      }
-      return { fields: allFields };
+      return { schemas: heroSchemas };
     } catch (e) {
-      return { fields: [] };
+      return { schemas: [] };
     }
   }, [game]);
 
@@ -89,17 +87,18 @@ export default function EditHero() {
   return (
     <div className="w-full py-8">
       <Card>
-        <CardHeader>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">
-            Edit Hero: {heroResult.data.content.name}
-          </h1>
+        <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">Edit Hero — {heroResult.data.content.name}</h1>
+          <Button variant="outline" size="small" onClick={() => navigate(`/${game}/schemas`)} className="w-full md:w-auto">
+            Edit Schema
+          </Button>
         </CardHeader>
         <CardContent>
           <EditHeroForm
             key={heroResult.data.sha}
             hero={heroResult.data.content}
             sha={heroResult.data.sha}
-            fields={schemaResult.data?.fields ?? []}
+            schemas={schemaResult.data?.schemas ?? []}
             game={game!}
             id={id!}
           />
@@ -112,13 +111,13 @@ export default function EditHero() {
 function EditHeroForm({
   hero,
   sha,
-  fields,
+  schemas,
   game,
   id,
 }: {
   hero: Hero;
   sha: string;
-  fields: DynamicField[];
+  schemas: DynamicSchemaFile[];
   game: string;
   id: string;
 }) {
@@ -140,15 +139,19 @@ function EditHeroForm({
     Record<string, ImageEntry[]>
   >({});
 
+  const [selectedSchemaId, setSelectedSchemaId] = useState<string>(
+    hero.schema_id || schemas[0]?.id || "",
+  );
+  const activeSchema = useMemo(
+    () => schemas.find((s) => s.id === selectedSchemaId) || schemas[0],
+    [schemas, selectedSchemaId],
+  );
+  const fields = activeSchema?.fields || [];
+
   const dynamicZodSchema = useMemo(() => {
     let shape: Record<string, z.ZodTypeAny> = {};
     fields.forEach((f) => {
-      if (
-        ["id", "name", "real_name", "portrait"].includes(
-          f.key,
-        )
-      )
-        return;
+      if (["id", "name", "real_name", "portrait"].includes(f.key)) return;
       let fieldSchema: z.ZodTypeAny =
         f.type === "number" ? z.coerce.number() : z.string();
       if (f.type === "list") fieldSchema = z.array(z.string());
@@ -174,6 +177,7 @@ function EditHeroForm({
     register,
     handleSubmit,
     control,
+    setValue,
     formState: { errors, isValid, isDirty },
   } = useForm<any>({
     resolver: zodResolver(dynamicZodSchema),
@@ -321,6 +325,30 @@ function EditHeroForm({
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {schemas.length > 1 && (
+          <div className="col-span-1 md:col-span-2 mb-4 p-4 bg-gray-50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-800 rounded-xl">
+            <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300">
+              Hero Schema Profile
+            </label>
+            <select
+              className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
+              value={selectedSchemaId}
+              onChange={(e) => {
+                setSelectedSchemaId(e.target.value);
+                setValue("schema_id", e.target.value, { shouldDirty: true });
+              }}
+            >
+              {schemas.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.id})
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-2">
+              Changing the schema will update the available fields below.
+            </p>
+          </div>
+        )}
         <FormField
           label="Name"
           {...register("name")}
@@ -337,19 +365,12 @@ function EditHeroForm({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
         {fields.map((f: DynamicField) => {
-          if (
-            [
-              "id",
-              "name",
-              "real_name",
-              "portrait",
-            ].includes(f.key)
-          )
+          if (["id", "name", "real_name", "portrait"].includes(f.key))
             return null;
           if (f.type === "abilities") {
             return (
               <div className="col-span-1 md:col-span-2" key={f.key}>
-                <AbilitiesField 
+                <AbilitiesField
                   name={f.key}
                   label={f.label}
                   control={control}
@@ -357,6 +378,7 @@ function EditHeroForm({
                   errors={errors}
                   abilityIcons={abilityIcons}
                   setAbilityIcons={setAbilityIcons}
+                  subFields={f.subFields || []}
                 />
               </div>
             );
@@ -396,36 +418,37 @@ function EditHeroForm({
         })}
       </div>
 
-
-
       <div className="pt-6 border-t border-gray-200/50 dark:border-gray-800/50 mt-8">
         {Object.keys(errors).length > 0 && (
           <div className="mb-4 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50">
-            <h4 className="text-sm font-bold text-red-800 dark:text-red-400 mb-2">Please fix the following validation errors:</h4>
+            <h4 className="text-sm font-bold text-red-800 dark:text-red-400 mb-2">
+              Please fix the following validation errors:
+            </h4>
             <ul className="list-disc pl-5 text-sm text-red-700 dark:text-red-300 space-y-1">
               {Object.entries(errors).map(([key, err]) => (
                 <li key={key}>
-                  <span className="font-semibold">{key}:</span> {(err as any)?.message || "Invalid value"}
+                  <span className="font-semibold">{key}:</span>{" "}
+                  {(err as any)?.message || "Invalid value"}
                 </li>
               ))}
             </ul>
           </div>
         )}
         <div className="flex justify-between">
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => navigate(`/${game}/heroes`)}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={submitting || !isValid || !isDirty}
-          className="shadow-lg shadow-orange-500/20"
-        >
-          {submitting ? "Processing..." : "Preview Changes"}
-        </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => navigate(`/${game}/heroes`)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={submitting || !isValid || !isDirty}
+            className="shadow-lg shadow-orange-500/20"
+          >
+            {submitting ? "Processing..." : "Preview Changes"}
+          </Button>
         </div>
       </div>
     </form>

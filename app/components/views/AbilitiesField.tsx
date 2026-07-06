@@ -3,6 +3,7 @@ import { useFieldArray } from "react-hook-form";
 import type { ImageEntry } from "~/components/MultiImageUploadField";
 import { FormField } from "~/components/FormField";
 import { MultiImageUploadField } from "~/components/MultiImageUploadField";
+import type { DynamicField } from "~/schemas/dynamic-schema";
 
 interface AbilitiesFieldProps {
   name: string;
@@ -12,9 +13,10 @@ interface AbilitiesFieldProps {
   errors: FieldErrors<any>;
   abilityIcons: Record<string, ImageEntry[]>;
   setAbilityIcons: (icons: Record<string, ImageEntry[]>) => void;
+  subFields?: DynamicField[];
 }
 
-export function AbilitiesField({ name, label, control, register, errors, abilityIcons, setAbilityIcons }: AbilitiesFieldProps) {
+export function AbilitiesField({ name, label, control, register, errors, abilityIcons, setAbilityIcons, subFields }: AbilitiesFieldProps) {
   const { fields, append, remove } = useFieldArray({
     control,
     name
@@ -76,6 +78,22 @@ export function AbilitiesField({ name, label, control, register, errors, ability
                     error={!!abilityErrors?.description}
                     helperText={abilityErrors?.description?.message as string}
                   />
+
+                  {subFields && subFields.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-200/50 dark:border-gray-700/50">
+                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Custom Parameters</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-white/50 dark:bg-black/20 p-3 rounded-lg border border-gray-200/50 dark:border-gray-700/50">
+                        {subFields.map(sf => (
+                          <FormField
+                            key={sf.key}
+                            label={sf.label}
+                            type={sf.type === 'number' ? 'number' : 'text'}
+                            {...register(`${name}.${i}.params.${sf.key}`)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
