@@ -171,12 +171,12 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
       let portraitData: string | Record<string, string> = formData.portrait || "";
       if (portraits.length === 1 && portraits[0].key === "main") {
         const ext = portraits[0].name?.split(".").pop() || "png";
-        portraitData = `assets/${game}/heroes/${id}/portrait.${ext}`;
+        portraitData = `/api/assets/${game}/heroes/${id}/portrait.${ext}`;
       } else if (portraits.length > 0) {
         portraitData = {};
         for (const p of portraits) {
           const ext = p.name?.split(".").pop() || "png";
-          (portraitData as Record<string, string>)[p.key] = `assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
+          (portraitData as Record<string, string>)[p.key] = `/api/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
         }
       }
       if (portraitData) formData.portrait = portraitData;
@@ -192,16 +192,18 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
         const aIcons = abilityIcons[ability.id || i] || [];
         if (aIcons.length === 1 && aIcons[0].key === "main") {
           const ext = aIcons[0].name?.split(".").pop() || "png";
-          const path = `assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
-          ability.icon = path;
-          if (aIcons[0].base64) abilityUploads.push({ path, base64: aIcons[0].base64, message: `Add ${ability.name} icon for ${id}` });
+          const displayPath = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
+          const uploadPath = `public/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
+          ability.icon = displayPath;
+          if (aIcons[0].base64) abilityUploads.push({ path: uploadPath, base64: aIcons[0].base64, message: `Add ${ability.name} icon for ${id}` });
         } else if (aIcons.length > 0) {
           ability.icon = {};
           for (const icon of aIcons) {
             const ext = icon.name?.split(".").pop() || "png";
-            const path = `assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
-            ability.icon[icon.key] = path;
-            if (icon.base64) abilityUploads.push({ path, base64: icon.base64, message: `Add ${ability.name} ${icon.key} icon for ${id}` });
+            const displayPath = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
+            const uploadPath = `public/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
+            ability.icon[icon.key] = displayPath;
+            if (icon.base64) abilityUploads.push({ path: uploadPath, base64: icon.base64, message: `Add ${ability.name} ${icon.key} icon for ${id}` });
           }
         }
       });
@@ -228,8 +230,8 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
         if (p.base64) {
           const ext = p.name?.split(".").pop() || "png";
           const path = (portraits.length === 1 && p.key === "main")
-            ? `assets/${game}/heroes/${id}/portrait.${ext}`
-            : `assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
+            ? `public/assets/${game}/heroes/${id}/portrait.${ext}`
+            : `public/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
           uploads.push(uploadAsset(path, p.base64, undefined, `Add portrait ${p.key} for ${id}`));
         }
       }

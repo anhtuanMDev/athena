@@ -172,12 +172,12 @@ function EditHeroForm({
       let portraitData: string | Record<string, string> = formData.portrait || "";
       if (portraits.length === 1 && portraits[0].key === "main") {
         const ext = portraits[0].name?.split(".").pop() || "png";
-        portraitData = `assets/${game}/heroes/${id}/portrait.${ext}`;
+        portraitData = `/api/assets/${game}/heroes/${id}/portrait.${ext}`;
       } else if (portraits.length > 0) {
         portraitData = {};
         for (const p of portraits) {
           const ext = p.name?.split(".").pop() || "png";
-          (portraitData as Record<string, string>)[p.key] = `assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
+          (portraitData as Record<string, string>)[p.key] = `/api/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
         }
       }
       if (portraitData) formData.portrait = portraitData;
@@ -188,12 +188,12 @@ function EditHeroForm({
         const aIcons = abilityIcons[ability.id || i] || [];
         if (aIcons.length === 1 && aIcons[0].key === "main") {
           const ext = aIcons[0].name?.split(".").pop() || "png";
-          ability.icon = `assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
+          ability.icon = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
         } else if (aIcons.length > 0) {
           ability.icon = {};
           for (const icon of aIcons) {
             const ext = icon.name?.split(".").pop() || "png";
-            ability.icon[icon.key] = `assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
+            ability.icon[icon.key] = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
           }
         }
       });

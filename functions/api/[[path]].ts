@@ -188,6 +188,7 @@ export async function onRequest(context: PagesFunctionContext): Promise<Response
     if (path === "data/directory" && request.method === "GET") return await handleListDirectory(request, env);
     if (path === "data/games" && request.method === "GET") return await handleListGames(request, env);
     if (path === "data/commits" && request.method === "GET") return await handleCommits(request, env);
+    if (path.startsWith("assets/") && request.method === "GET") return await handleGetAsset(request, env);
     return json({ error: "Not found" }, 404);
   } catch (err) {
     if (err instanceof AuthError) return json({ error: "Unauthorized" }, 401);
@@ -457,5 +458,46 @@ async function handleCommits(request: Request, env: Env): Promise<Response> {
     return json({ commits, error: null });
   } catch (err) {
     return json({ commits: [], error: err instanceof Error ? err.message : "Unknown error" });
+  }
+}
+
+async function handleGetAsset(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const path = url.pathname.replace(/^\/api\//, "").replace(/\/$/, "");
+  // path is "assets/..."
+  const githubPath = `public/${path}`;
+  
+  const owner = env.GITHUB_OWNER;
+  const repo = env.GITHUB_REPO;
+  const branch = env.GITHUB_BRANCH ?? "main";
+  const token = env.GITHUB_TOKEN;
+
+  if (!owner || !repo) {
+    return new Response("Server misconfigured", { status: 500 });
+  }
+
+  const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${githubPath}`;
+
+  try {
+    const headers: Record<string, string> = { "User-Agent": "athena-admin" };
+    if (token) headers["Authorization"] = `token ${token}`;
+
+    const response = await fetch(rawUrl, { headers });
+
+    if (!response.ok) {
+      return new Response("Asset not found", { status: 404 });
+    }
+
+    const resHeaders = new Headers();
+    const contentType = response.headers.get("content-type");
+    if (contentType) resHeaders.set("Content-Type", contentType);
+    resHeaders.set("Cache-Control", "public, max-age=3600");
+    
+    return new Response(response.body, {
+      status: 200,
+      headers: resHeaders
+    });
+  } catch (err) {
+    return new Response("Internal error", { status: 500 });
   }
 }

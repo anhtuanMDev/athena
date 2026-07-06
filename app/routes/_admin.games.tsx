@@ -84,7 +84,7 @@ export default function GamesList() {
         
         const existingSha = await getFileSha(path);
         await uploadAsset(path, base64Data, existingSha || undefined, `Upload icon for ${name || slug}`);
-        finalIconUrl = `/assets/games/${filename}`;
+        finalIconUrl = `/api/assets/games/${filename}`;
       }
 
       const parsed = GameSchema.safeParse({
