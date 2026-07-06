@@ -9,6 +9,7 @@ import {
   FileClock,
   Box,
   Database,
+  Clock,
   LogOut,
   ChevronRight,
   ChevronDown,
@@ -169,7 +170,8 @@ function CollapsibleGameSection({
     isActive(`/${game.slug}/modes`) ||
     isActive(`/${game.slug}/patches`) ||
     isActive(`/${game.slug}/items`) ||
-    isActive(`/${game.slug}/schemas`);
+    isActive(`/${game.slug}/schemas`) ||
+    isActive(`/${game.slug}/cron`);
 
   const [isOpen, setIsOpen] = useState(isAnyActive);
 
@@ -249,6 +251,14 @@ function CollapsibleGameSection({
           label="Schemas"
           icon={Database}
           isActive={isActive(`/${game.slug}/schemas`)}
+          onClick={onClose}
+          primaryColor={game.primaryColor}
+        />
+        <NavLink
+          href={`/${game.slug}/cron`}
+          label="Cron Jobs"
+          icon={Clock}
+          isActive={isActive(`/${game.slug}/cron`)}
           onClick={onClose}
           primaryColor={game.primaryColor}
         />

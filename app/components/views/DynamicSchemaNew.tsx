@@ -16,7 +16,6 @@ export default function DynamicSchemaNew() {
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("hero");
-  const [apiEndpoint, setApiEndpoint] = useState<string>("");
   const [fields, setFields] = useState<DynamicField[]>([]);
   
   const [submitting, setSubmitting] = useState(false);
@@ -34,11 +33,23 @@ export default function DynamicSchemaNew() {
 
   const handleChangeField = (index: number, key: keyof DynamicField, value: any) => {
     const newFields = [...fields];
+    const field = newFields[index];
     
     if (key === 'options') {
-      newFields[index] = { ...newFields[index], [key]: value.split(',').map((s: string) => s.trim()).filter(Boolean) };
+      newFields[index] = { ...field, [key]: value.split(',').map((s: string) => s.trim()).filter(Boolean) };
+    } else if (key === 'label') {
+      const oldSlug = (field.label || "").toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '');
+      const newSlug = (value || "").toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '');
+      
+      // Auto-generate if key is currently empty or matches exactly what the label used to slugify to
+      const shouldUpdateKey = !field.key || field.key === oldSlug;
+      
+      newFields[index] = { ...field, label: value };
+      if (shouldUpdateKey) {
+        newFields[index].key = newSlug;
+      }
     } else {
-      newFields[index] = { ...newFields[index], [key]: value };
+      newFields[index] = { ...field, [key]: value };
     }
     setFields(newFields);
   };
@@ -60,7 +71,6 @@ export default function DynamicSchemaNew() {
       id: generatedId,
       name: name.trim(),
       category: category,
-      api_endpoint: apiEndpoint || undefined,
       fields,
     };
 
@@ -155,26 +165,12 @@ export default function DynamicSchemaNew() {
                 >
                   <option value="hero">Hero</option>
                   <option value="map">Map</option>
+                  <option value="mode">Mode</option>
+                  <option value="patch">Patch</option>
                   <option value="event">Event</option>
+                  <option value="item">Item</option>
                 </select>
               </div>
-            </div>
-
-            <div className="flex flex-col md:flex-row gap-6 items-start md:items-center pt-4 border-t border-gray-100 dark:border-gray-800/50">
-              <div className="flex-1">
-                <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
-                  Data Source API Endpoint <span className="text-gray-400 font-normal">(Optional)</span>
-                </label>
-                <input 
-                  value={apiEndpoint} 
-                  onChange={(e) => setApiEndpoint(e.target.value)}
-                  placeholder="https://api.example.com/latest-patch" 
-                  className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors" 
-                />
-              </div>
-              <p className="text-xs text-gray-500 md:max-w-xs md:mt-6 leading-relaxed">
-                If configured, the automated background <strong className="text-gray-700 dark:text-gray-300">Cron worker</strong> will fetch data from this URL and process it based on this schema's structure.
-              </p>
             </div>
           </CardContent>
         </Card>
@@ -240,6 +236,7 @@ export default function DynamicSchemaNew() {
                         <option value="boolean">Toggle (Boolean)</option>
                         <option value="list">Multiple Select (List)</option>
                         <option value="enum">Single Select (Enum)</option>
+                        <option value="abilities">Kit Abilities (Complex List)</option>
                       </select>
                     </div>
                     <div>

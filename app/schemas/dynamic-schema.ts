@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const FieldTypeSchema = z.enum(["string", "number", "boolean", "list", "enum"]);
+export const FieldTypeSchema = z.enum(["string", "number", "boolean", "list", "enum", "abilities"]);
 export type FieldType = z.infer<typeof FieldTypeSchema>;
 
 export const DynamicFieldSchema = z.object({
@@ -21,14 +21,6 @@ export const DynamicSchemaFileSchema = z.object({
   id: z.string().min(1).regex(/^[a-z0-9-]+$/, "ID must be kebab-case"),
   name: z.string().min(1),
   category: SchemaCategorySchema,
-  api_endpoint: z.string().url("Must be a valid URL").refine((val) => {
-    try {
-      const url = new URL(val);
-      return url.protocol === "https:" && ["api.github.com", "raw.githubusercontent.com", "api.athenapp.com"].includes(url.hostname);
-    } catch {
-      return false;
-    }
-  }, "Must be an allowed API domain").optional(),
   fields: z.array(DynamicFieldSchema),
 });
 

@@ -15,6 +15,7 @@ import { useToast } from "~/components/ToastProvider";
 import { type DynamicSchemaFile, type DynamicField } from "~/schemas/dynamic-schema";
 import { listDirectory } from "~/lib/github";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
+import { AbilitiesField } from "~/components/views/AbilitiesField";
 
 export default function NewHero() {
   const { game } = useParams();
@@ -97,9 +98,10 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
   const dynamicZodSchema = useMemo(() => {
     let shape: Record<string, z.ZodTypeAny> = {};
     fields.forEach(f => {
-      if (["id", "name", "real_name", "roles", "portrait", "kit", "abilities"].includes(f.key)) return;
+      if (["id", "name", "real_name", "portrait"].includes(f.key)) return;
       let fieldSchema: z.ZodTypeAny = f.type === "number" ? z.coerce.number() : z.string();
-      if (f.type === "list") fieldSchema = z.string(); 
+      if (f.type === "list") fieldSchema = z.array(z.string()); 
+      if (f.type === "abilities") fieldSchema = z.array(z.any());
       if (f.required) {
         if (f.type === "number") fieldSchema = z.coerce.number().min(1, "Required");
         else fieldSchema = z.string().min(1, "Required");
@@ -120,7 +122,7 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
     control,
     watch,
     setValue,
-    formState: { errors, isValid }
+    formState: { errors, isValid, touchedFields }
   } = useForm<any>({
     resolver: zodResolver(dynamicZodSchema),
     mode: "onChange",
@@ -129,26 +131,25 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
       id: "",
       name: "",
       real_name: "",
-      roles: [] as string[],
       portrait: "",
       kit: [] as any[],
     }
   });
 
-  const { fields: kitFields, append, remove } = useFieldArray({
-    control,
-    name: "kit"
-  });
 
   const nameValue = watch("name");
 
-  // Auto-generate ID from Name
+  const idValue = watch("id");
+
+  // Auto-generate ID from Name if the ID field hasn't been manually touched
   useEffect(() => {
-    if (nameValue && typeof nameValue === 'string') {
+    if (nameValue && typeof nameValue === 'string' && !touchedFields.id) {
       const generatedId = nameValue.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      setValue("id", generatedId, { shouldValidate: true, shouldDirty: true });
+      if (idValue !== generatedId) {
+        setValue("id", generatedId, { shouldValidate: true, shouldDirty: true });
+      }
     }
-  }, [nameValue, setValue]);
+  }, [nameValue, touchedFields.id, setValue, idValue]);
 
   const onSubmit = async (formData: any) => {
     setSubmitting(true);
@@ -161,12 +162,6 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
         setSubmitting(false);
         return;
       }
-
-      // Convert roles string from fallback text field to array if needed
-      if (typeof formData.roles === 'string') {
-        formData.roles = formData.roles.split(',').map((s: string) => s.trim()).filter(Boolean);
-      }
-
       // Handle Portraits
       let portraitData: string | Record<string, string> = formData.portrait || "";
       if (portraits.length === 1 && portraits[0].key === "main") {
@@ -279,38 +274,9 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
           {...register("id")}
           error={!!errors.id}
           helperText={errors.id?.message as string}
-          slotProps={{ input: { readOnly: false } }}
+          slotProps={{ inputLabel: { shrink: idValue ? true : undefined } }}
         />
       </div>
-
-      {(() => {
-        const rolesField = fields.find(f => f.key === "roles");
-        return rolesField ? (
-          <Controller
-            name="roles"
-            control={control}
-            render={({ field }) => (
-              <DynamicSelectField 
-                label="Roles" 
-                options={rolesField.options || []} 
-                multiple={rolesField.type === "list"}
-                required={rolesField.required}
-                error={!!errors.roles}
-                helperText={errors.roles?.message as string}
-                {...field}
-              />
-            )}
-          />
-        ) : (
-          <FormField 
-            label="Roles (comma-separated fallback)" 
-            placeholder="e.g. damage" 
-            {...register("roles")}
-            error={!!errors.roles}
-            helperText={errors.roles?.message as string}
-          />
-        );
-      })()}
 
       <div className="border border-gray-200 dark:border-gray-800 p-4 rounded-xl bg-gray-50/50 dark:bg-gray-800/30">
         <MultiImageUploadField label="Portraits" entries={portraits} onChange={setPortraits} defaultKey="main" />
@@ -329,7 +295,22 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
         {fields.map((f: DynamicField) => {
-          if (["id", "name", "real_name", "roles", "portrait", "kit", "abilities"].includes(f.key)) return null;
+          if (["id", "name", "real_name", "portrait"].includes(f.key)) return null;
+          if (f.type === "abilities") {
+            return (
+              <div className="col-span-1 md:col-span-2" key={f.key}>
+                <AbilitiesField 
+                  name={f.key}
+                  label={f.label}
+                  control={control}
+                  register={register}
+                  errors={errors}
+                  abilityIcons={abilityIcons}
+                  setAbilityIcons={setAbilityIcons}
+                />
+              </div>
+            );
+          }
           if (f.type === "enum" || f.type === "list") {
             return (
               <Controller
@@ -365,71 +346,18 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
       </div>
 
       <div className="pt-6">
-        <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 tracking-wider uppercase">Kit Abilities</h3>
-        
-        {errors.kit?.message && (
-          <p className="text-sm text-red-500 mb-2">{errors.kit.message as string}</p>
+        {Object.keys(errors).length > 0 && (
+          <div className="mb-4 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50">
+            <h4 className="text-sm font-bold text-red-800 dark:text-red-400 mb-2">Please fix the following validation errors:</h4>
+            <ul className="list-disc pl-5 text-sm text-red-700 dark:text-red-300 space-y-1">
+              {Object.entries(errors).map(([key, err]) => (
+                <li key={key}>
+                  <span className="font-semibold">{key}:</span> {(err as any)?.message || "Invalid value"}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
-
-        <div className="space-y-4">
-          {kitFields.map((field, i) => {
-            const abilityErrors = (errors.kit as any)?.[i];
-            return (
-              <div key={field.id} className="p-4 border border-gray-200/50 dark:border-gray-700/50 rounded-xl bg-gray-50/50 dark:bg-gray-800/30">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Ability {i + 1}</span>
-                  <button type="button" onClick={() => remove(i)}
-                    className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">Remove</button>
-                </div>
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className="w-full md:w-64">
-                    <MultiImageUploadField 
-                      label="Icons" 
-                      entries={abilityIcons[field.id] || []}
-                      onChange={(newIcons) => setAbilityIcons({ ...abilityIcons, [field.id]: newIcons })}
-                      defaultKey="main"
-                    />
-                  </div>
-                  <div className="flex-1 space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <FormField 
-                        label="ID (kebab-case)" 
-                        {...register(`kit.${i}.id` as const)}
-                        error={!!abilityErrors?.id}
-                        helperText={abilityErrors?.id?.message as string}
-                      />
-                      <FormField 
-                        label="Name" 
-                        {...register(`kit.${i}.name` as const)}
-                        error={!!abilityErrors?.name}
-                        helperText={abilityErrors?.name?.message as string}
-                      />
-                      <FormField 
-                        label="Type" 
-                        {...register(`kit.${i}.type` as const)}
-                        error={!!abilityErrors?.type}
-                        helperText={abilityErrors?.type?.message as string}
-                      />
-                    </div>
-                    <FormField 
-                      label="Description (optional)" 
-                      {...register(`kit.${i}.description` as const)}
-                      error={!!abilityErrors?.description}
-                      helperText={abilityErrors?.description?.message as string}
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <button type="button" onClick={() => append({ id: "", name: "", type: "", description: "", params: {} })}
-          className="mt-4 text-sm font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 inline-flex items-center gap-1">
-          + Add Ability
-        </button>
-      </div>
-
-      <div className="pt-6">
         <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/heroes`)} className="mr-3">Cancel</Button>
         <Button type="submit" disabled={submitting || !isValid} className="shadow-lg shadow-orange-500/20 w-40">
           {submitting ? "Creating..." : "Create Hero"}

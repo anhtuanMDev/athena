@@ -33,6 +33,11 @@ import DynamicSchemaNew from "~/components/views/DynamicSchemaNew";
 import DynamicSchemaEdit from "~/components/views/DynamicSchemaEdit";
 import RawEdit from "~/components/views/RawEdit";
 
+// Cron Jobs
+import CronJobsList from "~/components/views/CronJobsList";
+import CronJobNew from "~/components/views/CronJobNew";
+import CronJobEdit from "~/components/views/CronJobEdit";
+
 export default function GameDashboardRouter() {
   const params = useParams();
   const splat = params["*"] || "";
@@ -48,6 +53,14 @@ export default function GameDashboardRouter() {
     if (idOrAction === "new") return <PanelTransition><DynamicSchemaNew /></PanelTransition>;
     // if (subAction === "delete") return <EntityDelete entityType="schemas" />;
     return <PanelTransition><DynamicSchemaEdit /></PanelTransition>;
+  }
+
+  // Route: /:game/cron
+  if (entity === "cron") {
+    if (!idOrAction) return <PanelTransition><CronJobsList /></PanelTransition>;
+    if (idOrAction === "new") return <PanelTransition><CronJobNew /></PanelTransition>;
+    if (subAction === "delete") return <PanelTransition><EntityDelete entityType="cron_jobs" /></PanelTransition>;
+    return <PanelTransition><CronJobEdit /></PanelTransition>;
   }
 
   // Route: /:game/raw/:type/:id

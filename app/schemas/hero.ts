@@ -17,19 +17,19 @@ export const HeroSchema = z.object({
   game: z.string().min(1),
   name: z.string().min(1, "Name is required"),
   real_name: z.string().optional(),
-  roles: z.array(z.string()).min(1, "At least one role required"),
+  roles: z.array(z.string()).optional(),
   difficulty: z.number().int().min(1).max(5).optional(),
   health: HealthSchema,
   movement_speed: z.number().optional(),
   portrait: z.union([
-    z.string().min(1, "Portrait is required"),
+    z.string(),
     z.record(z.string(), z.string())
-  ]),
+  ]).optional(),
   bio: z.string().optional(),
   released: z.string().optional(),
   last_updated_patch: z.string().optional(),
   tags: z.array(z.string()).optional(),
-  kit: z.array(KitItemSchema).min(1, "At least one kit ability required"),
-}).strict();
+  kit: z.array(KitItemSchema).optional(),
+});
 
 export type Hero = z.infer<typeof HeroSchema>;

@@ -4,8 +4,16 @@ import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { HeroSchema, type Hero } from "~/schemas/hero";
-import { getFile, updateFile, uploadAsset, isConflictError } from "~/lib/github";
-import { MultiImageUploadField, type ImageEntry } from "~/components/MultiImageUploadField";
+import {
+  getFile,
+  updateFile,
+  uploadAsset,
+  isConflictError,
+} from "~/lib/github";
+import {
+  MultiImageUploadField,
+  type ImageEntry,
+} from "~/components/MultiImageUploadField";
 import { computeDiff } from "~/lib/diff";
 import type { DiffEntry } from "~/lib/diff";
 import { DiffView } from "~/components/DiffView";
@@ -15,9 +23,13 @@ import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 import { FormField } from "~/components/FormField";
 import { useData } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
-import { type DynamicSchemaFile, type DynamicField } from "~/schemas/dynamic-schema";
+import {
+  type DynamicSchemaFile,
+  type DynamicField,
+} from "~/schemas/dynamic-schema";
 import { listDirectory } from "~/lib/github";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
+import { AbilitiesField } from "~/components/views/AbilitiesField";
 
 export default function EditHero() {
   const { game, "*": splat } = useParams();
@@ -27,24 +39,25 @@ export default function EditHero() {
 
   const heroResult = useData<{ content: Hero; sha: string } | null>(
     () => getFile<Hero>(`data/${game}/heroes/${id}.json`),
-    [game, id]
+    [game, id],
   );
-  const schemaResult = useData<{ fields: DynamicField[] } | null>(
-    async () => {
-      try {
-        const schemas = await listDirectory<DynamicSchemaFile>(game!, "schemas", true);
-        const heroSchemas = schemas.filter(s => s && s.category === "hero");
-        const allFields: DynamicField[] = [];
-        for (const s of heroSchemas) {
-          if (s.fields) allFields.push(...s.fields);
-        }
-        return { fields: allFields };
-      } catch (e) {
-        return { fields: [] };
+  const schemaResult = useData<{ fields: DynamicField[] } | null>(async () => {
+    try {
+      const schemas = await listDirectory<DynamicSchemaFile>(
+        game!,
+        "schemas",
+        true,
+      );
+      const heroSchemas = schemas.filter((s) => s && s.category === "hero");
+      const allFields: DynamicField[] = [];
+      for (const s of heroSchemas) {
+        if (s.fields) allFields.push(...s.fields);
       }
-    },
-    [game]
-  );
+      return { fields: allFields };
+    } catch (e) {
+      return { fields: [] };
+    }
+  }, [game]);
 
   if (heroResult.loading || schemaResult.loading) {
     return (
@@ -77,7 +90,9 @@ export default function EditHero() {
     <div className="w-full py-8">
       <Card>
         <CardHeader>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">Edit Hero: {heroResult.data.content.name}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">
+            Edit Hero: {heroResult.data.content.name}
+          </h1>
         </CardHeader>
         <CardContent>
           <EditHeroForm
@@ -95,30 +110,52 @@ export default function EditHero() {
 }
 
 function EditHeroForm({
-  hero, sha, fields, game, id,
+  hero,
+  sha,
+  fields,
+  game,
+  id,
 }: {
-  hero: Hero; sha: string; fields: DynamicField[]; game: string; id: string;
+  hero: Hero;
+  sha: string;
+  fields: DynamicField[];
+  game: string;
+  id: string;
 }) {
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
-  
-  const [preview, setPreview] = useState<{ diffs: DiffEntry[]; heroJson: string; sha: string } | null>(null);
+
+  const [preview, setPreview] = useState<{
+    diffs: DiffEntry[];
+    heroJson: string;
+    sha: string;
+  } | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submittingCommit, setSubmittingCommit] = useState(false);
 
   // We manage complex media independently of hook-form
   const [portraits, setPortraits] = useState<ImageEntry[]>([]);
-  const [abilityIcons, setAbilityIcons] = useState<Record<string, ImageEntry[]>>({});
+  const [abilityIcons, setAbilityIcons] = useState<
+    Record<string, ImageEntry[]>
+  >({});
 
   const dynamicZodSchema = useMemo(() => {
     let shape: Record<string, z.ZodTypeAny> = {};
-    fields.forEach(f => {
-      if (["id", "name", "real_name", "roles", "portrait", "kit", "abilities"].includes(f.key)) return;
-      let fieldSchema: z.ZodTypeAny = f.type === "number" ? z.coerce.number() : z.string();
-      if (f.type === "list") fieldSchema = z.string();
+    fields.forEach((f) => {
+      if (
+        ["id", "name", "real_name", "portrait"].includes(
+          f.key,
+        )
+      )
+        return;
+      let fieldSchema: z.ZodTypeAny =
+        f.type === "number" ? z.coerce.number() : z.string();
+      if (f.type === "list") fieldSchema = z.array(z.string());
+      if (f.type === "abilities") fieldSchema = z.array(z.any());
       if (f.required) {
-        if (f.type === "number") fieldSchema = z.coerce.number().min(1, "Required");
+        if (f.type === "number")
+          fieldSchema = z.coerce.number().min(1, "Required");
         else fieldSchema = z.string().min(1, "Required");
       } else {
         fieldSchema = fieldSchema.optional().or(z.literal(""));
@@ -130,13 +167,6 @@ function EditHeroForm({
 
   const defaultValues = useMemo(() => {
     const vals = { ...hero };
-    if (vals.roles && Array.isArray(vals.roles)) {
-      // If we don't have a roles field dynamically, it defaults to a comma separated string
-      const hasRolesSchema = fields.find(f => f.key === "roles");
-      if (!hasRolesSchema) {
-        (vals as any).roles = vals.roles.join(", ");
-      }
-    }
     return vals;
   }, [hero, fields]);
 
@@ -144,32 +174,21 @@ function EditHeroForm({
     register,
     handleSubmit,
     control,
-    formState: { errors, isValid, isDirty }
+    formState: { errors, isValid, isDirty },
   } = useForm<any>({
     resolver: zodResolver(dynamicZodSchema),
     mode: "onChange",
-    defaultValues: defaultValues as any
+    defaultValues: defaultValues as any,
   });
-
-  const { fields: kitFields, append, remove } = useFieldArray({
-    control,
-    name: "kit"
-  });
-
-  const rolesField = fields.find(f => f.key === "roles");
 
   const onSubmitPreview = async (formData: any) => {
     setSubmitting(true);
     setSubmitError(null);
 
     try {
-      // Convert fallback roles string to array if needed
-      if (typeof formData.roles === 'string') {
-        formData.roles = formData.roles.split(',').map((s: string) => s.trim()).filter(Boolean);
-      }
-
       // Handle Portraits overrides
-      let portraitData: string | Record<string, string> = formData.portrait || "";
+      let portraitData: string | Record<string, string> =
+        formData.portrait || "";
       if (portraits.length === 1 && portraits[0].key === "main") {
         const ext = portraits[0].name?.split(".").pop() || "png";
         portraitData = `/api/assets/${game}/heroes/${id}/portrait.${ext}`;
@@ -177,7 +196,8 @@ function EditHeroForm({
         portraitData = {};
         for (const p of portraits) {
           const ext = p.name?.split(".").pop() || "png";
-          (portraitData as Record<string, string>)[p.key] = `/api/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
+          (portraitData as Record<string, string>)[p.key] =
+            `/api/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
         }
       }
       if (portraitData) formData.portrait = portraitData;
@@ -193,7 +213,8 @@ function EditHeroForm({
           ability.icon = {};
           for (const icon of aIcons) {
             const ext = icon.name?.split(".").pop() || "png";
-            ability.icon[icon.key] = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
+            ability.icon[icon.key] =
+              `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
           }
         }
       });
@@ -222,7 +243,7 @@ function EditHeroForm({
         toastError("Validation failed on commit");
         return;
       }
-      
+
       // We would also upload images here normally if base64 existed in the state during Preview,
       // but to keep it simple, edits usually involve URL changes or we upload directly.
       // (Full base64 upload logic omitted for brevity, identical to NewHero if required).
@@ -230,14 +251,16 @@ function EditHeroForm({
       await updateFile(
         `data/${game}/heroes/${id}.json`,
         parsed.data,
-        sha, 
-        `Update hero: ${parsed.data.name}`
+        sha,
+        `Update hero: ${parsed.data.name}`,
       );
       toastSuccess(`Hero ${parsed.data.name} updated successfully!`);
       navigate(`/${game}/heroes`);
     } catch (err) {
       if (isConflictError(err)) {
-        setSubmitError("Conflict detected. The file has been modified. Please try again.");
+        setSubmitError(
+          "Conflict detected. The file has been modified. Please try again.",
+        );
         toastError("Conflict detected! Someone else modified this file.");
       } else {
         const msg = err instanceof Error ? err.message : "Error";
@@ -252,15 +275,36 @@ function EditHeroForm({
   if (preview) {
     return (
       <div className="space-y-6">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Review Changes</h2>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
+          Review Changes
+        </h2>
         <DiffView diffs={preview.diffs} />
-        {submitError && <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">{submitError}</div>}
-        <form onSubmit={handleCommit} className="flex gap-4 pt-4 border-t border-gray-200/50 dark:border-gray-800/50">
+        {submitError && (
+          <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">
+            {submitError}
+          </div>
+        )}
+        <form
+          onSubmit={handleCommit}
+          className="flex gap-4 pt-4 border-t border-gray-200/50 dark:border-gray-800/50"
+        >
           <input type="hidden" name="_heroJson" value={preview.heroJson} />
-          <Button type="submit" disabled={submittingCommit} className="shadow-lg shadow-orange-500/20 w-40">
+          <Button
+            type="submit"
+            disabled={submittingCommit}
+            className="shadow-lg shadow-orange-500/20 w-40"
+          >
             {submittingCommit ? "Committing..." : "Confirm Commit"}
           </Button>
-          <Button type="button" variant="secondary" onClick={() => { setPreview(null); setSubmitError(null); }} className="w-32 bg-gray-100 dark:bg-gray-800">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setPreview(null);
+              setSubmitError(null);
+            }}
+            className="w-32 bg-gray-100 dark:bg-gray-800"
+          >
             Cancel
           </Button>
         </form>
@@ -271,53 +315,52 @@ function EditHeroForm({
   return (
     <form onSubmit={handleSubmit(onSubmitPreview)} className="space-y-4">
       {submitError && (
-        <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">{submitError}</div>
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">
+          {submitError}
+        </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <FormField 
-          label="Name" 
-          {...register("name")} 
+        <FormField
+          label="Name"
+          {...register("name")}
           error={!!errors.name}
           helperText={errors.name?.message as string}
         />
-        <FormField 
-          label="Portrait URL" 
-          {...register("portrait")} 
+        <FormField
+          label="Portrait URL"
+          {...register("portrait")}
           error={!!errors.portrait}
           helperText={errors.portrait?.message as string}
         />
       </div>
 
-      {rolesField ? (
-        <Controller
-          name="roles"
-          control={control}
-          render={({ field }) => (
-            <DynamicSelectField 
-              label="Roles" 
-              options={rolesField.options || []} 
-              multiple={rolesField.type === "list"}
-              required={rolesField.required}
-              error={!!errors.roles}
-              helperText={errors.roles?.message as string}
-              currentValue={field.value}
-              {...field}
-            />
-          )}
-        />
-      ) : (
-        <FormField 
-          label="Roles (comma-separated fallback)" 
-          {...register("roles")}
-          error={!!errors.roles}
-          helperText={errors.roles?.message as string}
-        />
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
         {fields.map((f: DynamicField) => {
-          if (["id", "name", "real_name", "roles", "portrait", "kit", "abilities"].includes(f.key)) return null;
+          if (
+            [
+              "id",
+              "name",
+              "real_name",
+              "portrait",
+            ].includes(f.key)
+          )
+            return null;
+          if (f.type === "abilities") {
+            return (
+              <div className="col-span-1 md:col-span-2" key={f.key}>
+                <AbilitiesField 
+                  name={f.key}
+                  label={f.label}
+                  control={control}
+                  register={register}
+                  errors={errors}
+                  abilityIcons={abilityIcons}
+                  setAbilityIcons={setAbilityIcons}
+                />
+              </div>
+            );
+          }
           if (f.type === "enum" || f.type === "list") {
             return (
               <Controller
@@ -325,7 +368,7 @@ function EditHeroForm({
                 name={f.key}
                 control={control}
                 render={({ field }) => (
-                  <DynamicSelectField 
+                  <DynamicSelectField
                     label={f.label}
                     options={f.options || []}
                     multiple={f.type === "list"}
@@ -340,11 +383,11 @@ function EditHeroForm({
             );
           }
           return (
-            <FormField 
+            <FormField
               key={f.key}
-              label={f.label} 
-              required={f.required} 
-              type={f.type === "number" ? "number" : "text"} 
+              label={f.label}
+              required={f.required}
+              type={f.type === "number" ? "number" : "text"}
               {...register(f.key)}
               error={!!errors[f.key]}
               helperText={errors[f.key]?.message as string}
@@ -353,78 +396,37 @@ function EditHeroForm({
         })}
       </div>
 
-      <div className="pt-6">
-        <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 tracking-wider uppercase">Kit Abilities</h3>
-        
-        {errors.kit?.message && (
-          <p className="text-sm text-red-500 mb-2">{errors.kit.message as string}</p>
+
+
+      <div className="pt-6 border-t border-gray-200/50 dark:border-gray-800/50 mt-8">
+        {Object.keys(errors).length > 0 && (
+          <div className="mb-4 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50">
+            <h4 className="text-sm font-bold text-red-800 dark:text-red-400 mb-2">Please fix the following validation errors:</h4>
+            <ul className="list-disc pl-5 text-sm text-red-700 dark:text-red-300 space-y-1">
+              {Object.entries(errors).map(([key, err]) => (
+                <li key={key}>
+                  <span className="font-semibold">{key}:</span> {(err as any)?.message || "Invalid value"}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
-
-        <div className="space-y-4">
-          {kitFields.map((field, i) => {
-            const abilityErrors = (errors.kit as any)?.[i];
-            return (
-              <div key={field.id} className="p-4 border border-gray-200/50 dark:border-gray-700/50 rounded-xl bg-gray-50/50 dark:bg-gray-800/30">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Ability {i + 1}</span>
-                  <button type="button" onClick={() => remove(i)}
-                    className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">Remove</button>
-                </div>
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className="flex-1 space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <FormField 
-                        label="ID (kebab-case)" 
-                        {...register(`kit.${i}.id` as const)}
-                        error={!!abilityErrors?.id}
-                        helperText={abilityErrors?.id?.message as string}
-                      />
-                      <FormField 
-                        label="Name" 
-                        {...register(`kit.${i}.name` as const)}
-                        error={!!abilityErrors?.name}
-                        helperText={abilityErrors?.name?.message as string}
-                      />
-                      <FormField 
-                        label="Type" 
-                        {...register(`kit.${i}.type` as const)}
-                        error={!!abilityErrors?.type}
-                        helperText={abilityErrors?.type?.message as string}
-                      />
-                    </div>
-                    <FormField 
-                      label="Description (optional)" 
-                      {...register(`kit.${i}.description` as const)}
-                      error={!!abilityErrors?.description}
-                      helperText={abilityErrors?.description?.message as string}
-                    />
-                    
-                    {/* Render any existing dynamically saved params natively */}
-                    {Object.keys((field as any).params || {}).map((paramKey) => (
-                      <div key={paramKey} className="mt-2">
-                        <FormField 
-                          label={`Param: ${paramKey}`} 
-                          {...register(`kit.${i}.params.${paramKey}` as const)}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <button type="button" onClick={() => append({ id: "", name: "", type: "", description: "", params: {} })}
-          className="mt-4 text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400">
-          + Add Ability
-        </button>
-      </div>
-
-      <div className="pt-6 border-t border-gray-200/50 dark:border-gray-800/50 mt-8 flex justify-between">
-        <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/heroes`)}>Cancel</Button>
-        <Button type="submit" disabled={submitting || !isValid || !isDirty} className="shadow-lg shadow-orange-500/20">
+        <div className="flex justify-between">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => navigate(`/${game}/heroes`)}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={submitting || !isValid || !isDirty}
+          className="shadow-lg shadow-orange-500/20"
+        >
           {submitting ? "Processing..." : "Preview Changes"}
         </Button>
+        </div>
       </div>
     </form>
   );

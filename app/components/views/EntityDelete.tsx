@@ -7,7 +7,7 @@ import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
 
-export default function EntityDelete({ entityType }: { entityType: "heroes" | "maps" | "modes" | "patches" | "items" }) {
+export default function EntityDelete({ entityType }: { entityType: "heroes" | "maps" | "modes" | "patches" | "items" | "schemas" | "cron_jobs" }) {
   const { game, "*": splat } = useParams();
   const id = splat?.split("/")[1];
   assertSafeGameSlug(game!);

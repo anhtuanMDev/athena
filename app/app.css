@@ -13,3 +13,7 @@ body {
     color-scheme: dark;
   }
 }
+
+option {
+  @apply bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100;
+}
