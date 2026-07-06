@@ -111,7 +111,7 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
     
     // We expect kit abilities to have id, name, type. We don't dynamically validate params yet since it's freeform in the schema, 
     // but we ensure the core kit shape is valid.
-    return HeroSchema.extend(shape);
+    return HeroSchema.extend(shape).strict();
   }, [fields]);
 
   const {

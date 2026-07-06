@@ -48,7 +48,7 @@ export default function NewMap() {
       }
       shape[f.key] = fieldSchema;
     });
-    return MapSchema.extend(shape).passthrough();
+    return MapSchema.extend(shape).strict();
   }, [data]);
 
   const {
@@ -189,8 +189,8 @@ export default function NewMap() {
                         options={f.options || []}
                         multiple={f.type === "list"}
                         required={f.required}
-                        error={!!errors[f.key]}
-                        helperText={errors[f.key]?.message as string}
+                        error={!!(errors as Record<string, any>)[f.key]}
+                        helperText={(errors as Record<string, any>)[f.key]?.message as string}
                         {...field}
                       />
                     )}
@@ -204,8 +204,8 @@ export default function NewMap() {
                   required={f.required} 
                   type={f.type === "number" ? "number" : "text"} 
                   {...register(f.key)}
-                  error={!!errors[f.key]}
-                  helperText={errors[f.key]?.message as string}
+                  error={!!(errors as Record<string, any>)[f.key]}
+                  helperText={(errors as Record<string, any>)[f.key]?.message as string}
                 />
               );
             })}

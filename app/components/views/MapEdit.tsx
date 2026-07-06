@@ -15,7 +15,8 @@ import { useToast } from "~/components/ToastProvider";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
 
 export default function EditMap() {
-  const { game, id } = useParams();
+  const { game, "*": splat } = useParams();
+  const id = splat?.split("/")[1];
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
   assertSafeGameSlug(game!);
@@ -54,7 +55,7 @@ export default function EditMap() {
       }
       shape[f.key] = fieldSchema;
     });
-    return MapSchema.extend(shape).passthrough();
+    return MapSchema.extend(shape).strict();
   }, [schemaData]);
 
   const {
@@ -203,8 +204,8 @@ export default function EditMap() {
                         options={f.options || []}
                         multiple={f.type === "list"}
                         required={f.required}
-                        error={!!errors[f.key]}
-                        helperText={errors[f.key]?.message as string}
+                        error={!!(errors as Record<string, any>)[f.key]}
+                        helperText={(errors as Record<string, any>)[f.key]?.message as string}
                         currentValue={field.value}
                         {...field}
                       />
@@ -219,8 +220,8 @@ export default function EditMap() {
                   required={f.required} 
                   type={f.type === "number" ? "number" : "text"} 
                   {...register(f.key)}
-                  error={!!errors[f.key]}
-                  helperText={errors[f.key]?.message as string}
+                  error={!!(errors as Record<string, any>)[f.key]}
+                  helperText={(errors as Record<string, any>)[f.key]?.message as string}
                 />
               );
             })}

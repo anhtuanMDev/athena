@@ -8,7 +8,8 @@ import { useData } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
 
 export default function EntityDelete({ entityType }: { entityType: "heroes" | "maps" | "modes" | "patches" | "items" }) {
-  const { game, id } = useParams();
+  const { game, "*": splat } = useParams();
+  const id = splat?.split("/")[1];
   assertSafeGameSlug(game!);
   assertSafeEntityId(id!);
   const navigate = useNavigate();

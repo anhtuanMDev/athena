@@ -43,9 +43,8 @@ Out of scope for v1: multi-admin roles/permissions, public user accounts, analyt
 Route param validation pattern: every route that interpolates `params.game`, `params.type`, or
 `params.id` into a GitHub API path calls `assertSafeGameSlug`, `assertSafeEntityId`, or
 `assertSafeEntityType` from `app/lib/safe-path.ts` before any API call. These use strict
-allow-list regexes (not blocklists) — `..`, `/`, `\`, and URL-encoded variants are rejected
-because the allowed charset `[a-z0-9.-]` simply has no character that can escape the intended
-`data/<game>/` directory. The entity type list (`ENTITY_TYPES`) is a single exported const array
+allow-list regexes (not blocklists) — `..`, `/`, `\`, and URL-encoded variants are rejected.
+Note: traversal is blocked in assertSafeFilePath's explicit `..` check, not by charset alone. The entity type list (`ENTITY_TYPES`) is a single exported const array
 from `safe-path.ts` that derives both the regex and the raw editor's `typeValidators` map,
 preventing drift when adding new entity types.
 
@@ -218,8 +217,7 @@ This is the most complex page — see §7.1–§7.4 for the logic in detail. Str
   against `ENTITY_TYPES` const from `safe-path.ts`.
 
 ### 6.12 `/activity`
-- **Loader:** `GET /repos/:owner/:repo/commits` filtered to commits authored by the
-  admin app's token/bot identity, most recent first.
+- **Loader:** `GET /repos/:owner/:repo/commits` showing the most recent first.
 - **UI:** simple list — commit message, timestamp, link to the commit on GitHub. Your
   audit trail; since there's no separate database, git history *is* the changelog of
   the admin tool's own actions.

@@ -23,7 +23,9 @@ const typeValidators: Record<string, (data: unknown) => { success: boolean }> = 
 };
 
 export default function RawEditor() {
-  const { game, type, id } = useParams();
+  const { game, "*": splat } = useParams();
+  const type = splat?.split("/")[1];
+  const id = splat?.split("/")[2];
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
   assertSafeGameSlug(game!);

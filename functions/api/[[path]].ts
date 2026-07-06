@@ -34,7 +34,7 @@ async function checkRateLimit(ip: string, env: Env): Promise<{ allowed: boolean;
   if (!raw) return { allowed: true };
   
   const record: RateLimitRecord = JSON.parse(raw);
-  if (now - record.firstAt > WINDOW_MS) return { allowed: true };
+  if (now - record.lastAt > WINDOW_MS) return { allowed: true };
   
   if (record.count >= MAX_ATTEMPTS) {
     const excess = record.count - MAX_ATTEMPTS;
@@ -64,7 +64,7 @@ async function recordAttempt(ip: string, success: boolean, env: Env): Promise<vo
   let record: RateLimitRecord;
   if (raw) {
     const existing: RateLimitRecord = JSON.parse(raw);
-    const expired = now - existing.firstAt > WINDOW_MS;
+    const expired = now - existing.lastAt > WINDOW_MS;
     record = expired
       ? { count: 1, firstAt: now, lastAt: now }
       : { ...existing, count: existing.count + 1, lastAt: now };

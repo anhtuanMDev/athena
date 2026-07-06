@@ -20,7 +20,8 @@ import { listDirectory } from "~/lib/github";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
 
 export default function EditHero() {
-  const { game, id } = useParams();
+  const { game, "*": splat } = useParams();
+  const id = splat?.split("/")[1];
   assertSafeGameSlug(game!);
   assertSafeEntityId(id!);
 
@@ -124,7 +125,7 @@ function EditHeroForm({
       }
       shape[f.key] = fieldSchema;
     });
-    return HeroSchema.extend(shape);
+    return HeroSchema.extend(shape).strict();
   }, [fields]);
 
   const defaultValues = useMemo(() => {

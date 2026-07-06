@@ -16,7 +16,8 @@ interface DeleteConfirm {
 }
 
 export default function EditMode() {
-  const { game, id } = useParams();
+  const { game, "*": splat } = useParams();
+  const id = splat?.split("/")[1];
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
   assertSafeGameSlug(game!);

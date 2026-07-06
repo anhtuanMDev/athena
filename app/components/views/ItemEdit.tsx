@@ -10,7 +10,8 @@ import { useData } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
 
 export default function EditItem() {
-  const { game, id } = useParams();
+  const { game, "*": splat } = useParams();
+  const id = splat?.split("/")[1];
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
   assertSafeGameSlug(game!);
