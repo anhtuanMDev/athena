@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { X, Pencil } from "lucide-react";
-import { listGames, updateFile, getFile, isConflictError, conflictResponse, uploadAsset } from "~/lib/github";
+import { listGames, updateFile, getFile, isConflictError, conflictResponse, uploadAsset, getFileSha } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { FormField } from "~/components/FormField";
@@ -82,7 +82,8 @@ export default function GamesList() {
         const filename = `${slug || 'game'}-icon.${ext}`;
         const path = `public/assets/games/${filename}`;
         
-        await uploadAsset(path, base64Data, undefined, `Upload icon for ${name || slug}`);
+        const existingSha = await getFileSha(path);
+        await uploadAsset(path, base64Data, existingSha || undefined, `Upload icon for ${name || slug}`);
         finalIconUrl = `/assets/games/${filename}`;
       }
 
@@ -134,7 +135,11 @@ export default function GamesList() {
         throw err;
       }
     } catch (err) {
-      setFormErrors({ _form: [(err as Error).message] });
+      if (isConflictError(err)) {
+        setFormErrors({ _form: conflictResponse().errors._form });
+      } else {
+        setFormErrors({ _form: [(err as Error).message] });
+      }
     } finally {
       setSubmitting(false);
     }

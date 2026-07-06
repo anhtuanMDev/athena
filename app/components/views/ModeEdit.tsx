@@ -68,7 +68,7 @@ export default function EditMode() {
     const formData = new FormData(e.currentTarget);
     try {
       const raw = Object.fromEntries(formData);
-      const parsed = ModeSchema.safeParse(raw);
+      const parsed = ModeSchema.safeParse({ ...raw, id });
       if (!parsed.success) {
         const msgs = Object.values(parsed.error.flatten().fieldErrors).flat();
         setError(msgs.length > 0 ? msgs.join("; ") : "Validation failed");

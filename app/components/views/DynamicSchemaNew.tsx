@@ -155,10 +155,7 @@ export default function DynamicSchemaNew() {
                 >
                   <option value="hero">Hero</option>
                   <option value="map">Map</option>
-                  <option value="mode">Mode</option>
-                  <option value="patch">Patch</option>
                   <option value="event">Event</option>
-                  <option value="item">Item</option>
                 </select>
               </div>
             </div>
