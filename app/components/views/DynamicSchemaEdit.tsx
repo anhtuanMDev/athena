@@ -49,6 +49,42 @@ export default function DynamicSchemaEdit() {
   const [submitting, setSubmitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
 
+  const [fieldApiKeys, setFieldApiKeys] = useState<Record<number, string[]>>({});
+  const [loadingApiKeys, setLoadingApiKeys] = useState<Record<number, boolean>>({});
+
+  const fetchApiKeys = async (index: number, endpoint: string) => {
+    if (!endpoint) return;
+    setLoadingApiKeys((prev) => ({ ...prev, [index]: true }));
+    try {
+      const res = await fetch(endpoint.replace("{game}", game!));
+      if (!res.ok) throw new Error("Failed to fetch");
+      const json = (await res.json()) as Record<string, unknown> | unknown[];
+      let arr: unknown[] = [];
+      if (Array.isArray(json)) {
+        arr = json;
+      } else if (json && typeof json === 'object') {
+        const jsonObj = json as Record<string, unknown>;
+        if (Array.isArray(jsonObj.data)) {
+          arr = jsonObj.data;
+        } else if (Array.isArray(jsonObj.items)) {
+          arr = jsonObj.items;
+        }
+      }
+      if (arr.length > 0 && typeof arr[0] === 'object' && arr[0] !== null) {
+        const firstItem = arr[0] as Record<string, unknown>;
+        setFieldApiKeys((prev) => ({ ...prev, [index]: Object.keys(firstItem) }));
+        toastSuccess(`Loaded ${Object.keys(firstItem).length} fields from API`);
+      } else {
+        toastError("API returned empty list or non-objects");
+      }
+    } catch (err) {
+      toastError("Failed to fetch API endpoint");
+      console.error(err);
+    } finally {
+      setLoadingApiKeys((prev) => ({ ...prev, [index]: false }));
+    }
+  };
+
   useEffect(() => {
     if (loaderData && fields === null) {
       setFields(loaderData.schema.fields || []);
@@ -484,15 +520,25 @@ export default function DynamicSchemaEdit() {
                           <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
                             API Endpoint
                           </label>
-                          <input
-                            list={`api-options-${index}`}
-                            value={field.referenceApiEndpoint || ""}
-                            onChange={(e) =>
-                              handleChangeField(index, "referenceApiEndpoint", e.target.value)
-                            }
-                            placeholder="/api/{game}/heroes"
-                            className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                          />
+                          <div className="flex gap-2">
+                            <input
+                              list={`api-options-${index}`}
+                              value={field.referenceApiEndpoint || ""}
+                              onChange={(e) =>
+                                handleChangeField(index, "referenceApiEndpoint", e.target.value)
+                              }
+                              placeholder="/api/{game}/heroes"
+                              className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                            />
+                            <Button 
+                              type="button" 
+                              variant="outline"
+                              onClick={() => fetchApiKeys(index, field.referenceApiEndpoint || "")}
+                              disabled={loadingApiKeys[index] || !field.referenceApiEndpoint}
+                            >
+                              {loadingApiKeys[index] ? "..." : "Fetch Fields"}
+                            </Button>
+                          </div>
                           <datalist id={`api-options-${index}`}>
                             {SchemaCategorySchema.options.map((category) => (
                               <option
@@ -508,6 +554,7 @@ export default function DynamicSchemaEdit() {
                               Value Key
                             </label>
                             <input
+                              list={`value-keys-${index}`}
                               value={field.referenceValueKey || ""}
                               onChange={(e) =>
                                 handleChangeField(index, "referenceValueKey", e.target.value)
@@ -515,19 +562,30 @@ export default function DynamicSchemaEdit() {
                               placeholder="id"
                               className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                             />
+                            {fieldApiKeys[index] && (
+                              <datalist id={`value-keys-${index}`}>
+                                {fieldApiKeys[index].map(k => <option key={k} value={k} />)}
+                              </datalist>
+                            )}
                           </div>
                           <div className="flex-1">
                             <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
-                              Label Key
+                              Label Template
                             </label>
                             <input
+                              list={`label-keys-${index}`}
                               value={field.referenceLabelKey || ""}
                               onChange={(e) =>
                                 handleChangeField(index, "referenceLabelKey", e.target.value)
                               }
-                              placeholder="name"
+                              placeholder="{name} - {id}"
                               className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                             />
+                            {fieldApiKeys[index] && (
+                              <datalist id={`label-keys-${index}`}>
+                                {fieldApiKeys[index].map(k => <option key={k} value={`{${k}}`} />)}
+                              </datalist>
+                            )}
                           </div>
                         </div>
                       </div>

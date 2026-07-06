@@ -40,9 +40,18 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
       
       return arr.map((r: unknown) => {
         const record = r as Record<string, unknown>;
+        let labelValue = "";
+        const labelKey = referenceLabelKey || "name";
+        
+        if (labelKey.includes("{")) {
+          labelValue = labelKey.replace(/{([^}]+)}/g, (_, g) => String(record[g] || ""));
+        } else {
+          labelValue = String(record[labelKey] || record.name || record.id || "");
+        }
+
         return {
           id: String(record[referenceValueKey || "id"] || record.id || ""),
-          name: String(record[referenceLabelKey || "name"] || record.name || record.id || ""),
+          name: labelValue,
         };
       });
     }, [game, referenceApiEndpoint, referenceValueKey, referenceLabelKey]);
