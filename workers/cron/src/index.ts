@@ -14,10 +14,25 @@ export default {
     env: Env,
     ctx: ExecutionContext
   ): Promise<void> {
-    console.log(`Cron triggered at ${new Date().toISOString()}`);
+    console.log(`Cron triggered by ${controller.cron} at ${new Date().toISOString()}`);
 
-    // Offload the background task to ensure it completes
-    ctx.waitUntil(handleScheduledTask(env));
+    // Route tasks based on the specific cron schedule that fired
+    switch (controller.cron) {
+      case "*/15 * * * *":
+        // Runs every 15 minutes
+        ctx.waitUntil(handleScheduledTask(env, "marvel-rivals"));
+        break;
+      case "0 * * * *":
+        // Runs at the top of every hour
+        ctx.waitUntil(handleScheduledTask(env, "overwatch"));
+        break;
+      case "0 0 * * *":
+        // Runs at midnight
+        console.log("Running nightly database cleanup/sync...");
+        break;
+      default:
+        console.log(`Unknown cron schedule: ${controller.cron}`);
+    }
   },
 
   /**
@@ -28,8 +43,9 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/trigger" && request.method === "POST") {
       // NOTE: In production, add a secret header/query check here!
-      ctx.waitUntil(handleScheduledTask(env));
-      return new Response("Cron job triggered manually", { status: 200 });
+      const game = url.searchParams.get("game") || "marvel-rivals";
+      ctx.waitUntil(handleScheduledTask(env, game));
+      return new Response(`Cron job triggered manually for ${game}`, { status: 200 });
     }
     return new Response("Athena Cron Worker running", { status: 200 });
   }
@@ -38,9 +54,7 @@ export default {
 /**
  * Main logic for the automated patch fetching
  */
-async function handleScheduledTask(env: Env): Promise<void> {
-  const game = "marvel-rivals"; // Hardcoded for now, could loop over all games
-
+async function handleScheduledTask(env: Env, game: string): Promise<void> {
   try {
     // 2. Fetch the Patch schema from GitHub via Content API
     const schemaFile = await getGitHubFile(env, `data/${game}/schemas/patch-default.json`);

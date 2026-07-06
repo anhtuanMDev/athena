@@ -1,47 +1,56 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router";
 
-const globalCache = new Map<string, unknown>();
+const globalCache = new Map<string, { data: unknown; timestamp: number }>();
 const MAX_CACHE_SIZE = 100;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = [], cacheKeyOverride?: string) {
   const key = cacheKeyOverride || (deps.length ? JSON.stringify(deps) + fetcher.toString() : null);
   
   const [data, setData] = useState<T | null>(() => {
-    return key && globalCache.has(key) ? (globalCache.get(key) as T) : null;
+    if (key && globalCache.has(key)) {
+      const cached = globalCache.get(key)!;
+      if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
+        return cached.data as T;
+      }
+    }
+    return null;
   });
-  const [loading, setLoading] = useState(!key || !globalCache.has(key));
+  const [loading, setLoading] = useState(!key || !globalCache.has(key) || (Date.now() - globalCache.get(key)!.timestamp >= CACHE_TTL_MS));
   const [error, setError] = useState<unknown>(null);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     
-    if (!key || !globalCache.has(key)) {
-      setLoading(true);
-    }
-    setError(null);
+    const isFresh = key && globalCache.has(key) && (Date.now() - globalCache.get(key)!.timestamp < CACHE_TTL_MS);
+    
+    if (!isFresh) {
+      if (!data) setLoading(true);
+      setError(null);
 
-    fetcher()
-      .then((d) => {
-        if (!cancelled) {
-          setData(d);
-          if (key) {
-            globalCache.set(key, d);
-            if (globalCache.size > MAX_CACHE_SIZE) {
-              const firstKey = globalCache.keys().next().value;
-              if (firstKey) globalCache.delete(firstKey);
+      fetcher()
+        .then((d) => {
+          if (!cancelled) {
+            setData(d);
+            if (key) {
+              globalCache.set(key, { data: d, timestamp: Date.now() });
+              if (globalCache.size > MAX_CACHE_SIZE) {
+                const firstKey = globalCache.keys().next().value;
+                if (firstKey) globalCache.delete(firstKey);
+              }
             }
+            setLoading(false);
           }
-          setLoading(false);
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setError(e);
-          setLoading(false);
-        }
-      });
+        })
+        .catch((e) => {
+          if (!cancelled) {
+            setError(e);
+            setLoading(false);
+          }
+        });
+    }
 
     return () => { cancelled = true; };
   }, [...deps, tick]);
