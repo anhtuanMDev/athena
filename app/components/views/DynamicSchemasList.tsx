@@ -1,8 +1,7 @@
 import { Link, useParams } from "react-router";
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
-import { getFile, listDirectory } from "~/lib/github";
+import { Card, CardContent, CardHeader } from "~/components/ui/card";
+import { listDirectory } from "~/lib/github";
 import { useData } from "~/lib/use-data";
 import { type DynamicSchemaFile } from "~/schemas/dynamic-schema";
 

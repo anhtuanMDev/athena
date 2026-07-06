@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { Upload, X, Plus } from "lucide-react";
+import { Plus, Upload, X } from "lucide-react";
+import { useRef } from "react";
 
 export interface ImageEntry {
   id: string;
@@ -16,9 +16,20 @@ interface MultiImageUploadFieldProps {
   defaultKey?: string;
 }
 
-export function MultiImageUploadField({ label, entries, onChange, defaultKey = "main" }: MultiImageUploadFieldProps) {
+export function MultiImageUploadField({
+  label,
+  entries,
+  onChange,
+  defaultKey = "main",
+}: MultiImageUploadFieldProps) {
   const addEntry = () => {
-    onChange([...entries, { id: Math.random().toString(36).substring(7), key: entries.length === 0 ? defaultKey : "" }]);
+    onChange([
+      ...entries,
+      {
+        id: Math.random().toString(36).substring(7),
+        key: entries.length === 0 ? defaultKey : "",
+      },
+    ]);
   };
 
   const updateEntry = (id: string, updates: Partial<ImageEntry>) => {
@@ -32,7 +43,9 @@ export function MultiImageUploadField({ label, entries, onChange, defaultKey = "
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 tracking-wide">{label}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 tracking-wide">
+          {label}
+        </label>
         <button
           type="button"
           onClick={addEntry}
@@ -43,19 +56,34 @@ export function MultiImageUploadField({ label, entries, onChange, defaultKey = "
       </div>
 
       {entries.length === 0 && (
-        <div className="text-xs text-gray-500 italic">No images added. Click "Add Image".</div>
+        <div className="text-xs text-gray-500 italic">
+          No images added. Click "Add Image".
+        </div>
       )}
 
       <div className="space-y-3">
         {entries.map((entry) => (
-          <ImageRow key={entry.id} entry={entry} onUpdate={(u) => updateEntry(entry.id, u)} onRemove={() => removeEntry(entry.id)} />
+          <ImageRow
+            key={entry.id}
+            entry={entry}
+            onUpdate={(u) => updateEntry(entry.id, u)}
+            onRemove={() => removeEntry(entry.id)}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function ImageRow({ entry, onUpdate, onRemove }: { entry: ImageEntry; onUpdate: (u: Partial<ImageEntry>) => void; onRemove: () => void }) {
+function ImageRow({
+  entry,
+  onUpdate,
+  onRemove,
+}: {
+  entry: ImageEntry;
+  onUpdate: (u: Partial<ImageEntry>) => void;
+  onRemove: () => void;
+}) {
   const fileInput = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,7 +118,11 @@ function ImageRow({ entry, onUpdate, onRemove }: { entry: ImageEntry; onUpdate: 
 
       {entry.previewUrl ? (
         <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 group shrink-0">
-          <img src={entry.previewUrl} alt="Preview" className="w-full h-full object-cover" />
+          <img
+            src={entry.previewUrl}
+            alt="Preview"
+            className="w-full h-full object-cover"
+          />
           <button
             type="button"
             onClick={handleClear}
@@ -108,9 +140,19 @@ function ImageRow({ entry, onUpdate, onRemove }: { entry: ImageEntry; onUpdate: 
           <Upload className="w-4 h-4" />
         </button>
       )}
-      <input type="file" accept="image/*" ref={fileInput} onChange={handleFileChange} className="hidden" />
+      <input
+        type="file"
+        accept="image/*"
+        ref={fileInput}
+        onChange={handleFileChange}
+        className="hidden"
+      />
 
-      <button type="button" onClick={onRemove} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors">
+      <button
+        type="button"
+        onClick={onRemove}
+        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
+      >
         <X className="w-4 h-4" />
       </button>
     </div>

@@ -1,21 +1,20 @@
+import { Pencil, X } from "lucide-react";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
-import { X, Pencil } from "lucide-react";
+import { FormField } from "~/components/FormField";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import {
+  conflictResponse,
+  getFile,
+  getFileSha,
+  isConflictError,
   listGames,
   updateFile,
-  getFile,
-  isConflictError,
-  conflictResponse,
   uploadAsset,
-  getFileSha,
 } from "~/lib/github";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { FormField } from "~/components/FormField";
 import { useData } from "~/lib/use-data";
-import { GameSchema } from "~/schemas/game";
 import type { Game } from "~/schemas/game";
+import { GameSchema } from "~/schemas/game";
 
 export default function GamesList() {
   const { data, loading, error } = useData(
@@ -48,19 +47,22 @@ export default function GamesList() {
   const [originalGame, setOriginalGame] = useState<Game | null>(null);
 
   const isValid = slug.trim().length > 0 && name.trim().length > 0;
-  const isDirty = modalMode === "create" ? true : originalGame ? (
-    slug !== originalGame.slug ||
-    name !== originalGame.name ||
-    developer !== (originalGame.developer || "") ||
-    icon !== (originalGame.icon || "") ||
-    iconFile !== null ||
-    primaryColor !== (originalGame.primaryColor || "") ||
-    secondaryColor !== (originalGame.secondaryColor || "") ||
-    accentColor !== (originalGame.accentColor || "") ||
-    textColor !== (originalGame.textColor || "") ||
-    backgroundColor !== (originalGame.backgroundColor || "") ||
-    active !== originalGame.active
-  ) : false;
+  const isDirty =
+    modalMode === "create"
+      ? true
+      : originalGame
+        ? slug !== originalGame.slug ||
+          name !== originalGame.name ||
+          developer !== (originalGame.developer || "") ||
+          icon !== (originalGame.icon || "") ||
+          iconFile !== null ||
+          primaryColor !== (originalGame.primaryColor || "") ||
+          secondaryColor !== (originalGame.secondaryColor || "") ||
+          accentColor !== (originalGame.accentColor || "") ||
+          textColor !== (originalGame.textColor || "") ||
+          backgroundColor !== (originalGame.backgroundColor || "") ||
+          active !== originalGame.active
+        : false;
 
   function openCreate() {
     setSlug("");
@@ -260,7 +262,9 @@ export default function GamesList() {
                       }}
                     />
                   )}
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{game.name}</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {game.name}
+                  </h2>
                 </div>
                 <span
                   className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${game.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}
@@ -563,7 +567,9 @@ export default function GamesList() {
                                   ? backgroundColor
                                   : "#000000"
                               }
-                              onChange={(e) => setBackgroundColor(e.target.value)}
+                              onChange={(e) =>
+                                setBackgroundColor(e.target.value)
+                              }
                             />
                           </div>
                           <div className="flex-1">
@@ -573,7 +579,9 @@ export default function GamesList() {
                               placeholder="#000000"
                               required={false}
                               value={backgroundColor}
-                              onChange={(e) => setBackgroundColor(e.target.value)}
+                              onChange={(e) =>
+                                setBackgroundColor(e.target.value)
+                              }
                             />
                           </div>
                         </div>
@@ -610,7 +618,10 @@ export default function GamesList() {
                       >
                         Cancel
                       </Button>
-                      <Button type="submit" disabled={submitting || !isValid || !isDirty}>
+                      <Button
+                        type="submit"
+                        disabled={submitting || !isValid || !isDirty}
+                      >
                         {submitting
                           ? "Saving..."
                           : modalMode === "edit"

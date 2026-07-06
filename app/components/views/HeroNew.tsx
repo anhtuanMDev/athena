@@ -1,28 +1,33 @@
-import { useState, useMemo, useEffect } from "react";
-import { useParams, useNavigate } from "react-router";
-import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect, useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { useNavigate, useParams } from "react-router";
 import { z } from "zod";
-import { HeroSchema } from "~/schemas/hero";
-import { getFile, createFile, uploadAsset, getFileSha } from "~/lib/github";
+import { DynamicSelectField } from "~/components/DynamicSelectField";
+import { FormField } from "~/components/FormField";
 import {
   MultiImageUploadField,
   type ImageEntry,
 } from "~/components/MultiImageUploadField";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { assertSafeGameSlug } from "~/lib/safe-path";
-import { FormField } from "~/components/FormField";
-import { useData } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
-import {
-  type DynamicSchemaFile,
-  type DynamicField,
-} from "~/schemas/dynamic-schema";
-import { listDirectory } from "~/lib/github";
-import { DynamicSelectField } from "~/components/DynamicSelectField";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { AbilitiesField } from "~/components/views/AbilitiesField";
 import { ObjectArrayField } from "~/components/views/ObjectArrayField";
+import {
+  createFile,
+  getFile,
+  getFileSha,
+  listDirectory,
+  uploadAsset,
+} from "~/lib/github";
+import { assertSafeGameSlug } from "~/lib/safe-path";
+import { useData } from "~/lib/use-data";
+import {
+  type DynamicField,
+  type DynamicSchemaFile,
+} from "~/schemas/dynamic-schema";
+import { HeroSchema } from "~/schemas/hero";
 
 export default function NewHero() {
   const { game } = useParams();

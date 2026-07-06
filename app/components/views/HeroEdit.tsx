@@ -1,36 +1,32 @@
-import { useState, useMemo, useEffect } from "react";
-import { useParams, useNavigate } from "react-router";
-import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { useNavigate, useParams } from "react-router";
 import { z } from "zod";
-import { HeroSchema, type Hero } from "~/schemas/hero";
-import {
-  getFile,
-  updateFile,
-  uploadAsset,
-  isConflictError,
-} from "~/lib/github";
-import {
-  MultiImageUploadField,
-  type ImageEntry,
-} from "~/components/MultiImageUploadField";
-import { computeDiff } from "~/lib/diff";
-import type { DiffEntry } from "~/lib/diff";
 import { DiffView } from "~/components/DiffView";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
-import { FormField } from "~/components/FormField";
-import { useData } from "~/lib/use-data";
-import { useToast } from "~/components/ToastProvider";
-import {
-  type DynamicSchemaFile,
-  type DynamicField,
-} from "~/schemas/dynamic-schema";
-import { listDirectory } from "~/lib/github";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
+import { FormField } from "~/components/FormField";
+import { type ImageEntry } from "~/components/MultiImageUploadField";
+import { useToast } from "~/components/ToastProvider";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { AbilitiesField } from "~/components/views/AbilitiesField";
 import { ObjectArrayField } from "~/components/views/ObjectArrayField";
+import type { DiffEntry } from "~/lib/diff";
+import { computeDiff } from "~/lib/diff";
+import {
+  getFile,
+  isConflictError,
+  listDirectory,
+  updateFile,
+} from "~/lib/github";
+import { assertSafeEntityId, assertSafeGameSlug } from "~/lib/safe-path";
+import { useData } from "~/lib/use-data";
+import {
+  type DynamicField,
+  type DynamicSchemaFile,
+} from "~/schemas/dynamic-schema";
+import { HeroSchema, type Hero } from "~/schemas/hero";
 
 export default function EditHero() {
   const { game, "*": splat } = useParams();

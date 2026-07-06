@@ -1,4 +1,4 @@
-export async function onRequest(context: { request: Request; env: Record<string, unknown>; next: () => Promise<Response> }): Promise<Response> {
+export async function onRequest(context: { request: Request; env: { ASSETS: { fetch: (req: Request) => Promise<Response> } } & Record<string, unknown>; next: () => Promise<Response> }): Promise<Response> {
   const url = new URL(context.request.url);
 
   // Skip paths handled by more specific functions
