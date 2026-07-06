@@ -447,7 +447,6 @@ function HeroForm({
                   control={control}
                   register={register}
                   setValue={setValue}
-                  watch={watch}
                   errors={errors}
                   abilityIcons={abilityIcons}
                   setAbilityIcons={setAbilityIcons}

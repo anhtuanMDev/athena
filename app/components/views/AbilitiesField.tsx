@@ -1,4 +1,4 @@
-import type { Control, UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from "react-hook-form";
+import type { Control, UseFormRegister, FieldErrors, UseFormSetValue } from "react-hook-form";
 import { useFieldArray, Controller } from "react-hook-form";
 import type { ImageEntry } from "~/components/MultiImageUploadField";
 import { FormField } from "~/components/FormField";
@@ -12,7 +12,6 @@ interface AbilitiesFieldProps {
   control: Control<any>;
   register: UseFormRegister<any>;
   setValue: UseFormSetValue<any>;
-  watch: UseFormWatch<any>;
   errors: FieldErrors<any>;
   abilityIcons: Record<string, ImageEntry[]>;
   setAbilityIcons: (icons: Record<string, ImageEntry[]>) => void;
@@ -20,7 +19,7 @@ interface AbilitiesFieldProps {
   options?: string[];
 }
 
-export function AbilitiesField({ name, label, control, register, setValue, watch, errors, abilityIcons, setAbilityIcons, subFields, options }: AbilitiesFieldProps) {
+export function AbilitiesField({ name, label, control, register, setValue, errors, abilityIcons, setAbilityIcons, subFields, options }: AbilitiesFieldProps) {
   const { fields, append, remove } = useFieldArray({
     control,
     name
@@ -57,12 +56,17 @@ export function AbilitiesField({ name, label, control, register, setValue, watch
                 </div>
                 <div className="flex-1 space-y-3">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <FormField 
-                      label="ID (kebab-case)" 
-                      {...register(`${name}.${i}.id` as const)}
-                      error={!!abilityErrors?.id}
-                      helperText={abilityErrors?.id?.message as string}
-                      slotProps={{ inputLabel: { shrink: watch(`${name}.${i}.id`) ? true : undefined } }}
+                    <Controller
+                      name={`${name}.${i}.id` as const}
+                      control={control}
+                      render={({ field }) => (
+                        <FormField
+                          label="ID (kebab-case)"
+                          {...field}
+                          error={!!abilityErrors?.id}
+                          helperText={abilityErrors?.id?.message as string}
+                        />
+                      )}
                     />
                     <FormField 
                       label="Name" 

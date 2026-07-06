@@ -205,7 +205,6 @@ function EditHeroForm({
     register,
     handleSubmit,
     control,
-    watch,
     setValue,
     formState: { errors, isValid, isDirty },
   } = useForm<any>({
@@ -410,7 +409,6 @@ function EditHeroForm({
                   control={control}
                   register={register}
                   setValue={setValue}
-                  watch={watch}
                   errors={errors}
                   abilityIcons={abilityIcons}
                   setAbilityIcons={setAbilityIcons}
