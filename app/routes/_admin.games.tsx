@@ -51,7 +51,7 @@ export default function GamesList() {
     setDeveloper(game.developer || "");
     setIcon(game.icon || "");
     setIconFile(null);
-    setPrimaryColor(game.primaryColor || (game as any).themeColor || "");
+    setPrimaryColor(game.primaryColor || "");
     setSecondaryColor(game.secondaryColor || "");
     setAccentColor(game.accentColor || "");
     setActive(game.active);
@@ -186,9 +186,9 @@ export default function GamesList() {
                   {game.icon ? (
                     <img src={game.icon} alt={game.name} className="w-6 h-6 rounded-md object-cover" />
                   ) : (
-                    <div className="w-6 h-6 rounded-md border border-gray-200 dark:border-gray-800" style={{ backgroundColor: (game as any).primaryColor || (game as any).themeColor || '#f97316' }} />
+                    <div className="w-6 h-6 rounded-md border border-gray-200 dark:border-gray-800" style={{ backgroundColor: game.primaryColor || '#f97316' }} />
                   )}
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white" style={{ color: (game as any).primaryColor || (game as any).themeColor }}>{game.name}</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white" style={{ color: game.primaryColor }}>{game.name}</h2>
                 </div>
                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${game.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
                   {game.active ? "Active" : "Inactive"}

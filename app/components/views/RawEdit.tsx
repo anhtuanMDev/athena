@@ -15,11 +15,11 @@ import { ItemSchema } from "~/schemas/item";
 import { useToast } from "~/components/ToastProvider";
 
 const typeValidators: Record<string, (data: unknown) => { success: boolean }> = {
-  heroes: HeroSchema.safeParse,
-  maps: MapSchema.safeParse,
-  modes: ModeSchema.safeParse,
-  patches: PatchSchema.safeParse,
-  items: ItemSchema.safeParse,
+  heroes: (d) => HeroSchema.safeParse(d),
+  maps: (d) => MapSchema.safeParse(d),
+  modes: (d) => ModeSchema.safeParse(d),
+  patches: (d) => PatchSchema.safeParse(d),
+  items: (d) => ItemSchema.safeParse(d),
 };
 
 export default function RawEditor() {

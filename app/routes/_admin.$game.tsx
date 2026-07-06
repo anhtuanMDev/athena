@@ -28,7 +28,6 @@ import ItemNew from "~/components/views/ItemNew";
 import ItemEdit from "~/components/views/ItemEdit";
 
 // Misc
-import SchemaEdit from "~/components/views/SchemaEdit";
 import DynamicSchemasList from "~/components/views/DynamicSchemasList";
 import DynamicSchemaNew from "~/components/views/DynamicSchemaNew";
 import DynamicSchemaEdit from "~/components/views/DynamicSchemaEdit";
@@ -42,9 +41,7 @@ export default function GameDashboardRouter() {
   const idOrAction = parts[1];
   const subAction = parts[2];
 
-  // Route: /:game/schema (Legacy)
-  if (entity === "schema") return <PanelTransition><SchemaEdit /></PanelTransition>;
-  
+
   // Route: /:game/schemas (New Dynamic)
   if (entity === "schemas") {
     if (!idOrAction) return <PanelTransition><DynamicSchemasList /></PanelTransition>;

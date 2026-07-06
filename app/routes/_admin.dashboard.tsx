@@ -59,7 +59,7 @@ export default function Dashboard() {
           <Card key={game.slug}>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white" style={game.themeColor ? { color: game.themeColor } : {}}>{game.name}</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white" style={game.primaryColor ? { color: game.primaryColor } : {}}>{game.name}</h2>
                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${game.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
                   {game.active ? "Active" : "Inactive"}
                 </span>
@@ -80,7 +80,7 @@ export default function Dashboard() {
               <div className="mt-4 flex gap-2">
                 <Link to={`/${game.slug}/heroes`} className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">Heroes</Link>
                 <Link to={`/${game.slug}/patches`} className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">Patches</Link>
-                <Link to={`/${game.slug}/schema`} className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">Schema</Link>
+                <Link to={`/${game.slug}/schemas`} className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">Schemas</Link>
               </div>
             </CardContent>
           </Card>

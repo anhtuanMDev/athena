@@ -17,3 +17,7 @@ pages_build_output_dir = "./build/client"
 #   NODE_ENV = production
 #   COOKIE_SECURE = true   (set to "false" for local dev)
 # ==========================================================
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "placeholder" # Set up in Cloudflare Dashboard

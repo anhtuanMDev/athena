@@ -1,61 +1,75 @@
 import { Octokit } from "@octokit/rest";
+import type { KVNamespace } from "@cloudflare/workers-types";
 
 const SESSION_KEY = "__admin_session";
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000;
 const BASE_DELAY_MS = 1000;
 
-const attempts = new Map<string, { count: number; firstAt: number; lastAt: number }>();
-
-function getClientIp(request: Request): string {
-  return request.headers.get("CF-Connecting-IP")
-    || request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim()
-    || "127.0.0.1";
+interface RateLimitRecord {
+  count: number;
+  firstAt: number;
+  lastAt: number;
 }
 
-function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+export interface Env {
+  RATE_LIMIT_KV?: KVNamespace;
+  GITHUB_TOKEN: string;
+  GITHUB_OWNER: string;
+  GITHUB_REPO: string;
+  GITHUB_BRANCH?: string;
+  ADMIN_PASSWORD_HASH?: string;
+  SESSION_SECRET: string;
+  COOKIE_SECURE?: string;
+}
+
+async function checkRateLimit(ip: string, env: Env): Promise<{ allowed: boolean; retryAfter?: number }> {
+  const kv = env.RATE_LIMIT_KV;
+  if (!kv) return { allowed: true };
   const now = Date.now();
-  const record = attempts.get(ip);
-  if (record) {
-    if (now - record.firstAt > WINDOW_MS) {
-      attempts.delete(ip);
-      return { allowed: true };
-    }
-    if (record.count >= MAX_ATTEMPTS) {
-      const excess = record.count - MAX_ATTEMPTS;
-      const delay = BASE_DELAY_MS * Math.pow(2, excess);
-      const elapsed = now - record.lastAt;
-      if (elapsed < delay) {
-        return { allowed: false, retryAfter: Math.ceil((delay - elapsed) / 1000) };
-      }
+  const raw = await kv.get(`rate_limit:${ip}`);
+  if (!raw) return { allowed: true };
+  
+  const record: RateLimitRecord = JSON.parse(raw);
+  if (now - record.firstAt > WINDOW_MS) return { allowed: true };
+  
+  if (record.count >= MAX_ATTEMPTS) {
+    const excess = record.count - MAX_ATTEMPTS;
+    const delay = BASE_DELAY_MS * Math.pow(2, excess);
+    const elapsed = now - record.lastAt;
+    if (elapsed < delay) {
+      return { allowed: false, retryAfter: Math.ceil((delay - elapsed) / 1000) };
     }
   }
   return { allowed: true };
 }
 
-function recordAttempt(ip: string, success: boolean): void {
-  const now = Date.now();
-  if (success) {
-    attempts.delete(ip);
+async function recordAttempt(ip: string, success: boolean, env: Env): Promise<void> {
+  const kv = env.RATE_LIMIT_KV;
+  if (!kv) {
+    console.warn("RATE_LIMIT_KV is not bound");
     return;
   }
-  const record = attempts.get(ip);
-  if (record) {
-    record.count++;
-    record.lastAt = now;
-  } else {
-    attempts.set(ip, { count: 1, firstAt: now, lastAt: now });
+  const now = Date.now();
+  
+  if (success) {
+    await kv.delete(`rate_limit:${ip}`);
+    return;
   }
-}
-
-function checkAdminRateLimit(request: Request): { allowed: boolean; retryAfter?: number } {
-  const ip = getClientIp(request);
-  return checkRateLimit(ip);
-}
-
-function recordAdminAttempt(request: Request, success: boolean): void {
-  const ip = getClientIp(request);
-  recordAttempt(ip, success);
+  
+  const raw = await kv.get(`rate_limit:${ip}`);
+  let record: RateLimitRecord;
+  if (raw) {
+    const existing: RateLimitRecord = JSON.parse(raw);
+    const expired = now - existing.firstAt > WINDOW_MS;
+    record = expired
+      ? { count: 1, firstAt: now, lastAt: now }
+      : { ...existing, count: existing.count + 1, lastAt: now };
+  } else {
+    record = { count: 1, firstAt: now, lastAt: now };
+  }
+  
+  await kv.put(`rate_limit:${ip}`, JSON.stringify(record), { expirationTtl: 900 });
 }
 
 async function hmacSign(value: string, secret: string): Promise<string> {
@@ -145,7 +159,7 @@ function requireAuth(context: PagesFunctionContext): Promise<void> {
 
 interface PagesFunctionContext {
   request: Request;
-  env: Record<string, string>;
+  env: Env;
   params: Record<string, string>;
   next: () => Promise<Response>;
 }
@@ -174,9 +188,15 @@ export async function onRequest(context: PagesFunctionContext): Promise<Response
   }
 }
 
-async function handleLogin(request: Request, env: Record<string, string>): Promise<Response> {
+function getClientIp(request: Request): string {
+  return request.headers.get("CF-Connecting-IP")
+    || request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim()
+    || "127.0.0.1";
+}
+
+async function handleLogin(request: Request, env: Env): Promise<Response> {
   const ip = getClientIp(request);
-  const { allowed, retryAfter } = checkRateLimit(ip);
+  const { allowed, retryAfter } = await checkRateLimit(ip, env);
   if (!allowed) {
     return json({ error: "Too many attempts", retryAfter }, 429);
   }
@@ -195,7 +215,7 @@ async function handleLogin(request: Request, env: Record<string, string>): Promi
   const bcrypt = await import("bcryptjs");
   const valid = bcrypt.compareSync(password, hash);
   if (!valid) {
-    recordAttempt(ip, false);
+    await recordAttempt(ip, false, env);
     return json({ error: "Invalid password" }, 401);
   }
 
@@ -204,7 +224,7 @@ async function handleLogin(request: Request, env: Record<string, string>): Promi
     return json({ error: "Server misconfigured: SESSION_SECRET is not set" }, 500);
   }
 
-  recordAttempt(ip, true);
+  await recordAttempt(ip, true, env);
   const secure = env.COOKIE_SECURE !== "false";
   const cookie = await createSessionCookie(secret, secure);
   return new Response(JSON.stringify({ ok: true }), {
@@ -213,7 +233,7 @@ async function handleLogin(request: Request, env: Record<string, string>): Promi
   });
 }
 
-async function handleLogout(_request: Request, _env: Record<string, string>): Promise<Response> {
+async function handleLogout(_request: Request, _env: Env): Promise<Response> {
   const cookie = destroySessionCookie();
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
@@ -221,12 +241,12 @@ async function handleLogout(_request: Request, _env: Record<string, string>): Pr
   });
 }
 
-async function handleCheck(request: Request, env: Record<string, string>): Promise<Response> {
+async function handleCheck(request: Request, env: Env): Promise<Response> {
   const authenticated = await verifySession(request, env.SESSION_SECRET);
   return json({ authenticated });
 }
 
-async function handleGetFile(request: Request, env: Record<string, string>): Promise<Response> {
+async function handleGetFile(request: Request, env: Env): Promise<Response> {
   await requireAuth({ request, env } as PagesFunctionContext);
   const url = new URL(request.url);
   const path = url.searchParams.get("path");
@@ -253,7 +273,7 @@ async function handleGetFile(request: Request, env: Record<string, string>): Pro
   }
 }
 
-async function handleWriteFile(request: Request, env: Record<string, string>): Promise<Response> {
+async function handleWriteFile(request: Request, env: Env): Promise<Response> {
   await requireAuth({ request, env } as PagesFunctionContext);
   const body: { path: string; content: unknown; message?: string; sha?: string; isBase64?: boolean } = await request.json().catch(() => ({}));
   if (!body.path) return json({ error: "path is required" }, 400);
@@ -283,7 +303,7 @@ async function handleWriteFile(request: Request, env: Record<string, string>): P
   }
 }
 
-async function handleDeleteFile(request: Request, env: Record<string, string>): Promise<Response> {
+async function handleDeleteFile(request: Request, env: Env): Promise<Response> {
   await requireAuth({ request, env } as PagesFunctionContext);
   const body: { path: string; sha: string; message?: string } = await request.json().catch(() => ({}));
   if (!body.path || !body.sha) return json({ error: "path and sha are required" }, 400);
@@ -312,7 +332,7 @@ async function handleDeleteFile(request: Request, env: Record<string, string>): 
   }
 }
 
-async function handleListDirectory(request: Request, env: Record<string, string>): Promise<Response> {
+async function handleListDirectory(request: Request, env: Env): Promise<Response> {
   await requireAuth({ request, env } as PagesFunctionContext);
   const url = new URL(request.url);
   const game = url.searchParams.get("game");
@@ -373,7 +393,7 @@ async function handleListDirectory(request: Request, env: Record<string, string>
   }
 }
 
-async function handleListGames(request: Request, env: Record<string, string>): Promise<Response> {
+async function handleListGames(request: Request, env: Env): Promise<Response> {
   await requireAuth({ request, env } as PagesFunctionContext);
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
   const owner = env.GITHUB_OWNER;
@@ -394,7 +414,7 @@ async function handleListGames(request: Request, env: Record<string, string>): P
   }
 }
 
-async function handleCommits(request: Request, env: Record<string, string>): Promise<Response> {
+async function handleCommits(request: Request, env: Env): Promise<Response> {
   await requireAuth({ request, env } as PagesFunctionContext);
   const token = env.GITHUB_TOKEN;
   const owner = env.GITHUB_OWNER ?? "YOUR_ORG";

@@ -1,20 +1,5 @@
 import type { Hero } from "~/schemas/hero";
 
-export function coerceKitParams(kit: Hero["kit"], statFields: Record<string, { type: string }>): Hero["kit"] {
-  return kit.map((ability) => ({
-    ...ability,
-    params: Object.fromEntries(
-      Object.entries(ability.params).map(([key, val]) => {
-        if (typeof val === "string" && statFields[key]?.type === "number") {
-          const parsed = parseFloat(val);
-          return [key, isNaN(parsed) ? val : parsed];
-        }
-        return [key, val];
-      }),
-    ),
-  }));
-}
-
 export function parseKitFromFormData(formData: FormData): Hero["kit"] {
   const kit: Hero["kit"] = [];
   const kitCount = parseInt(formData.get("_kitCount") as string || "0");

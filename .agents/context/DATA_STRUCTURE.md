@@ -14,9 +14,7 @@ root of the data repo so contributors (human or AI) can reference it before addi
    game-specific (ult charge %, souls cost, team-up partners) lives inside a freeform
    `params` object, never as a top-level field. This is what lets the client render any
    game without per-game UI code.
-2. **Schema-driven rendering, not hardcoded rendering.** Each game ships a `schema.json`
-   that tells the client how to label, unit-format, and type-render every key that can
-   appear in `params`. The client fetches this once per game and renders generically.
+2. **Dynamic Schema-driven rendering.** Each game has a `schemas/` directory containing JSON files that tell the client how to label, unit-format, and type-render keys that appear in `params`. The client fetches these per game and renders dynamically.
 3. **One file per entity.** One hero = one JSON file. One patch = one JSON file. Never
    bundle a whole roster into one file — it makes diffs, PR review, and partial fetches
    painful.
@@ -35,7 +33,7 @@ data/
   _meta/
     games.json              # registry of all supported games
   <game-slug>/               # e.g. overwatch, marvel-rivals, deadlock
-    schema.json               # field label/unit/type metadata for this game
+    schemas/                  # dynamic schema field configs for this game
     game.json                  # optional: game-level metadata (see §4.2)
     heroes/
       <hero-id>.json
@@ -74,21 +72,18 @@ Game-level metadata that doesn't belong to any single hero. Optional — omit if
 | `role_counts` | object | e.g. `{ "tank": 1, "damage": 2, "support": 1 }` — useful for team-comp features |
 | `platforms` | string[] | e.g. `["pc", "playstation", "xbox"]` |
 
-### 3.3 `schema.json` (`data/<slug>/schema.json`)
+### 3.3 Dynamic Schemas (`data/<slug>/schemas/*.json`)
 
-The rendering contract for this game. Fetched once per game by the client.
+The rendering contract for this game's entities. Fetched by the client to generate forms dynamically.
 
 | Field | Type | Notes |
 |---|---|---|
-| `roles` | string[] | Valid values for `hero.roles[]` in this game |
-| `ability_types` | string[] | Valid values for `kit[].type` in this game |
-| `stat_fields` | object | Map of `param_key -> { label, unit, type }` for every key that appears anywhere in `kit[].params` for this game |
+| `category` | string | The entity type this schema belongs to (e.g. `hero`, `map`) |
+| `fields` | array | Map of `{ key, label, type, unit, required }` for every dynamic key for this category |
 
-`stat_fields[key].type` is one of: `number`, `text`, `boolean`, `list`.
+`fields[].type` is one of: `number`, `text`, `boolean`, `list`, `enum`.
 
-**This file must be updated whenever a hero introduces a new `params` key.** A missing
-entry means the client falls back to showing the raw key name — not broken, just ugly.
-A CI check that diffs hero files against `schema.json` keys is recommended (see §7).
+**This directory must be updated whenever an entity introduces a new dynamic parameter.**
 
 ### 3.4 Hero (`data/<slug>/heroes/<id>.json`)
 
@@ -121,12 +116,12 @@ The core entity. Fields split into **universal** (same meaning in every game) an
 | `name` | string | yes | Display name |
 | `type` | string | yes | Must be one of this game's `schema.json.ability_types` |
 | `description` | string | no | Plain-language explanation |
-| `params` | object | yes | **Freeform.** Every key must have a matching entry in this game's `schema.json.stat_fields` |
+| `params` | object | yes | **Freeform.** Every key must have a matching entry in this game's dynamic schema. |
 
 **Why `params` is freeform instead of a fixed set of columns:** a database column
 schema would need a new migration every time any game added any new stat type. A
 freeform object means adding a new mechanic is a data change, not a schema change —
-the tradeoff is that `schema.json` has to be kept in sync (see the CI note in §3.3).
+the tradeoff is that the dynamic schemas have to be kept in sync.
 
 ### 3.5 Map (`data/<slug>/maps/<id>.json`)
 
@@ -180,7 +175,7 @@ This is the part that changes per game — everything in §3 stays fixed.
 | Unique `params` keys | `cost_ult_percent`, `charges` | `team_up_partners`, `team_up_effect` | `souls_cost`, `charge_time_s` |
 | Currency/resource | Ult charge % | Ult charge % | Souls (in-match currency, affects item purchases) |
 
-Each of these lives entirely inside `schema.json` + `kit[].params` for its game — no
+Each of these lives entirely inside `schemas/*.json` + `kit[].params` for its game — no
 other file needs to know these differences exist.
 
 ---
@@ -228,7 +223,7 @@ other file needs to know these differences exist.
 ```
 
 Every field here maps to a row in §3.4. Every `params` key here maps to an entry in
-`data/overwatch/schema.json.stat_fields`.
+`data/overwatch/schemas/`.
 
 ---
 
@@ -240,7 +235,7 @@ it does not know anything about game-specific fields, which is the point.
 | Endpoint | Returns | Backing file(s) |
 |---|---|---|
 | `GET /api/games` | `games[]` | `_meta/games.json` |
-| `GET /api/:game/schema` | schema object | `<game>/schema.json` |
+| `GET /api/:game/schemas` | schemas array | `<game>/schemas/*.json` |
 | `GET /api/:game/heroes` | trimmed hero list (`id`, `name`, `roles`, `difficulty`, `portrait`, `tags`) | all files in `<game>/heroes/` |
 | `GET /api/:game/heroes/:id` | full hero object | `<game>/heroes/<id>.json` |
 | `GET /api/:game/maps` | map list | all files in `<game>/maps/` |
@@ -259,9 +254,7 @@ Caching: all GitHub-sourced responses are cached at Cloudflare's edge for 1 hour
   any client-side favorites/bookmarks reference it as a foreign key.
 - **Filenames must match the `id`/`patch`/`slug` field inside the file.** The Worker and
   any tooling assumes this; a mismatch is a bug, not a style choice.
-- **Every new `params` key needs a `schema.json` entry in the same PR.** Recommended: a
-  GitHub Action that parses all hero files in a game, collects every `params` key used,
-  and fails the PR if any key is missing from that game's `schema.json.stat_fields`.
+- **Every new `params` key needs a `schemas/*.json` entry in the same PR.**
 - **Patch `field` paths must be valid dot-paths into the current hero file** — i.e. if a
   patch references `kit.blink.params.recharge_time_s`, the hero file must have a `kit`
   entry with `id: "blink"` and a `params.recharge_time_s` key. Otherwise the changelog
@@ -275,8 +268,7 @@ Caching: all GitHub-sourced responses are cached at Cloudflare's edge for 1 hour
 ## 8. Extension checklist — adding a new game
 
 1. Add a `slug` entry to `data/_meta/games.json`.
-2. Create `data/<slug>/schema.json` — define `roles`, `ability_types`, and an initial
-   `stat_fields` map (can start empty and grow as heroes are added).
+2. Create `data/<slug>/schemas/` files.
 3. Add hero files to `data/<slug>/heroes/`, following §3.4.
 4. Add map/mode/patch files as needed, following §3.5–3.7.
 5. No changes needed in `worker/src/index.js` — routes are already parameterized by
@@ -285,8 +277,8 @@ Caching: all GitHub-sourced responses are cached at Cloudflare's edge for 1 hour
 ## 9. Extension checklist — adding a new hero mechanic to an existing game
 
 1. Add the new `params` key(s) directly to the hero's `kit[].params`.
-2. Add a matching entry to that game's `schema.json.stat_fields` with `label`, `unit`,
+2. Add a matching entry to that game's `schemas/*.json` with `label`, `unit`,
    `type`.
 3. If the mechanic needs a new ability category (not just a new stat), add it to
-   `schema.json.ability_types` and use it as `kit[].type`.
+   the schema and use it as `kit[].type`.
 4. Nothing else changes — the client renders it automatically via the schema.
