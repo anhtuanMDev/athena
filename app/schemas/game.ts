@@ -5,7 +5,7 @@ export const GameSchema = z.object({
   name: z.string().min(1, "Name is required"),
   developer: z.string().optional(),
   active: z.boolean(),
-  icon: z.string().url().optional().or(z.literal("")),
+  icon: z.string().optional().or(z.literal("")),
   primaryColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Must be a valid hex color").optional().or(z.literal("")),
   secondaryColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Must be a valid hex color").optional().or(z.literal("")),
   accentColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Must be a valid hex color").optional().or(z.literal("")),

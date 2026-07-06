@@ -270,8 +270,11 @@ async function handleGetFile(request: Request, env: Env): Promise<Response> {
   try {
     const { data } = await octokit.repos.getContent({ owner, repo, path, ref: branch });
     if ("content" in data && "sha" in data) {
-      const decoded = atob(data.content);
-      return json({ sha: data.sha, content: JSON.parse(decoded) });
+      let content: unknown = data.content;
+      if (path.endsWith(".json")) {
+        content = JSON.parse(atob(data.content));
+      }
+      return json({ sha: data.sha, content });
     }
     return json(null);
   } catch (err: unknown) {
