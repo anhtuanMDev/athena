@@ -144,10 +144,10 @@ function EditHeroForm({
     register,
     handleSubmit,
     control,
-    formState: { errors, isValid }
+    formState: { errors, isValid, isDirty }
   } = useForm<any>({
     resolver: zodResolver(dynamicZodSchema),
-    mode: "onTouched",
+    mode: "onChange",
     defaultValues: defaultValues as any
   });
 
@@ -422,7 +422,7 @@ function EditHeroForm({
 
       <div className="pt-6 border-t border-gray-200/50 dark:border-gray-800/50 mt-8 flex justify-between">
         <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/heroes`)}>Cancel</Button>
-        <Button type="submit" disabled={submitting || !isValid} className="shadow-lg shadow-orange-500/20">
+        <Button type="submit" disabled={submitting || !isValid || !isDirty} className="shadow-lg shadow-orange-500/20">
           {submitting ? "Processing..." : "Preview Changes"}
         </Button>
       </div>

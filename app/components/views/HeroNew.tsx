@@ -123,7 +123,7 @@ function HeroForm({ fields, game }: { fields: DynamicField[]; game: string }) {
     formState: { errors, isValid }
   } = useForm<any>({
     resolver: zodResolver(dynamicZodSchema),
-    mode: "onTouched",
+    mode: "onChange",
     defaultValues: {
       game,
       id: "",

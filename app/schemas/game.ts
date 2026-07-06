@@ -9,6 +9,8 @@ export const GameSchema = z.object({
   primaryColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Must be a valid hex color").optional().or(z.literal("")),
   secondaryColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Must be a valid hex color").optional().or(z.literal("")),
   accentColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Must be a valid hex color").optional().or(z.literal("")),
+  textColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Must be a valid hex color").optional().or(z.literal("")),
+  backgroundColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Must be a valid hex color").optional().or(z.literal("")),
 });
 
 export type Game = z.infer<typeof GameSchema>;
