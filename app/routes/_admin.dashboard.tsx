@@ -59,7 +59,7 @@ export default function Dashboard() {
           <Card key={game.slug}>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{game.name}</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white" style={game.themeColor ? { color: game.themeColor } : {}}>{game.name}</h2>
                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${game.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
                   {game.active ? "Active" : "Inactive"}
                 </span>

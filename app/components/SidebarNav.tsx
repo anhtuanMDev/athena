@@ -25,6 +25,7 @@ interface GameSection {
   slug: string;
   name: string;
   icon?: string;
+  primaryColor?: string;
 }
 
 export function SidebarNav({ games, onClose }: { games: GameSection[], onClose?: () => void }) {
@@ -67,22 +68,29 @@ export function SidebarNav({ games, onClose }: { games: GameSection[], onClose?:
   );
 }
 
-function NavLink({ href, label, icon: Icon, isActive, onClick }: NavItem & { isActive: boolean, onClick?: () => void }) {
+function NavLink({ href, label, icon: Icon, isActive, onClick, primaryColor }: NavItem & { isActive: boolean, onClick?: () => void, primaryColor?: string }) {
+  const activeBgStyle = isActive && primaryColor ? { backgroundColor: `${primaryColor}1A`, color: primaryColor } : {};
+  const activeIconStyle = isActive && primaryColor ? { color: primaryColor } : {};
+  
   return (
     <Link
       to={href}
       onClick={onClick}
+      style={activeBgStyle}
       className={`group flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
         isActive
-          ? "bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400 shadow-sm shadow-orange-500/5"
+          ? (!primaryColor ? "bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400 shadow-sm shadow-orange-500/5" : "shadow-sm")
           : "text-gray-600 hover:bg-gray-100/50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
       }`}
     >
       <div className="flex items-center gap-3">
-        <Icon className={`w-4 h-4 transition-colors ${isActive ? "text-orange-600 dark:text-orange-400" : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"}`} />
+        <Icon 
+          style={activeIconStyle}
+          className={`w-4 h-4 transition-colors ${isActive ? (!primaryColor ? "text-orange-600 dark:text-orange-400" : "") : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"}`} 
+        />
         {label}
       </div>
-      {isActive && <ChevronRight className="w-4 h-4 text-orange-600/50 dark:text-orange-400/50" />}
+      {isActive && <ChevronRight className="w-4 h-4" style={activeIconStyle} />}
     </Link>
   );
 }
@@ -108,9 +116,12 @@ function CollapsibleGameSection({ game, isActive, onClose }: { game: GameSection
           {game.icon ? (
             <img src={game.icon} alt={game.name} className="w-4 h-4 rounded-md object-cover" />
           ) : (
-            <Gamepad2 className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors" />
+            <Gamepad2 className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors" style={game.primaryColor ? { color: game.primaryColor } : {}} />
           )}
-          <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
+          <span 
+            className="text-[10px] font-bold uppercase tracking-widest transition-colors"
+            style={{ color: game.primaryColor || "var(--color-gray-500)" }}
+          >
             {game.name}
           </span>
         </div>
@@ -118,12 +129,12 @@ function CollapsibleGameSection({ game, isActive, onClose }: { game: GameSection
       </button>
       
       <div className={`space-y-1.5 overflow-hidden transition-all duration-300 ${isOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"}`}>
-        <NavLink href={`/${game.slug}/heroes`} label="Heroes" icon={Users} isActive={isActive(`/${game.slug}/heroes`)} onClick={onClose} />
-        <NavLink href={`/${game.slug}/maps`} label="Maps" icon={Map} isActive={isActive(`/${game.slug}/maps`)} onClick={onClose} />
-        <NavLink href={`/${game.slug}/modes`} label="Modes" icon={Swords} isActive={isActive(`/${game.slug}/modes`)} onClick={onClose} />
-        <NavLink href={`/${game.slug}/patches`} label="Patches" icon={FileClock} isActive={isActive(`/${game.slug}/patches`)} onClick={onClose} />
-        <NavLink href={`/${game.slug}/items`} label="Items" icon={Box} isActive={isActive(`/${game.slug}/items`)} onClick={onClose} />
-        <NavLink href={`/${game.slug}/schemas`} label="Schemas" icon={Database} isActive={isActive(`/${game.slug}/schemas`)} onClick={onClose} />
+        <NavLink href={`/${game.slug}/heroes`} label="Heroes" icon={Users} isActive={isActive(`/${game.slug}/heroes`)} onClick={onClose} primaryColor={game.primaryColor} />
+        <NavLink href={`/${game.slug}/maps`} label="Maps" icon={Map} isActive={isActive(`/${game.slug}/maps`)} onClick={onClose} primaryColor={game.primaryColor} />
+        <NavLink href={`/${game.slug}/modes`} label="Modes" icon={Swords} isActive={isActive(`/${game.slug}/modes`)} onClick={onClose} primaryColor={game.primaryColor} />
+        <NavLink href={`/${game.slug}/patches`} label="Patches" icon={FileClock} isActive={isActive(`/${game.slug}/patches`)} onClick={onClose} primaryColor={game.primaryColor} />
+        <NavLink href={`/${game.slug}/items`} label="Items" icon={Box} isActive={isActive(`/${game.slug}/items`)} onClick={onClose} primaryColor={game.primaryColor} />
+        <NavLink href={`/${game.slug}/schemas`} label="Schemas" icon={Database} isActive={isActive(`/${game.slug}/schemas`)} onClick={onClose} primaryColor={game.primaryColor} />
       </div>
     </div>
   );

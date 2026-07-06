@@ -1,4 +1,5 @@
 import { clearDataCache } from "~/lib/use-data";
+import type { Game } from "~/schemas/game";
 
 export interface GitHubFile<T = unknown> {
   sha: string;
@@ -75,7 +76,7 @@ export async function listDirectory<T = string>(game: string, subpath: string, i
   return api<T[]>("GET", url);
 }
 
-export async function listGames(): Promise<Array<{ slug: string; name: string; developer?: string; active: boolean; icon?: string }>> {
+export async function listGames(): Promise<Game[]> {
   return api("GET", "data/games");
 }
 

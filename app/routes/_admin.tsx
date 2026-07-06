@@ -14,7 +14,7 @@ export default function AdminLayout() {
     const ok = await checkSession();
     if (!ok) throw new Error("unauthorized");
     const allGames = await listGames();
-    return allGames.filter((g) => g.active).map((g) => ({ slug: g.slug, name: g.name, icon: g.icon }));
+    return allGames.filter((g) => g.active).map((g) => ({ slug: g.slug, name: g.name, icon: g.icon, primaryColor: g.primaryColor || (g as any).themeColor }));
   }, []);
 
   useEffect(() => {
