@@ -4,6 +4,7 @@ import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router";
 import { z } from "zod";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
+import { EntityReferenceField } from "~/components/EntityReferenceField";
 import { FormField } from "~/components/FormField";
 import {
   MultiImageUploadField,
@@ -159,7 +160,7 @@ function HeroForm({
           : f.type === "boolean"
             ? z.boolean()
             : z.string();
-      if (f.type === "list") fieldSchema = z.array(z.string());
+      if (f.type === "list" || f.type === "reference_list") fieldSchema = z.array(z.string());
       if (f.type === "abilities") fieldSchema = z.array(z.any());
       if (f.type === "object_array") fieldSchema = z.array(z.any());
       if (f.required) {
@@ -169,6 +170,7 @@ function HeroForm({
           fieldSchema = z.boolean().refine((val) => val === true, "Required");
         else if (
           f.type === "list" ||
+          f.type === "reference_list" ||
           f.type === "abilities" ||
           f.type === "object_array"
         )
@@ -178,6 +180,7 @@ function HeroForm({
         if (f.type === "boolean") fieldSchema = z.boolean().optional();
         else if (
           f.type === "list" ||
+          f.type === "reference_list" ||
           f.type === "abilities" ||
           f.type === "object_array"
         )
@@ -471,6 +474,30 @@ function HeroForm({
                   register={register}
                   errors={errors}
                   subFields={f.subFields || []}
+                />
+              </div>
+            );
+          }
+          if (f.type === "reference" || f.type === "reference_list") {
+            return (
+              <div className="col-span-1 md:col-span-2" key={f.key}>
+                <Controller
+                  name={f.key}
+                  control={control}
+                  render={({ field }) => (
+                    <EntityReferenceField
+                      label={f.label}
+                      game={game}
+                      referenceApiEndpoint={f.referenceApiEndpoint}
+                      referenceValueKey={f.referenceValueKey}
+                      referenceLabelKey={f.referenceLabelKey}
+                      multiple={f.type === "reference_list"}
+                      required={f.required}
+                      error={!!errors[f.key]}
+                      helperText={errors[f.key]?.message as string}
+                      {...field}
+                    />
+                  )}
                 />
               </div>
             );

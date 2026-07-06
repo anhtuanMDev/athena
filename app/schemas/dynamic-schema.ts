@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const FieldTypeSchema = z.enum(["string", "number", "boolean", "list", "enum", "abilities", "object_array"]);
+export const FieldTypeSchema = z.enum(["string", "number", "boolean", "list", "enum", "abilities", "object_array", "reference", "reference_list"]);
 export type FieldType = z.infer<typeof FieldTypeSchema>;
 
 export type DynamicField = {
@@ -11,6 +11,9 @@ export type DynamicField = {
   required: boolean;
   options?: string[];
   subFields?: DynamicField[];
+  referenceApiEndpoint?: string;
+  referenceValueKey?: string;
+  referenceLabelKey?: string;
 };
 
 export const DynamicFieldSchema: z.ZodType<DynamicField> = z.lazy(() => z.object({
@@ -21,6 +24,9 @@ export const DynamicFieldSchema: z.ZodType<DynamicField> = z.lazy(() => z.object
   required: z.boolean().default(false),
   options: z.array(z.string()).optional(),
   subFields: z.lazy(() => z.array(DynamicFieldSchema)).optional(),
+  referenceApiEndpoint: z.string().optional(),
+  referenceValueKey: z.string().optional(),
+  referenceLabelKey: z.string().optional(),
 }));
 
 export const SchemaCategorySchema = z.enum(["hero", "mode", "patch", "event", "item", "map"]);

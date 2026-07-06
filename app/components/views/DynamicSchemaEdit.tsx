@@ -19,6 +19,8 @@ import { assertSafeGameSlug } from "~/lib/safe-path";
 import { clearDataCache, useData } from "~/lib/use-data";
 import {
   DynamicSchemaFileSchema,
+  SchemaCategorySchema,
+  getCategoryDirectory,
   type DynamicField,
   type DynamicSchemaFile,
 } from "~/schemas/dynamic-schema";
@@ -427,6 +429,12 @@ export default function DynamicSchemaEdit() {
                           <option value="object_array">
                             Object Group (Nested List)
                           </option>
+                          <option value="reference">
+                            Entity Reference (Single)
+                          </option>
+                          <option value="reference_list">
+                            Entity Reference (Multiple)
+                          </option>
                         </select>
                       </div>
                     </div>
@@ -469,6 +477,59 @@ export default function DynamicSchemaEdit() {
                           rows={4}
                           className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white resize-none transition-colors"
                         />
+                      </div>
+                    ) : field.type === "reference" || field.type === "reference_list" ? (
+                      <div className="flex-1 space-y-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                            API Endpoint
+                          </label>
+                          <input
+                            list={`api-options-${index}`}
+                            value={field.referenceApiEndpoint || ""}
+                            onChange={(e) =>
+                              handleChangeField(index, "referenceApiEndpoint", e.target.value)
+                            }
+                            placeholder="/api/{game}/heroes"
+                            className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                          />
+                          <datalist id={`api-options-${index}`}>
+                            {SchemaCategorySchema.options.map((category) => (
+                              <option
+                                key={category}
+                                value={`/api/{game}/${getCategoryDirectory(category)}`}
+                              />
+                            ))}
+                          </datalist>
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                              Value Key
+                            </label>
+                            <input
+                              value={field.referenceValueKey || ""}
+                              onChange={(e) =>
+                                handleChangeField(index, "referenceValueKey", e.target.value)
+                              }
+                              placeholder="id"
+                              className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                              Label Key
+                            </label>
+                            <input
+                              value={field.referenceLabelKey || ""}
+                              onChange={(e) =>
+                                handleChangeField(index, "referenceLabelKey", e.target.value)
+                              }
+                              placeholder="name"
+                              className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                            />
+                          </div>
+                        </div>
                       </div>
                     ) : field.type === "object_array" ? (
                       <div className="flex-1 flex flex-col items-center justify-center p-4 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl text-gray-500 dark:text-gray-400 text-xs text-center bg-gray-50/50 dark:bg-gray-900/30">
