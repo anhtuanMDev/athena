@@ -5,6 +5,8 @@ const globalCache = new Map<string, { data: unknown; timestamp: number }>();
 const MAX_CACHE_SIZE = 100;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+const inFlight = new Map<string, Promise<any>>();
+
 export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = [], cacheKeyOverride?: string) {
   const key = cacheKeyOverride || (JSON.stringify(deps) + fetcher.toString());
   
@@ -30,8 +32,16 @@ export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = [], cach
       if (!data) setLoading(true);
       setError(null);
 
-      fetcher()
-        .then((d) => {
+      let fetchPromise = inFlight.get(key);
+      if (!fetchPromise) {
+        fetchPromise = fetcher().finally(() => {
+          inFlight.delete(key);
+        });
+        inFlight.set(key, fetchPromise);
+      }
+
+      fetchPromise
+        .then((d: any) => {
           if (!cancelled) {
             setData(d);
             if (key) {
@@ -44,7 +54,7 @@ export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = [], cach
             setLoading(false);
           }
         })
-        .catch((e) => {
+        .catch((e: any) => {
           if (!cancelled) {
             setError(e);
             setLoading(false);
@@ -56,20 +66,29 @@ export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = [], cach
   }, [...deps, tick]);
 
   useEffect(() => {
-    const handleInvalidate = () => {
-      setTick((t) => t + 1);
+    const handleInvalidate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail?.keyPrefix || (key && key.startsWith(detail.keyPrefix))) {
+        setTick((t) => t + 1);
+      }
     };
     window.addEventListener("CACHE_INVALIDATED", handleInvalidate);
     return () => window.removeEventListener("CACHE_INVALIDATED", handleInvalidate);
-  }, []);
+  }, [key]);
 
   return { data, loading, error };
 }
 
-export function clearDataCache() {
-  globalCache.clear();
+export function clearDataCache(keyPrefix?: string) {
+  if (keyPrefix) {
+    for (const k of globalCache.keys()) {
+      if (k.startsWith(keyPrefix)) globalCache.delete(k);
+    }
+  } else {
+    globalCache.clear();
+  }
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event("CACHE_INVALIDATED"));
+    window.dispatchEvent(new CustomEvent("CACHE_INVALIDATED", { detail: { keyPrefix } }));
   }
 }
 
