@@ -20,4 +20,4 @@ pages_build_output_dir = "./build/client"
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
-id = "placeholder" # Set up in Cloudflare Dashboard
+id = "056c4adeb8e24799b3347215bb49198e"
