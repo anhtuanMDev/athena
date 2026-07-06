@@ -64,6 +64,9 @@ export async function updateFile(path: string, content: unknown, sha: string, me
 }
 
 export async function uploadAsset(path: string, base64Content: string, sha?: string, message?: string): Promise<void> {
+  if (!sha) {
+    sha = await getFileSha(path) || undefined;
+  }
   await api("POST", "data/file", { path, content: base64Content, isBase64: true, sha, message });
 }
 

@@ -38,7 +38,7 @@ export default function NewMode() {
     const generatedId = nameStr.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     
     try {
-      const parsed = ModeSchema.safeParse({ id: generatedId, ...formData });
+      const parsed = ModeSchema.safeParse({ ...formData, id: generatedId });
       if (!parsed.success) {
         setErrors(parsed.error.flatten().fieldErrors as Record<string, string[]>);
         toastError("Validation failed. Check your inputs.");
