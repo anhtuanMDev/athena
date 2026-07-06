@@ -1,7 +1,8 @@
-import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
-import { useFieldArray } from "react-hook-form";
+import type { Control, UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from "react-hook-form";
+import { useFieldArray, Controller } from "react-hook-form";
 import type { ImageEntry } from "~/components/MultiImageUploadField";
 import { FormField } from "~/components/FormField";
+import { DynamicSelectField } from "~/components/DynamicSelectField";
 import { MultiImageUploadField } from "~/components/MultiImageUploadField";
 import type { DynamicField } from "~/schemas/dynamic-schema";
 
@@ -10,13 +11,16 @@ interface AbilitiesFieldProps {
   label: string;
   control: Control<any>;
   register: UseFormRegister<any>;
+  setValue: UseFormSetValue<any>;
+  watch: UseFormWatch<any>;
   errors: FieldErrors<any>;
   abilityIcons: Record<string, ImageEntry[]>;
   setAbilityIcons: (icons: Record<string, ImageEntry[]>) => void;
   subFields?: DynamicField[];
+  options?: string[];
 }
 
-export function AbilitiesField({ name, label, control, register, errors, abilityIcons, setAbilityIcons, subFields }: AbilitiesFieldProps) {
+export function AbilitiesField({ name, label, control, register, setValue, watch, errors, abilityIcons, setAbilityIcons, subFields, options }: AbilitiesFieldProps) {
   const { fields, append, remove } = useFieldArray({
     control,
     name
@@ -58,19 +62,42 @@ export function AbilitiesField({ name, label, control, register, errors, ability
                       {...register(`${name}.${i}.id` as const)}
                       error={!!abilityErrors?.id}
                       helperText={abilityErrors?.id?.message as string}
+                      slotProps={{ inputLabel: { shrink: watch(`${name}.${i}.id`) ? true : undefined } }}
                     />
                     <FormField 
                       label="Name" 
                       {...register(`${name}.${i}.name` as const)}
+                      onChange={(e) => {
+                        register(`${name}.${i}.name` as const).onChange(e);
+                        const newName = e.target.value;
+                        const generatedId = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                        setValue(`${name}.${i}.id`, generatedId, { shouldDirty: true, shouldValidate: true });
+                      }}
                       error={!!abilityErrors?.name}
                       helperText={abilityErrors?.name?.message as string}
                     />
-                    <FormField 
-                      label="Type" 
-                      {...register(`${name}.${i}.type` as const)}
-                      error={!!abilityErrors?.type}
-                      helperText={abilityErrors?.type?.message as string}
-                    />
+                    {options && options.length > 0 ? (
+                      <Controller
+                        name={`${name}.${i}.type` as const}
+                        control={control}
+                        render={({ field }) => (
+                          <DynamicSelectField 
+                            label="Type"
+                            options={options}
+                            error={!!abilityErrors?.type}
+                            helperText={abilityErrors?.type?.message as string}
+                            {...field}
+                          />
+                        )}
+                      />
+                    ) : (
+                      <FormField 
+                        label="Type" 
+                        {...register(`${name}.${i}.type` as const)}
+                        error={!!abilityErrors?.type}
+                        helperText={abilityErrors?.type?.message as string}
+                      />
+                    )}
                   </div>
                   <FormField 
                     label="Description (optional)" 
@@ -83,14 +110,31 @@ export function AbilitiesField({ name, label, control, register, errors, ability
                     <div className="mt-4 pt-4 border-t border-gray-200/50 dark:border-gray-700/50">
                       <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Custom Parameters</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-white/50 dark:bg-black/20 p-3 rounded-lg border border-gray-200/50 dark:border-gray-700/50">
-                        {subFields.map(sf => (
-                          <FormField
-                            key={sf.key}
-                            label={sf.label}
-                            type={sf.type === 'number' ? 'number' : 'text'}
-                            {...register(`${name}.${i}.params.${sf.key}`)}
-                          />
-                        ))}
+                        {subFields.map(sf => {
+                          if (sf.type === 'boolean') {
+                            return (
+                              <div key={sf.key} className="flex items-center gap-3 h-[40px] px-3 border border-gray-200/50 dark:border-gray-700/50 rounded-lg">
+                                <input
+                                  type="checkbox"
+                                  id={`${name}-${i}-params-${sf.key}`}
+                                  className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-800 cursor-pointer"
+                                  {...register(`${name}.${i}.params.${sf.key}`)}
+                                />
+                                <label htmlFor={`${name}-${i}-params-${sf.key}`} className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                                  {sf.label}
+                                </label>
+                              </div>
+                            );
+                          }
+                          return (
+                            <FormField
+                              key={sf.key}
+                              label={sf.label}
+                              type={sf.type === 'number' ? 'number' : 'text'}
+                              {...register(`${name}.${i}.params.${sf.key}`)}
+                            />
+                          );
+                        })}
                       </div>
                     </div>
                   )}

@@ -16,28 +16,41 @@ interface ItemRow {
 
 const columns: Column<ItemRow>[] = [
   { key: "name", header: "Name" },
-  { key: "hero", header: "Hero", render: (i) => i.hero ?? "—" },
-  { key: "mode", header: "Mode", render: (i) => i.mode ?? "—" },
-  { key: "description", header: "Description", render: (i) => i.description ?? "" },
+  { key: "hero", header: "Hero", render: (i) => i.hero ?? "-" },
+  { key: "mode", header: "Mode", render: (i) => i.mode ?? "-" },
+  {
+    key: "description",
+    header: "Description",
+    render: (i) => i.description ?? "",
+  },
 ];
 
 export default function ItemsIndex() {
   const { game } = useParams();
   assertSafeGameSlug(game!);
-  const { data: items, loading, error } = useEntityList<ItemRow>(game!, "items");
+  const {
+    data: items,
+    loading,
+    error,
+  } = useEntityList<ItemRow>(game!, "items");
 
-  if (error) return (
-    <div className="p-8 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400">
-      Error loading items data.
-    </div>
-  );
+  if (error)
+    return (
+      <div className="p-8 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400">
+        Error loading items data.
+      </div>
+    );
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">{game} Items</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Manage equipment and consumables.</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">
+            {game} Items
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            Manage equipment and consumables.
+          </p>
         </div>
         <Link to={`/${game}/items/new`}>
           <Button className="gap-2 shadow-lg shadow-orange-500/20 transition-all hover:shadow-orange-500/40">

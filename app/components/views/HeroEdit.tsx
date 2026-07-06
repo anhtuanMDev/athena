@@ -89,8 +89,15 @@ export default function EditHero() {
     <div className="w-full py-8">
       <Card>
         <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">Edit Hero — {heroResult.data.content.name}</h1>
-          <Button variant="outline" size="small" onClick={() => navigate(`/${game}/schemas`)} className="w-full md:w-auto">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">
+            Edit Hero - {heroResult.data.content.name}
+          </h1>
+          <Button
+            variant="outline"
+            size="small"
+            onClick={() => navigate(`/${game}/schemas`)}
+            className="w-full md:w-auto"
+          >
             Edit Schema
           </Button>
         </CardHeader>
@@ -154,16 +161,34 @@ function EditHeroForm({
     fields.forEach((f) => {
       if (["id", "name", "real_name", "portrait"].includes(f.key)) return;
       let fieldSchema: z.ZodTypeAny =
-        f.type === "number" ? z.coerce.number() : f.type === "boolean" ? z.boolean() : z.string();
+        f.type === "number"
+          ? z.coerce.number()
+          : f.type === "boolean"
+            ? z.boolean()
+            : z.string();
       if (f.type === "list") fieldSchema = z.array(z.string());
       if (f.type === "abilities") fieldSchema = z.array(z.any());
       if (f.type === "object_array") fieldSchema = z.array(z.any());
       if (f.required) {
-        if (f.type === "number") fieldSchema = z.coerce.number().min(1, "Required");
-        else if (f.type === "boolean") fieldSchema = z.boolean().refine(val => val === true, "Required");
+        if (f.type === "number")
+          fieldSchema = z.coerce.number().min(1, "Required");
+        else if (f.type === "boolean")
+          fieldSchema = z.boolean().refine((val) => val === true, "Required");
+        else if (
+          f.type === "list" ||
+          f.type === "abilities" ||
+          f.type === "object_array"
+        )
+          fieldSchema = z.array(z.any()).min(1, "Required");
         else fieldSchema = z.string().min(1, "Required");
       } else {
         if (f.type === "boolean") fieldSchema = z.boolean().optional();
+        else if (
+          f.type === "list" ||
+          f.type === "abilities" ||
+          f.type === "object_array"
+        )
+          fieldSchema = z.array(z.any()).optional();
         else fieldSchema = fieldSchema.optional().or(z.literal(""));
       }
       shape[f.key] = fieldSchema;
@@ -180,6 +205,7 @@ function EditHeroForm({
     register,
     handleSubmit,
     control,
+    watch,
     setValue,
     formState: { errors, isValid, isDirty },
   } = useForm<any>({
@@ -209,22 +235,27 @@ function EditHeroForm({
       }
       if (portraitData) formData.portrait = portraitData;
 
-      // Ensure Kit is formatted correctly
-      formData.kit.forEach((ability: any, i: number) => {
-        if (!ability.params) ability.params = {};
-        const aIcons = abilityIcons[ability.id || i] || [];
-        if (aIcons.length === 1 && aIcons[0].key === "main") {
-          const ext = aIcons[0].name?.split(".").pop() || "png";
-          ability.icon = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
-        } else if (aIcons.length > 0) {
-          ability.icon = {};
-          for (const icon of aIcons) {
-            const ext = icon.name?.split(".").pop() || "png";
-            ability.icon[icon.key] =
-              `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
-          }
-        }
-      });
+      // Ensure Abilities are formatted correctly
+      fields
+        .filter((f) => f.type === "abilities")
+        .forEach((f) => {
+          const abilityList = formData[f.key] || [];
+          abilityList.forEach((ability: any, i: number) => {
+            if (!ability.params) ability.params = {};
+            const aIcons = abilityIcons[ability.id || i] || [];
+            if (aIcons.length === 1 && aIcons[0].key === "main") {
+              const ext = aIcons[0].name?.split(".").pop() || "png";
+              ability.icon = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
+            } else if (aIcons.length > 0) {
+              ability.icon = {};
+              for (const icon of aIcons) {
+                const ext = icon.name?.split(".").pop() || "png";
+                ability.icon[icon.key] =
+                  `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
+              }
+            }
+          });
+        });
 
       const parsed = dynamicZodSchema.parse(formData) as any;
       const diffs = computeDiff(hero, parsed);
@@ -378,10 +409,13 @@ function EditHeroForm({
                   label={f.label}
                   control={control}
                   register={register}
+                  setValue={setValue}
+                  watch={watch}
                   errors={errors}
                   abilityIcons={abilityIcons}
                   setAbilityIcons={setAbilityIcons}
                   subFields={f.subFields || []}
+                  options={f.options}
                 />
               </div>
             );
@@ -389,7 +423,7 @@ function EditHeroForm({
           if (f.type === "object_array") {
             return (
               <div className="col-span-1 md:col-span-2" key={f.key}>
-                <ObjectArrayField 
+                <ObjectArrayField
                   name={f.key}
                   label={f.label}
                   control={control}
@@ -402,39 +436,48 @@ function EditHeroForm({
           }
           if (f.type === "enum" || f.type === "list") {
             return (
-              <Controller
-                key={f.key}
-                name={f.key}
-                control={control}
-                render={({ field }) => (
-                  <DynamicSelectField
-                    label={f.label}
-                    options={f.options || []}
-                    multiple={f.type === "list"}
-                    required={f.required}
-                    error={!!errors[f.key]}
-                    helperText={errors[f.key]?.message as string}
-                    currentValue={field.value}
-                    {...field}
-                  />
-                )}
-              />
+              <div className="col-span-1 md:col-span-2" key={f.key}>
+                <Controller
+                  name={f.key}
+                  control={control}
+                  render={({ field }) => (
+                    <DynamicSelectField
+                      label={f.label}
+                      options={f.options || []}
+                      multiple={f.type === "list"}
+                      required={f.required}
+                      error={!!errors[f.key]}
+                      helperText={errors[f.key]?.message as string}
+                      currentValue={field.value}
+                      {...field}
+                    />
+                  )}
+                />
+              </div>
             );
           }
           if (f.type === "boolean") {
             return (
-              <div key={f.key} className="flex items-center gap-3 h-[40px] px-3 mt-1 border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-transparent">
+              <div
+                key={f.key}
+                className="flex items-center gap-3 h-[40px] px-3 mt-1 border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-transparent"
+              >
                 <input
                   type="checkbox"
                   id={`field-${f.key}`}
                   className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-800 cursor-pointer"
                   {...register(f.key)}
                 />
-                <label htmlFor={`field-${f.key}`} className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                <label
+                  htmlFor={`field-${f.key}`}
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none"
+                >
                   {f.label}
                 </label>
                 {errors[f.key] && (
-                  <span className="text-xs text-red-500 ml-auto">{(errors[f.key] as any)?.message}</span>
+                  <span className="text-xs text-red-500 ml-auto">
+                    {(errors[f.key] as any)?.message}
+                  </span>
                 )}
               </div>
             );
@@ -479,7 +522,7 @@ function EditHeroForm({
           </Button>
           <Button
             type="submit"
-            disabled={submitting || !isValid || !isDirty}
+            disabled={submitting || !isDirty}
             className="shadow-lg shadow-orange-500/20"
           >
             {submitting ? "Processing..." : "Preview Changes"}

@@ -16,22 +16,29 @@ export default function CronJobNew() {
   const { success: toastSuccess, error: toastError } = useToast();
 
   const [schemas, setSchemas] = useState<DynamicSchemaFile[]>([]);
-  const [selectedSchema, setSelectedSchema] = useState<DynamicSchemaFile | null>(null);
+  const [selectedSchema, setSelectedSchema] =
+    useState<DynamicSchemaFile | null>(null);
 
   const [name, setName] = useState("");
   const [apiEndpoint, setApiEndpoint] = useState("");
   const [schemaId, setSchemaId] = useState("");
   const [schedule, setSchedule] = useState("manual");
   const [active, setActive] = useState(true);
-  const [fieldMappings, setFieldMappings] = useState<Record<string, string>>({});
-  
+  const [fieldMappings, setFieldMappings] = useState<Record<string, string>>(
+    {},
+  );
+
   const [submitting, setSubmitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadSchemas() {
       try {
-        const loadedSchemas = await listDirectory<DynamicSchemaFile>(game!, "schemas", true);
+        const loadedSchemas = await listDirectory<DynamicSchemaFile>(
+          game!,
+          "schemas",
+          true,
+        );
         setSchemas(loadedSchemas);
       } catch (e) {
         console.error("Failed to load schemas", e);
@@ -42,11 +49,11 @@ export default function CronJobNew() {
 
   useEffect(() => {
     if (schemaId) {
-      const schema = schemas.find(s => s.id === schemaId);
+      const schema = schemas.find((s) => s.id === schemaId);
       setSelectedSchema(schema || null);
       if (schema) {
         const newMappings: Record<string, string> = {};
-        schema.fields.forEach(f => {
+        schema.fields.forEach((f) => {
           newMappings[f.key] = fieldMappings[f.key] || "";
         });
         setFieldMappings(newMappings);
@@ -58,21 +65,24 @@ export default function CronJobNew() {
   }, [schemaId, schemas]);
 
   const handleMappingChange = (key: string, value: string) => {
-    setFieldMappings(prev => ({ ...prev, [key]: value }));
+    setFieldMappings((prev) => ({ ...prev, [key]: value }));
   };
 
   async function handleCommit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setCommitError(null);
-    
+
     if (!name.trim()) {
       setCommitError("Name is required.");
       setSubmitting(false);
       return;
     }
 
-    const generatedId = `cron-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
+    const generatedId = `cron-${name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")}`;
 
     const newCron = {
       id: generatedId,
@@ -93,15 +103,23 @@ export default function CronJobNew() {
     }
 
     try {
-      const exists = await getFile(`data/${game}/cron_jobs/${parsed.data.id}.json`);
+      const exists = await getFile(
+        `data/${game}/cron_jobs/${parsed.data.id}.json`,
+      );
       if (exists) {
-        setCommitError(`A cron job with ID "${parsed.data.id}" already exists.`);
+        setCommitError(
+          `A cron job with ID "${parsed.data.id}" already exists.`,
+        );
         toastError("A cron job with this ID already exists.");
         setSubmitting(false);
         return;
       }
-      
-      await createFile(`data/${game}/cron_jobs/${parsed.data.id}.json`, parsed.data, `Add cron job: ${parsed.data.name}`);
+
+      await createFile(
+        `data/${game}/cron_jobs/${parsed.data.id}.json`,
+        parsed.data,
+        `Add cron job: ${parsed.data.name}`,
+      );
       toastSuccess(`Cron Job ${parsed.data.name} created successfully!`);
       navigate(`/${game}/cron`);
     } catch (err) {
@@ -115,11 +133,10 @@ export default function CronJobNew() {
   return (
     <div className="w-full py-8 pb-32">
       <form onSubmit={handleCommit} className="space-y-8">
-        
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <button 
+            <button
               type="button"
               onClick={() => navigate(`/${game}/cron`)}
               className="flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors mb-2"
@@ -128,15 +145,23 @@ export default function CronJobNew() {
             </button>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
               <Clock className="w-8 h-8 text-orange-500" />
-              New Cron Job — <span className="capitalize">{game}</span>
+              New Cron Job - <span className="capitalize">{game}</span>
             </h1>
           </div>
 
           <div className="flex items-center gap-3">
-            <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/cron`)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => navigate(`/${game}/cron`)}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20 px-8">
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="shadow-lg shadow-orange-500/20 px-8"
+            >
               {submitting ? "Creating..." : "Create Cron Job"}
             </Button>
           </div>
@@ -156,11 +181,11 @@ export default function CronJobNew() {
                 <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
                   Cron Job Name
                 </label>
-                <input 
-                  value={name} 
+                <input
+                  value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Sync Heroes Daily" 
-                  className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors" 
+                  placeholder="e.g. Sync Heroes Daily"
+                  className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                   required
                 />
               </div>
@@ -168,15 +193,19 @@ export default function CronJobNew() {
                 <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
                   Target Schema
                 </label>
-                <select 
-                  value={schemaId} 
+                <select
+                  value={schemaId}
                   onChange={(e) => setSchemaId(e.target.value)}
                   className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                   required
                 >
-                  <option value="" disabled>Select a schema...</option>
-                  {schemas.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.category})</option>
+                  <option value="" disabled>
+                    Select a schema...
+                  </option>
+                  {schemas.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.category})
+                    </option>
                   ))}
                 </select>
               </div>
@@ -187,11 +216,11 @@ export default function CronJobNew() {
                 <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
                   API Endpoint URL
                 </label>
-                <input 
-                  value={apiEndpoint} 
+                <input
+                  value={apiEndpoint}
                   onChange={(e) => setApiEndpoint(e.target.value)}
-                  placeholder="https://api.example.com/data" 
-                  className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors" 
+                  placeholder="https://api.example.com/data"
+                  className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                   type="url"
                   required
                 />
@@ -200,8 +229,8 @@ export default function CronJobNew() {
                 <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
                   Schedule
                 </label>
-                <select 
-                  value={schedule} 
+                <select
+                  value={schedule}
                   onChange={(e) => setSchedule(e.target.value)}
                   className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                 >
@@ -214,14 +243,17 @@ export default function CronJobNew() {
             </div>
 
             <div className="flex items-center gap-3 pt-2">
-              <input 
+              <input
                 type="checkbox"
                 id="active"
                 checked={active}
                 onChange={(e) => setActive(e.target.checked)}
                 className="w-5 h-5 rounded border-gray-300 dark:border-gray-700 text-orange-600 focus:ring-orange-500"
               />
-              <label htmlFor="active" className="text-sm font-bold text-gray-900 dark:text-gray-100 cursor-pointer">
+              <label
+                htmlFor="active"
+                className="text-sm font-bold text-gray-900 dark:text-gray-100 cursor-pointer"
+              >
                 Job is Active
               </label>
             </div>
@@ -232,25 +264,37 @@ export default function CronJobNew() {
         {selectedSchema && (
           <div className="space-y-6">
             <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">API Data Mapping</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
+                API Data Mapping
+              </h2>
             </div>
             <p className="text-sm text-gray-500">
-              Define the JSON path from the API response that maps to each field in the <strong>{selectedSchema.name}</strong> schema.
+              Define the JSON path from the API response that maps to each field
+              in the <strong>{selectedSchema.name}</strong> schema.
             </p>
 
             <div className="space-y-4">
               {selectedSchema.fields.map((field) => (
-                <div key={field.key} className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                <div
+                  key={field.key}
+                  className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm"
+                >
                   <div className="flex flex-col justify-center">
-                    <span className="font-bold text-gray-900 dark:text-gray-100">{field.label}</span>
-                    <span className="text-xs text-gray-500 font-mono mt-1">{field.key} ({field.type})</span>
+                    <span className="font-bold text-gray-900 dark:text-gray-100">
+                      {field.label}
+                    </span>
+                    <span className="text-xs text-gray-500 font-mono mt-1">
+                      {field.key} ({field.type})
+                    </span>
                   </div>
                   <div>
-                    <input 
-                      value={fieldMappings[field.key] || ""} 
-                      onChange={(e) => handleMappingChange(field.key, e.target.value)}
-                      placeholder={`e.g. data.attributes.${field.key}`} 
-                      className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors" 
+                    <input
+                      value={fieldMappings[field.key] || ""}
+                      onChange={(e) =>
+                        handleMappingChange(field.key, e.target.value)
+                      }
+                      placeholder={`e.g. data.attributes.${field.key}`}
+                      className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                     />
                   </div>
                 </div>
@@ -258,7 +302,6 @@ export default function CronJobNew() {
             </div>
           </div>
         )}
-
       </form>
     </div>
   );

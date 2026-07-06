@@ -327,18 +327,20 @@ export default function DynamicSchemaEdit() {
 
                   {/* Right Column: Config & Actions */}
                   <div className="lg:col-span-4 h-full flex flex-col">
-                    {(field.type === "enum" || field.type === "list") ? (
+                    {(field.type === "enum" || field.type === "list" || field.type === "abilities") ? (
                       <div className="flex-1">
-                        <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Options (One per line)</label>
+                        <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                          {field.type === "abilities" ? "Ability Types (Optional, one per line)" : "Options (One per line)"}
+                        </label>
                         <textarea 
                           value={field.options?.join("\n") || ""} 
                           onChange={(e) => handleChangeField(index, 'options', e.target.value)}
-                          placeholder="Tank&#10;Damage&#10;Support"
+                          placeholder={field.type === "abilities" ? "Ultimate\nPassive\nPrimary Fire" : "Tank\nDamage\nSupport"}
                           rows={4}
                           className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white resize-none transition-colors" 
                         />
                       </div>
-                    ) : (field.type === "abilities" || field.type === "object_array") ? (
+                    ) : field.type === "object_array" ? (
                       <div className="flex-1 flex flex-col items-center justify-center p-4 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl text-gray-500 dark:text-gray-400 text-xs text-center bg-gray-50/50 dark:bg-gray-900/30">
                         {(field.subFields || []).length} custom sub-fields configured
                       </div>

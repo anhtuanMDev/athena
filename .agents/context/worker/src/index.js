@@ -1,5 +1,5 @@
 /**
- * Hero Shooter Info API — Cloudflare Worker
+ * Hero Shooter Info API - Cloudflare Worker
  *
  * Routes:
  *   GET /api/games
@@ -15,7 +15,7 @@
  * constants below directly if you're not using wrangler vars).
  */
 
-const CACHE_TTL_SECONDS = 60 * 60; // 1 hour — GitHub raw content changes rarely
+const CACHE_TTL_SECONDS = 60 * 60; // 1 hour - GitHub raw content changes rarely
 
 function githubRawBase(env) {
   const owner = env.GITHUB_OWNER || "YOUR_ORG";
@@ -58,7 +58,10 @@ async function fetchGithubJson(path, env, ctx) {
 
   const cloned = upstream.clone();
   const cacheableResponse = new Response(cloned.body, {
-    headers: { "content-type": "application/json", "cache-control": `max-age=${CACHE_TTL_SECONDS}` },
+    headers: {
+      "content-type": "application/json",
+      "cache-control": `max-age=${CACHE_TTL_SECONDS}`,
+    },
   });
   ctx.waitUntil(cache.put(cacheKey, cacheableResponse));
 
@@ -91,7 +94,10 @@ async function listDirectory(game, subpath, env, ctx) {
   if (cached) return cached.json();
 
   const upstream = await fetch(url, {
-    headers: { "User-Agent": "hero-shooter-info-api", "Accept": "application/vnd.github.v3+json" },
+    headers: {
+      "User-Agent": "hero-shooter-info-api",
+      Accept: "application/vnd.github.v3+json",
+    },
   });
   if (!upstream.ok) return [];
 
@@ -101,7 +107,10 @@ async function listDirectory(game, subpath, env, ctx) {
     .map((entry) => entry.name.replace(".json", ""));
 
   const cacheableResponse = new Response(JSON.stringify(files), {
-    headers: { "content-type": "application/json", "cache-control": `max-age=${CACHE_TTL_SECONDS}` },
+    headers: {
+      "content-type": "application/json",
+      "cache-control": `max-age=${CACHE_TTL_SECONDS}`,
+    },
   });
   ctx.waitUntil(cache.put(cacheKey, cacheableResponse));
 
@@ -149,32 +158,51 @@ export default {
       if (parts.length === 3) {
         const ids = await listDirectory(game, "heroes", env, ctx);
         const heroes = await Promise.all(
-          ids.map((id) => fetchGithubJson(`${game}/heroes/${id}.json`, env, ctx))
+          ids.map((id) =>
+            fetchGithubJson(`${game}/heroes/${id}.json`, env, ctx),
+          ),
         );
-        // Lightweight list view — trim the kit detail so the payload stays small
+        // Lightweight list view - trim the kit detail so the payload stays small
         const lightweight = heroes
           .filter(Boolean)
           .map(({ id, name, roles, difficulty, portrait, tags }) => ({
-            id, name, roles, difficulty, portrait, tags,
+            id,
+            name,
+            roles,
+            difficulty,
+            portrait,
+            tags,
           }));
         return jsonResponse(lightweight);
       }
 
       if (parts.length === 4) {
         const heroId = parts[3];
-        const hero = await fetchGithubJson(`${game}/heroes/${heroId}.json`, env, ctx);
-        return hero ? jsonResponse(hero) : errorResponse(`Hero not found: ${heroId}`);
+        const hero = await fetchGithubJson(
+          `${game}/heroes/${heroId}.json`,
+          env,
+          ctx,
+        );
+        return hero
+          ? jsonResponse(hero)
+          : errorResponse(`Hero not found: ${heroId}`);
       }
     }
 
     // GET /api/:game/patches  and  GET /api/:game/patches/:patch
     if (parts[2] === "patches") {
-      const patchIds = (await listDirectory(game, "patches", env, ctx)).sort().reverse();
+      const patchIds = (await listDirectory(game, "patches", env, ctx))
+        .sort()
+        .reverse();
 
       if (parts.length === 3) {
         if (url.searchParams.get("latest") === "true") {
           if (patchIds.length === 0) return errorResponse("No patches found");
-          const latest = await fetchGithubJson(`${game}/patches/${patchIds[0]}.json`, env, ctx);
+          const latest = await fetchGithubJson(
+            `${game}/patches/${patchIds[0]}.json`,
+            env,
+            ctx,
+          );
           return jsonResponse(latest);
         }
         return jsonResponse(patchIds);
@@ -182,15 +210,23 @@ export default {
 
       if (parts.length === 4) {
         const patchId = parts[3];
-        const patch = await fetchGithubJson(`${game}/patches/${patchId}.json`, env, ctx);
-        return patch ? jsonResponse(patch) : errorResponse(`Patch not found: ${patchId}`);
+        const patch = await fetchGithubJson(
+          `${game}/patches/${patchId}.json`,
+          env,
+          ctx,
+        );
+        return patch
+          ? jsonResponse(patch)
+          : errorResponse(`Patch not found: ${patchId}`);
       }
     }
 
     // GET /api/:game/maps  (same lightweight-list pattern as heroes, add as needed)
     if (parts[2] === "maps" && parts.length === 3) {
       const ids = await listDirectory(game, "maps", env, ctx);
-      const maps = await Promise.all(ids.map((id) => fetchGithubJson(`${game}/maps/${id}.json`, env, ctx)));
+      const maps = await Promise.all(
+        ids.map((id) => fetchGithubJson(`${game}/maps/${id}.json`, env, ctx)),
+      );
       return jsonResponse(maps.filter(Boolean));
     }
 

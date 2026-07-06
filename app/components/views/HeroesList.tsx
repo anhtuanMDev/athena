@@ -14,11 +14,10 @@ interface HeroRow {
   tags?: string[];
 }
 
-const columns: Column<HeroRow>[] = [
-  { key: "name", header: "Name" },
-  { key: "roles", header: "Roles", render: (h) => h.roles?.join(", ") ?? "" },
-  { key: "difficulty", header: "Difficulty" },
-  { key: "tags", header: "Tags", render: (h) => h.tags?.join(", ") ?? "" },
+import { useMemo } from "react";
+
+const baseColumns: Column<any>[] = [
+  { key: "name", header: "Name" }
 ];
 
 export default function HeroesIndex() {
@@ -31,6 +30,43 @@ export default function HeroesIndex() {
       Error loading heroes data.
     </div>
   );
+
+  const columns = useMemo(() => {
+    if (!heroes || heroes.length === 0) return baseColumns;
+    
+    // Auto-detect columns based on the first hero's keys
+    // Exclude standard keys and complex objects
+    const exclude = ["id", "name", "game", "portrait", "kit", "weapon", "abilities", "schema_id", "real_name", "bio"];
+    
+    // We scan all heroes to find up to 3 valid scalar/array keys
+    const dynamicKeys = new Set<string>();
+    for (const h of heroes) {
+      for (const k of Object.keys(h)) {
+        if (!exclude.includes(k)) {
+          const val = (h as any)[k];
+          if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean' || Array.isArray(val)) {
+            dynamicKeys.add(k);
+          }
+        }
+      }
+    }
+    
+    const cols = [...baseColumns];
+    Array.from(dynamicKeys).slice(0, 3).forEach(k => {
+      cols.push({
+        key: k,
+        header: k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, ' '),
+        render: (h) => {
+          const val = (h as any)[k];
+          if (Array.isArray(val)) return val.join(", ");
+          if (typeof val === 'boolean') return val ? "Yes" : "No";
+          return val != null ? String(val) : "";
+        }
+      });
+    });
+    
+    return cols;
+  }, [heroes]);
 
   return (
     <div className="space-y-8">

@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ItemSchema, type Item } from "~/schemas/item";
-import { getFile, updateFile, deleteFile, listDirectory, isConflictError } from "~/lib/github";
+import {
+  getFile,
+  updateFile,
+  deleteFile,
+  listDirectory,
+  isConflictError,
+} from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
@@ -19,15 +25,15 @@ export default function EditItem() {
 
   const itemResult = useData<{ content: Item; sha: string } | null>(
     () => getFile<Item>(`data/${game}/items/${id}.json`),
-    [game, id]
+    [game, id],
   );
   const heroesResult = useData<string[]>(
     () => listDirectory(game!, "heroes"),
-    [game]
+    [game],
   );
   const modesResult = useData<string[]>(
     () => listDirectory(game!, "modes"),
-    [game]
+    [game],
   );
 
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +64,9 @@ export default function EditItem() {
     return (
       <div className="max-w-2xl mx-auto p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
         <h3 className="font-bold text-lg mb-2">Failed to load data</h3>
-        <p>{String(itemResult.error || heroesResult.error || modesResult.error)}</p>
+        <p>
+          {String(itemResult.error || heroesResult.error || modesResult.error)}
+        </p>
       </div>
     );
   }
@@ -105,7 +113,7 @@ export default function EditItem() {
         mode: (raw.mode as string) || undefined,
         effects,
       });
-      
+
       if (!parsed.success) {
         const msgs = Object.values(parsed.error.flatten().fieldErrors).flat();
         setError(msgs.length > 0 ? msgs.join("; ") : "Validation failed");
@@ -132,15 +140,20 @@ export default function EditItem() {
       if (!parsed.data.hero) {
         for (const effect of parsed.data.effects) {
           if (effect.ability_id) {
-            const msg = 'Universal items (no hero) cannot reference a hero-specific ability. Remove "ability_id" from effects or associate this item with a hero.';
+            const msg =
+              'Universal items (no hero) cannot reference a hero-specific ability. Remove "ability_id" from effects or associate this item with a hero.';
             setError(msg);
             toastError(msg);
             return;
           }
         }
       } else {
-        const heroFile = await getFile<{ kit: Array<{ id: string }> }>(`data/${game}/heroes/${parsed.data.hero}.json`);
-        const abilityIds = new Set(heroFile?.content.kit.map(k => k.id) ?? []);
+        const heroFile = await getFile<{ kit: Array<{ id: string }> }>(
+          `data/${game}/heroes/${parsed.data.hero}.json`,
+        );
+        const abilityIds = new Set(
+          heroFile?.content.kit.map((k) => k.id) ?? [],
+        );
         for (const effect of parsed.data.effects) {
           if (!abilityIds.has(effect.ability_id)) {
             const msg = `Hero "${parsed.data.hero}" has no ability "${effect.ability_id}"`;
@@ -152,7 +165,12 @@ export default function EditItem() {
       }
 
       try {
-        await updateFile(`data/${game}/items/${id}.json`, parsed.data, sha, `Update item: ${parsed.data.name}`);
+        await updateFile(
+          `data/${game}/items/${id}.json`,
+          parsed.data,
+          sha,
+          `Update item: ${parsed.data.name}`,
+        );
         toastSuccess(`Item ${parsed.data.name} updated successfully!`);
       } catch (err) {
         if (isConflictError(err)) {
@@ -174,12 +192,21 @@ export default function EditItem() {
 
   async function handleDelete(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!confirm("Are you sure you want to delete this item? This action cannot be undone.")) return;
+    if (
+      !confirm(
+        "Are you sure you want to delete this item? This action cannot be undone.",
+      )
+    )
+      return;
     setSubmitting(true);
     setError(null);
     try {
       try {
-        await deleteFile(`data/${game}/items/${id}.json`, sha, `Delete item: ${id}`);
+        await deleteFile(
+          `data/${game}/items/${id}.json`,
+          sha,
+          `Delete item: ${id}`,
+        );
         toastSuccess("Item deleted successfully.");
       } catch (err) {
         if (isConflictError(err)) {
@@ -203,36 +230,75 @@ export default function EditItem() {
     <div className="max-w-2xl mx-auto">
       <Card>
         <CardHeader>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">Edit Item: {item.name}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">
+            Edit Item: {item.name}
+          </h1>
         </CardHeader>
         <CardContent>
-          {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800/50 mb-4">{error}</p>}
+          {error && (
+            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800/50 mb-4">
+              {error}
+            </p>
+          )}
           <form onSubmit={handleUpdate} className="space-y-5">
             <FormField name="name" label="Name" defaultValue={item.name} />
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="hero" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Hero (optional)</label>
-                <select id="hero" name="hero" defaultValue={item.hero ?? ""}
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
-                  <option value="">— Any —</option>
-                  {heroIds.map(h => <option key={h} value={h}>{h}</option>)}
+                <label
+                  htmlFor="hero"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  Hero (optional)
+                </label>
+                <select
+                  id="hero"
+                  name="hero"
+                  defaultValue={item.hero ?? ""}
+                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                >
+                  <option value="">- Any -</option>
+                  {heroIds.map((h) => (
+                    <option key={h} value={h}>
+                      {h}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label htmlFor="mode" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Mode (optional)</label>
-                <select id="mode" name="mode" defaultValue={item.mode ?? ""}
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
-                  <option value="">— Any —</option>
-                  {modeIds.map(m => <option key={m} value={m}>{m}</option>)}
+                <label
+                  htmlFor="mode"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  Mode (optional)
+                </label>
+                <select
+                  id="mode"
+                  name="mode"
+                  defaultValue={item.mode ?? ""}
+                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                >
+                  <option value="">- Any -</option>
+                  {modeIds.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
 
-            <FormField name="description" label="Description" defaultValue={item.description ?? ""} required={false} />
+            <FormField
+              name="description"
+              label="Description"
+              defaultValue={item.description ?? ""}
+              required={false}
+            />
 
             <div className="space-y-2 pt-2">
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Effects (JSON array)</label>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                Effects (JSON array)
+              </label>
               <textarea
                 name="effects_raw"
                 rows={8}
@@ -242,17 +308,34 @@ export default function EditItem() {
             </div>
 
             <div className="flex gap-4 pt-4">
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20 w-1/2 sm:w-auto">
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="shadow-lg shadow-orange-500/20 w-1/2 sm:w-auto"
+              >
                 {submitting ? "Saving..." : "Save Changes"}
               </Button>
-              <Button type="button" variant="secondary" onClick={() => navigate(`/${game}/items`)} className="w-1/2 sm:w-auto bg-gray-100 dark:bg-gray-800">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => navigate(`/${game}/items`)}
+                className="w-1/2 sm:w-auto bg-gray-100 dark:bg-gray-800"
+              >
                 Cancel
               </Button>
             </div>
           </form>
 
-          <form onSubmit={handleDelete} className="mt-8 pt-6 border-t border-gray-200/50 dark:border-gray-800/50">
-            <Button type="submit" variant="destructive" disabled={submitting} className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/20">
+          <form
+            onSubmit={handleDelete}
+            className="mt-8 pt-6 border-t border-gray-200/50 dark:border-gray-800/50"
+          >
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={submitting}
+              className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/20"
+            >
               Delete Item
             </Button>
           </form>

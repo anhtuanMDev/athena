@@ -4,15 +4,21 @@ import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { HeroSchema } from "~/schemas/hero";
-import { getFile, createFile, uploadAsset } from "~/lib/github";
-import { MultiImageUploadField, type ImageEntry } from "~/components/MultiImageUploadField";
+import { getFile, createFile, uploadAsset, getFileSha } from "~/lib/github";
+import {
+  MultiImageUploadField,
+  type ImageEntry,
+} from "~/components/MultiImageUploadField";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { FormField } from "~/components/FormField";
 import { useData } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
-import { type DynamicSchemaFile, type DynamicField } from "~/schemas/dynamic-schema";
+import {
+  type DynamicSchemaFile,
+  type DynamicField,
+} from "~/schemas/dynamic-schema";
 import { listDirectory } from "~/lib/github";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
 import { AbilitiesField } from "~/components/views/AbilitiesField";
@@ -23,10 +29,22 @@ export default function NewHero() {
   assertSafeGameSlug(game!);
   const navigate = useNavigate();
 
-  const { data, loading, error: fetchError } = useData(async () => {
-    const schemas = await listDirectory<DynamicSchemaFile>(game!, "schemas", true);
-    const heroSchemas = schemas.filter(s => s && s.category === "hero");
-    return { schemas: heroSchemas, schemaCount: heroSchemas.length, game: game! };
+  const {
+    data,
+    loading,
+    error: fetchError,
+  } = useData(async () => {
+    const schemas = await listDirectory<DynamicSchemaFile>(
+      game!,
+      "schemas",
+      true,
+    );
+    const heroSchemas = schemas.filter((s) => s && s.category === "hero");
+    return {
+      schemas: heroSchemas,
+      schemaCount: heroSchemas.length,
+      game: game!,
+    };
   }, [game]);
 
   if (loading) {
@@ -45,12 +63,13 @@ export default function NewHero() {
     );
   }
 
-  if (fetchError) return (
-    <div className="w-full p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
-      <h3 className="font-bold text-lg mb-2">Failed to load schema</h3>
-      <p>{String(fetchError)}</p>
-    </div>
-  );
+  if (fetchError)
+    return (
+      <div className="w-full p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
+        <h3 className="font-bold text-lg mb-2">Failed to load schema</h3>
+        <p>{String(fetchError)}</p>
+      </div>
+    );
   if (!data) return null;
 
   if (data.schemaCount === 0) {
@@ -58,9 +77,15 @@ export default function NewHero() {
       <div className="w-full py-8">
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">No Schema Configured</h3>
-            <p className="text-sm text-gray-500 mt-2 mb-4">You must create a schema for Heroes before adding entries.</p>
-            <Button onClick={() => navigate(`/${data.game}/schemas/new`)}>Create Schema</Button>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              No Schema Configured
+            </h3>
+            <p className="text-sm text-gray-500 mt-2 mb-4">
+              You must create a schema for Heroes before adding entries.
+            </p>
+            <Button onClick={() => navigate(`/${data.game}/schemas/new`)}>
+              Create Schema
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -71,8 +96,15 @@ export default function NewHero() {
     <div className="w-full py-8">
       <Card>
         <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">New Hero — {data.game}</h1>
-          <Button variant="outline" size="small" onClick={() => navigate(`/${data.game}/schemas`)} className="w-full md:w-auto">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">
+            New Hero - {data.game}
+          </h1>
+          <Button
+            variant="outline"
+            size="small"
+            onClick={() => navigate(`/${data.game}/schemas`)}
+            className="w-full md:w-auto"
+          >
             Edit Schema
           </Button>
         </CardHeader>
@@ -84,7 +116,13 @@ export default function NewHero() {
   );
 }
 
-function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: string }) {
+function HeroForm({
+  schemas,
+  game,
+}: {
+  schemas: DynamicSchemaFile[];
+  game: string;
+}) {
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
   const [submitting, setSubmitting] = useState(false);
@@ -93,32 +131,58 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
   // Images state is handled outside react-hook-form as it's complex media
   const [portraits, setPortraits] = useState<ImageEntry[]>([]);
   // We'll manage ability icons parallel to the react-hook-form array
-  const [abilityIcons, setAbilityIcons] = useState<Record<string, ImageEntry[]>>({});
+  const [abilityIcons, setAbilityIcons] = useState<
+    Record<string, ImageEntry[]>
+  >({});
 
-  const [selectedSchemaId, setSelectedSchemaId] = useState<string>(schemas[0]?.id || "");
-  const activeSchema = useMemo(() => schemas.find(s => s.id === selectedSchemaId) || schemas[0], [schemas, selectedSchemaId]);
+  const [selectedSchemaId, setSelectedSchemaId] = useState<string>(
+    schemas[0]?.id || "",
+  );
+  const activeSchema = useMemo(
+    () => schemas.find((s) => s.id === selectedSchemaId) || schemas[0],
+    [schemas, selectedSchemaId],
+  );
   const fields = activeSchema?.fields || [];
 
   const dynamicZodSchema = useMemo(() => {
     let shape: Record<string, z.ZodTypeAny> = {};
-    fields.forEach(f => {
+    fields.forEach((f) => {
       if (["id", "name", "real_name", "portrait"].includes(f.key)) return;
-      let fieldSchema: z.ZodTypeAny = f.type === "number" ? z.coerce.number() : f.type === "boolean" ? z.boolean() : z.string();
-      if (f.type === "list") fieldSchema = z.array(z.string()); 
+      let fieldSchema: z.ZodTypeAny =
+        f.type === "number"
+          ? z.coerce.number()
+          : f.type === "boolean"
+            ? z.boolean()
+            : z.string();
+      if (f.type === "list") fieldSchema = z.array(z.string());
       if (f.type === "abilities") fieldSchema = z.array(z.any());
       if (f.type === "object_array") fieldSchema = z.array(z.any());
       if (f.required) {
-        if (f.type === "number") fieldSchema = z.coerce.number().min(1, "Required");
-        else if (f.type === "boolean") fieldSchema = z.boolean().refine(val => val === true, "Required");
+        if (f.type === "number")
+          fieldSchema = z.coerce.number().min(1, "Required");
+        else if (f.type === "boolean")
+          fieldSchema = z.boolean().refine((val) => val === true, "Required");
+        else if (
+          f.type === "list" ||
+          f.type === "abilities" ||
+          f.type === "object_array"
+        )
+          fieldSchema = z.array(z.any()).min(1, "Required");
         else fieldSchema = z.string().min(1, "Required");
       } else {
         if (f.type === "boolean") fieldSchema = z.boolean().optional();
+        else if (
+          f.type === "list" ||
+          f.type === "abilities" ||
+          f.type === "object_array"
+        )
+          fieldSchema = z.array(z.any()).optional();
         else fieldSchema = fieldSchema.optional().or(z.literal(""));
       }
       shape[f.key] = fieldSchema;
     });
-    
-    // We expect kit abilities to have id, name, type. We don't dynamically validate params yet since it's freeform in the schema, 
+
+    // We expect kit abilities to have id, name, type. We don't dynamically validate params yet since it's freeform in the schema,
     // but we ensure the core kit shape is valid.
     return HeroSchema.extend(shape).strict();
   }, [fields]);
@@ -129,7 +193,7 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
     control,
     watch,
     setValue,
-    formState: { errors, isValid, touchedFields }
+    formState: { errors, isValid, touchedFields },
   } = useForm<any>({
     resolver: zodResolver(dynamicZodSchema),
     mode: "onChange",
@@ -141,9 +205,8 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
       real_name: "",
       portrait: "",
       kit: [] as any[],
-    }
+    },
   });
-
 
   const nameValue = watch("name");
 
@@ -151,10 +214,16 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
 
   // Auto-generate ID from Name if the ID field hasn't been manually touched
   useEffect(() => {
-    if (nameValue && typeof nameValue === 'string' && !touchedFields.id) {
-      const generatedId = nameValue.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    if (nameValue && typeof nameValue === "string" && !touchedFields.id) {
+      const generatedId = nameValue
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
       if (idValue !== generatedId) {
-        setValue("id", generatedId, { shouldValidate: true, shouldDirty: true });
+        setValue("id", generatedId, {
+          shouldValidate: true,
+          shouldDirty: true,
+        });
       }
     }
   }, [nameValue, touchedFields.id, setValue, idValue]);
@@ -171,7 +240,8 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
         return;
       }
       // Handle Portraits
-      let portraitData: string | Record<string, string> = formData.portrait || "";
+      let portraitData: string | Record<string, string> =
+        formData.portrait || "";
       if (portraits.length === 1 && portraits[0].key === "main") {
         const ext = portraits[0].name?.split(".").pop() || "png";
         portraitData = `/api/assets/${game}/heroes/${id}/portrait.${ext}`;
@@ -179,46 +249,56 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
         portraitData = {};
         for (const p of portraits) {
           const ext = p.name?.split(".").pop() || "png";
-          (portraitData as Record<string, string>)[p.key] = `/api/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
+          (portraitData as Record<string, string>)[p.key] =
+            `/api/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
         }
       }
       if (portraitData) formData.portrait = portraitData;
 
-      const abilityUploads: { path: string; base64: string; message: string }[] = [];
-      formData.kit.forEach((ability: any, i: number) => {
-        // Build ability params object from dynamically prefixed inputs
-        // (Since react-hook-form manages kit[i].params natively if registered as kit.${i}.params.key, 
-        // we assume it's already structured, but in HeroNew we previously had flat inputs. 
-        // We ensure params is an object.)
-        if (!ability.params) ability.params = {};
+      const abilityUploads: {
+        path: string;
+        base64: string;
+        message: string;
+      }[] = [];
+      // Ensure Abilities are formatted correctly (icons processing)
+      fields
+        .filter((f) => f.type === "abilities")
+        .forEach((f) => {
+          const abilityList = formData[f.key] || [];
+          abilityList.forEach((ability: any, i: number) => {
+            if (!ability.params) ability.params = {};
 
-        const aIcons = abilityIcons[ability.id || i] || [];
-        if (aIcons.length === 1 && aIcons[0].key === "main") {
-          const ext = aIcons[0].name?.split(".").pop() || "png";
-          const displayPath = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
-          const uploadPath = `public/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
-          ability.icon = displayPath;
-          if (aIcons[0].base64) abilityUploads.push({ path: uploadPath, base64: aIcons[0].base64, message: `Add ${ability.name} icon for ${id}` });
-        } else if (aIcons.length > 0) {
-          ability.icon = {};
-          for (const icon of aIcons) {
-            const ext = icon.name?.split(".").pop() || "png";
-            const displayPath = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
-            const uploadPath = `public/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
-            ability.icon[icon.key] = displayPath;
-            if (icon.base64) abilityUploads.push({ path: uploadPath, base64: icon.base64, message: `Add ${ability.name} ${icon.key} icon for ${id}` });
-          }
-        }
-      });
+            const aIcons = abilityIcons[ability.id || i] || [];
+            if (aIcons.length === 1 && aIcons[0].key === "main") {
+              const ext = aIcons[0].name?.split(".").pop() || "png";
+              const displayPath = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
+              const uploadPath = `public/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
+              ability.icon = displayPath;
+              if (aIcons[0].base64)
+                abilityUploads.push({
+                  path: uploadPath,
+                  base64: aIcons[0].base64,
+                  message: `Add ${ability.name} icon for ${id}`,
+                });
+            } else if (aIcons.length > 0) {
+              ability.icon = {};
+              for (const icon of aIcons) {
+                const ext = icon.name?.split(".").pop() || "png";
+                const displayPath = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
+                const uploadPath = `public/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
+                ability.icon[icon.key] = displayPath;
+                if (icon.base64)
+                  abilityUploads.push({
+                    path: uploadPath,
+                    base64: icon.base64,
+                    message: `Add ${ability.name} ${icon.key} icon for ${id}`,
+                  });
+              }
+            }
+          });
+        });
 
       const parsed = dynamicZodSchema.parse(formData) as any;
-
-      if (!parsed.kit.length) {
-        setSubmitError("At least one ability is required");
-        toastError("A hero must have at least one ability in their kit.");
-        setSubmitting(false);
-        return;
-      }
 
       const exists = await getFile(`data/${game}/heroes/${parsed.id}.json`);
       if (exists) {
@@ -232,18 +312,39 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
       for (const p of portraits) {
         if (p.base64) {
           const ext = p.name?.split(".").pop() || "png";
-          const path = (portraits.length === 1 && p.key === "main")
-            ? `public/assets/${game}/heroes/${id}/portrait.${ext}`
-            : `public/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
-          uploads.push(uploadAsset(path, p.base64, undefined, `Add portrait ${p.key} for ${id}`));
+          const path =
+            portraits.length === 1 && p.key === "main"
+              ? `public/assets/${game}/heroes/${id}/portrait.${ext}`
+              : `public/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
+          const sha = await getFileSha(path);
+          uploads.push(
+            uploadAsset(
+              path,
+              p.base64,
+              sha || undefined,
+              `Add portrait ${p.key} for ${id}`,
+            ),
+          );
         }
       }
       for (const upload of abilityUploads) {
-        uploads.push(uploadAsset(upload.path, upload.base64, undefined, upload.message));
+        const sha = await getFileSha(upload.path);
+        uploads.push(
+          uploadAsset(
+            upload.path,
+            upload.base64,
+            sha || undefined,
+            upload.message,
+          ),
+        );
       }
       if (uploads.length > 0) await Promise.all(uploads);
 
-      await createFile(`data/${game}/heroes/${parsed.id}.json`, parsed, `Add hero: ${parsed.name}`);
+      await createFile(
+        `data/${game}/heroes/${parsed.id}.json`,
+        parsed,
+        `Add hero: ${parsed.name}`,
+      );
       toastSuccess(`Hero ${parsed.name} created successfully!`);
       navigate(`/${game}/heroes`);
     } catch (err) {
@@ -258,13 +359,17 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       {submitError && (
-        <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">{submitError}</div>
+        <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">
+          {submitError}
+        </div>
       )}
 
       {schemas.length > 1 && (
         <div className="mb-8 p-4 bg-gray-50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-800 rounded-xl">
-          <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300">Hero Schema Profile</label>
-          <select 
+          <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300">
+            Hero Schema Profile
+          </label>
+          <select
             className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
             value={selectedSchemaId}
             onChange={(e) => {
@@ -272,32 +377,36 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
               setValue("schema_id", e.target.value, { shouldDirty: true });
             }}
           >
-            {schemas.map(s => (
-              <option key={s.id} value={s.id}>{s.name} ({s.id})</option>
+            {schemas.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.id})
+              </option>
             ))}
           </select>
-          <p className="text-xs text-gray-500 mt-2">Changing the schema will update the available fields below.</p>
+          <p className="text-xs text-gray-500 mt-2">
+            Changing the schema will update the available fields below.
+          </p>
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <FormField 
-          label="Agent Code Name" 
-          placeholder="e.g. Tracer" 
-          {...register("name")} 
+        <FormField
+          label="Agent Code Name"
+          placeholder="e.g. Tracer"
+          {...register("name")}
           error={!!errors.name}
           helperText={errors.name?.message as string}
         />
-        <FormField 
-          label="Real Fullname (optional)" 
-          placeholder="e.g. Lena Oxton" 
-          {...register("real_name")} 
+        <FormField
+          label="Real Fullname (optional)"
+          placeholder="e.g. Lena Oxton"
+          {...register("real_name")}
           error={!!errors.real_name}
           helperText={errors.real_name?.message as string}
         />
-        <FormField 
-          label="Generated ID" 
-          placeholder="tracer" 
+        <FormField
+          label="Generated ID"
+          placeholder="tracer"
           {...register("id")}
           error={!!errors.id}
           helperText={errors.id?.message as string}
@@ -306,12 +415,17 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
       </div>
 
       <div className="border border-gray-200 dark:border-gray-800 p-4 rounded-xl bg-gray-50/50 dark:bg-gray-800/30">
-        <MultiImageUploadField label="Portraits" entries={portraits} onChange={setPortraits} defaultKey="main" />
+        <MultiImageUploadField
+          label="Portraits"
+          entries={portraits}
+          onChange={setPortraits}
+          defaultKey="main"
+        />
         {portraits.length === 0 && (
           <div className="mt-4">
-            <FormField 
-              label="Or Image URL" 
-              placeholder="https://..." 
+            <FormField
+              label="Or Image URL"
+              placeholder="https://..."
               {...register("portrait")}
               error={!!errors.portrait}
               helperText={errors.portrait?.message as string}
@@ -322,19 +436,23 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
         {fields.map((f: DynamicField) => {
-          if (["id", "name", "real_name", "portrait"].includes(f.key)) return null;
+          if (["id", "name", "real_name", "portrait"].includes(f.key))
+            return null;
           if (f.type === "abilities") {
             return (
               <div className="col-span-1 md:col-span-2" key={f.key}>
-                <AbilitiesField 
+                <AbilitiesField
                   name={f.key}
                   label={f.label}
                   control={control}
                   register={register}
+                  setValue={setValue}
+                  watch={watch}
                   errors={errors}
                   abilityIcons={abilityIcons}
                   setAbilityIcons={setAbilityIcons}
                   subFields={f.subFields || []}
+                  options={f.options}
                 />
               </div>
             );
@@ -342,7 +460,7 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
           if (f.type === "object_array") {
             return (
               <div className="col-span-1 md:col-span-2" key={f.key}>
-                <ObjectArrayField 
+                <ObjectArrayField
                   name={f.key}
                   label={f.label}
                   control={control}
@@ -355,48 +473,57 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
           }
           if (f.type === "enum" || f.type === "list") {
             return (
-              <Controller
-                key={f.key}
-                name={f.key}
-                control={control}
-                render={({ field }) => (
-                  <DynamicSelectField 
-                    label={f.label}
-                    options={f.options || []}
-                    multiple={f.type === "list"}
-                    required={f.required}
-                    error={!!errors[f.key]}
-                    helperText={errors[f.key]?.message as string}
-                    {...field}
-                  />
-                )}
-              />
+              <div className="col-span-1 md:col-span-2" key={f.key}>
+                <Controller
+                  name={f.key}
+                  control={control}
+                  render={({ field }) => (
+                    <DynamicSelectField
+                      label={f.label}
+                      options={f.options || []}
+                      multiple={f.type === "list"}
+                      required={f.required}
+                      error={!!errors[f.key]}
+                      helperText={errors[f.key]?.message as string}
+                      {...field}
+                    />
+                  )}
+                />
+              </div>
             );
           }
           if (f.type === "boolean") {
             return (
-              <div key={f.key} className="flex items-center gap-3 h-[40px] px-3 mt-1 border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-transparent">
+              <div
+                key={f.key}
+                className="flex items-center gap-3 h-[40px] px-3 mt-1 border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-transparent"
+              >
                 <input
                   type="checkbox"
                   id={`field-${f.key}`}
                   className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-800 cursor-pointer"
                   {...register(f.key)}
                 />
-                <label htmlFor={`field-${f.key}`} className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                <label
+                  htmlFor={`field-${f.key}`}
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none"
+                >
                   {f.label}
                 </label>
                 {errors[f.key] && (
-                  <span className="text-xs text-red-500 ml-auto">{(errors[f.key] as any)?.message}</span>
+                  <span className="text-xs text-red-500 ml-auto">
+                    {(errors[f.key] as any)?.message}
+                  </span>
                 )}
               </div>
             );
           }
           return (
-            <FormField 
+            <FormField
               key={f.key}
-              label={f.label} 
-              required={f.required} 
-              type={f.type === "number" ? "number" : "text"} 
+              label={f.label}
+              required={f.required}
+              type={f.type === "number" ? "number" : "text"}
               {...register(f.key)}
               error={!!errors[f.key]}
               helperText={errors[f.key]?.message as string}
@@ -408,18 +535,32 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
       <div className="pt-6">
         {Object.keys(errors).length > 0 && (
           <div className="mb-4 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50">
-            <h4 className="text-sm font-bold text-red-800 dark:text-red-400 mb-2">Please fix the following validation errors:</h4>
+            <h4 className="text-sm font-bold text-red-800 dark:text-red-400 mb-2">
+              Please fix the following validation errors:
+            </h4>
             <ul className="list-disc pl-5 text-sm text-red-700 dark:text-red-300 space-y-1">
               {Object.entries(errors).map(([key, err]) => (
                 <li key={key}>
-                  <span className="font-semibold">{key}:</span> {(err as any)?.message || "Invalid value"}
+                  <span className="font-semibold">{key}:</span>{" "}
+                  {(err as any)?.message || "Invalid value"}
                 </li>
               ))}
             </ul>
           </div>
         )}
-        <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/heroes`)} className="mr-3">Cancel</Button>
-        <Button type="submit" disabled={submitting || !isValid} className="shadow-lg shadow-orange-500/20 w-40">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => navigate(`/${game}/heroes`)}
+          className="mr-3"
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={submitting}
+          className="shadow-lg shadow-orange-500/20 w-40"
+        >
           {submitting ? "Creating..." : "Create Hero"}
         </Button>
       </div>

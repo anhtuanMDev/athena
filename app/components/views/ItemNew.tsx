@@ -1,5 +1,7 @@
-
-import { type DynamicSchemaFile, type DynamicField } from "~/schemas/dynamic-schema";
+import {
+  type DynamicSchemaFile,
+  type DynamicField,
+} from "~/schemas/dynamic-schema";
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ItemSchema } from "~/schemas/item";
@@ -18,20 +20,30 @@ export default function NewItem() {
   const { success: toastSuccess, error: toastError } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string[]> | null>(null);
-  
+
   const { data, loading, error } = useData(async () => {
     const heroIds = await listDirectory(game!, "heroes");
     const modeIds = await listDirectory(game!, "modes");
-    
+
     // Load schemas
-    const schemas = await listDirectory<DynamicSchemaFile>(game!, "schemas", true);
-    const itemSchemas = schemas.filter(s => s && s.category === "item");
+    const schemas = await listDirectory<DynamicSchemaFile>(
+      game!,
+      "schemas",
+      true,
+    );
+    const itemSchemas = schemas.filter((s) => s && s.category === "item");
     const allFields: DynamicField[] = [];
     for (const s of itemSchemas) {
       if (s.fields) allFields.push(...s.fields);
     }
-    
-    return { heroes: heroIds, modes: modeIds, fields: allFields, schemaCount: itemSchemas.length, game: game! };
+
+    return {
+      heroes: heroIds,
+      modes: modeIds,
+      fields: allFields,
+      schemaCount: itemSchemas.length,
+      game: game!,
+    };
   }, [game]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -65,7 +77,9 @@ export default function NewItem() {
       });
 
       if (!parsed.success) {
-        setErrors(parsed.error.flatten().fieldErrors as Record<string, string[]>);
+        setErrors(
+          parsed.error.flatten().fieldErrors as Record<string, string[]>,
+        );
         toastError("Validation failed. Check your inputs.");
         return;
       }
@@ -96,8 +110,12 @@ export default function NewItem() {
           }
         }
       } else {
-        const heroFile = await getFile<{ kit: Array<{ id: string }> }>(`data/${game!}/heroes/${parsed.data.hero}.json`);
-        const abilityIds = new Set(heroFile?.content.kit.map(k => k.id) ?? []);
+        const heroFile = await getFile<{ kit: Array<{ id: string }> }>(
+          `data/${game!}/heroes/${parsed.data.hero}.json`,
+        );
+        const abilityIds = new Set(
+          heroFile?.content.kit.map((k) => k.id) ?? [],
+        );
         for (const effect of parsed.data.effects) {
           if (!abilityIds.has(effect.ability_id)) {
             const msg = `Hero "${parsed.data.hero}" has no ability "${effect.ability_id}"`;
@@ -108,14 +126,20 @@ export default function NewItem() {
         }
       }
 
-      const exists = await getFile(`data/${game!}/items/${parsed.data.id}.json`);
+      const exists = await getFile(
+        `data/${game!}/items/${parsed.data.id}.json`,
+      );
       if (exists) {
         setErrors({ id: ["An item with this ID already exists"] });
         toastError("An item with this ID already exists.");
         return;
       }
 
-      await createFile(`data/${game!}/items/${parsed.data.id}.json`, parsed.data, `Add item: ${parsed.data.name}`);
+      await createFile(
+        `data/${game!}/items/${parsed.data.id}.json`,
+        parsed.data,
+        `Add item: ${parsed.data.name}`,
+      );
       toastSuccess(`Item ${parsed.data.name} created successfully!`);
       navigate(`/${game!}/items`);
     } catch (err) {
@@ -144,14 +168,15 @@ export default function NewItem() {
       </div>
     );
   }
-  
-  if (error) return (
-    <div className="w-full p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
-      <h3 className="font-bold text-lg mb-2">Failed to load dependencies</h3>
-      <p>{String(error)}</p>
-    </div>
-  );
-  
+
+  if (error)
+    return (
+      <div className="w-full p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
+        <h3 className="font-bold text-lg mb-2">Failed to load dependencies</h3>
+        <p>{String(error)}</p>
+      </div>
+    );
+
   if (!data) return null;
 
   if (data.schemaCount === 0) {
@@ -159,9 +184,15 @@ export default function NewItem() {
       <div className="w-full py-8">
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">No Schema Configured</h3>
-            <p className="text-sm text-gray-500 mt-2 mb-4">You must create a schema for Items before adding entries.</p>
-            <Button onClick={() => navigate(`/${data.game}/schemas/new`)}>Create Schema</Button>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              No Schema Configured
+            </h3>
+            <p className="text-sm text-gray-500 mt-2 mb-4">
+              You must create a schema for Items before adding entries.
+            </p>
+            <Button onClick={() => navigate(`/${data.game}/schemas/new`)}>
+              Create Schema
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -171,70 +202,166 @@ export default function NewItem() {
   return (
     <div className="w-full py-8">
       <Card>
-        <CardHeader><h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">New Item — {data.game}</h1></CardHeader>
+        <CardHeader>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">
+            New Item - {data.game}
+          </h1>
+        </CardHeader>
         <CardContent>
           {errors?._form && (
-            <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200 mb-4">{errors._form.join(", ")}</div>
+            <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200 mb-4">
+              {errors._form.join(", ")}
+            </div>
           )}
           <form onSubmit={handleSubmit} className="space-y-5">
-            <FormField name="id" label="Item ID (kebab-case)" placeholder="e.g. aghs-scepter" />
-            <FormField name="name" label="Name" placeholder="e.g. Aghanim's Scepter" />
+            <FormField
+              name="id"
+              label="Item ID (kebab-case)"
+              placeholder="e.g. aghs-scepter"
+            />
+            <FormField
+              name="name"
+              label="Name"
+              placeholder="e.g. Aghanim's Scepter"
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="hero" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Hero (optional)</label>
-                <select id="hero" name="hero"
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
-                  <option value="">— Any —</option>
-                  {data.heroes.map(h => <option key={h} value={h}>{h}</option>)}
+                <label
+                  htmlFor="hero"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  Hero (optional)
+                </label>
+                <select
+                  id="hero"
+                  name="hero"
+                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                >
+                  <option value="">- Any -</option>
+                  {data.heroes.map((h) => (
+                    <option key={h} value={h}>
+                      {h}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label htmlFor="mode" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Mode (optional)</label>
-                <select id="mode" name="mode"
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
-                  <option value="">— Any —</option>
-                  {data.modes.map(m => <option key={m} value={m}>{m}</option>)}
+                <label
+                  htmlFor="mode"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  Mode (optional)
+                </label>
+                <select
+                  id="mode"
+                  name="mode"
+                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                >
+                  <option value="">- Any -</option>
+                  {data.modes.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
 
             {data.fields.map((f) => {
-              if (["id", "name", "hero", "mode", "effects", "effects_raw"].includes(f.key)) return null;
+              if (
+                [
+                  "id",
+                  "name",
+                  "hero",
+                  "mode",
+                  "effects",
+                  "effects_raw",
+                ].includes(f.key)
+              )
+                return null;
               if (f.type === "enum" || f.type === "list") {
                 return (
                   <div key={f.key}>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 capitalize mb-1">{f.label}</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 capitalize mb-1">
+                      {f.label}
+                    </label>
                     {f.type === "enum" ? (
-                      <select name={f.key} required={f.required} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
-                        <option value="">— Select {f.label} —</option>
-                        {f.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      <select
+                        name={f.key}
+                        required={f.required}
+                        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                      >
+                        <option value="">- Select {f.label} -</option>
+                        {f.options?.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
                       </select>
                     ) : (
-                      <input name={f.key} placeholder={`${f.label} (comma-separated)`} required={f.required} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+                      <input
+                        name={f.key}
+                        placeholder={`${f.label} (comma-separated)`}
+                        required={f.required}
+                        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                      />
                     )}
                   </div>
                 );
               }
               return (
-                <FormField key={f.key} name={f.key} label={f.label} required={f.required} type={f.type === "number" ? "number" : "text"} />
+                <FormField
+                  key={f.key}
+                  name={f.key}
+                  label={f.label}
+                  required={f.required}
+                  type={f.type === "number" ? "number" : "text"}
+                />
               );
             })}
 
             <div className="space-y-2 pt-2">
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Effects (JSON array)</label>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                Effects (JSON array)
+              </label>
               <textarea
                 name="effects_raw"
                 rows={8}
-                defaultValue={JSON.stringify([{ ability_id: "", override_name: "", override_type: "", override_description: "", params_override: {} }], null, 2)}
+                defaultValue={JSON.stringify(
+                  [
+                    {
+                      ability_id: "",
+                      override_name: "",
+                      override_type: "",
+                      override_description: "",
+                      params_override: {},
+                    },
+                  ],
+                  null,
+                  2,
+                )}
                 className="block w-full rounded-xl border border-gray-300/50 bg-white/50 px-4 py-3 text-sm font-mono shadow-inner focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600/50 dark:bg-gray-900/50 dark:text-gray-100 transition-colors"
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400">Each effect can override name, type, description, and params for an ability</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Each effect can override name, type, description, and params for
+                an ability
+              </p>
             </div>
 
             <div className="pt-4 flex items-center justify-between">
-              <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/items`)}>Cancel</Button>
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => navigate(`/${game}/items`)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="shadow-lg shadow-orange-500/20"
+              >
                 {submitting ? "Creating..." : "Create Item"}
               </Button>
             </div>
