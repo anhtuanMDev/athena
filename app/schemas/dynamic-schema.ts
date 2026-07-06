@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const FieldTypeSchema = z.enum(["string", "number", "boolean", "list", "enum", "abilities"]);
+export const FieldTypeSchema = z.enum(["string", "number", "boolean", "list", "enum", "abilities", "object_array"]);
 export type FieldType = z.infer<typeof FieldTypeSchema>;
 
 export type DynamicField = {

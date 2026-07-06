@@ -5,7 +5,7 @@ import { Link } from "react-router";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
-import { useData } from "~/lib/use-data";
+import { useData, clearDataCache } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
 import { getCategoryDirectory, type SchemaCategory } from "~/schemas/dynamic-schema";
 
@@ -72,6 +72,7 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
     try {
       await deleteFile(`data/${game}/${entityType}/${id}.json`, data.fileData.sha, `Delete ${entityType} ${id}`);
       toastSuccess(`Successfully deleted ${id}`);
+      clearDataCache();
       navigate(`/${game}/${entityType}`);
     } catch (err) {
       const msg = isConflictError(err)

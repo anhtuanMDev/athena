@@ -16,6 +16,7 @@ import { type DynamicSchemaFile, type DynamicField } from "~/schemas/dynamic-sch
 import { listDirectory } from "~/lib/github";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
 import { AbilitiesField } from "~/components/views/AbilitiesField";
+import { ObjectArrayField } from "~/components/views/ObjectArrayField";
 
 export default function NewHero() {
   const { game } = useParams();
@@ -102,14 +103,17 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
     let shape: Record<string, z.ZodTypeAny> = {};
     fields.forEach(f => {
       if (["id", "name", "real_name", "portrait"].includes(f.key)) return;
-      let fieldSchema: z.ZodTypeAny = f.type === "number" ? z.coerce.number() : z.string();
+      let fieldSchema: z.ZodTypeAny = f.type === "number" ? z.coerce.number() : f.type === "boolean" ? z.boolean() : z.string();
       if (f.type === "list") fieldSchema = z.array(z.string()); 
       if (f.type === "abilities") fieldSchema = z.array(z.any());
+      if (f.type === "object_array") fieldSchema = z.array(z.any());
       if (f.required) {
         if (f.type === "number") fieldSchema = z.coerce.number().min(1, "Required");
+        else if (f.type === "boolean") fieldSchema = z.boolean().refine(val => val === true, "Required");
         else fieldSchema = z.string().min(1, "Required");
       } else {
-        fieldSchema = fieldSchema.optional().or(z.literal(""));
+        if (f.type === "boolean") fieldSchema = z.boolean().optional();
+        else fieldSchema = fieldSchema.optional().or(z.literal(""));
       }
       shape[f.key] = fieldSchema;
     });
@@ -335,6 +339,20 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
               </div>
             );
           }
+          if (f.type === "object_array") {
+            return (
+              <div className="col-span-1 md:col-span-2" key={f.key}>
+                <ObjectArrayField 
+                  name={f.key}
+                  label={f.label}
+                  control={control}
+                  register={register}
+                  errors={errors}
+                  subFields={f.subFields || []}
+                />
+              </div>
+            );
+          }
           if (f.type === "enum" || f.type === "list") {
             return (
               <Controller
@@ -353,6 +371,24 @@ function HeroForm({ schemas, game }: { schemas: DynamicSchemaFile[]; game: strin
                   />
                 )}
               />
+            );
+          }
+          if (f.type === "boolean") {
+            return (
+              <div key={f.key} className="flex items-center gap-3 h-[40px] px-3 mt-1 border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-transparent">
+                <input
+                  type="checkbox"
+                  id={`field-${f.key}`}
+                  className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-800 cursor-pointer"
+                  {...register(f.key)}
+                />
+                <label htmlFor={`field-${f.key}`} className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                  {f.label}
+                </label>
+                {errors[f.key] && (
+                  <span className="text-xs text-red-500 ml-auto">{(errors[f.key] as any)?.message}</span>
+                )}
+              </div>
             );
           }
           return (

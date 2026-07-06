@@ -4,7 +4,7 @@ import { DynamicSchemaFileSchema, type DynamicSchemaFile, type DynamicField } fr
 import { getFile, updateFile, isConflictError } from "~/lib/github";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
-import { useData } from "~/lib/use-data";
+import { useData, clearDataCache } from "~/lib/use-data";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus, Trash2, ArrowLeft, Settings2, GripVertical, Box, Type, Hash, ToggleLeft, List, ListOrdered } from "lucide-react";
 import { useToast } from "~/components/ToastProvider";
@@ -50,7 +50,7 @@ export default function DynamicSchemaEdit() {
     const field = newFields[index];
     
     if (key === 'options') {
-      newFields[index] = { ...field, [key]: value.split(',').map((s: string) => s.trim()).filter(Boolean) };
+      newFields[index] = { ...field, [key]: value.split('\n') };
     } else if (key === 'label') {
       const oldSlug = (field.label || "").toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '');
       const newSlug = (value || "").toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '');
@@ -95,7 +95,7 @@ export default function DynamicSchemaEdit() {
     const subField = newFields[parentIndex].subFields![subIndex];
     
     if (key === 'options') {
-      newFields[parentIndex].subFields![subIndex] = { ...subField, [key]: value.split(',').map((s: string) => s.trim()).filter(Boolean) };
+      newFields[parentIndex].subFields![subIndex] = { ...subField, [key]: value.split('\n') };
     } else if (key === 'label') {
       const oldSlug = (subField.label || "").toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '');
       const newSlug = (value || "").toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '');
@@ -116,9 +116,27 @@ export default function DynamicSchemaEdit() {
     setSubmitting(true);
     setCommitError(null);
 
+    // Clean up options before saving
+    const cleanedFields = fields.map(f => {
+      const newF = { ...f };
+      if (newF.options) {
+        newF.options = newF.options.map(o => o.trim()).filter(Boolean);
+      }
+      if (newF.subFields) {
+        newF.subFields = newF.subFields.map(sf => {
+          const newSf = { ...sf };
+          if (newSf.options) {
+            newSf.options = newSf.options.map(o => o.trim()).filter(Boolean);
+          }
+          return newSf;
+        });
+      }
+      return newF;
+    });
+
     const updatedSchema = {
       ...loaderData.schema,
-      fields,
+      fields: cleanedFields,
     };
 
     const parsed = DynamicSchemaFileSchema.safeParse(updatedSchema);
@@ -132,6 +150,7 @@ export default function DynamicSchemaEdit() {
     try {
       await updateFile(`data/${game}/schemas/${id}.json`, parsed.data, loaderData.sha, `Update schema: ${id}`);
       toastSuccess(`Schema ${loaderData.schema.name} updated successfully!`);
+      clearDataCache();
       navigate(`/${game}/schemas`);
     } catch (err) {
       if (isConflictError(err)) {
@@ -250,20 +269,20 @@ export default function DynamicSchemaEdit() {
                   {/* Left Column: Identifiers */}
                   <div className="lg:col-span-4 space-y-4">
                     <div>
-                      <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Field Key (Internal)</label>
-                      <input 
-                        value={field.key} 
-                        onChange={(e) => handleChangeField(index, 'key', e.target.value)}
-                        placeholder="e.g. max_health" 
-                        className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors" 
-                      />
-                    </div>
-                    <div>
                       <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Display Label</label>
                       <input 
                         value={field.label} 
                         onChange={(e) => handleChangeField(index, 'label', e.target.value)}
                         placeholder="e.g. Max Health" 
+                        className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Field Key (Internal)</label>
+                      <input 
+                        value={field.key} 
+                        onChange={(e) => handleChangeField(index, 'key', e.target.value)}
+                        placeholder="e.g. max_health" 
                         className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors" 
                       />
                     </div>
@@ -291,6 +310,7 @@ export default function DynamicSchemaEdit() {
                           <option value="list">Multiple Select (List)</option>
                           <option value="enum">Single Select (Enum)</option>
                           <option value="abilities">Kit Abilities (Complex List)</option>
+                          <option value="object_array">Object Group (Nested List)</option>
                         </select>
                       </div>
                     </div>
@@ -309,16 +329,16 @@ export default function DynamicSchemaEdit() {
                   <div className="lg:col-span-4 h-full flex flex-col">
                     {(field.type === "enum" || field.type === "list") ? (
                       <div className="flex-1">
-                        <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Options (Comma-separated)</label>
+                        <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Options (One per line)</label>
                         <textarea 
-                          value={field.options?.join(", ") || ""} 
+                          value={field.options?.join("\n") || ""} 
                           onChange={(e) => handleChangeField(index, 'options', e.target.value)}
-                          placeholder="Tank, Damage, Support"
+                          placeholder="Tank&#10;Damage&#10;Support"
                           rows={4}
                           className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white resize-none transition-colors" 
                         />
                       </div>
-                    ) : field.type === "abilities" ? (
+                    ) : (field.type === "abilities" || field.type === "object_array") ? (
                       <div className="flex-1 flex flex-col items-center justify-center p-4 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl text-gray-500 dark:text-gray-400 text-xs text-center bg-gray-50/50 dark:bg-gray-900/30">
                         {(field.subFields || []).length} custom sub-fields configured
                       </div>
@@ -355,30 +375,32 @@ export default function DynamicSchemaEdit() {
                     </div>
                   </div>
 
-                  {/* BOTTOM ROW for ABILITIES */}
-                  {field.type === "abilities" && (
+                  {/* BOTTOM ROW for ABILITIES or OBJECT ARRAY */}
+                  {(field.type === "abilities" || field.type === "object_array") && (
                     <div className="col-span-1 lg:col-span-12 border-t border-gray-200 dark:border-gray-800 pt-6 mt-2">
                       <div className="flex flex-col p-5 border border-gray-200 dark:border-gray-800 rounded-xl bg-gray-50/50 dark:bg-gray-800/20 text-left">
                         {/* Abilities Standard Definition (Parent) */}
-                        <div className="mb-5">
-                          <strong className="font-bold flex items-center gap-2 mb-2 text-gray-900 dark:text-gray-100 text-sm"><Box className="w-4 h-4 text-gray-400"/> Complex Field Template</strong>
-                          <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Automatically embeds a managed Abilities list containing standard properties:</p>
-                          <ul className="list-disc pl-5 space-y-1.5 text-xs">
-                            <li><span className="font-medium text-gray-800 dark:text-gray-200">Icon Upload</span> <span className="text-gray-400 dark:text-gray-500">(Multi-image capabilities)</span></li>
-                            <li><span className="font-medium text-gray-800 dark:text-gray-200">ID</span> <span className="text-gray-400 dark:text-gray-500">(Internal key generation)</span></li>
-                            <li><span className="font-medium text-gray-800 dark:text-gray-200">Name</span> <span className="text-gray-400 dark:text-gray-500">(Display label)</span></li>
-                            <li><span className="font-medium text-gray-800 dark:text-gray-200">Type</span> <span className="text-gray-400 dark:text-gray-500">(Classification)</span></li>
-                            <li><span className="font-medium text-gray-800 dark:text-gray-200">Description</span> <span className="text-gray-400 dark:text-gray-500">(Optional markdown)</span></li>
-                            <li><span className="font-medium text-gray-800 dark:text-gray-200">Params</span> <span className="text-gray-400 dark:text-gray-500">(Dynamic key-value parameters defined below)</span></li>
-                          </ul>
-                        </div>
+                        {field.type === "abilities" && (
+                          <div className="mb-5">
+                            <strong className="font-bold flex items-center gap-2 mb-2 text-gray-900 dark:text-gray-100 text-sm"><Box className="w-4 h-4 text-gray-400"/> Complex Field Template</strong>
+                            <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Automatically embeds a managed Abilities list containing standard properties:</p>
+                            <ul className="list-disc pl-5 space-y-1.5 text-xs">
+                              <li><span className="font-medium text-gray-800 dark:text-gray-200">Icon Upload</span> <span className="text-gray-400 dark:text-gray-500">(Multi-image capabilities)</span></li>
+                              <li><span className="font-medium text-gray-800 dark:text-gray-200">ID</span> <span className="text-gray-400 dark:text-gray-500">(Internal key generation)</span></li>
+                              <li><span className="font-medium text-gray-800 dark:text-gray-200">Name</span> <span className="text-gray-400 dark:text-gray-500">(Display label)</span></li>
+                              <li><span className="font-medium text-gray-800 dark:text-gray-200">Type</span> <span className="text-gray-400 dark:text-gray-500">(Classification)</span></li>
+                              <li><span className="font-medium text-gray-800 dark:text-gray-200">Description</span> <span className="text-gray-400 dark:text-gray-500">(Optional markdown)</span></li>
+                              <li><span className="font-medium text-gray-800 dark:text-gray-200">Params</span> <span className="text-gray-400 dark:text-gray-500">(Dynamic key-value parameters defined below)</span></li>
+                            </ul>
+                          </div>
+                        )}
                         
                         {/* Sub Fields Config (Nested Child) */}
-                        <div className="ml-0 md:ml-4 bg-white dark:bg-gray-900/60 p-5 rounded-xl border border-gray-200 dark:border-gray-700/60 shadow-sm border-l-2 border-l-blue-500/50">
+                        <div className={field.type === "abilities" ? "ml-0 md:ml-4 bg-white dark:bg-gray-900/60 p-5 rounded-xl border border-gray-200 dark:border-gray-700/60 shadow-sm border-l-2 border-l-blue-500/50" : "bg-white dark:bg-gray-900/60 p-5 rounded-xl border border-gray-200 dark:border-gray-700/60 shadow-sm"}>
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
                             <div>
-                              <span className="block font-bold text-sm text-gray-900 dark:text-gray-100">Custom Params Sub-Fields</span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400">Configure explicit parameters appended to each ability (e.g., Cooldown, Damage)</span>
+                              <span className="block font-bold text-sm text-gray-900 dark:text-gray-100">{field.type === "abilities" ? "Custom Params Sub-Fields" : "Nested Group Sub-Fields"}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">{field.type === "abilities" ? "Configure explicit parameters appended to each ability (e.g., Cooldown, Damage)" : "Define the explicit fields that each object in this list will contain."}</span>
                             </div>
                             <button 
                               type="button" 
