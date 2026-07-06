@@ -124,7 +124,7 @@ function EditHeroForm({
       }
       shape[f.key] = fieldSchema;
     });
-    return HeroSchema.extend(shape).passthrough();
+    return HeroSchema.extend(shape);
   }, [fields]);
 
   const defaultValues = useMemo(() => {

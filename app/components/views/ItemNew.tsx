@@ -70,8 +70,8 @@ export default function NewItem() {
         return;
       }
 
-      const heroIds = new Set(await listDirectory(game!, "heroes"));
-      const modeIds = new Set(await listDirectory(game!, "modes"));
+      const heroIds = new Set(data!.heroes);
+      const modeIds = new Set(data!.modes);
 
       if (parsed.data.hero && !heroIds.has(parsed.data.hero)) {
         const msg = `Unknown hero "${parsed.data.hero}"`;

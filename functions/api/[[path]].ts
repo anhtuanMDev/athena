@@ -25,7 +25,10 @@ export interface Env {
 
 async function checkRateLimit(ip: string, env: Env): Promise<{ allowed: boolean; retryAfter?: number }> {
   const kv = env.RATE_LIMIT_KV;
-  if (!kv) return { allowed: true };
+  if (!kv) {
+    console.error("CRITICAL: RATE_LIMIT_KV is not bound. Failing closed to prevent brute force.");
+    return { allowed: false, retryAfter: 3600 };
+  }
   const now = Date.now();
   const raw = await kv.get(`rate_limit:${ip}`);
   if (!raw) return { allowed: true };
@@ -89,7 +92,13 @@ async function hmacUnsign(signed: string, secret: string): Promise<string | null
   const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(value));
   const sigHex = Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
-  return sigHex === expectedSig ? value : null;
+  
+  if (sigHex.length !== expectedSig.length) return null;
+  let result = 0;
+  for (let i = 0; i < sigHex.length; i++) {
+    result |= sigHex.charCodeAt(i) ^ expectedSig.charCodeAt(i);
+  }
+  return result === 0 ? value : null;
 }
 
 function getSessionCookie(request: Request): string | null {

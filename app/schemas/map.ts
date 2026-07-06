@@ -7,6 +7,6 @@ export const MapSchema = z.object({
   game_modes: z.array(z.string()).optional(),
   image: z.string().url().optional().or(z.literal("")),
   location: z.string().optional(),
-}).passthrough();
+}).strict();
 
 export type Map = z.infer<typeof MapSchema>;

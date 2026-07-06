@@ -13,6 +13,6 @@ export const PatchSchema = z.object({
   date: z.string().min(1),
   summary: z.string().optional(),
   changes: z.array(ChangeSchema).min(1, "At least one change required"),
-}).passthrough();
+}).strict();
 
 export type Patch = z.infer<typeof PatchSchema>;

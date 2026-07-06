@@ -15,7 +15,6 @@ export default [
     route("activity", "routes/_admin.activity.tsx"),
 
     route("games", "routes/_admin.games.tsx"),
-    route("games/:slug/edit", "routes/_admin.games.$slug.edit.tsx"),
 
     route(":game/*", "routes/_admin.$game.tsx"),
   ]),
