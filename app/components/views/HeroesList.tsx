@@ -1,10 +1,9 @@
 import { Link, useParams } from "react-router";
-import { listDirectory, getFile } from "~/lib/github";
+import { useEntityList } from "~/lib/use-entity-list";
 import { DataTable, type Column } from "~/components/DataTable";
 import { DataTableSkeleton } from "~/components/DataTableSkeleton";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
-import { useData } from "~/lib/use-data";
 import { Plus } from "lucide-react";
 
 interface HeroRow {
@@ -25,16 +24,7 @@ const columns: Column<HeroRow>[] = [
 export default function HeroesIndex() {
   const { game } = useParams();
   assertSafeGameSlug(game!);
-  const { data, loading, error } = useData(async () => {
-    const ids = await listDirectory(game!, "heroes");
-    const heroes = await Promise.all(
-      ids.map(async (id) => {
-        const file = await getFile<HeroRow>(`data/${game!}/heroes/${id}.json`);
-        return file?.content ?? null;
-      })
-    );
-    return { heroes: heroes.filter(Boolean) as HeroRow[], game: game! };
-  }, [game]);
+  const { data: heroes, loading, error } = useEntityList<HeroRow>(game!, "heroes");
 
   if (error) return (
     <div className="p-8 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400">
@@ -59,8 +49,8 @@ export default function HeroesIndex() {
 
       {loading ? (
         <DataTableSkeleton columns={5} rows={8} />
-      ) : data ? (
-        <DataTable columns={columns} data={data.heroes} baseUrl={`/${data.game}/heroes`} />
+      ) : heroes ? (
+        <DataTable columns={columns} data={heroes} baseUrl={`/${game}/heroes`} />
       ) : null}
     </div>
   );

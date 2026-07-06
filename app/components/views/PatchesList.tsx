@@ -1,10 +1,9 @@
 import { Link, useParams } from "react-router";
-import { listDirectory, getFile } from "~/lib/github";
+import { useEntityList } from "~/lib/use-entity-list";
 import { DataTable, type Column } from "~/components/DataTable";
 import { DataTableSkeleton } from "~/components/DataTableSkeleton";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
-import { useData } from "~/lib/use-data";
 import { Plus } from "lucide-react";
 
 interface PatchRow {
@@ -24,17 +23,8 @@ const columns: Column<PatchRow>[] = [
 export default function PatchesIndex() {
   const { game } = useParams();
   assertSafeGameSlug(game!);
-  const { data, loading, error } = useData(async () => {
-    const ids = await listDirectory(game!, "patches");
-    ids.sort().reverse();
-    const patches = await Promise.all(
-      ids.map(async (id) => {
-        const file = await getFile<PatchRow>(`data/${game!}/patches/${id}.json`);
-        return file?.content ?? null;
-      })
-    );
-    return { patches: patches.filter(Boolean) as PatchRow[], game: game! };
-  }, [game]);
+  const { data: patchesData, loading, error } = useEntityList<PatchRow>(game!, "patches");
+  const patches = patchesData ? [...patchesData].sort((a, b) => b.patch.localeCompare(a.patch)) : null;
 
   if (error) return (
     <div className="p-8 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400">
@@ -59,8 +49,8 @@ export default function PatchesIndex() {
 
       {loading ? (
         <DataTableSkeleton columns={5} rows={6} />
-      ) : data ? (
-        <DataTable columns={columns} data={data.patches} baseUrl={`/${data.game}/patches`} idKey="patch" emptyMessage="No patches yet." />
+      ) : patches ? (
+        <DataTable columns={columns} data={patches} baseUrl={`/${game}/patches`} idKey="patch" emptyMessage="No patches yet." />
       ) : null}
     </div>
   );

@@ -82,7 +82,8 @@ async function handleScheduledTask(env: Env, game: string): Promise<void> {
     };
 
     // 5. If conditions are met (e.g., new patch detected), save it!
-    const shouldSaveNewPatch = true; // Replace with actual condition check
+    // NOTE: This logic is currently a stub. disabled by default to prevent spam.
+    const shouldSaveNewPatch = false; // Replace with actual condition check when external API is implemented
     if (shouldSaveNewPatch) {
       console.log("New patch detected. Saving to GitHub...");
       await saveGitHubFile(
@@ -93,7 +94,7 @@ async function handleScheduledTask(env: Env, game: string): Promise<void> {
       );
       console.log("Successfully saved new patch!");
     } else {
-      console.log("No new patch found. Exiting.");
+      console.log("No new patch found or saving disabled. Exiting.");
     }
   } catch (error) {
     console.error("Cron Job Failed:", error);

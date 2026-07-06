@@ -64,7 +64,12 @@ export function buildHeroFromFormData(formData: FormData, game: string, id: stri
       const parsed = JSON.parse(healthRaw);
       if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
         health = Object.fromEntries(
-          Object.entries(parsed).map(([k, v]) => [k, typeof v === "number" ? v : NaN]),
+          Object.entries(parsed)
+            .map(([k, v]) => {
+              const num = parseFloat(String(v));
+              return [k, num];
+            })
+            .filter(([, v]) => !isNaN(v as number))
         );
       }
     } catch {

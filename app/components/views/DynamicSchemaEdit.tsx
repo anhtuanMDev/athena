@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from "react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DynamicSchemaFileSchema, type DynamicSchemaFile, type DynamicField } from "~/schemas/dynamic-schema";
 import { getFile, updateFile, isConflictError } from "~/lib/github";
 import { Card, CardContent } from "~/components/ui/card";
@@ -28,10 +28,12 @@ export default function DynamicSchemaEdit() {
   const [submitting, setSubmitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
 
-  if (loaderData && fields === null) {
-    setFields(loaderData.schema.fields || []);
-    setApiEndpoint(loaderData.schema.api_endpoint || "");
-  }
+  useEffect(() => {
+    if (loaderData && fields === null) {
+      setFields(loaderData.schema.fields || []);
+      setApiEndpoint(loaderData.schema.api_endpoint || "");
+    }
+  }, [loaderData, fields]);
 
   const handleAddField = () => {
     setFields([...(fields || []), { key: "", label: "", type: "string", required: false }]);

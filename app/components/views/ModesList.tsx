@@ -1,10 +1,9 @@
 import { Link, useParams } from "react-router";
-import { listDirectory, getFile } from "~/lib/github";
+import { useEntityList } from "~/lib/use-entity-list";
 import { DataTable, type Column } from "~/components/DataTable";
 import { DataTableSkeleton } from "~/components/DataTableSkeleton";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
-import { useData } from "~/lib/use-data";
 import { Plus } from "lucide-react";
 
 interface ModeRow {
@@ -21,16 +20,7 @@ const columns: Column<ModeRow>[] = [
 export default function ModesIndex() {
   const { game } = useParams();
   assertSafeGameSlug(game!);
-  const { data, loading, error } = useData(async () => {
-    const ids = await listDirectory(game!, "modes");
-    const modes = await Promise.all(
-      ids.map(async (id) => {
-        const file = await getFile<ModeRow>(`data/${game!}/modes/${id}.json`);
-        return file?.content ?? null;
-      })
-    );
-    return { modes: modes.filter(Boolean) as ModeRow[], game: game! };
-  }, [game]);
+  const { data: modes, loading, error } = useEntityList<ModeRow>(game!, "modes");
 
   if (error) return (
     <div className="p-8 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400">
@@ -55,8 +45,8 @@ export default function ModesIndex() {
 
       {loading ? (
         <DataTableSkeleton columns={3} rows={6} />
-      ) : data ? (
-        <DataTable columns={columns} data={data.modes} baseUrl={`/${data.game}/modes`} />
+      ) : modes ? (
+        <DataTable columns={columns} data={modes} baseUrl={`/${game}/modes`} />
       ) : null}
     </div>
   );

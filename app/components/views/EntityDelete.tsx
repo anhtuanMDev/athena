@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
-import { deleteFile, getFile } from "~/lib/github";
+import { deleteFile, getFile, isConflictError } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
@@ -31,7 +31,9 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
       toastSuccess(`Successfully deleted ${id}`);
       navigate(`/${game}/${entityType}`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error deleting file";
+      const msg = isConflictError(err)
+        ? "Conflict: This entity was modified by another user recently. Please refresh and try again."
+        : err instanceof Error ? err.message : "Error deleting file";
       setError(msg);
       toastError(`Failed to delete: ${msg}`);
     } finally {

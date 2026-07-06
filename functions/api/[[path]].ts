@@ -91,6 +91,9 @@ function getSessionCookie(request: Request): string | null {
 }
 
 async function verifySession(request: Request, secret: string): Promise<boolean> {
+  if (!secret) {
+    throw new Error("Server misconfigured: SESSION_SECRET is missing");
+  }
   const value = getSessionCookie(request);
   if (!value) return false;
   const unsigned = await hmacUnsign(value, secret);
@@ -107,10 +110,15 @@ function destroySessionCookie(): string {
   return `${SESSION_KEY}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 }
 
-const SAFE_FILE_PATH = /^data\/[a-z0-9][a-z0-9-]*\/[a-z]+\/[a-z0-9][a-z0-9.-]*\.json$/;
+// Safe path validation allows `data/...` and `public/assets/...`
+const SAFE_FILE_PATH = /^(data\/|public\/assets\/)[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)*\.[a-z0-9]+$/;
 
 function assertSafeFilePath(path: string): void {
-  if (path.includes("..")) {
+  const decoded = decodeURIComponent(path);
+  if (decoded.includes("..") || decoded.startsWith("/") || decoded.includes("\0")) {
+    throw new Response(null, { status: 400 });
+  }
+  if (!SAFE_FILE_PATH.test(decoded)) {
     throw new Response(null, { status: 400 });
   }
 }

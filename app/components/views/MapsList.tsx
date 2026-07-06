@@ -1,10 +1,9 @@
 import { Link, useParams } from "react-router";
-import { listDirectory, getFile } from "~/lib/github";
+import { useEntityList } from "~/lib/use-entity-list";
 import { DataTable, type Column } from "~/components/DataTable";
 import { DataTableSkeleton } from "~/components/DataTableSkeleton";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
-import { useData } from "~/lib/use-data";
 import { Plus } from "lucide-react";
 
 interface MapRow {
@@ -23,16 +22,7 @@ const columns: Column<MapRow>[] = [
 export default function MapsIndex() {
   const { game } = useParams();
   assertSafeGameSlug(game!);
-  const { data, loading, error } = useData(async () => {
-    const ids = await listDirectory(game!, "maps");
-    const maps = await Promise.all(
-      ids.map(async (id) => {
-        const file = await getFile<MapRow>(`data/${game!}/maps/${id}.json`);
-        return file?.content ?? null;
-      })
-    );
-    return { maps: maps.filter(Boolean) as MapRow[], game: game! };
-  }, [game]);
+  const { data: maps, loading, error } = useEntityList<MapRow>(game!, "maps");
 
   if (error) return (
     <div className="p-8 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400">
@@ -57,8 +47,8 @@ export default function MapsIndex() {
 
       {loading ? (
         <DataTableSkeleton columns={4} rows={8} />
-      ) : data ? (
-        <DataTable columns={columns} data={data.maps} baseUrl={`/${data.game}/maps`} />
+      ) : maps ? (
+        <DataTable columns={columns} data={maps} baseUrl={`/${game}/maps`} />
       ) : null}
     </div>
   );
