@@ -6,7 +6,7 @@ const MAX_CACHE_SIZE = 100;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = [], cacheKeyOverride?: string) {
-  const key = cacheKeyOverride || (deps.length ? JSON.stringify(deps) + fetcher.toString() : null);
+  const key = cacheKeyOverride || (JSON.stringify(deps) + fetcher.toString());
   
   const [data, setData] = useState<T | null>(() => {
     if (key && globalCache.has(key)) {
