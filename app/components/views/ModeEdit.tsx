@@ -101,27 +101,11 @@ export default function EditMode() {
     setSubmitting(true);
     setError(null);
     try {
-      const itemIds = await listDirectory(game!, "items");
-      const referencingItems: string[] = [];
-      for (let i = 0; i < itemIds.length; i += 10) {
-        const batch = itemIds.slice(i, i + 10);
-        await Promise.all(batch.map(async (itemId) => {
-          const itemFile = await getFile<{ mode?: string }>(`data/${game}/items/${itemId}.json`);
-          if (itemFile?.content.mode === id) referencingItems.push(itemId);
-        }));
-      }
+      const items = await listDirectory<{ id: string; mode?: string }>(game!, "items", true, ["id", "mode"]);
+      const referencingItems = items.filter(item => item.mode === id).map(item => item.id);
 
-      const heroIds = await listDirectory(game!, "heroes");
-      const referencingHeroes: string[] = [];
-      for (let i = 0; i < heroIds.length; i += 10) {
-        const batch = heroIds.slice(i, i + 10);
-        await Promise.all(batch.map(async (heroId) => {
-          const heroFile = await getFile<{ kit: Array<{ mode_overrides?: Record<string, unknown> }> }>(`data/${game}/heroes/${heroId}.json`);
-          if (heroFile?.content.kit?.some((a) => a.mode_overrides && id! in a.mode_overrides)) {
-            referencingHeroes.push(heroId);
-          }
-        }));
-      }
+      const heroes = await listDirectory<{ id: string; kit?: Array<{ mode_overrides?: Record<string, unknown> }> }>(game!, "heroes", true, ["id", "kit"]);
+      const referencingHeroes = heroes.filter(hero => hero.kit?.some(a => a.mode_overrides && id! in a.mode_overrides)).map(hero => hero.id);
 
       setDeleteConfirm({ mode: id!, referencingItems, referencingHeroes });
     } catch (err) {

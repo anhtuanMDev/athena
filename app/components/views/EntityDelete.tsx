@@ -103,9 +103,16 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
     );
   }
 
-  const singularEntity = entityType.endsWith("es") && entityType !== "patches" && entityType !== "heroes"
-    ? entityType.slice(0, -1)
-    : entityType.replace(/es$/, "").replace(/s$/, "");
+  const entitySingularMap: Record<string, string> = {
+    heroes: "hero",
+    maps: "map",
+    modes: "mode",
+    patches: "patch",
+    items: "item",
+    schemas: "schema",
+    cron_jobs: "cron job"
+  };
+  const singularEntity = entitySingularMap[entityType] || entityType.replace(/s$/, "");
 
   return (
     <div className="max-w-md mx-auto py-12">

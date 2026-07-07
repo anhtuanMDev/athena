@@ -345,7 +345,7 @@ export default function NewItem() {
               />
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Each effect can override name, type, description, and params for
-                an ability
+                an ability. <strong className="text-orange-600 dark:text-orange-400">Please fill in the ability_id or delete the template object.</strong>
               </p>
             </div>
 

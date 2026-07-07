@@ -83,6 +83,7 @@ unless a cache-purge step is wired in (see §7.7).
 | `GITHUB_OWNER` / `GITHUB_REPO` / `GITHUB_BRANCH` | Same repo the public Worker reads from.                                                                   |
 | `ADMIN_PASSWORD_HASH`                            | bcrypt hash for the login gate (v1 auth).                                                                 |
 | `SESSION_SECRET`                                 | Cookie signing secret.                                                                                    |
+| `CRON_SECRET`                                    | Secret for gating manual cron trigger execution.                                                          |
 | `WORKER_PURGE_URL` (optional)                    | If you wire up cache purge on save (§7.7).                                                                |
 
 ---
@@ -345,9 +346,12 @@ Portraits are just URLs on the hero object, pointing at
 
 Directory listings (`/heroes`, `/maps`, `/modes`, `/patches` index pages) call the
 Contents API per folder. Authenticated (using `GITHUB_TOKEN`) this is 5,000 req/hr,
-far above what a single-admin tool needs, so no `index.json` workaround is required
-here the way it might be for the _public, unauthenticated_ Worker. If this app is ever
-opened to more admins, revisit.
+far above what a single-admin tool needs.
+
+To avoid N+1 query problems (e.g., during reference checks for deletes), the API supports
+passing `includeContent=true` and `keysOnly` flags to `listDirectory`. This pushes the
+batch fetching logic to the server side (in chunks of 10), returning structured arrays
+without requiring the client to fetch each file individually.
 
 ### 7.7 Optional: cache purge on save
 
@@ -463,7 +467,8 @@ Secrets are set via `wrangler secret put` (see `wrangler.toml` for the full list
 - Item shop pools / rarity tiers - the item data model supports adding `rarity` and `pool` fields
   later, but the game client handles how/when items are offered mid-match; the repo only catalogs
   what each item does.
-- Image upload (portrait URL paste is sufficient for v1).
 - `:game` validation against the actual `games.json` registry (currently only format-checked via
   `assertSafeGameSlug`). Add by passing the active slug list from `_admin.tsx`'s loader to child
   routes via `useRouteLoaderData`.
+- Full wiring of Cron configurations to the external worker (the UI configurations are currently
+  saved as placeholders for future development).

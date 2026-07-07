@@ -173,6 +173,13 @@ export default function CronJobNew() {
           </div>
         )}
 
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/50 text-yellow-800 dark:text-yellow-200 p-4 rounded-xl flex gap-3">
+          <span className="text-xl">🚧</span>
+          <p className="text-sm">
+            <strong>Not yet wired up:</strong> Cron job configurations are currently saved to the database but are not yet executed by the worker. The worker's current implementation uses a hardcoded configuration.
+          </p>
+        </div>
+
         {/* Basic Settings Section */}
         <Card className="border-orange-500/20 shadow-sm">
           <CardContent className="p-6 md:p-8 space-y-6">

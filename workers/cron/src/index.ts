@@ -3,6 +3,7 @@ export interface Env {
   GITHUB_OWNER: string;
   GITHUB_REPO: string;
   GITHUB_BRANCH: string;
+  CRON_SECRET: string;
 }
 
 export default {
@@ -42,7 +43,11 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/trigger" && request.method === "POST") {
-      // NOTE: In production, add a secret header/query check here!
+      const secret = request.headers.get("Authorization")?.replace("Bearer ", "") || url.searchParams.get("secret");
+      if (!env.CRON_SECRET || secret !== env.CRON_SECRET) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+
       const game = url.searchParams.get("game") || "marvel-rivals";
       ctx.waitUntil(handleScheduledTask(env, game));
       return new Response(`Cron job triggered manually for ${game}`, { status: 200 });

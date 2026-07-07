@@ -305,6 +305,10 @@ export default function EditItem() {
                 defaultValue={JSON.stringify(item.effects, null, 2)}
                 className="block w-full rounded-xl border border-gray-300/50 bg-white/50 px-4 py-3 text-sm font-mono shadow-inner focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600/50 dark:bg-gray-900/50 dark:text-gray-100 transition-colors"
               />
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Each effect can override name, type, description, and params for
+                an ability. <strong className="text-orange-600 dark:text-orange-400">Please fill in the ability_id or delete the template object.</strong>
+              </p>
             </div>
 
             <div className="flex gap-4 pt-4">

@@ -622,6 +622,8 @@ async function handleGetAsset(request: Request, env: Env): Promise<Response> {
   // path is "assets/..."
   const githubPath = `public/${path}`;
 
+  assertSafeFilePath(githubPath);
+
   const owner = env.GITHUB_OWNER;
   const repo = env.GITHUB_REPO;
   const branch = env.GITHUB_BRANCH ?? "main";

@@ -19,9 +19,11 @@ import type { DiffEntry } from "~/lib/diff";
 import { computeDiff } from "~/lib/diff";
 import {
   getFile,
+  getFileSha,
   isConflictError,
   listDirectory,
   updateFile,
+  uploadAsset,
 } from "~/lib/github";
 import { assertSafeEntityId, assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
@@ -135,6 +137,7 @@ function EditHeroForm({
     diffs: DiffEntry[];
     heroJson: string;
     sha: string;
+    abilityUploads?: { path: string; base64: string; message: string }[];
   } | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -331,6 +334,7 @@ Example Output:
       }
       if (portraitData) formData.portrait = portraitData;
 
+      const abilityUploads: { path: string; base64: string; message: string }[] = [];
       // Ensure Abilities are formatted correctly
       fields
         .filter((f) => f.type === "abilities")
@@ -342,12 +346,26 @@ Example Output:
             if (aIcons.length === 1 && aIcons[0].key === "main") {
               const ext = aIcons[0].name?.split(".").pop() || "png";
               ability.icon = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
+              if (aIcons[0].base64) {
+                abilityUploads.push({
+                  path: `public/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`,
+                  base64: aIcons[0].base64,
+                  message: `Update ${ability.name} icon for ${id}`,
+                });
+              }
             } else if (aIcons.length > 0) {
               ability.icon = {};
               for (const icon of aIcons) {
                 const ext = icon.name?.split(".").pop() || "png";
                 ability.icon[icon.key] =
                   `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
+                if (icon.base64) {
+                  abilityUploads.push({
+                    path: `public/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`,
+                    base64: icon.base64,
+                    message: `Update ${ability.name} ${icon.key} icon for ${id}`,
+                  });
+                }
               }
             }
           });
@@ -355,7 +373,7 @@ Example Output:
 
       const parsed = dynamicZodSchema.parse(formData) as any;
       const diffs = computeDiff(hero, parsed);
-      setPreview({ diffs, heroJson: JSON.stringify(parsed), sha: sha });
+      setPreview({ diffs, heroJson: JSON.stringify(parsed), sha: sha, abilityUploads });
     } catch (err) {
       const msg = (err as Error).message;
       setSubmitError(msg);
@@ -378,9 +396,39 @@ Example Output:
         return;
       }
 
-      // We would also upload images here normally if base64 existed in the state during Preview,
-      // but to keep it simple, edits usually involve URL changes or we upload directly.
-      // (Full base64 upload logic omitted for brevity, identical to NewHero if required).
+      const uploads = [];
+      for (const p of portraits) {
+        if (p.base64) {
+          const ext = p.name?.split(".").pop() || "png";
+          const path =
+            portraits.length === 1 && p.key === "main"
+              ? `public/assets/${game}/heroes/${id}/portrait.${ext}`
+              : `public/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
+          const sha = await getFileSha(path);
+          uploads.push(
+            uploadAsset(
+              path,
+              p.base64,
+              sha || undefined,
+              `Update portrait ${p.key} for ${id}`
+            )
+          );
+        }
+      }
+      if (preview.abilityUploads) {
+        for (const upload of preview.abilityUploads) {
+          const sha = await getFileSha(upload.path);
+          uploads.push(
+            uploadAsset(
+              upload.path,
+              upload.base64,
+              sha || undefined,
+              upload.message
+            )
+          );
+        }
+      }
+      if (uploads.length > 0) await Promise.all(uploads);
 
       await updateFile(
         `data/${game}/heroes/${id}.json`,
