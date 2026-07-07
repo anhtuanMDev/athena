@@ -178,11 +178,13 @@ function CollapsibleGameSection({
       >
         <div className="flex items-center gap-2">
           {game.icon ? (
-            <img
-              src={game.icon}
-              alt={game.name}
-              className="h-4 w-auto object-contain rounded-sm"
-            />
+            <div className="h-5 min-w-[20px] px-1 bg-white rounded flex items-center justify-center shadow-xs ring-1 ring-black/5 shrink-0">
+              <img
+                src={game.icon}
+                alt={game.name}
+                className="h-3.5 w-auto object-contain"
+              />
+            </div>
           ) : (
             <Gamepad2
               className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors"

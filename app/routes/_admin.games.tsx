@@ -249,11 +249,13 @@ export default function GamesList() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   {game.icon ? (
-                    <img
-                      src={game.icon}
-                      alt={game.name}
-                      className="h-6 w-auto object-contain rounded-md"
-                    />
+                    <div className="h-8 min-w-[32px] px-1.5 bg-white rounded-md flex items-center justify-center shadow-sm ring-1 ring-black/5 shrink-0 overflow-hidden">
+                      <img
+                        src={game.icon}
+                        alt={game.name}
+                        className="h-5 w-auto object-contain"
+                      />
+                    </div>
                   ) : (
                     <div
                       className="w-6 h-6 rounded-md border border-gray-200 dark:border-gray-800"
