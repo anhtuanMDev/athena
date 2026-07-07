@@ -242,6 +242,14 @@ it does not know anything about game-specific fields, which is the point.
 | `GET /api/:game/patches`             | sorted list of patch IDs, newest first                                      | filenames in `<game>/patches/`   |
 | `GET /api/:game/patches?latest=true` | most recent patch object                                                    | latest file in `<game>/patches/` |
 | `GET /api/:game/patches/:patch`      | single patch object                                                         | `<game>/patches/<patch>.json`    |
+| (Internal) `/trigger`                | manual execution endpoint (requires `Authorization: Bearer <CRON_SECRET>`)  | Worker runs `<game>/cron_jobs/*.json` |
+
+## 7. Automated Sync Architecture (Cron Worker)
+
+The Athena infrastructure includes a separate, secure Cloudflare Worker (`workers/cron`) responsible for executing automated data ingestion pipelines.
+- **Config Storage:** Jobs are defined by the admin app and stored in `data/<game>/cron_jobs/<id>.json`.
+- **Execution Log:** When the worker executes a job (either via `wrangler.toml` schedules or `/trigger`), it writes execution telemetry and the processed JSON data to `data/<game>/syncs/<id>.json`.
+- **Security Posture:** The worker validates external API endpoints using DoH (DNS over HTTPS) to prevent DNS-rebinding SSRF attacks. Extracted data fields are strictly type-coerced (number, string, boolean, array) against the target schema before persisting to GitHub, ensuring upstream API regressions cannot poison the Athena dataset.
 
 Caching: all GitHub-sourced responses are cached at Cloudflare's edge for 1 hour
 (`CACHE_TTL_SECONDS` in `worker/src/index.js`).

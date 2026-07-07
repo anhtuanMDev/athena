@@ -397,11 +397,12 @@ async function handleWriteFile(request: Request, env: Env): Promise<Response> {
     if (
       err instanceof Error &&
       "status" in err &&
-      (err as { status: number }).status === 409
+      ((err as { status: number }).status === 409 ||
+        (err as { status: number }).status === 422)
     ) {
       return json(
         {
-          error: `Conflict on ${body.path}: file was modified since loaded.`,
+          error: `Conflict on ${body.path}: file already exists or was modified.`,
           conflict: true,
         },
         409,

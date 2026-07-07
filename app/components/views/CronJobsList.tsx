@@ -12,7 +12,14 @@ export default function CronJobsList() {
   const { data, loading, error } = useData(async () => {
     try {
       const crons = await listDirectory<CronJob>(game!, "cron_jobs", true);
-      return crons;
+      const syncs = await listDirectory<any>(game!, "syncs", true).catch(() => []);
+      
+      const syncMap: Record<string, any> = {};
+      syncs.forEach(s => {
+        if (s && s.id) syncMap[s.id] = s;
+      });
+
+      return crons.map(job => ({ ...job, _sync: syncMap[job.id] }));
     } catch (e) {
       return [];
     }
@@ -103,6 +110,24 @@ export default function CronJobsList() {
                 <p className="text-sm text-gray-500 mb-4 capitalize">
                   <strong>Schedule:</strong> {job.schedule}
                 </p>
+
+                {job._sync && (
+                  <div className="mb-4 text-xs p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+                    {job._sync.last_sync && (
+                      <p className="text-green-700 dark:text-green-400">
+                        <strong>Last Sync:</strong> {new Date(job._sync.last_sync).toLocaleString()}
+                      </p>
+                    )}
+                    {job._sync.last_error && (
+                      <p className="text-red-700 dark:text-red-400 mt-1">
+                        <strong>Last Error:</strong> {job._sync.last_error} <br/>
+                        <span className="opacity-75 text-[10px] mt-0.5 inline-block">
+                          {new Date(job._sync.last_sync_attempt).toLocaleString()}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex gap-2">
                   <Link

@@ -19,12 +19,13 @@ export default function CronJobEdit() {
 
   const { data: loaderData, loading, error: loadError } = useData(async () => {
     if (!id) throw new Error("Cron Job ID missing");
-    const [cronFile, schemaFiles] = await Promise.all([
+    const [cronFile, schemaFiles, syncFile] = await Promise.all([
       getFile<CronJob>(`data/${game}/cron_jobs/${id}.json`),
-      listDirectory<DynamicSchemaFile>(game!, "schemas", true)
+      listDirectory<DynamicSchemaFile>(game!, "schemas", true),
+      getFile<any>(`data/${game}/syncs/${id}.json`).catch(() => null)
     ]);
     if (!cronFile) throw new Error("Cron Job not found");
-    return { cron: cronFile.content, sha: cronFile.sha, schemas: schemaFiles };
+    return { cron: cronFile.content, sha: cronFile.sha, schemas: schemaFiles, sync: syncFile?.content };
   }, [game, id], "CronJobEdit-20");
 
   const [apiEndpoint, setApiEndpoint] = useState("");
@@ -74,13 +75,27 @@ export default function CronJobEdit() {
     setSubmitting(true);
     setCommitError(null);
 
+    const selectedSchema = loaderData.schemas.find((s) => s.id === schemaId);
+    let prunedMappings = fieldMappings;
+    
+    // Prune orphaned keys before saving
+    if (selectedSchema) {
+      const validKeys = new Set(selectedSchema.fields.map((f) => f.key));
+      prunedMappings = {};
+      for (const [key, value] of Object.entries(fieldMappings)) {
+        if (validKeys.has(key)) {
+          prunedMappings[key] = value;
+        }
+      }
+    }
+
     const updatedCron = {
       ...loaderData.cron,
       schema_id: schemaId,
       api_endpoint: apiEndpoint,
       schedule: schedule as any,
       active,
-      field_mappings: fieldMappings,
+      field_mappings: prunedMappings,
     };
 
     const parsed = CronJobSchema.safeParse(updatedCron);
@@ -158,12 +173,24 @@ export default function CronJobEdit() {
           </div>
         )}
 
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/50 text-yellow-800 dark:text-yellow-200 p-4 rounded-xl flex gap-3">
-          <span className="text-xl">🚧</span>
-          <p className="text-sm">
-            <strong>Not yet wired up:</strong> Cron job configurations are currently saved to the database but are not yet executed by the worker. The worker's current implementation uses a hardcoded configuration.
-          </p>
-        </div>
+        {loaderData.sync && (
+          <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 p-4 rounded-xl flex flex-col gap-2">
+            <h3 className="font-bold text-gray-900 dark:text-white text-sm">Latest Worker Sync Status</h3>
+            {loaderData.sync.last_sync && (
+              <p className="text-sm text-green-700 dark:text-green-400">
+                <strong>Successful Sync:</strong> {new Date(loaderData.sync.last_sync).toLocaleString()}
+              </p>
+            )}
+            {loaderData.sync.last_error && (
+              <div className="text-sm text-red-700 dark:text-red-400">
+                <strong>Error:</strong> {loaderData.sync.last_error}
+                <p className="opacity-75 text-xs mt-1">
+                  Attempted: {new Date(loaderData.sync.last_sync_attempt).toLocaleString()}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Basic Settings Section */}
         <Card className="border-orange-500/20 shadow-sm">

@@ -4,6 +4,9 @@ export const CronJobSchema = z.object({
   id: z.string().min(1).regex(/^[a-z0-9-]+$/, "ID must be kebab-case"),
   name: z.string().min(1),
   schema_id: z.string().min(1, "Must select a schema"),
+  // NOTE: This Zod refine check is purely for UX to catch obvious configuration errors early.
+  // The authoritative security boundary for SSRF protection (DNS rebinding, local IPs, etc.) 
+  // is enforced by the isSafeUrl() function inside the workers/cron implementation.
   api_endpoint: z.string().url("Must be a valid URL").refine((val) => {
     try {
       const url = new URL(val);

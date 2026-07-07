@@ -69,7 +69,7 @@ function getSemanticSchedule(cronExpr: string): string | null {
 async function runScheduledJobs(env: Env, schedule: string) {
   const semanticSchedule = getSemanticSchedule(schedule);
   if (!semanticSchedule) {
-    console.log(`Unmapped cron expression: ${schedule}`);
+    console.error(`CRITICAL WARNING: Unmapped cron expression executed: ${schedule}. Please update getSemanticSchedule() in the worker code to support this schedule!`);
     return;
   }
 
@@ -117,7 +117,7 @@ async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
       return;
     }
 
-    if (!isSafeUrl(job.api_endpoint)) {
+    if (!(await isSafeUrl(job.api_endpoint))) {
       console.error(`Cron job ${job.id} has an unsafe api_endpoint: ${job.api_endpoint}. Exiting to prevent SSRF.`);
       return;
     }
@@ -162,6 +162,15 @@ async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
 
     const fetchedData = JSON.parse(text);
     
+    let targetSchema: any = null;
+    if (job.schema_id) {
+      try {
+        targetSchema = await getGitHubFile(env, `data/${game}/schemas/${job.schema_id}.json`);
+      } catch (e) {
+        console.warn(`Could not load schema ${job.schema_id} for coercion`);
+      }
+    }
+    
     let processedData = fetchedData;
     if (job.field_mappings && Object.keys(job.field_mappings).length > 0) {
       processedData = {};
@@ -170,7 +179,24 @@ async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
           // Limit path traversal depth to 10
           const parts = apiPath.split('.');
           if (parts.length > 10) throw new Error("Field mapping path is too deep.");
-          const value = parts.reduce((obj: any, key) => obj?.[key], fetchedData);
+          let value = parts.reduce((obj: any, key) => obj?.[key], fetchedData);
+          
+          if (targetSchema?.fields) {
+            const fieldDef = targetSchema.fields.find((f: any) => f.key === schemaKey);
+            if (fieldDef) {
+              if (fieldDef.type === "number") {
+                value = Number(value);
+                if (isNaN(value)) value = 0;
+              } else if (fieldDef.type === "string") {
+                value = value === null || value === undefined ? "" : String(value);
+              } else if (fieldDef.type === "boolean") {
+                value = Boolean(value);
+              } else if (fieldDef.type === "list" || fieldDef.type === "reference_list" || fieldDef.type === "abilities" || fieldDef.type === "weapon") {
+                if (!Array.isArray(value)) value = [];
+              }
+            }
+          }
+
           processedData[schemaKey] = value;
         }
       }
@@ -197,7 +223,7 @@ async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
         const errorData = {
           id: job.id,
           last_sync_attempt: new Date().toISOString(),
-          last_error: error.message || String(error)
+          last_error: sanitizeError(error)
         };
         await saveGitHubFile(
           env, 
@@ -233,26 +259,92 @@ async function listGitHubDirectory(env: Env, path: string): Promise<any[]> {
   return files.filter(Boolean);
 }
 
-function isSafeUrl(urlString: string): boolean {
+function sanitizeError(error: any): string {
+  if (!error) return "Unknown error";
+  const msg = String(error.message || error);
+  
+  if (msg.includes("Redirects are not allowed")) return "Redirects are not allowed (SSRF protection).";
+  
+  const statusMatch = msg.match(/^API returned \d{3}/);
+  if (statusMatch) return statusMatch[0];
+  
+  if (msg.includes("5MB")) return "Response exceeded 5MB size limit.";
+  if (msg.includes("too deep")) return "Field mapping path is too deep.";
+  if (error.name === "AbortError" || msg.includes("aborted")) return "API request timed out.";
+  if (error.name === "SyntaxError" || msg.includes("JSON")) return "Failed to parse API response as JSON.";
+  
+  return "An unexpected error occurred during sync.";
+}
+
+async function isSafeUrl(urlString: string): Promise<boolean> {
   try {
     const url = new URL(urlString);
     if (url.protocol !== "https:") return false;
     
-    // SSRF protection: reject IP addresses (v4 and v6)
     const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
     if (ipv4Regex.test(url.hostname) || url.hostname.includes(":")) {
-      return false;
+      return false; // Direct IP fetch not allowed
     }
     
-    // Reject common internal hostnames
     if (url.hostname === "localhost" || url.hostname.endsWith(".local") || url.hostname.endsWith(".internal")) {
       return false;
+    }
+
+    // Resolve via DoH to prevent DNS rebinding
+    const response = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(url.hostname)}&type=A`, {
+      headers: { "Accept": "application/dns-json" }
+    });
+    
+    if (!response.ok) return false;
+    const data: any = await response.json();
+    if (data.Answer) {
+      for (const record of data.Answer) {
+        if (record.type === 1 && isInternalIP(record.data)) {
+          return false;
+        }
+      }
+    }
+
+    const responseV6 = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(url.hostname)}&type=AAAA`, {
+      headers: { "Accept": "application/dns-json" }
+    });
+    
+    if (responseV6.ok) {
+      const dataV6: any = await responseV6.json();
+      if (dataV6.Answer) {
+        for (const record of dataV6.Answer) {
+          if (record.type === 28 && isInternalIPv6(record.data)) {
+            return false;
+          }
+        }
+      }
     }
     
     return true;
   } catch {
     return false;
   }
+}
+
+function isInternalIP(ip: string): boolean {
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4) return false;
+  if (parts[0] === 127 || parts[0] === 10 || parts[0] === 0 || parts[0] === 169) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  return false;
+}
+
+function isInternalIPv6(ip: string): boolean {
+  if (ip === "::1" || ip === "0:0:0:0:0:0:0:1") return true;
+  const ipLower = ip.toLowerCase();
+  if (ipLower.startsWith("fc") || ipLower.startsWith("fd")) return true;
+  if (ipLower.startsWith("fe8") || ipLower.startsWith("fe9") || ipLower.startsWith("fea") || ipLower.startsWith("feb")) return true;
+  if (ipLower.startsWith("::ffff:")) {
+    const ipv4 = ipLower.split("::ffff:")[1];
+    if (ipv4) return isInternalIP(ipv4);
+  }
+  return false;
 }
 
 // ============================================================================

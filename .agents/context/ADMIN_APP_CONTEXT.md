@@ -235,6 +235,13 @@ This is the most complex page - see §7.1–§7.4 for the logic in detail. Struc
   audit trail; since there's no separate database, git history _is_ the changelog of
   the admin tool's own actions.
 
+### 6.13 `/:game/cron` (list/new/edit/delete)
+
+- **Data model:** Cron jobs define automated sync pipelines. The UI configures the schedule, the target schema, the third-party `api_endpoint`, and the JSON dot-path `field_mappings`.
+- **Worker Integration:** The admin dashboard merely writes these configs to `data/<game>/cron_jobs/*.json`. A completely separate Cloudflare Worker (`workers/cron/`) actually runs the triggers (hourly, daily, weekly, or manual trigger). 
+- **Telemetry:** The UI loaders fetch `data/<game>/syncs/*.json` output by the Worker to display `last_sync` and `last_error` telemetry inline within the UI.
+- **Security:** The frontend handles basic UX validation via Zod, but the worker enforces strict SSRF protections (DoH DNS-rebinding checks, reject internal IPs, 5MB response bounds) before saving sync data. The worker also dynamically coerces field mapping paths to the target schema types (number, string, boolean, array).
+
 ---
 
 ## 7. Core logic
@@ -303,6 +310,7 @@ Where implemented, the flow is:
    something changed it between steps 2 and 4), the write is rejected with a
    conflict error and the user is told to refresh and redo the edit - this is the
    optimistic-concurrency guard mentioned in §6.6.
+6. **Creation Concurrency:** For new entities (`*New.tsx`), no `sha` is provided. If the file already exists (due to a concurrent creation), GitHub returns a `422 Unprocessable Entity` ("sha required"). The API layer (`app/lib/github.ts`) explicitly traps this 422 and maps it to a `409 Conflict`, ensuring creation flows get the same elegant optimistic-concurrency rejection as edit flows.
 
 ### 7.4 Environment variable handling (Cloudflare + Node.js)
 
