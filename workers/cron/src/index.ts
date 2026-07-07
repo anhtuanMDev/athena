@@ -6,6 +6,22 @@ export interface Env {
   CRON_SECRET: string;
 }
 
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const aBuf = enc.encode(a);
+  const bBuf = enc.encode(b);
+
+  if (aBuf.length !== bBuf.length) {
+    return false;
+  }
+
+  let result = 0;
+  for (let i = 0; i < aBuf.length; i++) {
+    result |= aBuf[i] ^ bBuf[i];
+  }
+  return result === 0;
+}
+
 export default {
   /**
    * This is triggered based on the cron schedule in wrangler.toml
@@ -26,8 +42,8 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/trigger" && request.method === "POST") {
-      const secret = request.headers.get("Authorization")?.replace("Bearer ", "") || url.searchParams.get("secret");
-      if (!env.CRON_SECRET || secret !== env.CRON_SECRET) {
+      const secret = request.headers.get("Authorization")?.replace("Bearer ", "") || "";
+      if (!env.CRON_SECRET || !timingSafeEqual(secret, env.CRON_SECRET)) {
         return new Response("Unauthorized", { status: 401 });
       }
 
@@ -41,7 +57,22 @@ export default {
   }
 };
 
+function getSemanticSchedule(cronExpr: string): string | null {
+  switch (cronExpr) {
+    case "0 * * * *": return "hourly";
+    case "0 0 * * *": return "daily";
+    case "0 0 * * 0": return "weekly";
+    default: return null;
+  }
+}
+
 async function runScheduledJobs(env: Env, schedule: string) {
+  const semanticSchedule = getSemanticSchedule(schedule);
+  if (!semanticSchedule) {
+    console.log(`Unmapped cron expression: ${schedule}`);
+    return;
+  }
+
   const gamesFile = await getGitHubFile(env, "data/_meta/games.json");
   if (!gamesFile) return;
   const games = Array.isArray(gamesFile) ? gamesFile : (gamesFile.games || []);
@@ -52,7 +83,7 @@ async function runScheduledJobs(env: Env, schedule: string) {
     
     const cronJobs = await listGitHubDirectory(env, `data/${game}/cron_jobs`);
     for (const job of cronJobs) {
-      if (job.schedule === schedule) {
+      if (job.schedule === semanticSchedule) {
         console.log(`Running cron job ${job.id} for game ${game}`);
         await handleJobTask(env, game, job);
       }
@@ -92,18 +123,54 @@ async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
     }
 
     console.log(`Fetching latest data from ${job.api_endpoint}...`);
-    const response = await fetch(job.api_endpoint);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+    let response;
+    try {
+      response = await fetch(job.api_endpoint, {
+        redirect: 'manual',
+        signal: controller.signal
+      });
+    } catch (err) {
+      clearTimeout(timeoutId);
+      throw err;
+    }
+
+    if (response.status >= 300 && response.status < 400) {
+      clearTimeout(timeoutId);
+      throw new Error(`Redirects are not allowed for security reasons (SSRF protection).`);
+    }
+
     if (!response.ok) {
+      clearTimeout(timeoutId);
       throw new Error(`API returned ${response.status} ${response.statusText}`);
     }
-    const fetchedData = await response.json();
+
+    const contentLength = response.headers.get("content-length");
+    if (contentLength && parseInt(contentLength, 10) > 5 * 1024 * 1024) {
+      clearTimeout(timeoutId);
+      throw new Error("Response exceeds 5MB size limit.");
+    }
+
+    const text = await response.text();
+    clearTimeout(timeoutId);
+
+    if (text.length > 5 * 1024 * 1024) {
+      throw new Error("Response body exceeds 5MB limit.");
+    }
+
+    const fetchedData = JSON.parse(text);
     
-    let processedData: any = fetchedData;
+    let processedData = fetchedData;
     if (job.field_mappings && Object.keys(job.field_mappings).length > 0) {
       processedData = {};
       for (const [schemaKey, apiPath] of Object.entries(job.field_mappings)) {
         if (typeof apiPath === "string") {
-          const value = apiPath.split('.').reduce((obj: any, key) => obj?.[key], fetchedData);
+          // Limit path traversal depth to 10
+          const parts = apiPath.split('.');
+          if (parts.length > 10) throw new Error("Field mapping path is too deep.");
+          const value = parts.reduce((obj: any, key) => obj?.[key], fetchedData);
           processedData[schemaKey] = value;
         }
       }
@@ -123,8 +190,25 @@ async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
       `chore: auto-fetch data for ${job.id}`
     );
     console.log("Successfully saved new data!");
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Cron Job ${job?.id} Failed:`, error);
+    try {
+      if (job?.id && game) {
+        const errorData = {
+          id: job.id,
+          last_sync_attempt: new Date().toISOString(),
+          last_error: error.message || String(error)
+        };
+        await saveGitHubFile(
+          env, 
+          `data/${game}/syncs/${job.id}.json`, 
+          errorData, 
+          `chore: log cron failure for ${job.id}`
+        );
+      }
+    } catch (e) {
+      console.error("Also failed to write error log to GitHub", e);
+    }
   }
 }
 

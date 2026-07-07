@@ -5,9 +5,9 @@ compatibility_date = "2024-03-20"
 # Run different tasks on different schedules
 [triggers]
 crons = [
-  "0 * * * *",      # Top of every hour
-  "*/15 * * * *",   # Every 15 minutes
-  "0 0 * * *"       # Midnight every day
+  "0 * * * *",      # Hourly
+  "0 0 * * *",      # Daily
+  "0 0 * * 0"       # Weekly (Sunday at midnight)
 ]
 
 # ==========================================================
