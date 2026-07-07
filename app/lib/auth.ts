@@ -6,10 +6,10 @@ export async function login(password: string): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ password }),
   });
-  const data = await res.json();
+  const data = await res.json() as { error?: string; retryAfter?: number };
   if (!res.ok) {
-    const err = new Error((data as Record<string, unknown>).error as string ?? "Login failed");
-    (err as any).retryAfter = (data as any).retryAfter;
+    const err = new Error(data.error ?? "Login failed");
+    (err as Error & { retryAfter?: number }).retryAfter = data.retryAfter;
     throw err;
   }
 }

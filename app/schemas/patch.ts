@@ -3,8 +3,8 @@ import { z } from "zod";
 export const ChangeSchema = z.object({
   hero: z.string().min(1),
   field: z.string().min(1),
-  from: z.any().optional(),
-  to: z.any().optional(),
+  from: z.unknown().optional(),
+  to: z.unknown().optional(),
   note: z.string().optional(),
 });
 

@@ -5,7 +5,7 @@ const globalCache = new Map<string, { data: unknown; timestamp: number }>();
 const MAX_CACHE_SIZE = 100;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-const inFlight = new Map<string, Promise<any>>();
+const inFlight = new Map<string, Promise<unknown>>();
 
 export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = [], cacheKeyOverride?: string) {
   const key = `${cacheKeyOverride || 'useData-fallback'}-${JSON.stringify(deps)}`;
@@ -49,7 +49,7 @@ export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = [], cach
       if (!data) setLoading(true);
       setError(null);
 
-      let fetchPromise = inFlight.get(key);
+      let fetchPromise = inFlight.get(key) as Promise<T> | undefined;
       if (!fetchPromise) {
         fetchPromise = fetcher().finally(() => {
           inFlight.delete(key);
@@ -58,7 +58,7 @@ export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = [], cach
       }
 
       fetchPromise
-        .then((d: any) => {
+        .then((d: T) => {
           if (!cancelled) {
             setData(d);
             if (key) {
@@ -71,7 +71,7 @@ export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = [], cach
             setLoading(false);
           }
         })
-        .catch((e: any) => {
+        .catch((e: unknown) => {
           if (!cancelled) {
             setError(e);
             setLoading(false);

@@ -5,7 +5,7 @@ export const AbilityEffectSchema = z.object({
   override_name: z.string().optional(),
   override_type: z.string().optional(),
   override_description: z.string().optional(),
-  params_override: z.record(z.string(), z.any()).optional(),
+  params_override: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const ItemSchema = z.object({

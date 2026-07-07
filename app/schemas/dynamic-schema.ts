@@ -84,7 +84,7 @@ export function buildDynamicZodSchema(
     if (f.type === "list" || f.type === "reference_list")
       fieldSchema = z.array(z.string());
     if (f.type === "abilities") fieldSchema = z.array(KitItemSchema);
-    if (f.type === "object_array") fieldSchema = z.array(z.any());
+    if (f.type === "object_array") fieldSchema = z.array(z.unknown());
     
     if (f.required) {
       if (f.type === "number")
@@ -96,7 +96,7 @@ export function buildDynamicZodSchema(
         f.type === "reference_list" ||
         f.type === "object_array"
       )
-        fieldSchema = z.array(z.any()).min(1, "Required");
+        fieldSchema = z.array(z.unknown()).min(1, "Required");
       else if (f.type === "abilities")
         fieldSchema = z.array(KitItemSchema).min(1, "Required");
       else fieldSchema = z.string().min(1, "Required");
@@ -107,7 +107,7 @@ export function buildDynamicZodSchema(
         f.type === "reference_list" ||
         f.type === "object_array"
       )
-        fieldSchema = z.array(z.any()).nullish().catch(undefined);
+        fieldSchema = z.array(z.unknown()).nullish().catch(undefined);
       else if (f.type === "abilities")
         fieldSchema = z.array(KitItemSchema).nullish().catch(undefined);
       else fieldSchema = fieldSchema.nullish().or(z.literal("")).catch(undefined);

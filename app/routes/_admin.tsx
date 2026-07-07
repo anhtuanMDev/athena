@@ -18,7 +18,7 @@ export default function AdminLayout() {
   }, [], "_admin-13");
 
   useEffect(() => {
-    if ((error as any)?.message === "unauthorized") {
+    if (error instanceof Error && error.message === "unauthorized") {
       navigate("/login");
     }
   }, [error, navigate]);
