@@ -17,7 +17,7 @@ async function fetchDashboardData() {
 }
 
 export default function Dashboard() {
-  const { data, loading, error } = useData(fetchDashboardData);
+  const { data, loading, error } = useData(fetchDashboardData, [], "dashboard");
 
   if (loading) return (
     <div className="space-y-6">

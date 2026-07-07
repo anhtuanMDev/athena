@@ -37,6 +37,19 @@ export const DynamicSchemaFileSchema = z.object({
   name: z.string().min(1),
   category: SchemaCategorySchema,
   fields: z.array(DynamicFieldSchema),
+}).superRefine((data, ctx) => {
+  const keys = new Set();
+  for (let i = 0; i < data.fields.length; i++) {
+    const key = data.fields[i].key;
+    if (keys.has(key)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Duplicate field key: '${key}'`,
+        path: ["fields", i, "key"],
+      });
+    }
+    keys.add(key);
+  }
 });
 
 export type DynamicSchemaFile = z.infer<typeof DynamicSchemaFileSchema>;

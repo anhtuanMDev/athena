@@ -46,7 +46,10 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
             
             // @ts-ignore category is populated because it's a schema
             const categorySchemas = allSchemas.filter(s => s && s.category === schemaCategory);
-            const isDefaultSchema = categorySchemas[0]?.id === id;
+            const defaultSchema = categorySchemas.find(s => s.id === `base-${schemaCategory}`) 
+                               || categorySchemas.find(s => s.id === `default-${schemaCategory}`) 
+                               || categorySchemas[0];
+            const isDefaultSchema = defaultSchema?.id === id;
 
             dependencies = allEntities.filter(e => {
               if (!e) return false;
@@ -57,6 +60,18 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
           } catch (e) {
             // Ignore if directory doesn't exist yet
           }
+        }
+      } else if (entityType === "heroes") {
+        try {
+          const patches = await listDirectory<{ patch: string; changes?: Array<{ hero?: string }> }>(game!, "patches", true, ["patch", "changes"]);
+          const referencingPatches = patches.filter(p => p && p.changes?.some(c => c.hero === id));
+          referencingPatches.forEach(p => dependencies.push({ id: p.patch, name: p.patch, targetEntity: "patches" }));
+
+          const items = await listDirectory<{ id: string; name?: string; hero?: string }>(game!, "items", true, ["id", "name", "hero"]);
+          const referencingItems = items.filter(item => item && item.hero === id);
+          referencingItems.forEach(item => dependencies.push({ id: item.id, name: item.name || item.id, targetEntity: "items" }));
+        } catch (e) {
+          // Ignore if directory doesn't exist yet
         }
       }
       return { fileData: file, dependencies };
@@ -127,9 +142,9 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
 
           {data.dependencies.length > 0 && (
             <div className="mb-6 p-4 rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/50">
-              <h4 className="text-sm font-bold text-orange-800 dark:text-orange-400 mb-2">Cannot Delete Schema</h4>
+              <h4 className="text-sm font-bold text-orange-800 dark:text-orange-400 mb-2 capitalize">Cannot Delete {singularEntity}</h4>
               <p className="text-sm text-orange-700 dark:text-orange-300 mb-4">
-                The following {data.dependencies[0].targetEntity} are currently using this schema. You must update them to use a different schema before this schema can be deleted.
+                The following entities are currently referencing this {singularEntity}. You must update them before this {singularEntity} can be deleted.
               </p>
               <ul className="list-disc pl-5 space-y-1">
                 {data.dependencies.map(dep => (

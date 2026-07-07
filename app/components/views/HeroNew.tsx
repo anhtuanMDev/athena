@@ -369,6 +369,23 @@ Example Output:
         base64: string;
         message: string;
       }[] = [];
+      
+      // Validate mode_overrides
+      const modes = await listDirectory(game, "modes");
+      const modeSet = new Set(modes);
+      for (const f of fields.filter((f) => f.type === "abilities")) {
+        const abilityList = formData[f.key] || [];
+        for (const ability of abilityList) {
+          if (ability.mode_overrides) {
+            for (const modeId of Object.keys(ability.mode_overrides)) {
+              if (!modeSet.has(modeId as string)) {
+                throw new Error(`Ability '${ability.name || ability.id}' references invalid mode override: '${modeId}'`);
+              }
+            }
+          }
+        }
+      }
+
       // Ensure Abilities are formatted correctly (icons processing)
       fields
         .filter((f) => f.type === "abilities")

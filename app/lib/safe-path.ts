@@ -1,5 +1,5 @@
 const SAFE_SLUG = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
-const SAFE_ENTITY_ID = /^[a-z0-9][a-z0-9.-]*[a-z0-9]$|^[a-z0-9]$/;
+const SAFE_ENTITY_ID = /^(?!.*\.\.)[a-z0-9][a-z0-9.-]*[a-z0-9]$|^[a-z0-9]$/;
 export const ENTITY_TYPES = ["heroes", "maps", "modes", "patches", "items"] as const;
 type EntityType = (typeof ENTITY_TYPES)[number];
 const SAFE_ENTITY_TYPE = new RegExp(`^(${ENTITY_TYPES.join("|")})$`);

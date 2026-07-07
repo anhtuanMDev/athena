@@ -174,7 +174,7 @@ function destroySessionCookie(): string {
 
 // Safe path validation allows `data/...` and `public/assets/...`
 const SAFE_FILE_PATH =
-  /^(data\/|public\/assets\/)[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)*\.[a-z0-9]+$/;
+  /^(data\/|public\/assets\/)[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)*\.[A-Za-z0-9]+$/;
 
 function assertSafeFilePath(path: string): void {
   const decoded = decodeURIComponent(path);

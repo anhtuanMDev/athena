@@ -13,6 +13,7 @@ interface DeleteConfirm {
   mode: string;
   referencingItems: string[];
   referencingHeroes: string[];
+  referencingMaps: string[];
 }
 
 export default function EditMode() {
@@ -107,7 +108,10 @@ export default function EditMode() {
       const heroes = await listDirectory<{ id: string; kit?: Array<{ mode_overrides?: Record<string, unknown> }> }>(game!, "heroes", true, ["id", "kit"]);
       const referencingHeroes = heroes.filter(hero => hero.kit?.some(a => a.mode_overrides && id! in a.mode_overrides)).map(hero => hero.id);
 
-      setDeleteConfirm({ mode: id!, referencingItems, referencingHeroes });
+      const maps = await listDirectory<{ id: string; game_modes?: string[] }>(game!, "maps", true, ["id", "game_modes"]);
+      const referencingMaps = maps.filter(map => map.game_modes?.includes(id!)).map(map => map.id);
+
+      setDeleteConfirm({ mode: id!, referencingItems, referencingHeroes, referencingMaps });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error";
       setError(msg);
@@ -165,7 +169,14 @@ export default function EditMode() {
                 <p className="text-yellow-700 dark:text-yellow-400 mt-2 font-medium">These overrides will become dangling.</p>
               </div>
             )}
-            {deleteConfirm.referencingItems.length === 0 && deleteConfirm.referencingHeroes.length === 0 && (
+            {deleteConfirm.referencingMaps.length > 0 && (
+              <div className="p-4 bg-yellow-50/80 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/50 rounded-xl text-sm backdrop-blur-sm">
+                <p className="font-bold text-yellow-800 dark:text-yellow-300">This mode is referenced by {deleteConfirm.referencingMaps.length} map(s):</p>
+                <p className="text-yellow-700 dark:text-yellow-400 font-mono mt-1">{deleteConfirm.referencingMaps.join(", ")}</p>
+                <p className="text-yellow-700 dark:text-yellow-400 mt-2 font-medium">These references will become dangling.</p>
+              </div>
+            )}
+            {deleteConfirm.referencingItems.length === 0 && deleteConfirm.referencingHeroes.length === 0 && deleteConfirm.referencingMaps.length === 0 && (
               <p className="text-sm text-gray-600 dark:text-gray-400 p-2">No other entities reference this mode.</p>
             )}
             <div className="flex gap-4 pt-4">

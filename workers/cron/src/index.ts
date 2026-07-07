@@ -16,24 +16,7 @@ export default {
     ctx: ExecutionContext
   ): Promise<void> {
     console.log(`Cron triggered by ${controller.cron} at ${new Date().toISOString()}`);
-
-    // Route tasks based on the specific cron schedule that fired
-    switch (controller.cron) {
-      case "*/15 * * * *":
-        // Runs every 15 minutes
-        ctx.waitUntil(handleScheduledTask(env, "marvel-rivals"));
-        break;
-      case "0 * * * *":
-        // Runs at the top of every hour
-        ctx.waitUntil(handleScheduledTask(env, "overwatch"));
-        break;
-      case "0 0 * * *":
-        // Runs at midnight
-        console.log("Running nightly database cleanup/sync...");
-        break;
-      default:
-        console.log(`Unknown cron schedule: ${controller.cron}`);
-    }
+    ctx.waitUntil(runScheduledJobs(env, controller.cron));
   },
 
   /**
@@ -48,62 +31,108 @@ export default {
         return new Response("Unauthorized", { status: 401 });
       }
 
-      const game = url.searchParams.get("game") || "marvel-rivals";
-      ctx.waitUntil(handleScheduledTask(env, game));
-      return new Response(`Cron job triggered manually for ${game}`, { status: 200 });
+      const game = url.searchParams.get("game");
+      const cronId = url.searchParams.get("job");
+
+      ctx.waitUntil(runManualJobs(env, game, cronId));
+      return new Response(`Triggered jobs manually`, { status: 200 });
     }
     return new Response("Athena Cron Worker running", { status: 200 });
   }
 };
 
-/**
- * Main logic for the automated patch fetching
- */
-async function handleScheduledTask(env: Env, game: string): Promise<void> {
-  try {
-    // 2. Fetch the Patch schema from GitHub via Content API
-    const schemaFile = await getGitHubFile(env, `data/${game}/schemas/patch-default.json`);
+async function runScheduledJobs(env: Env, schedule: string) {
+  const gamesFile = await getGitHubFile(env, "data/_meta/games.json");
+  if (!gamesFile) return;
+  const games = Array.isArray(gamesFile) ? gamesFile : (gamesFile.games || []);
+  
+  for (const gameObj of games) {
+    const game = typeof gameObj === 'string' ? gameObj : gameObj.id;
+    if (!game) continue;
     
-    if (!schemaFile || !schemaFile.api_endpoint) {
-      console.log("No API endpoint configured in the schema. Exiting.");
+    const cronJobs = await listGitHubDirectory(env, `data/${game}/cron_jobs`);
+    for (const job of cronJobs) {
+      if (job.schedule === schedule) {
+        console.log(`Running cron job ${job.id} for game ${game}`);
+        await handleJobTask(env, game, job);
+      }
+    }
+  }
+}
+
+async function runManualJobs(env: Env, targetGame: string | null, targetJobId: string | null) {
+  const gamesFile = await getGitHubFile(env, "data/_meta/games.json");
+  if (!gamesFile) return;
+  const games = Array.isArray(gamesFile) ? gamesFile : (gamesFile.games || []);
+  
+  for (const gameObj of games) {
+    const game = typeof gameObj === 'string' ? gameObj : gameObj.id;
+    if (!game) continue;
+    if (targetGame && game !== targetGame) continue;
+    
+    const cronJobs = await listGitHubDirectory(env, `data/${game}/cron_jobs`);
+    for (const job of cronJobs) {
+      if (targetJobId && job.id !== targetJobId) continue;
+      console.log(`Manually running cron job ${job.id} for game ${game}`);
+      await handleJobTask(env, game, job);
+    }
+  }
+}
+
+async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
+  try {
+    if (!job.api_endpoint) {
+      console.log(`Cron job ${job.id} has no api_endpoint configured. Exiting.`);
       return;
     }
 
-    // 1. Fetch data from external API (using the configured endpoint)
-    console.log(`Fetching latest patch data from ${schemaFile.api_endpoint}...`);
-    // const response = await fetch(schemaFile.api_endpoint);
-    // const patchData = await response.json();
+    console.log(`Fetching latest data from ${job.api_endpoint}...`);
+    // const response = await fetch(job.api_endpoint);
+    // const fetchedData = await response.json();
     
-    // 3. Compare with current latest patch to see if conditions are fulfilled
-    const latestPatch = await getGitHubFile(env, `data/${game}/patches/latest.json`);
-    
-    // 4. Validate and construct the new patch object based on dynamic schema rules
-    // ... logic mapping external API fields to Schema fields ...
-    const newPatchData = {
-      id: `patch-${Date.now()}`,
-      name: "Auto-generated Patch",
-      date: new Date().toISOString(),
-      // dynamically mapped fields go here
-    };
-
-    // 5. If conditions are met (e.g., new patch detected), save it!
-    // NOTE: This logic is currently a stub. disabled by default to prevent spam.
-    const shouldSaveNewPatch = false; // Replace with actual condition check when external API is implemented
-    if (shouldSaveNewPatch) {
-      console.log("New patch detected. Saving to GitHub...");
+    // ... Stub logic ...
+    const shouldSaveNewData = false; // Replace with actual condition check
+    if (shouldSaveNewData) {
+      const newPatchData = {
+        id: `patch-${Date.now()}`,
+        name: "Auto-generated Patch",
+        date: new Date().toISOString(),
+      };
+      console.log(`New data detected for ${job.id}. Saving to GitHub...`);
       await saveGitHubFile(
         env, 
         `data/${game}/patches/${newPatchData.id}.json`, 
         newPatchData, 
         `chore: auto-fetch new patch ${newPatchData.id}`
       );
-      console.log("Successfully saved new patch!");
+      console.log("Successfully saved new data!");
     } else {
-      console.log("No new patch found or saving disabled. Exiting.");
+      console.log(`No new data found for job ${job.id}. Exiting.`);
     }
   } catch (error) {
-    console.error("Cron Job Failed:", error);
+    console.error(`Cron Job ${job?.id} Failed:`, error);
   }
+}
+
+async function listGitHubDirectory(env: Env, path: string): Promise<any[]> {
+  const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${path}?ref=${env.GITHUB_BRANCH || "main"}`;
+  const response = await fetch(url, {
+    headers: {
+      "Accept": "application/vnd.github.v3+json",
+      "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
+      "User-Agent": "Athena-Cron-Worker"
+    }
+  });
+
+  if (!response.ok) return [];
+  const entries: any[] = await response.json();
+  const files = await Promise.all(
+    entries
+      .filter((entry: any) => entry.type === "file" && entry.name.endsWith(".json"))
+      .map(async (entry: any) => await getGitHubFile(env, entry.path))
+  );
+  
+  return files.filter(Boolean);
 }
 
 // ============================================================================

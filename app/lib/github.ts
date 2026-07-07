@@ -45,6 +45,7 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
       const game = pathMatch.split("/")[1];
       clearDataCache(`["${game}"`);
       clearDataCache(`${game}-`);
+      clearDataCache(`dashboard`);
     } else {
       clearDataCache();
     }

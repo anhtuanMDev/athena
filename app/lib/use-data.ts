@@ -22,6 +22,23 @@ export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = [], cach
   const [loading, setLoading] = useState(!key || !globalCache.has(key) || (Date.now() - globalCache.get(key)!.timestamp >= CACHE_TTL_MS));
   const [error, setError] = useState<unknown>(null);
   const [tick, setTick] = useState(0);
+  const [prevKey, setPrevKey] = useState(key);
+
+  if (key !== prevKey) {
+    setPrevKey(key);
+    let initialData = null;
+    let initialLoading = true;
+    if (key && globalCache.has(key)) {
+      const cached = globalCache.get(key)!;
+      if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
+        initialData = cached.data as T;
+        initialLoading = false;
+      }
+    }
+    setData(initialData);
+    setLoading(initialLoading);
+    setError(null);
+  }
 
   useEffect(() => {
     let cancelled = false;

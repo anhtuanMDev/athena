@@ -1,5 +1,5 @@
 import type { Control, UseFormRegister, FieldErrors, UseFormSetValue } from "react-hook-form";
-import { useFieldArray, Controller } from "react-hook-form";
+import { useFieldArray, Controller, useWatch } from "react-hook-form";
 import type { ImageEntry } from "~/components/MultiImageUploadField";
 import { FormField } from "~/components/FormField";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
@@ -25,6 +25,11 @@ export function AbilitiesField({ name, label, control, register, setValue, error
     name
   });
 
+  const watchAbilities = useWatch({
+    control,
+    name
+  });
+
   return (
     <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
       <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 tracking-wider uppercase">{label || "Kit Abilities"}</h3>
@@ -36,7 +41,8 @@ export function AbilitiesField({ name, label, control, register, setValue, error
       <div className="space-y-4">
         {fields.map((field, i) => {
           const abilityErrors = (errors[name] as any)?.[i];
-          const dataId = (field as any).id || i.toString();
+          const currentAbility = watchAbilities?.[i] || field;
+          const dataId = (currentAbility as any).id || i.toString();
           
           return (
             <div key={field.id} className="p-4 border border-gray-200/50 dark:border-gray-700/50 rounded-xl bg-gray-50/50 dark:bg-gray-800/30">
