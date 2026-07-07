@@ -42,7 +42,8 @@ export function AbilitiesField({ name, label, control, register, setValue, error
         {fields.map((field, i) => {
           const abilityErrors = (errors[name] as any)?.[i];
           const currentAbility = watchAbilities?.[i] || field;
-          const dataId = (currentAbility as any).id || i.toString();
+          // Use field.id as the stable client-side identifier
+          const dataId = (currentAbility as any)._clientId || currentAbility.id || field.id;
           
           return (
             <div key={field.id} className="p-4 border border-gray-200/50 dark:border-gray-700/50 rounded-xl bg-gray-50/50 dark:bg-gray-800/30">
@@ -61,6 +62,7 @@ export function AbilitiesField({ name, label, control, register, setValue, error
                   />
                 </div>
                 <div className="flex-1 space-y-3">
+                  <input type="hidden" {...register(`${name}.${i}._clientId` as const)} />
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <Controller
                       name={`${name}.${i}.id` as const}
@@ -154,7 +156,7 @@ export function AbilitiesField({ name, label, control, register, setValue, error
           );
         })}
       </div>
-      <button type="button" onClick={() => append({ id: "", name: "", type: "", description: "", params: {} })}
+      <button type="button" onClick={() => append({ _clientId: Math.random().toString(36).substring(7), id: "", name: "", type: "", description: "", params: {} })}
         className="mt-4 text-sm font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 inline-flex items-center gap-1">
         + Add Ability
       </button>

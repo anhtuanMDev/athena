@@ -10,7 +10,7 @@ async function fetchCommits() {
 }
 
 export default function Activity() {
-  const { data, loading } = useData(fetchCommits);
+  const { data, loading } = useData(fetchCommits, [], "_admin.activity-13");
 
   if (loading) return (
     <div className="space-y-6">

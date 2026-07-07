@@ -25,15 +25,15 @@ export default function EditItem() {
 
   const itemResult = useData<{ content: Item; sha: string } | null>(
     () => getFile<Item>(`data/${game}/items/${id}.json`),
-    [game, id],
+    [game, id], "ItemEdit-26"
   );
   const heroesResult = useData<string[]>(
     () => listDirectory(game!, "heroes"),
-    [game],
+    [game], "ItemEdit-30"
   );
   const modesResult = useData<string[]>(
     () => listDirectory(game!, "modes"),
-    [game],
+    [game], "ItemEdit-34"
   );
 
   const [error, setError] = useState<string | null>(null);
@@ -174,8 +174,8 @@ export default function EditItem() {
         toastSuccess(`Item ${parsed.data.name} updated successfully!`);
       } catch (err) {
         if (isConflictError(err)) {
-          setError("Conflict detected. Please try again.");
-          toastError("Conflict detected! Someone else modified this file.");
+          setError(err.message);
+          toastError(err.message);
           return;
         }
         throw err;
@@ -210,8 +210,8 @@ export default function EditItem() {
         toastSuccess("Item deleted successfully.");
       } catch (err) {
         if (isConflictError(err)) {
-          setError("Conflict detected. Please try again.");
-          toastError("Conflict detected! Someone else modified this file.");
+          setError(err.message);
+          toastError(err.message);
           return;
         }
         throw err;

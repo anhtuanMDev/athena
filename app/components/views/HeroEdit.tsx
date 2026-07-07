@@ -30,10 +30,8 @@ import {
 } from "~/lib/github";
 import { assertSafeEntityId, assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
-import {
-  type DynamicField,
-  type DynamicSchemaFile,
-} from "~/schemas/dynamic-schema";
+import {type DynamicField,
+  type DynamicSchemaFile, buildDynamicZodSchema} from "~/schemas/dynamic-schema";
 import { HeroSchema, type Hero } from "~/schemas/hero";
 
 export default function EditHero() {
@@ -44,7 +42,7 @@ export default function EditHero() {
   const navigate = useNavigate();
   const heroResult = useData<{ content: Hero; sha: string } | null>(
     () => getFile<Hero>(`data/${game}/heroes/${id}.json`),
-    [game, id],
+    [game, id], "HeroEdit-45"
   );
   const schemaResult = useData<{
     schemas: DynamicSchemaFile[];
@@ -60,7 +58,7 @@ export default function EditHero() {
     } catch (e) {
       return { schemas: [] };
     }
-  }, [game]);
+  }, [game], "HeroEdit-49");
 
   if (heroResult.loading || schemaResult.loading) {
     return (
@@ -163,8 +161,9 @@ function EditHeroForm({
     const icons: Record<string, ImageEntry[]> = {};
     if (hero.kit && Array.isArray(hero.kit)) {
       hero.kit.forEach((ability: any, i: number) => {
+        if (!ability._clientId) ability._clientId = ability.id || i.toString();
         if (ability.icon && typeof ability.icon === "object") {
-          icons[ability.id || i] = Object.entries(ability.icon).map(([key, url]) => ({
+          icons[ability._clientId] = Object.entries(ability.icon).map(([key, url]) => ({
             id: Math.random().toString(36).substring(7),
             key,
             previewUrl: url as string,
@@ -184,48 +183,7 @@ function EditHeroForm({
   );
   const fields = activeSchema?.fields || [];
 
-  const dynamicZodSchema = useMemo(() => {
-    let shape: Record<string, z.ZodTypeAny> = {};
-    fields.forEach((f) => {
-      if (["id", "name", "real_name", "portrait"].includes(f.key)) return;
-      let fieldSchema: z.ZodTypeAny =
-        f.type === "number"
-          ? z.coerce.number()
-          : f.type === "boolean"
-            ? z.boolean()
-            : z.string();
-      if (f.type === "list" || f.type === "reference_list")
-        fieldSchema = z.array(z.string());
-      if (f.type === "abilities") fieldSchema = z.array(z.any());
-      if (f.type === "object_array") fieldSchema = z.array(z.any());
-      if (f.required) {
-        if (f.type === "number")
-          fieldSchema = z.coerce.number().min(1, "Required");
-        else if (f.type === "boolean")
-          fieldSchema = z.boolean().refine((val) => val === true, "Required");
-        else if (
-          f.type === "list" ||
-          f.type === "reference_list" ||
-          f.type === "abilities" ||
-          f.type === "object_array"
-        )
-          fieldSchema = z.array(z.any()).min(1, "Required");
-        else fieldSchema = z.string().min(1, "Required");
-      } else {
-        if (f.type === "boolean") fieldSchema = z.boolean().nullish().catch(undefined);
-        else if (
-          f.type === "list" ||
-          f.type === "reference_list" ||
-          f.type === "abilities" ||
-          f.type === "object_array"
-        )
-          fieldSchema = z.array(z.any()).nullish().catch(undefined);
-        else fieldSchema = fieldSchema.nullish().or(z.literal("")).catch(undefined);
-      }
-      shape[f.key] = fieldSchema;
-    });
-    return HeroSchema.extend(shape);
-  }, [fields]);
+  const dynamicZodSchema = useMemo(() => buildDynamicZodSchema(fields, HeroSchema, ["id", "name", "real_name", "portrait"]), [fields]);
 
   const defaultValues = useMemo(() => {
     const vals = { ...hero };
@@ -381,7 +339,7 @@ Example Output:
           const abilityList = formData[f.key] || [];
           abilityList.forEach((ability: any, i: number) => {
             if (!ability.params) ability.params = {};
-            const aIcons = abilityIcons[ability.id || i] || [];
+            const aIcons = abilityIcons[ability._clientId || ability.id || i] || [];
             if (aIcons.length === 1 && aIcons[0].key === "main") {
               const ext = aIcons[0].name?.split(".").pop() || "png";
               ability.icon = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
@@ -479,10 +437,8 @@ Example Output:
       navigate(`/${game}/heroes`);
     } catch (err) {
       if (isConflictError(err)) {
-        setSubmitError(
-          "Conflict detected. The file has been modified. Please try again.",
-        );
-        toastError("Conflict detected! Someone else modified this file.");
+        setSubmitError(err.message);
+        toastError(err.message);
       } else {
         const msg = err instanceof Error ? err.message : "Error";
         setSubmitError(msg);

@@ -1,7 +1,7 @@
 import { Link, useParams } from "react-router";
 import { useEntityList } from "~/lib/use-entity-list";
 import { DataTable, type Column } from "~/components/DataTable";
-import { DataTableSkeleton } from "~/components/DataTableSkeleton";
+import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus } from "lucide-react";
@@ -74,7 +74,9 @@ export default function HeroesIndex() {
       </div>
     );
 
-  const columns = useMemo(() => {
+    if (loading) return <EntityListSkeleton columns={6} rows={8} />;
+
+const columns = useMemo(() => {
     if (!heroes || heroes.length === 0) return baseColumns;
 
     // Auto-detect columns based on the first hero's keys
@@ -148,9 +150,7 @@ export default function HeroesIndex() {
         </Link>
       </div>
 
-      {loading ? (
-        <DataTableSkeleton columns={6} rows={8} />
-      ) : heroes ? (
+      {heroes ? (
         <DataTable
           columns={columns}
           data={heroes}

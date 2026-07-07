@@ -8,6 +8,7 @@ import { getFile, createFile, listDirectory } from "~/lib/github";
 import {
   type DynamicSchemaFile,
   type DynamicField,
+  buildDynamicZodSchema
 } from "~/schemas/dynamic-schema";
 import { useData } from "~/lib/use-data";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
@@ -53,7 +54,7 @@ export default function NewMap() {
       if (s.fields) allFields.push(...s.fields);
     }
     return { fields: allFields, schemaCount: mapSchemas.length, game: game! };
-  }, [game]);
+  }, [game], "MapNew-44");
 
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
@@ -62,22 +63,7 @@ export default function NewMap() {
 
   const dynamicZodSchema = useMemo(() => {
     if (!data) return MapSchema;
-    const shape: Record<string, z.ZodTypeAny> = {};
-    data.fields.forEach((f) => {
-      if (f.key === "name" || f.key === "id" || f.key === "game_modes") return;
-      let fieldSchema: z.ZodTypeAny =
-        f.type === "number" ? z.coerce.number() : z.string();
-      if (f.type === "list") fieldSchema = z.string(); // Lists are handled as comma-separated strings natively in the form
-      if (f.required) {
-        if (f.type === "number")
-          fieldSchema = z.coerce.number().min(1, "Required");
-        else fieldSchema = z.string().min(1, "Required");
-      } else {
-        fieldSchema = fieldSchema.optional().or(z.literal(""));
-      }
-      shape[f.key] = fieldSchema;
-    });
-    return MapSchema.extend(shape).strict();
+    return buildDynamicZodSchema(data.fields, MapSchema, ["name", "id", "game_modes"]).strict();
   }, [data]);
 
   const {

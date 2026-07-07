@@ -26,7 +26,7 @@ export default function EditMode() {
 
   const result = useData<{ content: Mode; sha: string } | null>(
     () => getFile<Mode>(`data/${game}/modes/${id}.json`),
-    [game, id]
+    [game, id], "ModeEdit-27"
   );
 
   const [error, setError] = useState<string | null>(null);
@@ -81,8 +81,8 @@ export default function EditMode() {
         toastSuccess(`Mode ${parsed.data.name} updated successfully!`);
       } catch (err) {
         if (isConflictError(err)) {
-          setError("Conflict detected. Please try again.");
-          toastError("Conflict detected! Someone else modified this file.");
+          setError(err.message);
+          toastError(err.message);
           return;
         }
         throw err;
@@ -131,8 +131,8 @@ export default function EditMode() {
         toastSuccess("Mode deleted successfully.");
       } catch (err) {
         if (isConflictError(err)) {
-          setError("Conflict detected. Please try again.");
-          toastError("Conflict detected! Someone else modified this file.");
+          setError(err.message);
+          toastError(err.message);
           return;
         }
         throw err;

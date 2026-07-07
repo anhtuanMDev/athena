@@ -26,10 +26,8 @@ import {
 } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
-import {
-  type DynamicField,
-  type DynamicSchemaFile,
-} from "~/schemas/dynamic-schema";
+import {type DynamicField,
+  type DynamicSchemaFile, buildDynamicZodSchema} from "~/schemas/dynamic-schema";
 import { HeroSchema } from "~/schemas/hero";
 
 function AutoGenerateId({ control, setValue, touchedFields }: any) {
@@ -75,7 +73,7 @@ export default function NewHero() {
       schemaCount: heroSchemas.length,
       game: game!,
     };
-  }, [game]);
+  }, [game], "HeroNew-66");
 
   if (loading) {
     return (
@@ -178,51 +176,7 @@ function HeroForm({
   );
   const fields = activeSchema?.fields || [];
 
-  const dynamicZodSchema = useMemo(() => {
-    let shape: Record<string, z.ZodTypeAny> = {};
-    fields.forEach((f) => {
-      if (["id", "name", "real_name", "portrait"].includes(f.key)) return;
-      let fieldSchema: z.ZodTypeAny =
-        f.type === "number"
-          ? z.coerce.number()
-          : f.type === "boolean"
-            ? z.boolean()
-            : z.string();
-      if (f.type === "list" || f.type === "reference_list")
-        fieldSchema = z.array(z.string());
-      if (f.type === "abilities") fieldSchema = z.array(z.any());
-      if (f.type === "object_array") fieldSchema = z.array(z.any());
-      if (f.required) {
-        if (f.type === "number")
-          fieldSchema = z.coerce.number().min(1, "Required");
-        else if (f.type === "boolean")
-          fieldSchema = z.boolean().refine((val) => val === true, "Required");
-        else if (
-          f.type === "list" ||
-          f.type === "reference_list" ||
-          f.type === "abilities" ||
-          f.type === "object_array"
-        )
-          fieldSchema = z.array(z.any()).min(1, "Required");
-        else fieldSchema = z.string().min(1, "Required");
-      } else {
-        if (f.type === "boolean") fieldSchema = z.boolean().nullish().catch(undefined);
-        else if (
-          f.type === "list" ||
-          f.type === "reference_list" ||
-          f.type === "abilities" ||
-          f.type === "object_array"
-        )
-          fieldSchema = z.array(z.any()).nullish().catch(undefined);
-        else fieldSchema = fieldSchema.nullish().or(z.literal("")).catch(undefined);
-      }
-      shape[f.key] = fieldSchema;
-    });
-
-    // We expect kit abilities to have id, name, type. We don't dynamically validate params yet since it's freeform in the schema,
-    // but we ensure the core kit shape is valid.
-    return HeroSchema.extend(shape);
-  }, [fields]);
+  const dynamicZodSchema = useMemo(() => buildDynamicZodSchema(fields, HeroSchema, ["id", "name", "real_name", "portrait"]), [fields]);
 
   const {
     register,
@@ -394,7 +348,7 @@ Example Output:
           abilityList.forEach((ability: any, i: number) => {
             if (!ability.params) ability.params = {};
 
-            const aIcons = abilityIcons[ability.id || i] || [];
+            const aIcons = abilityIcons[ability._clientId || ability.id || i] || [];
             if (aIcons.length === 1 && aIcons[0].key === "main") {
               const ext = aIcons[0].name?.split(".").pop() || "png";
               const displayPath = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;

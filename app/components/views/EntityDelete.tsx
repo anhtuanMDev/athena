@@ -61,22 +61,52 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
             // Ignore if directory doesn't exist yet
           }
         }
-      } else if (entityType === "heroes") {
+      } else {
         try {
-          const patches = await listDirectory<{ patch: string; changes?: Array<{ hero?: string }> }>(game!, "patches", true, ["patch", "changes"]);
-          const referencingPatches = patches.filter(p => p && p.changes?.some(c => c.hero === id));
-          referencingPatches.forEach(p => dependencies.push({ id: p.patch, name: p.patch, targetEntity: "patches" }));
+          // Check for any deep references (keys or values) across all entity categories
+          // This catches mode_overrides-style cross-references, cron_job targets, schema reference_lists, etc.
+          const checkDeepReference = (obj: any, target: string): boolean => {
+            if (!obj) return false;
+            if (typeof obj === "string") return obj === target;
+            if (Array.isArray(obj)) return obj.some(v => checkDeepReference(v, target));
+            if (typeof obj === "object") {
+              for (const [k, v] of Object.entries(obj)) {
+                if (k === target || checkDeepReference(v, target)) return true;
+              }
+            }
+            return false;
+          };
 
-          const items = await listDirectory<{ id: string; name?: string; hero?: string }>(game!, "items", true, ["id", "name", "hero"]);
-          const referencingItems = items.filter(item => item && item.hero === id);
-          referencingItems.forEach(item => dependencies.push({ id: item.id, name: item.name || item.id, targetEntity: "items" }));
+          const checkCategory = async (category: string) => {
+            try {
+              const entities = await listDirectory<any>(game!, category, true);
+              const referencing = entities.filter(e => e && e.id !== id && checkDeepReference(e, id!));
+              referencing.forEach(e => dependencies.push({ 
+                id: e.id || e.patch || "unknown", 
+                name: e.name || e.patch || e.id || "Unknown", 
+                targetEntity: category 
+              }));
+            } catch (e) {
+              // Ignore if category doesn't exist
+            }
+          };
+
+          await Promise.all([
+            checkCategory("patches"),
+            checkCategory("items"),
+            checkCategory("modes"),
+            checkCategory("maps"),
+            checkCategory("heroes"),
+            checkCategory("cron_jobs"),
+            checkCategory("schemas")
+          ]);
         } catch (e) {
-          // Ignore if directory doesn't exist yet
+          // Ignore
         }
       }
       return { fileData: file, dependencies };
     },
-    [game, id, entityType]
+    [game, id, entityType], "EntityDelete-28"
   );
 
   async function handleDelete(e: React.FormEvent) {
@@ -90,9 +120,7 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
       clearDataCache();
       navigate(`/${game}/${entityType}`);
     } catch (err) {
-      const msg = isConflictError(err)
-        ? "Conflict: This entity was modified by another user recently. Please refresh and try again."
-        : err instanceof Error ? err.message : "Error deleting file";
+      const msg = (err as Error).message;
       setError(msg);
       toastError(`Failed to delete: ${msg}`);
     } finally {

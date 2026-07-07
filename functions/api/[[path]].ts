@@ -174,7 +174,7 @@ function destroySessionCookie(): string {
 
 // Safe path validation allows `data/...` and `public/assets/...`
 const SAFE_FILE_PATH =
-  /^(data\/|public\/assets\/)[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)*\.[A-Za-z0-9]+$/;
+  /^(data\/|public\/assets\/)[A-Za-z0-9_-][A-Za-z0-9_.-]*(\/[A-Za-z0-9_-][A-Za-z0-9_.-]*)*\.[A-Za-z0-9]+$/;
 
 function assertSafeFilePath(path: string): void {
   const decoded = decodeURIComponent(path);
@@ -258,15 +258,16 @@ export async function onRequest(
 }
 
 function getClientIp(request: Request): string {
-  return (
-    request.headers.get("CF-Connecting-IP") ||
-    request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ||
-    "127.0.0.1"
-  );
+  return request.headers.get("CF-Connecting-IP") || "127.0.0.1";
 }
 
 async function handleLogin(request: Request, env: Env): Promise<Response> {
   const ip = getClientIp(request);
+
+  // Note: There is a known TOCTOU (Time-of-Check to Time-of-Use) gap here.
+  // Concurrent requests from the same IP can race past this check before
+  // recordAttempt persists, allowing more than MAX_ATTEMPTS in a burst.
+  // This is an accepted risk given the latency of Cloudflare KV.
   const { allowed, retryAfter } = await checkRateLimit(ip, env);
   if (!allowed) {
     return json({ error: "Too many attempts", retryAfter }, 429);

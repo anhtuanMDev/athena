@@ -29,7 +29,7 @@ export default function NewMode() {
       if (s.fields) allFields.push(...s.fields);
     }
     return { fields: allFields, schemaCount: modeSchemas.length, game: game! };
-  }, [game]);
+  }, [game], "ModeNew-20");
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
   const [submitting, setSubmitting] = useState(false);

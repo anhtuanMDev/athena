@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { MapSchema, type Map } from "~/schemas/map";
 import { getFile, updateFile, deleteFile, isConflictError, listDirectory } from "~/lib/github";
-import { type DynamicSchemaFile, type DynamicField } from "~/schemas/dynamic-schema";
+import { type DynamicSchemaFile, type DynamicField, buildDynamicZodSchema } from "~/schemas/dynamic-schema";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
@@ -24,7 +24,7 @@ export default function EditMap() {
 
   const { data: fileData, loading: fileLoading, error: fileFetchError } = useData<{ content: Map; sha: string } | null>(
     () => getFile<Map>(`data/${game}/maps/${id}.json`),
-    [game, id]
+    [game, id], "MapEdit-25"
   );
 
   const { data: schemaData, loading: schemaLoading, error: schemaFetchError } = useData(async () => {
@@ -35,27 +35,14 @@ export default function EditMap() {
       if (s.fields) allFields.push(...s.fields);
     }
     return { fields: allFields, schemaCount: mapSchemas.length, game: game! };
-  }, [game]);
+  }, [game], "MapEdit-30");
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const dynamicZodSchema = useMemo(() => {
     if (!schemaData) return MapSchema;
-    const shape: Record<string, z.ZodTypeAny> = {};
-    schemaData.fields.forEach(f => {
-      if (f.key === "name" || f.key === "id" || f.key === "game_modes") return;
-      let fieldSchema: z.ZodTypeAny = f.type === "number" ? z.coerce.number() : z.string();
-      if (f.type === "list") fieldSchema = z.string(); // Lists are handled as comma-separated strings
-      if (f.required) {
-        if (f.type === "number") fieldSchema = z.coerce.number().min(1, "Required");
-        else fieldSchema = z.string().min(1, "Required");
-      } else {
-        fieldSchema = fieldSchema.optional().or(z.literal(""));
-      }
-      shape[f.key] = fieldSchema;
-    });
-    return MapSchema.extend(shape).strict();
+    return buildDynamicZodSchema(schemaData.fields, MapSchema, ["name", "id", "game_modes"]).strict();
   }, [schemaData]);
 
   const {
@@ -94,8 +81,8 @@ export default function EditMap() {
         toastSuccess(`Map ${parsed.name} updated successfully!`);
       } catch (err) {
         if (isConflictError(err)) {
-          setSubmitError("Conflict detected. Please try again.");
-          toastError("Conflict detected! Someone else modified this file.");
+          setSubmitError(err.message);
+          toastError(err.message);
           return;
         }
         throw err;
@@ -122,8 +109,8 @@ export default function EditMap() {
         toastSuccess("Map deleted successfully.");
       } catch (err) {
         if (isConflictError(err)) {
-          setSubmitError("Conflict detected. Please try again.");
-          toastError("Conflict detected! Someone else modified this file.");
+          setSubmitError(err.message);
+          toastError(err.message);
           return;
         }
         throw err;

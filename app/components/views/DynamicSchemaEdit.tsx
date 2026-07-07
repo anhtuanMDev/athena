@@ -54,7 +54,7 @@ export default function DynamicSchemaEdit() {
     ]);
     if (!file) throw new Error("Schema not found");
     return { schema: file.content, sha: file.sha, allSchemas: schemas };
-  }, [game, id]);
+  }, [game, id], "DynamicSchemaEdit-49");
 
   const [fields, setFields] = useState<DynamicField[] | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -381,10 +381,10 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
       navigate(`/${game}/schemas`);
     } catch (err) {
       if (isConflictError(err)) {
-        setCommitError(
-          "Conflict: file was modified since loading. Refresh and re-apply.",
-        );
-        toastError("Conflict detected! Someone else modified this file.");
+        setCommitError((err as Error).message);
+        toastError((err as Error).message);
+        setSubmitting(false);
+        return;
       } else {
         setCommitError((err as Error).message);
         toastError((err as Error).message);

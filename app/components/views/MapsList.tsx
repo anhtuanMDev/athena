@@ -1,7 +1,7 @@
 import { Link, useParams } from "react-router";
 import { useEntityList } from "~/lib/use-entity-list";
 import { DataTable, type Column } from "~/components/DataTable";
-import { DataTableSkeleton } from "~/components/DataTableSkeleton";
+import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus } from "lucide-react";
@@ -30,7 +30,9 @@ export default function MapsIndex() {
     </div>
   );
 
-  return (
+  
+  if (loading) return <EntityListSkeleton columns={4} rows={8} />;
+return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
@@ -45,9 +47,7 @@ export default function MapsIndex() {
         </Link>
       </div>
 
-      {loading ? (
-        <DataTableSkeleton columns={4} rows={8} />
-      ) : maps ? (
+      {maps ? (
         <DataTable columns={columns} data={maps} baseUrl={`/${game}/maps`} />
       ) : null}
     </div>

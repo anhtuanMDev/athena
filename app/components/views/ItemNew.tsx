@@ -44,7 +44,7 @@ export default function NewItem() {
       schemaCount: itemSchemas.length,
       game: game!,
     };
-  }, [game]);
+  }, [game], "ItemNew-24");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

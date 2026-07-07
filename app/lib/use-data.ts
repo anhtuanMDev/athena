@@ -8,7 +8,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const inFlight = new Map<string, Promise<any>>();
 
 export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = [], cacheKeyOverride?: string) {
-  const key = cacheKeyOverride || (JSON.stringify(deps) + fetcher.toString());
+  const key = `${cacheKeyOverride || 'useData-fallback'}-${JSON.stringify(deps)}`;
   
   const [data, setData] = useState<T | null>(() => {
     if (key && globalCache.has(key)) {

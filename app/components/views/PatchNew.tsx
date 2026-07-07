@@ -29,7 +29,7 @@ export default function NewPatch() {
       if (s.fields) allFields.push(...s.fields);
     }
     return { fields: allFields, schemaCount: patchSchemas.length, game: game! };
-  }, [game]);
+  }, [game], "PatchNew-20");
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
   const [submitting, setSubmitting] = useState(false);

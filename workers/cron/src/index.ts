@@ -86,6 +86,11 @@ async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
       return;
     }
 
+    if (!isSafeUrl(job.api_endpoint)) {
+      console.error(`Cron job ${job.id} has an unsafe api_endpoint: ${job.api_endpoint}. Exiting to prevent SSRF.`);
+      return;
+    }
+
     console.log(`Fetching latest data from ${job.api_endpoint}...`);
     // const response = await fetch(job.api_endpoint);
     // const fetchedData = await response.json();
@@ -133,6 +138,28 @@ async function listGitHubDirectory(env: Env, path: string): Promise<any[]> {
   );
   
   return files.filter(Boolean);
+}
+
+function isSafeUrl(urlString: string): boolean {
+  try {
+    const url = new URL(urlString);
+    if (url.protocol !== "https:") return false;
+    
+    // SSRF protection: reject IP addresses (v4 and v6)
+    const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (ipv4Regex.test(url.hostname) || url.hostname.includes(":")) {
+      return false;
+    }
+    
+    // Reject common internal hostnames
+    if (url.hostname === "localhost" || url.hostname.endsWith(".local") || url.hostname.endsWith(".internal")) {
+      return false;
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ============================================================================

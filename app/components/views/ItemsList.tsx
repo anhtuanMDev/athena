@@ -1,7 +1,7 @@
 import { Link, useParams } from "react-router";
 import { useEntityList } from "~/lib/use-entity-list";
 import { DataTable, type Column } from "~/components/DataTable";
-import { DataTableSkeleton } from "~/components/DataTableSkeleton";
+import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus } from "lucide-react";
@@ -41,6 +41,8 @@ export default function ItemsIndex() {
       </div>
     );
 
+  if (loading) return <EntityListSkeleton columns={4} rows={10} />;
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -60,9 +62,7 @@ export default function ItemsIndex() {
         </Link>
       </div>
 
-      {loading ? (
-        <DataTableSkeleton columns={4} rows={10} />
-      ) : items ? (
+      {items ? (
         <DataTable columns={columns} data={items} baseUrl={`/${game}/items`} />
       ) : null}
     </div>

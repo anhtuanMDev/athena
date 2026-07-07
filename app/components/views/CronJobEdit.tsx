@@ -25,7 +25,7 @@ export default function CronJobEdit() {
     ]);
     if (!cronFile) throw new Error("Cron Job not found");
     return { cron: cronFile.content, sha: cronFile.sha, schemas: schemaFiles };
-  }, [game, id]);
+  }, [game, id], "CronJobEdit-20");
 
   const [apiEndpoint, setApiEndpoint] = useState("");
   const [schemaId, setSchemaId] = useState("");
@@ -97,8 +97,8 @@ export default function CronJobEdit() {
       navigate(`/${game}/cron`);
     } catch (err) {
       if (isConflictError(err)) {
-        setCommitError("Conflict: file was modified since loading. Refresh and re-apply.");
-        toastError("Conflict detected! Someone else modified this file.");
+        setCommitError(err.message);
+        toastError(err.message);
       } else {
         setCommitError((err as Error).message);
         toastError((err as Error).message);

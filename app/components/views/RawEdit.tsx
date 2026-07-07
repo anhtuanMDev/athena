@@ -38,7 +38,7 @@ export default function RawEditor() {
     const file = await getFile(path);
     if (!file) throw new Error("File not found");
     return { content: file.content, sha: file.sha, path, type };
-  }, [game, type, id]);
+  }, [game, type, id], "RawEdit-37");
 
   const [step, setStep] = useState<"editor" | "preview">("editor");
   const [diffs, setDiffs] = useState<DiffEntry[] | null>(null);
@@ -89,14 +89,24 @@ export default function RawEditor() {
       return;
     }
 
+    const validator = typeValidators[type!];
+    if (validator) {
+      const result = validator(parsed);
+      if (!result.success) {
+        setError(`Validation failed for ${type} on commit: the data doesn't match the expected schema`);
+        toastError("Validation failed on commit!");
+        return;
+      }
+    }
+
     try {
       await updateFile(path, parsed, commitSha, `Update ${type}: ${id} (raw edit)`);
       toastSuccess("Raw edit saved successfully!");
       navigate(`/${game}/${type}`);
     } catch (err) {
       if (isConflictError(err)) {
-        setError("Conflict: file was modified since loading. Refresh and re-apply.");
-        toastError("Conflict detected! Someone else modified this file.");
+        setError((err as Error).message);
+        toastError((err as Error).message);
       } else {
         toastError("Failed to save changes.");
         throw err;

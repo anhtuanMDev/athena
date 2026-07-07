@@ -16,7 +16,7 @@ export default function CronJobsList() {
     } catch (e) {
       return [];
     }
-  }, [game]);
+  }, [game], "CronJobsList-12");
 
   if (loading)
     return (

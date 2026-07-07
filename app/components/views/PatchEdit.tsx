@@ -19,7 +19,7 @@ export default function EditPatch() {
 
   const result = useData<{ content: Patch; sha: string } | null>(
     () => getFile<Patch>(`data/${game}/patches/${id}.json`),
-    [game, id]
+    [game, id], "PatchEdit-20"
   );
 
   const [error, setError] = useState<string | null>(null);
@@ -91,8 +91,8 @@ export default function EditPatch() {
         toastSuccess(`Patch ${parsed.data.patch} updated successfully!`);
       } catch (err) {
         if (isConflictError(err)) {
-          setError("Conflict detected. Please try again.");
-          toastError("Conflict detected! Someone else modified this file.");
+          setError(err.message);
+          toastError(err.message);
           return;
         }
         throw err;
@@ -118,8 +118,8 @@ export default function EditPatch() {
         toastSuccess("Patch deleted successfully.");
       } catch (err) {
         if (isConflictError(err)) {
-          setError("Conflict detected. Please try again.");
-          toastError("Conflict detected! Someone else modified this file.");
+          setError(err.message);
+          toastError(err.message);
           return;
         }
         throw err;

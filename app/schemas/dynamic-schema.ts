@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { KitItemSchema } from "~/schemas/hero";
 
 export const FieldTypeSchema = z.enum(["string", "number", "boolean", "list", "enum", "abilities", "object_array", "reference", "reference_list"]);
 export type FieldType = z.infer<typeof FieldTypeSchema>;
@@ -64,4 +65,54 @@ export function getCategoryDirectory(category: SchemaCategory): string {
     event: "events",
   };
   return categoryMap[category] || `${category}s`;
+}
+
+export function buildDynamicZodSchema(
+  fields: DynamicField[],
+  baseSchema: z.ZodObject<any, any, any>,
+  excludeKeys: string[] = []
+) {
+  let shape: Record<string, z.ZodTypeAny> = {};
+  fields.forEach((f) => {
+    if (excludeKeys.includes(f.key)) return;
+    let fieldSchema: z.ZodTypeAny =
+      f.type === "number"
+        ? z.coerce.number()
+        : f.type === "boolean"
+          ? z.boolean()
+          : z.string();
+    if (f.type === "list" || f.type === "reference_list")
+      fieldSchema = z.array(z.string());
+    if (f.type === "abilities") fieldSchema = z.array(KitItemSchema);
+    if (f.type === "object_array") fieldSchema = z.array(z.any());
+    
+    if (f.required) {
+      if (f.type === "number")
+        fieldSchema = z.coerce.number().min(1, "Required");
+      else if (f.type === "boolean")
+        fieldSchema = z.boolean().refine((val) => val === true, "Required");
+      else if (
+        f.type === "list" ||
+        f.type === "reference_list" ||
+        f.type === "object_array"
+      )
+        fieldSchema = z.array(z.any()).min(1, "Required");
+      else if (f.type === "abilities")
+        fieldSchema = z.array(KitItemSchema).min(1, "Required");
+      else fieldSchema = z.string().min(1, "Required");
+    } else {
+      if (f.type === "boolean") fieldSchema = z.boolean().nullish().catch(undefined);
+      else if (
+        f.type === "list" ||
+        f.type === "reference_list" ||
+        f.type === "object_array"
+      )
+        fieldSchema = z.array(z.any()).nullish().catch(undefined);
+      else if (f.type === "abilities")
+        fieldSchema = z.array(KitItemSchema).nullish().catch(undefined);
+      else fieldSchema = fieldSchema.nullish().or(z.literal("")).catch(undefined);
+    }
+    shape[f.key] = fieldSchema;
+  });
+  return baseSchema.extend(shape);
 }

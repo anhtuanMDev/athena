@@ -22,13 +22,14 @@
     "animejs": "^4.5.0",
     "bcryptjs": "^3.0.3",
     "cookie": "^2.0.1",
+    "glob": "^13.0.6",
+    "isbot": "^5",
     "lucide-react": "^1.23.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-hook-form": "^7.80.0",
     "react-router": "^8.1.0",
-    "zod": "^4.4.3",
-    "isbot": "^5"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260702.1",

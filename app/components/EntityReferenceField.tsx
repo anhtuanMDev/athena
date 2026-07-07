@@ -54,7 +54,7 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
           name: labelValue,
         };
       });
-    }, [game, referenceApiEndpoint, referenceValueKey, referenceLabelKey]);
+    }, [game, referenceApiEndpoint, referenceValueKey, referenceLabelKey], "EntityReferenceField-21");
 
     const valArray = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
     

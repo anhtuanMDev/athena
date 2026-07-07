@@ -52,7 +52,7 @@ export default function DynamicSchemaNew() {
     } catch (e) {
       return [];
     }
-  }, [game]);
+  }, [game], "DynamicSchemaNew-49");
 
   const [importSchemaId, setImportSchemaId] = useState("");
 
