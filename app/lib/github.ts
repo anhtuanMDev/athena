@@ -44,6 +44,7 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
     if (pathMatch && pathMatch.startsWith("data/") && !pathMatch.startsWith("data/_meta/")) {
       const game = pathMatch.split("/")[1];
       clearDataCache(`["${game}"`);
+      clearDataCache(`${game}-`);
     } else {
       clearDataCache();
     }

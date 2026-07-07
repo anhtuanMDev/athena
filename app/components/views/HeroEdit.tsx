@@ -9,7 +9,10 @@ import { DiffView } from "~/components/DiffView";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
 import { EntityReferenceField } from "~/components/EntityReferenceField";
 import { FormField } from "~/components/FormField";
-import { type ImageEntry } from "~/components/MultiImageUploadField";
+import {
+  MultiImageUploadField,
+  type ImageEntry,
+} from "~/components/MultiImageUploadField";
 import { useToast } from "~/components/ToastProvider";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
@@ -148,10 +151,29 @@ function EditHeroForm({
   const [submittingCommit, setSubmittingCommit] = useState(false);
 
   // We manage complex media independently of hook-form
-  const [portraits, setPortraits] = useState<ImageEntry[]>([]);
-  const [abilityIcons, setAbilityIcons] = useState<
-    Record<string, ImageEntry[]>
-  >({});
+  const [portraits, setPortraits] = useState<ImageEntry[]>(() => {
+    if (!hero.portrait || typeof hero.portrait === "string") return [];
+    return Object.entries(hero.portrait).map(([key, url]) => ({
+      id: Math.random().toString(36).substring(7),
+      key,
+      previewUrl: url as string,
+    }));
+  });
+  const [abilityIcons, setAbilityIcons] = useState<Record<string, ImageEntry[]>>(() => {
+    const icons: Record<string, ImageEntry[]> = {};
+    if (hero.kit && Array.isArray(hero.kit)) {
+      hero.kit.forEach((ability: any, i: number) => {
+        if (ability.icon && typeof ability.icon === "object") {
+          icons[ability.id || i] = Object.entries(ability.icon).map(([key, url]) => ({
+            id: Math.random().toString(36).substring(7),
+            key,
+            previewUrl: url as string,
+          }));
+        }
+      });
+    }
+    return icons;
+  });
 
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>(
     hero.schema_id || schemas[0]?.id || "",
@@ -563,12 +585,26 @@ Example Output:
           error={!!errors.name}
           helperText={errors.name?.message as string}
         />
-        <FormField
-          label="Portrait URL"
-          {...register("portrait")}
-          error={!!errors.portrait}
-          helperText={errors.portrait?.message as string}
+      </div>
+
+      <div className="border border-gray-200 dark:border-gray-800 p-4 rounded-xl bg-gray-50/50 dark:bg-gray-800/30">
+        <MultiImageUploadField
+          label="Portraits"
+          entries={portraits}
+          onChange={setPortraits}
+          defaultKey="main"
         />
+        {portraits.length === 0 && (
+          <div className="mt-4">
+            <FormField
+              label="Or Image URL"
+              placeholder="https://..."
+              {...register("portrait")}
+              error={!!errors.portrait}
+              helperText={errors.portrait?.message as string}
+            />
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
