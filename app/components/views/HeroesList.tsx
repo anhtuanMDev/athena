@@ -67,16 +67,7 @@ export default function HeroesIndex() {
     error,
   } = useEntityList<HeroRow>(game!, "heroes");
 
-  if (error)
-    return (
-      <div className="p-8 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400">
-        Error loading heroes data.
-      </div>
-    );
-
-    if (loading) return <EntityListSkeleton columns={6} rows={8} />;
-
-const columns = useMemo(() => {
+  const columns = useMemo(() => {
     if (!heroes || heroes.length === 0) return baseColumns;
 
     // Auto-detect columns based on the first hero's keys
@@ -130,6 +121,15 @@ const columns = useMemo(() => {
 
     return cols;
   }, [heroes]);
+
+  if (error)
+    return (
+      <div className="p-8 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400">
+        Error loading heroes data.
+      </div>
+    );
+
+  if (loading) return <EntityListSkeleton columns={6} rows={8} />;
 
   return (
     <div className="space-y-8">
