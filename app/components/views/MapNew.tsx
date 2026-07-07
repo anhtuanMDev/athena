@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { MapSchema } from "~/schemas/map";
@@ -16,6 +16,22 @@ import { assertSafeGameSlug } from "~/lib/safe-path";
 import { FormField } from "~/components/FormField";
 import { useToast } from "~/components/ToastProvider";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
+
+function AutoGenerateId({ control, setValue }: any) {
+  const nameValue = useWatch({ control, name: "name" });
+  
+  useEffect(() => {
+    if (nameValue && typeof nameValue === "string") {
+      const generatedId = nameValue
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+      setValue("id", generatedId, { shouldValidate: true, shouldDirty: true });
+    }
+  }, [nameValue, setValue]);
+
+  return null;
+}
 
 export default function NewMap() {
   const { game } = useParams();
@@ -81,19 +97,6 @@ export default function NewMap() {
       game_modes: "",
     },
   });
-
-  const nameValue = watch("name");
-
-  // Auto-generate ID from Name
-  useEffect(() => {
-    if (nameValue && typeof nameValue === "string") {
-      const generatedId = nameValue
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
-      setValue("id", generatedId, { shouldValidate: true, shouldDirty: true });
-    }
-  }, [nameValue, setValue]);
 
   const onSubmit = async (formData: any) => {
     setSubmitting(true);
@@ -188,6 +191,7 @@ export default function NewMap() {
             </div>
           )}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            <AutoGenerateId control={control} setValue={setValue} />
             <input type="hidden" {...register("game")} />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

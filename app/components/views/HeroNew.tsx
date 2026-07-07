@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { useNavigate, useParams } from "react-router";
 import { z } from "zod";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
@@ -29,6 +29,28 @@ import {
   type DynamicSchemaFile,
 } from "~/schemas/dynamic-schema";
 import { HeroSchema } from "~/schemas/hero";
+
+function AutoGenerateId({ control, setValue, touchedFields }: any) {
+  const nameValue = useWatch({ control, name: "name" });
+  const idValue = useWatch({ control, name: "id" });
+
+  useEffect(() => {
+    if (nameValue && typeof nameValue === "string" && !touchedFields.id) {
+      const generatedId = nameValue
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+      if (idValue !== generatedId) {
+        setValue("id", generatedId, {
+          shouldValidate: true,
+          shouldDirty: true,
+        });
+      }
+    }
+  }, [nameValue, touchedFields.id, setValue, idValue]);
+
+  return null;
+}
 
 export default function NewHero() {
   const { game } = useParams();
@@ -199,7 +221,6 @@ function HeroForm({
     register,
     handleSubmit,
     control,
-    watch,
     setValue,
     formState: { errors, isValid, touchedFields },
   } = useForm<any>({
@@ -216,25 +237,7 @@ function HeroForm({
     },
   });
 
-  const nameValue = watch("name");
-
-  const idValue = watch("id");
-
-  // Auto-generate ID from Name if the ID field hasn't been manually touched
-  useEffect(() => {
-    if (nameValue && typeof nameValue === "string" && !touchedFields.id) {
-      const generatedId = nameValue
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
-      if (idValue !== generatedId) {
-        setValue("id", generatedId, {
-          shouldValidate: true,
-          shouldDirty: true,
-        });
-      }
-    }
-  }, [nameValue, touchedFields.id, setValue, idValue]);
+  const idValue = useWatch({ control, name: "id" });
 
   const onSubmit = async (formData: any) => {
     setSubmitting(true);
@@ -366,6 +369,7 @@ function HeroForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <AutoGenerateId control={control} setValue={setValue} touchedFields={touchedFields} />
       {submitError && (
         <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">
           {submitError}

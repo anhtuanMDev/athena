@@ -3,12 +3,13 @@ import { useParams, useNavigate } from "react-router";
 import {
   DynamicSchemaFileSchema,
   type DynamicField,
+  type DynamicSchemaFile,
 } from "~/schemas/dynamic-schema";
-import { getFile, createFile } from "~/lib/github";
+import { getFile, createFile, listDirectory } from "~/lib/github";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
-import { clearDataCache } from "~/lib/use-data";
+import { clearDataCache, useData } from "~/lib/use-data";
 import {
   Plus,
   Trash2,
@@ -35,6 +36,26 @@ export default function DynamicSchemaNew() {
 
   const [submitting, setSubmitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
+
+  const { data: existingSchemas } = useData(async () => {
+    try {
+      return await listDirectory<DynamicSchemaFile>(game!, "schemas", true);
+    } catch (e) {
+      return [];
+    }
+  }, [game]);
+
+  const [importSchemaId, setImportSchemaId] = useState("");
+
+  const handleImportFields = () => {
+    if (!importSchemaId || !existingSchemas) return;
+    const schemaToImport = existingSchemas.find(s => s.id === importSchemaId);
+    if (schemaToImport && schemaToImport.fields) {
+      setFields(prev => [...prev, ...schemaToImport.fields]);
+      toastSuccess(`Imported ${schemaToImport.fields.length} fields from ${schemaToImport.name}`);
+      setImportSchemaId("");
+    }
+  };
 
   const handleAddField = () => {
     setFields([
@@ -306,14 +327,39 @@ export default function DynamicSchemaNew() {
             <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
               Fields Configuration
             </h2>
-            <Button
-              type="button"
-              onClick={handleAddField}
-              size="small"
-              className="bg-gray-900 hover:bg-gray-800 text-white dark:bg-white dark:hover:bg-gray-200 dark:text-gray-900 shadow-sm flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" /> Add New Field
-            </Button>
+            <div className="flex gap-2">
+              {existingSchemas && existingSchemas.length > 0 && (
+                <div className="flex items-center gap-2 mr-4">
+                  <select
+                    value={importSchemaId}
+                    onChange={(e) => setImportSchemaId(e.target.value)}
+                    className="block w-48 rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                  >
+                    <option value="">-- Import from Schema --</option>
+                    {existingSchemas.map(s => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.fields?.length || 0} fields)</option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    onClick={handleImportFields}
+                    disabled={!importSchemaId}
+                    size="small"
+                    variant="outline"
+                  >
+                    Import
+                  </Button>
+                </div>
+              )}
+              <Button
+                type="button"
+                onClick={handleAddField}
+                size="small"
+                className="bg-gray-900 hover:bg-gray-800 text-white dark:bg-white dark:hover:bg-gray-200 dark:text-gray-900 shadow-sm flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" /> Add New Field
+              </Button>
+            </div>
           </div>
 
           {fields.length === 0 ? (
