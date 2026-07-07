@@ -243,6 +243,8 @@ export async function onRequest(
       return await handleListDirectory(request, env);
     if (path === "data/games" && request.method === "GET")
       return await handleListGames(request, env);
+    if (path === "data/dashboard" && request.method === "GET")
+      return await handleDashboardData(request, env);
     if (path === "data/commits" && request.method === "GET")
       return await handleCommits(request, env);
     if (path.startsWith("assets/") && request.method === "GET")
@@ -562,6 +564,53 @@ async function handleListGames(request: Request, env: Env): Promise<Response> {
       "listGames: data/_meta/games.json not found - check GITHUB_OWNER, GITHUB_REPO, GITHUB_BRANCH env vars",
     );
     return json([]);
+  }
+}
+
+async function handleDashboardData(request: Request, env: Env): Promise<Response> {
+  await requireAuth({ request, env } as PagesFunctionContext);
+  const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
+  const owner = env.GITHUB_OWNER;
+  const repo = env.GITHUB_REPO;
+  const branch = env.GITHUB_BRANCH ?? "main";
+
+  try {
+    const { data } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: "data/_meta/games.json",
+      ref: branch,
+    });
+    let games = [];
+    if ("content" in data && "sha" in data) {
+      games = JSON.parse(atob(data.content)).games ?? [];
+    }
+
+    const { data: branchData } = await octokit.repos.getBranch({ owner, repo, branch });
+    const treeSha = branchData.commit.commit.tree.sha;
+    
+    const { data: treeData } = await octokit.git.getTree({
+      owner,
+      repo,
+      tree_sha: treeSha,
+      recursive: "1",
+    });
+
+    const gameStats = games.map((game: any) => {
+      if (!game.active) return { ...game, heroCount: 0, patchCount: 0 };
+      const heroPrefix = `data/${game.slug}/heroes/`;
+      const patchPrefix = `data/${game.slug}/patches/`;
+      
+      const heroCount = treeData.tree.filter((t) => t.type === "blob" && t.path?.startsWith(heroPrefix) && t.path?.endsWith(".json")).length;
+      const patchCount = treeData.tree.filter((t) => t.type === "blob" && t.path?.startsWith(patchPrefix) && t.path?.endsWith(".json")).length;
+
+      return { ...game, heroCount, patchCount };
+    });
+
+    return json({ games: gameStats });
+  } catch (err) {
+    console.error("handleDashboardData error:", err);
+    return json({ games: [] });
   }
 }
 

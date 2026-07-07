@@ -1,19 +1,10 @@
-import { listGames, listDirectory } from "~/lib/github";
+import { getDashboardData } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Link } from "react-router";
 import { useData } from "~/lib/use-data";
 
 async function fetchDashboardData() {
-  const games = await listGames();
-  const gameStats = await Promise.all(
-    games.map(async (game) => {
-      if (!game.active) return { ...game, heroCount: 0, patchCount: 0 };
-      const heroes = await listDirectory(game.slug, "heroes");
-      const patches = await listDirectory(game.slug, "patches");
-      return { ...game, heroCount: heroes.length, patchCount: patches.length };
-    })
-  );
-  return { games: gameStats };
+  return await getDashboardData();
 }
 
 export default function Dashboard() {

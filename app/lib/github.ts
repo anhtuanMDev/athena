@@ -90,6 +90,10 @@ export async function listGames(): Promise<Game[]> {
   return api("GET", "data/games");
 }
 
+export async function getDashboardData(): Promise<{ games: (Game & { heroCount: number; patchCount: number })[] }> {
+  return api("GET", "data/dashboard");
+}
+
 export async function getFileSha(path: string): Promise<string | null> {
   const file = await getFile(path);
   return file?.sha ?? null;

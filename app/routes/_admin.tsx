@@ -46,11 +46,11 @@ export default function AdminLayout() {
 
       {/* Mobile header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-[#030712]/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 z-40 flex items-center justify-between px-4">
-        <div className="flex items-center gap-3 rounded-xl bg-linear-to-tr from-blue-600 to-orange-500 p-2">
-          <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-gray-200/50 shrink-0">
             <img src="/favicon.svg" alt="Athena Logo" className="w-6 h-6 object-contain" />
           </div>
-          <span className="text-xl font-bold text-white tracking-tight pr-2">
+          <span className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-linear-to-r from-blue-500 to-orange-500">
             Athena
           </span>
         </div>
