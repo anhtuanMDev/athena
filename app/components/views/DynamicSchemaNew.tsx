@@ -95,10 +95,10 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
 - \`string\`: Text input
 - \`number\`: Numeric input
 - \`boolean\`: Toggle switch
-- \`list\`: Multiple select (requires \`options\`)
-- \`enum\`: Single select (requires \`options\`)
-- \`abilities\`: Complex ability structure (takes \`subFields\` for extra params)
-- \`object_array\`: Group of nested fields (requires \`subFields\`)
+- \`list\`: Multiple select (requires \`options\` array of strings)
+- \`enum\`: Single select (requires \`options\` array of strings)
+- \`abilities\`: Complex ability structure. Takes \`subFields\` array for extra ability parameters. DO NOT include standard fields (\`id\`, \`name\`, \`type\`, \`description\`, \`icon\`, \`mode_overrides\`) in \`subFields\` as they are natively built-in. Only use \`subFields\` for custom parameters like damage, cooldown, etc.
+- \`object_array\`: Group of nested fields. Takes \`subFields\` array (each subField is a field object with key, label, type, etc.) for properties of the object.
 - \`reference\`: API-based single select (requires \`referenceApiEndpoint\`, \`referenceValueKey\`, \`referenceLabelKey\`)
 - \`reference_list\`: API-based multiple select (requires \`referenceApiEndpoint\`, \`referenceValueKey\`, \`referenceLabelKey\`)
 
@@ -106,6 +106,7 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
 1. Generate the JSON structure EXACTLY as specified above.
 2. Ensure \`key\` values are lowercase and alphanumeric with underscores.
 3. Do not include extra root properties.
+4. Generate a COMPREHENSIVE schema. Do not just generate a single field (like abilities). Include ALL relevant game-specific fields, stats, passives, weapons, and attributes that would be necessary to fully define this game entity.
 `;
 
   const handleCopyPrompt = () => {

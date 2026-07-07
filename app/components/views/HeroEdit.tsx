@@ -222,14 +222,26 @@ ${JSON.stringify(
 \`\`\`
 
 ## Expected Output JSON
-You must return ONLY a JSON object with the keys defined above.
+You must return ONLY a valid JSON object matching the root fields defined above.
 Do not include any extra root properties or markdown formatting around the json (no \`\`\`json block).
+
+### Special Field Instructions:
+- **abilities**: If a field is of type "abilities", it MUST be an array of objects. Every ability object MUST contain these standard base keys: 'name' (string), 'type' (string, chosen from the field's 'options' array if provided), and 'description' (string). Additionally, include any extra properties defined in the 'subFields' list directly on the ability object alongside the base keys.
+- **object_array**: If a field is of type "object_array", it MUST be an array of objects, where each object contains the properties defined in its 'subFields' list.
 
 Example Output:
 {
   "name": "Hero Name",
   "real_name": "Real Name",
-  "health": 200
+  "health": 200,
+  "kit": [
+    {
+      "name": "Ability Name",
+      "type": "Ultimate",
+      "description": "Ability description...",
+      "custom_subfield_1": "value1"
+    }
+  ]
 }
 `;
 
@@ -258,7 +270,7 @@ Example Output:
           const formattedItem: any = { params: {} };
           
           if (!item.id && item.name) {
-            formattedItem.id = item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+            formattedItem.id = item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
           } else if (!item.id) {
             formattedItem.id = Math.random().toString(36).substring(7);
           }
