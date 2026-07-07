@@ -9,12 +9,22 @@ import {
   ToggleLeft,
   Trash2,
   Type,
+  Upload,
+  Download,
+  Sparkles,
+  ClipboardPaste,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router";
 import { useToast } from "~/components/ToastProvider";
 import { Button } from "~/components/ui/button";
-import { getFile, isConflictError, updateFile } from "~/lib/github";
+import {
+  getFile,
+  isConflictError,
+  updateFile,
+  listDirectory,
+} from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { clearDataCache, useData } from "~/lib/use-data";
 import {
@@ -38,19 +48,135 @@ export default function DynamicSchemaEdit() {
     error: loadError,
   } = useData(async () => {
     if (!id) throw new Error("Schema ID missing");
-    const file = await getFile<DynamicSchemaFile>(
-      `data/${game}/schemas/${id}.json`,
-    );
+    const [file, schemas] = await Promise.all([
+      getFile<DynamicSchemaFile>(`data/${game}/schemas/${id}.json`),
+      listDirectory<DynamicSchemaFile>(game!, "schemas", true).catch(() => []),
+    ]);
     if (!file) throw new Error("Schema not found");
-    return { schema: file.content, sha: file.sha };
+    return { schema: file.content, sha: file.sha, allSchemas: schemas };
   }, [game, id]);
 
   const [fields, setFields] = useState<DynamicField[] | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
 
-  const [fieldApiKeys, setFieldApiKeys] = useState<Record<number, string[]>>({});
-  const [loadingApiKeys, setLoadingApiKeys] = useState<Record<number, boolean>>({});
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [pastedJson, setPastedJson] = useState("");
+
+  const [importSchemaId, setImportSchemaId] = useState("");
+
+  const handleImportFields = () => {
+    if (!importSchemaId || !loaderData?.allSchemas) return;
+    const schemaToImport = loaderData.allSchemas.find(
+      (s) => s.id === importSchemaId,
+    );
+    if (schemaToImport && schemaToImport.fields) {
+      const clonedFields = JSON.parse(JSON.stringify(schemaToImport.fields));
+      setFields((prev) => [...(prev || []), ...clonedFields]);
+      toastSuccess(
+        `Imported ${schemaToImport.fields.length} fields from ${schemaToImport.name}`,
+      );
+      setImportSchemaId("");
+    }
+  };
+
+  const aiPromptMarkdown = `# Athena Schema Generation Guidelines
+You are tasked with generating a JSON schema for a game entity in the Athena platform.
+
+## JSON Structure
+\`\`\`json
+{
+  "name": "Base Hero Attributes",
+  "category": "hero", // enum: "hero", "map", "mode", "patch", "event", "item"
+  "fields": [
+    {
+      "key": "health",
+      "label": "Base Health",
+      "type": "number", // "string", "number", "boolean", "list", "enum", "abilities", "object_array", "reference", "reference_list"
+      "required": true,
+      "unit": "HP", // optional
+      "options": [], // array of strings for list/enum
+      "subFields": [] // optional array of sub-fields for abilities/object_array
+    }
+  ]
+}
+\`\`\`
+
+## Field Types
+- \`string\`: Text input
+- \`number\`: Numeric input
+- \`boolean\`: Toggle switch
+- \`list\`: Multiple select (requires \`options\`)
+- \`enum\`: Single select (requires \`options\`)
+- \`abilities\`: Complex ability structure (takes \`subFields\` for extra params)
+- \`object_array\`: Group of nested fields (requires \`subFields\`)
+- \`reference\`: API-based single select (requires \`referenceApiEndpoint\`, \`referenceValueKey\`, \`referenceLabelKey\`)
+- \`reference_list\`: API-based multiple select (requires \`referenceApiEndpoint\`, \`referenceValueKey\`, \`referenceLabelKey\`)
+
+## Instructions
+1. Generate the JSON structure EXACTLY as specified above.
+2. Ensure \`key\` values are lowercase and alphanumeric with underscores.
+3. Do not include extra root properties.
+`;
+
+  const handleCopyPrompt = () => {
+    navigator.clipboard.writeText(aiPromptMarkdown);
+    toastSuccess("Copied to clipboard!");
+  };
+
+  const handleDownloadPrompt = () => {
+    const blob = new Blob([aiPromptMarkdown], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "athena_schema_ai_prompt.md";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (json.fields && Array.isArray(json.fields)) {
+          setFields((prev) => [...(prev || []), ...json.fields]);
+          toastSuccess(`Imported schema fields from file!`);
+        }
+      } catch (err) {
+        toastError("Invalid JSON file");
+      }
+      e.target.value = "";
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportPastedJson = () => {
+    try {
+      const json = JSON.parse(pastedJson);
+      if (json.fields && Array.isArray(json.fields)) {
+        setFields((prev) => [...(prev || []), ...json.fields]);
+        toastSuccess(`Imported schema fields from pasted text!`);
+        setShowImportModal(false);
+        setPastedJson("");
+      } else {
+        toastError("No 'fields' array found in JSON");
+      }
+    } catch (err) {
+      toastError("Invalid JSON structure");
+    }
+  };
+
+  const [fieldApiKeys, setFieldApiKeys] = useState<Record<number, string[]>>(
+    {},
+  );
+  const [loadingApiKeys, setLoadingApiKeys] = useState<Record<number, boolean>>(
+    {},
+  );
 
   const fetchApiKeys = async (index: number, endpoint: string) => {
     if (!endpoint) return;
@@ -62,7 +188,7 @@ export default function DynamicSchemaEdit() {
       let arr: unknown[] = [];
       if (Array.isArray(json)) {
         arr = json;
-      } else if (json && typeof json === 'object') {
+      } else if (json && typeof json === "object") {
         const jsonObj = json as Record<string, unknown>;
         if (Array.isArray(jsonObj.data)) {
           arr = jsonObj.data;
@@ -70,9 +196,12 @@ export default function DynamicSchemaEdit() {
           arr = jsonObj.items;
         }
       }
-      if (arr.length > 0 && typeof arr[0] === 'object' && arr[0] !== null) {
+      if (arr.length > 0 && typeof arr[0] === "object" && arr[0] !== null) {
         const firstItem = arr[0] as Record<string, unknown>;
-        setFieldApiKeys((prev) => ({ ...prev, [index]: Object.keys(firstItem) }));
+        setFieldApiKeys((prev) => ({
+          ...prev,
+          [index]: Object.keys(firstItem),
+        }));
         toastSuccess(`Loaded ${Object.keys(firstItem).length} fields from API`);
       } else {
         toastError("API returned empty list or non-objects");
@@ -343,6 +472,36 @@ export default function DynamicSchemaEdit() {
           </div>
         </div>
 
+        {/* AI & File Actions */}
+        <div className="flex flex-wrap gap-3 items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded-xl mb-6">
+          <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 text-sm font-medium">
+            <Sparkles className="w-5 h-5 text-blue-500" />
+            AI Schema Generation
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="small"
+              onClick={() => setShowPromptModal(true)}
+              className="text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/50"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Get AI Prompt
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="small"
+              onClick={() => setShowImportModal(true)}
+              className="text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/50"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Import AI Schema
+            </Button>
+          </div>
+        </div>
+
         {commitError && (
           <div className="rounded-xl bg-red-50 p-4 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200 border border-red-200 dark:border-red-800/50">
             {commitError}
@@ -355,14 +514,41 @@ export default function DynamicSchemaEdit() {
             <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
               Fields Configuration
             </h2>
-            <Button
-              type="button"
-              onClick={handleAddField}
-              size="small"
-              className="bg-gray-900 hover:bg-gray-800 text-white dark:bg-white dark:hover:bg-gray-200 dark:text-gray-900 shadow-sm flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" /> Add New Field
-            </Button>
+            <div className="flex gap-2">
+              {loaderData?.allSchemas && loaderData.allSchemas.length > 0 && (
+                <div className="flex items-center gap-2 mr-4">
+                  <select
+                    value={importSchemaId}
+                    onChange={(e) => setImportSchemaId(e.target.value)}
+                    className="block w-48 rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                  >
+                    <option value="">-- Import from Schema --</option>
+                    {loaderData.allSchemas.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.fields?.length || 0} fields)
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    onClick={handleImportFields}
+                    disabled={!importSchemaId}
+                    size="small"
+                    variant="outline"
+                  >
+                    Import
+                  </Button>
+                </div>
+              )}
+              <Button
+                type="button"
+                onClick={handleAddField}
+                size="small"
+                className="bg-gray-900 hover:bg-gray-800 text-white dark:bg-white dark:hover:bg-gray-200 dark:text-gray-900 shadow-sm flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" /> Add New Field
+              </Button>
+            </div>
           </div>
 
           {fields.length === 0 ? (
@@ -514,7 +700,8 @@ export default function DynamicSchemaEdit() {
                           className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white resize-none transition-colors"
                         />
                       </div>
-                    ) : field.type === "reference" || field.type === "reference_list" ? (
+                    ) : field.type === "reference" ||
+                      field.type === "reference_list" ? (
                       <div className="flex-1 space-y-3">
                         <div>
                           <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
@@ -525,16 +712,28 @@ export default function DynamicSchemaEdit() {
                               list={`api-options-${index}`}
                               value={field.referenceApiEndpoint || ""}
                               onChange={(e) =>
-                                handleChangeField(index, "referenceApiEndpoint", e.target.value)
+                                handleChangeField(
+                                  index,
+                                  "referenceApiEndpoint",
+                                  e.target.value,
+                                )
                               }
                               placeholder="/api/{game}/heroes"
                               className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                             />
-                            <Button 
-                              type="button" 
+                            <Button
+                              type="button"
                               variant="outline"
-                              onClick={() => fetchApiKeys(index, field.referenceApiEndpoint || "")}
-                              disabled={loadingApiKeys[index] || !field.referenceApiEndpoint}
+                              onClick={() =>
+                                fetchApiKeys(
+                                  index,
+                                  field.referenceApiEndpoint || "",
+                                )
+                              }
+                              disabled={
+                                loadingApiKeys[index] ||
+                                !field.referenceApiEndpoint
+                              }
                             >
                               {loadingApiKeys[index] ? "..." : "Fetch Fields"}
                             </Button>
@@ -557,14 +756,20 @@ export default function DynamicSchemaEdit() {
                               list={`value-keys-${index}`}
                               value={field.referenceValueKey || ""}
                               onChange={(e) =>
-                                handleChangeField(index, "referenceValueKey", e.target.value)
+                                handleChangeField(
+                                  index,
+                                  "referenceValueKey",
+                                  e.target.value,
+                                )
                               }
                               placeholder="id"
                               className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                             />
                             {fieldApiKeys[index] && (
                               <datalist id={`value-keys-${index}`}>
-                                {fieldApiKeys[index].map(k => <option key={k} value={k} />)}
+                                {fieldApiKeys[index].map((k) => (
+                                  <option key={k} value={k} />
+                                ))}
                               </datalist>
                             )}
                           </div>
@@ -576,14 +781,20 @@ export default function DynamicSchemaEdit() {
                               list={`label-keys-${index}`}
                               value={field.referenceLabelKey || ""}
                               onChange={(e) =>
-                                handleChangeField(index, "referenceLabelKey", e.target.value)
+                                handleChangeField(
+                                  index,
+                                  "referenceLabelKey",
+                                  e.target.value,
+                                )
                               }
                               placeholder="{name} - {id}"
                               className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                             />
                             {fieldApiKeys[index] && (
                               <datalist id={`label-keys-${index}`}>
-                                {fieldApiKeys[index].map(k => <option key={k} value={`{${k}}`} />)}
+                                {fieldApiKeys[index].map((k) => (
+                                  <option key={k} value={`{${k}}`} />
+                                ))}
                               </datalist>
                             )}
                           </div>
@@ -832,6 +1043,137 @@ export default function DynamicSchemaEdit() {
           )}
         </div>
       </form>
+
+      {/* Prompt Modal */}
+      {showPromptModal &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-blue-500" /> AI Prompt
+                  Instructions
+                </h3>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                <p className="text-sm text-gray-500 mb-4">
+                  Use the following prompt to instruct an AI (like ChatGPT or
+                  Claude) to generate a schema for you. You can copy the text or
+                  download it as a file.
+                </p>
+                <textarea
+                  readOnly
+                  value={aiPromptMarkdown}
+                  className="w-full h-64 rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 text-xs font-mono text-gray-700 dark:text-gray-300 focus:outline-none resize-none"
+                />
+              </div>
+              <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 bg-gray-50 dark:bg-gray-900/50">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShowPromptModal(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDownloadPrompt}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" /> Download .md
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleCopyPrompt}
+                  className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                >
+                  <ClipboardPaste className="w-4 h-4" /> Copy to Clipboard
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Import Modal */}
+      {showImportModal &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-gray-200 dark:border-gray-800">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Upload className="w-5 h-5 text-blue-500" /> Import Schema
+                </h3>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[60vh] space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                    Option 1: Upload JSON File
+                  </label>
+                  <div className="relative border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-8 text-center hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={(e) => {
+                        handleFileUpload(e);
+                        setShowImportModal(false);
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Click or drag and drop your generated JSON file here
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 h-px bg-gray-200 dark:bg-gray-800"></div>
+                  <span className="text-xs font-medium text-gray-500 uppercase">
+                    OR
+                  </span>
+                  <div className="flex-1 h-px bg-gray-200 dark:bg-gray-800"></div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                    Option 2: Paste JSON Directly
+                  </label>
+                  <textarea
+                    value={pastedJson}
+                    onChange={(e) => setPastedJson(e.target.value)}
+                    placeholder="Paste your JSON schema here..."
+                    rows={6}
+                    className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-gray-200 transition-colors"
+                  />
+                </div>
+              </div>
+              <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 bg-gray-50 dark:bg-gray-900/50">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShowImportModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    handleImportPastedJson();
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={!pastedJson.trim()}
+                >
+                  Import Pasted Schema
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

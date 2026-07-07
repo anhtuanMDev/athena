@@ -1,5 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { Sparkles, Download, Upload, ClipboardPaste } from "lucide-react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { useNavigate, useParams } from "react-router";
 import { z } from "zod";
@@ -156,6 +158,10 @@ function HeroForm({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [pastedJson, setPastedJson] = useState("");
+
   // Images state is handled outside react-hook-form as it's complex media
   const [portraits, setPortraits] = useState<ImageEntry[]>([]);
   // We'll manage ability icons parallel to the react-hook-form array
@@ -182,7 +188,8 @@ function HeroForm({
           : f.type === "boolean"
             ? z.boolean()
             : z.string();
-      if (f.type === "list" || f.type === "reference_list") fieldSchema = z.array(z.string());
+      if (f.type === "list" || f.type === "reference_list")
+        fieldSchema = z.array(z.string());
       if (f.type === "abilities") fieldSchema = z.array(z.any());
       if (f.type === "object_array") fieldSchema = z.array(z.any());
       if (f.required) {
@@ -199,22 +206,22 @@ function HeroForm({
           fieldSchema = z.array(z.any()).min(1, "Required");
         else fieldSchema = z.string().min(1, "Required");
       } else {
-        if (f.type === "boolean") fieldSchema = z.boolean().optional();
+        if (f.type === "boolean") fieldSchema = z.boolean().nullish().catch(undefined);
         else if (
           f.type === "list" ||
           f.type === "reference_list" ||
           f.type === "abilities" ||
           f.type === "object_array"
         )
-          fieldSchema = z.array(z.any()).optional();
-        else fieldSchema = fieldSchema.optional().or(z.literal(""));
+          fieldSchema = z.array(z.any()).nullish().catch(undefined);
+        else fieldSchema = fieldSchema.nullish().or(z.literal("")).catch(undefined);
       }
       shape[f.key] = fieldSchema;
     });
 
     // We expect kit abilities to have id, name, type. We don't dynamically validate params yet since it's freeform in the schema,
     // but we ensure the core kit shape is valid.
-    return HeroSchema.extend(shape).strict();
+    return HeroSchema.extend(shape);
   }, [fields]);
 
   const {
@@ -238,6 +245,97 @@ function HeroForm({
   });
 
   const idValue = useWatch({ control, name: "id" });
+
+  const aiPromptMarkdown = `# Athena Hero Data Generation Guidelines
+You are tasked with generating JSON data for a new hero in the Athena platform.
+This JSON data must strictly follow the schema provided below.
+
+## Schema Definition
+\`\`\`json
+${JSON.stringify(
+  fields.map((f) => ({
+    key: f.key,
+    type: f.type,
+    required: f.required,
+    options: f.options,
+    subFields: f.subFields,
+  })),
+  null,
+  2,
+)}
+\`\`\`
+
+## Expected Output JSON
+You must return ONLY a JSON object with the keys defined above.
+Do not include any extra root properties or markdown formatting around the json (no \`\`\`json block).
+
+Example Output:
+{
+  "name": "Hero Name",
+  "real_name": "Real Name",
+  "health": 200
+}
+`;
+
+  const handleCopyPrompt = () => {
+    navigator.clipboard.writeText(aiPromptMarkdown);
+    toastSuccess("Copied to clipboard!");
+  };
+
+  const handleDownloadPrompt = () => {
+    const blob = new Blob([aiPromptMarkdown], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "athena_hero_data_prompt.md";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportPastedJson = () => {
+    try {
+      const json = JSON.parse(pastedJson);
+      if (typeof json === "object" && json !== null) {
+        Object.keys(json).forEach((key) => {
+          setValue(key, json[key], { shouldDirty: true, shouldValidate: true });
+        });
+        toastSuccess("Imported hero data from pasted text!");
+        setShowImportModal(false);
+        setPastedJson("");
+      } else {
+        toastError("JSON must be an object");
+      }
+    } catch (e) {
+      toastError("Invalid JSON format");
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (typeof json === "object" && json !== null) {
+          Object.keys(json).forEach((key) => {
+            setValue(key, json[key], {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
+          });
+          toastSuccess("Imported hero data from file!");
+          setShowImportModal(false);
+        } else {
+          toastError("JSON must be an object");
+        }
+      } catch (err) {
+        toastError("Invalid JSON file");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   const onSubmit = async (formData: any) => {
     setSubmitting(true);
@@ -369,12 +467,46 @@ function HeroForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <AutoGenerateId control={control} setValue={setValue} touchedFields={touchedFields} />
+      <AutoGenerateId
+        control={control}
+        setValue={setValue}
+        touchedFields={touchedFields}
+      />
       {submitError && (
         <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">
           {submitError}
         </div>
       )}
+
+      {/* AI & File Actions */}
+      <div className="flex flex-wrap gap-3 items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded-xl mb-6">
+        <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 text-sm font-medium">
+          <Sparkles className="w-5 h-5 text-blue-500" />
+          AI Data Generation
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="small"
+            onClick={() => setShowPromptModal(true)}
+            className="text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/50"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            Get AI Prompt
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="small"
+            onClick={() => setShowImportModal(true)}
+            className="text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/50"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Import AI Data
+          </Button>
+        </div>
+      </div>
 
       {schemas.length > 1 && (
         <div className="mb-8 p-4 bg-gray-50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-800 rounded-xl">
@@ -599,6 +731,136 @@ function HeroForm({
           {submitting ? "Creating..." : "Create Hero"}
         </Button>
       </div>
+
+      {/* Prompt Modal */}
+      {showPromptModal &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-blue-500" /> AI Prompt
+                  Instructions
+                </h3>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                <p className="text-sm text-gray-500 mb-4">
+                  Use the following prompt to instruct an AI (like ChatGPT or
+                  Claude) to generate data for you. You can copy the text or
+                  download it as a file.
+                </p>
+                <textarea
+                  readOnly
+                  value={aiPromptMarkdown}
+                  className="w-full h-64 rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 text-xs font-mono text-gray-700 dark:text-gray-300 focus:outline-none resize-none"
+                />
+              </div>
+              <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 bg-gray-50 dark:bg-gray-900/50">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShowPromptModal(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDownloadPrompt}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" /> Download .md
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleCopyPrompt}
+                  className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                >
+                  <ClipboardPaste className="w-4 h-4" /> Copy to Clipboard
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Import Modal */}
+      {showImportModal &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-gray-200 dark:border-gray-800">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Upload className="w-5 h-5 text-blue-500" /> Import AI Data
+                </h3>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[60vh] space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                    Option 1: Upload JSON File
+                  </label>
+                  <div className="relative border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-8 text-center hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={(e) => {
+                        handleFileUpload(e);
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Click or drag and drop your generated JSON file here
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 h-px bg-gray-200 dark:bg-gray-800"></div>
+                  <span className="text-xs font-medium text-gray-500 uppercase">
+                    OR
+                  </span>
+                  <div className="flex-1 h-px bg-gray-200 dark:bg-gray-800"></div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                    Option 2: Paste JSON Directly
+                  </label>
+                  <textarea
+                    value={pastedJson}
+                    onChange={(e) => setPastedJson(e.target.value)}
+                    placeholder="Paste your JSON data here..."
+                    rows={6}
+                    className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-gray-200 transition-colors"
+                  />
+                </div>
+              </div>
+              <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 bg-gray-50 dark:bg-gray-900/50">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShowImportModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    handleImportPastedJson();
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={!pastedJson.trim()}
+                >
+                  Import Pasted Data
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </form>
   );
 }
