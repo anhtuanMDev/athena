@@ -27,6 +27,11 @@ import ItemEdit from "~/components/views/ItemEdit";
 import ItemNew from "~/components/views/ItemNew";
 import ItemsList from "~/components/views/ItemsList";
 
+// Enums
+import EnumEdit from "~/components/views/EnumEdit";
+import EnumNew from "~/components/views/EnumNew";
+import EnumsList from "~/components/views/EnumsList";
+
 // Misc
 import DynamicSchemaEdit from "~/components/views/DynamicSchemaEdit";
 import DynamicSchemaNew from "~/components/views/DynamicSchemaNew";
@@ -140,6 +145,12 @@ export default function GameDashboardRouter() {
         if (idOrAction === "new") return <ItemNew />;
         if (subAction === "delete") return <EntityDelete entityType="items" />;
         return <ItemEdit />;
+
+      case "enums":
+        if (!idOrAction) return <EnumsList />;
+        if (idOrAction === "new") return <EnumNew />;
+        if (subAction === "delete") return <EntityDelete entityType="enums" />;
+        return <EnumEdit />;
 
       default:
         return (

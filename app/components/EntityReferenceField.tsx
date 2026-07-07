@@ -35,6 +35,8 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
           arr = results.data;
         } else if (Array.isArray(results.items)) {
           arr = results.items;
+        } else if (Array.isArray(results.options)) {
+          arr = results.options;
         }
       }
       

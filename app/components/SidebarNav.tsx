@@ -13,6 +13,7 @@ import {
   LogOut,
   ChevronRight,
   ChevronDown,
+  List,
 } from "lucide-react";
 import React, { useState } from "react";
 
@@ -171,6 +172,7 @@ function CollapsibleGameSection({
     isActive(`/${game.slug}/patches`) ||
     isActive(`/${game.slug}/items`) ||
     isActive(`/${game.slug}/schemas`) ||
+    isActive(`/${game.slug}/enums`) ||
     isActive(`/${game.slug}/cron`);
 
   const [isOpen, setIsOpen] = useState(isAnyActive);
@@ -253,6 +255,14 @@ function CollapsibleGameSection({
           label="Schemas"
           icon={Database}
           isActive={isActive(`/${game.slug}/schemas`)}
+          onClick={onClose}
+          primaryColor={game.primaryColor}
+        />
+        <NavLink
+          href={`/${game.slug}/enums`}
+          label="Enums"
+          icon={List}
+          isActive={isActive(`/${game.slug}/enums`)}
           onClick={onClose}
           primaryColor={game.primaryColor}
         />
