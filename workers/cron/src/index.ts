@@ -92,28 +92,37 @@ async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
     }
 
     console.log(`Fetching latest data from ${job.api_endpoint}...`);
-    // const response = await fetch(job.api_endpoint);
-    // const fetchedData = await response.json();
-    
-    // ... Stub logic ...
-    const shouldSaveNewData = false; // Replace with actual condition check
-    if (shouldSaveNewData) {
-      const newPatchData = {
-        id: `patch-${Date.now()}`,
-        name: "Auto-generated Patch",
-        date: new Date().toISOString(),
-      };
-      console.log(`New data detected for ${job.id}. Saving to GitHub...`);
-      await saveGitHubFile(
-        env, 
-        `data/${game}/patches/${newPatchData.id}.json`, 
-        newPatchData, 
-        `chore: auto-fetch new patch ${newPatchData.id}`
-      );
-      console.log("Successfully saved new data!");
-    } else {
-      console.log(`No new data found for job ${job.id}. Exiting.`);
+    const response = await fetch(job.api_endpoint);
+    if (!response.ok) {
+      throw new Error(`API returned ${response.status} ${response.statusText}`);
     }
+    const fetchedData = await response.json();
+    
+    let processedData: any = fetchedData;
+    if (job.field_mappings && Object.keys(job.field_mappings).length > 0) {
+      processedData = {};
+      for (const [schemaKey, apiPath] of Object.entries(job.field_mappings)) {
+        if (typeof apiPath === "string") {
+          const value = apiPath.split('.').reduce((obj: any, key) => obj?.[key], fetchedData);
+          processedData[schemaKey] = value;
+        }
+      }
+    }
+
+    const newSyncData = {
+      id: job.id,
+      last_sync: new Date().toISOString(),
+      data: processedData,
+    };
+    
+    console.log(`New data processed for ${job.id}. Saving to GitHub...`);
+    await saveGitHubFile(
+      env, 
+      `data/${game}/syncs/${job.id}.json`, 
+      newSyncData, 
+      `chore: auto-fetch data for ${job.id}`
+    );
+    console.log("Successfully saved new data!");
   } catch (error) {
     console.error(`Cron Job ${job?.id} Failed:`, error);
   }
