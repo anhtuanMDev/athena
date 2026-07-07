@@ -203,46 +203,81 @@ function EditHeroForm({
   });
 
   const aiPromptMarkdown = `# Athena Hero Data Generation Guidelines
-You are tasked with generating JSON data for a hero in the Athena platform.
-This JSON data must strictly follow the schema provided below.
+You are a strict data extraction system. You are tasked with generating JSON data for a hero in the Athena platform based on provided context.
+CRITICAL: You MUST output ONLY a valid JSON object. You MUST NOT output any conversational text, explanations, analysis, or markdown formatting. Any output other than the raw JSON object will break the system.
 
 ## Schema Definition
 \`\`\`json
 ${JSON.stringify(
-  fields.map((f) => ({
-    key: f.key,
-    type: f.type,
-    required: f.required,
-    options: f.options,
-    subFields: f.subFields,
-  })),
+  [
+    { key: "name", type: "string", required: true },
+    { key: "real_name", type: "string", required: false },
+    ...fields.map((f) => ({
+      key: f.key,
+      type: f.type,
+      required: f.required,
+      options: f.options,
+      subFields: f.subFields,
+    })),
+  ],
   null,
   2,
 )}
 \`\`\`
 
 ## Expected Output JSON
-You must return ONLY a valid JSON object matching the root fields defined above.
-Do not include any extra root properties or markdown formatting around the json (no \`\`\`json block).
+Return ONLY a single valid JSON object that conforms exactly to the provided schema.
 
-### Special Field Instructions:
-- **abilities**: If a field is of type "abilities", it MUST be an array of objects. Every ability object MUST contain these standard base keys: 'name' (string), 'type' (string, chosen from the field's 'options' array if provided), and 'description' (string). Additionally, include any extra properties defined in the 'subFields' list directly on the ability object alongside the base keys.
-- **object_array**: If a field is of type "object_array", it MUST be an array of objects, where each object contains the properties defined in its 'subFields' list.
+### Requirements
+- Populate every field defined in the schema, even if the field is not required.
+- Never omit a property. If a value is unknown or not applicable, use:
+  - "" for strings
+  - 0 for numbers
+  - false for booleans
+  - [] for arrays (abilities, weapon, object_array, list, reference_list)
+  - null only if the field explicitly supports null.
+- Do not invent additional properties.
+- Preserve the exact field names.
+- Return valid JSON only. Do not wrap the response in markdown.
 
-Example Output:
+### abilities & weapon
+Fields with type \`abilities\` or \`weapon\` MUST be an array of objects.
+Every object MUST include:
+- \`name\`
+- \`type\`
+- \`description\`
+plus every property defined in the schema's \`subFields\`, even if its value is empty or zero.
+
+Example:
 {
-  "name": "Hero Name",
-  "real_name": "Real Name",
-  "health": 200,
-  "kit": [
-    {
-      "name": "Ability Name",
-      "type": "Ultimate",
-      "description": "Ability description...",
-      "custom_subfield_1": "value1"
-    }
-  ]
+  "name": "Sleep Dart",
+  "type": "Utility",
+  "description": "Fires a dart that puts an enemy to sleep.",
+  "cooldown": 14,
+  "duration": 5
 }
+
+### object_array
+Fields with type \`object_array\` MUST contain every property listed in their \`subFields\`.
+
+Example:
+{
+  "health": 250,
+  "armor": 0,
+  "shields": 0
+}
+
+### reference / reference_list
+Return IDs only.
+
+Example:
+"weapon_override": [
+  "biotic_rifle"
+]
+
+## Output
+Return one complete hero object with 100% schema coverage. Every field from the schema must appear in the output exactly once.
+CRITICAL: DO NOT output any markdown formatting (e.g. no \`\`\`json block). DO NOT output any conversational text, advice, or analysis before or after the JSON. Output the raw, raw JSON ONLY.
 `;
 
   const handleCopyPrompt = () => {
@@ -263,7 +298,7 @@ Example Output:
   const formatImportedJson = (json: any) => {
     const formattedJson = { ...json };
     fields.forEach((f) => {
-      if (f.type === "abilities" && Array.isArray(formattedJson[f.key])) {
+      if ((f.type === "abilities" || f.type === "weapon") && Array.isArray(formattedJson[f.key])) {
         formattedJson[f.key] = formattedJson[f.key].map((item: any) => {
           if (typeof item !== "object" || item === null) return item;
           const standardKeys = ["id", "name", "type", "description", "icon", "mode_overrides"];
@@ -349,12 +384,12 @@ Example Output:
       let portraitData: string | Record<string, string> =
         formData.portrait || "";
       if (portraits.length === 1 && portraits[0].key === "main") {
-        const ext = portraits[0].name?.split(".").pop() || "png";
+        const ext = portraits[0].name?.split(".").pop() || portraits[0].previewUrl?.split(".").pop() || "png";
         portraitData = `/api/assets/${game}/heroes/${id}/portrait.${ext}`;
       } else if (portraits.length > 0) {
         portraitData = {};
         for (const p of portraits) {
-          const ext = p.name?.split(".").pop() || "png";
+          const ext = p.name?.split(".").pop() || p.previewUrl?.split(".").pop() || "png";
           (portraitData as Record<string, string>)[p.key] =
             `/api/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
         }
@@ -388,7 +423,7 @@ Example Output:
             if (!ability.params) ability.params = {};
             const aIcons = abilityIcons[ability._clientId || ability.id || i] || [];
             if (aIcons.length === 1 && aIcons[0].key === "main") {
-              const ext = aIcons[0].name?.split(".").pop() || "png";
+              const ext = aIcons[0].name?.split(".").pop() || aIcons[0].previewUrl?.split(".").pop() || "png";
               ability.icon = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
               if (aIcons[0].base64) {
                 abilityUploads.push({
@@ -400,7 +435,7 @@ Example Output:
             } else if (aIcons.length > 0) {
               ability.icon = {};
               for (const icon of aIcons) {
-                const ext = icon.name?.split(".").pop() || "png";
+                const ext = icon.name?.split(".").pop() || icon.previewUrl?.split(".").pop() || "png";
                 ability.icon[icon.key] =
                   `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
                 if (icon.base64) {
@@ -433,9 +468,10 @@ Example Output:
     setSubmittingCommit(true);
     setSubmitError(null);
     try {
-      const parsed = HeroSchema.safeParse(JSON.parse(preview.heroJson));
+      const parsedData = JSON.parse(preview.heroJson);
+      const parsed = dynamicZodSchema.safeParse(parsedData);
       if (!parsed.success) {
-        setSubmitError("Hero data failed validation on commit");
+        setSubmitError("Hero data failed validation on commit: " + parsed.error.message);
         toastError("Validation failed on commit");
         return;
       }
@@ -478,9 +514,9 @@ Example Output:
         `data/${game}/heroes/${id}.json`,
         parsed.data,
         sha,
-        `Update hero: ${parsed.data.name}`,
+        `Update hero: ${parsed.data.name || id}`,
       );
-      toastSuccess(`Hero ${parsed.data.name} updated successfully!`);
+      toastSuccess(`Hero ${parsed.data.name || id} updated successfully!`);
       navigate(`/${game}/heroes`);
     } catch (err) {
       if (isConflictError(err)) {
@@ -631,22 +667,21 @@ Example Output:
         {fields.map((f: DynamicField) => {
           if (["id", "name", "real_name", "portrait"].includes(f.key))
             return null;
-          if (f.type === "abilities") {
+          if (f.type === "abilities" || f.type === "weapon") {
             return (
-              <div className="col-span-1 md:col-span-2" key={f.key}>
-                <AbilitiesField
-                  name={f.key}
-                  label={f.label}
-                  control={control}
-                  register={register}
-                  setValue={setValue}
-                  errors={errors}
-                  abilityIcons={abilityIcons}
-                  setAbilityIcons={setAbilityIcons}
-                  subFields={f.subFields || []}
-                  options={f.options}
-                />
-              </div>
+              <AbilitiesField
+                key={f.key}
+                name={f.key}
+                label={f.label}
+                control={control}
+                register={register}
+                setValue={setValue}
+                errors={errors}
+                abilityIcons={abilityIcons}
+                setAbilityIcons={setAbilityIcons}
+                subFields={f.subFields}
+                options={f.options}
+              />
             );
           }
           if (f.type === "object_array") {

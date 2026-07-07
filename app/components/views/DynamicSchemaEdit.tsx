@@ -110,6 +110,7 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
 - \`list\`: Multiple select (requires \`options\` array of strings)
 - \`enum\`: Single select (requires \`options\` array of strings)
 - \`abilities\`: Complex ability structure. Takes \`subFields\` array for extra ability parameters. DO NOT include standard fields (\`id\`, \`name\`, \`type\`, \`description\`, \`icon\`, \`mode_overrides\`) in \`subFields\` as they are natively built-in. Only use \`subFields\` for custom parameters like damage, cooldown, etc.
+- \`weapon\`: Complex weapon structure. Same behavior as \`abilities\` but semantically distinct. Takes \`subFields\` array for extra weapon parameters like ammo, reload time, spread, etc.
 - \`object_array\`: Group of nested fields. Takes \`subFields\` array (each subField is a field object with key, label, type, etc.) for properties of the object.
 - \`reference\`: API-based single select (requires \`referenceApiEndpoint\`, \`referenceValueKey\`, \`referenceLabelKey\`)
 - \`reference_list\`: API-based multiple select (requires \`referenceApiEndpoint\`, \`referenceValueKey\`, \`referenceLabelKey\`)
@@ -634,6 +635,9 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                         {field.type === "abilities" && (
                           <Box className="w-4 h-4 text-gray-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                         )}
+                        {field.type === "weapon" && (
+                          <Box className="w-4 h-4 text-gray-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        )}
                         <select
                           value={field.type}
                           onChange={(e) =>
@@ -648,6 +652,9 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                           <option value="enum">Single Select (Enum)</option>
                           <option value="abilities">
                             Kit Abilities (Complex List)
+                          </option>
+                          <option value="weapon">
+                            Weapons (Complex List)
                           </option>
                           <option value="object_array">
                             Object Group (Nested List)
@@ -680,11 +687,12 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                   <div className="lg:col-span-4 h-full flex flex-col">
                     {field.type === "enum" ||
                     field.type === "list" ||
-                    field.type === "abilities" ? (
+                    field.type === "abilities" ||
+                    field.type === "weapon" ? (
                       <div className="flex-1">
                         <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
-                          {field.type === "abilities"
-                            ? "Ability Types (Optional, one per line)"
+                          {field.type === "abilities" || field.type === "weapon"
+                            ? `${field.type === 'weapon' ? 'Weapon' : 'Ability'} Types (Optional, one per line)`
                             : "Options (One per line)"}
                         </label>
                         <textarea
@@ -695,6 +703,8 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                           placeholder={
                             field.type === "abilities"
                               ? "Ultimate\nPassive\nPrimary Fire"
+                              : field.type === "weapon"
+                              ? "Hitscan\nProjectile\nBeam"
                               : "Tank\nDamage\nSupport"
                           }
                           rows={4}

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { KitItemSchema } from "~/schemas/hero";
 
-export const FieldTypeSchema = z.enum(["string", "number", "boolean", "list", "enum", "abilities", "object_array", "reference", "reference_list"]);
+export const FieldTypeSchema = z.enum(["string", "number", "boolean", "list", "enum", "abilities", "weapon", "object_array", "reference", "reference_list"]);
 export type FieldType = z.infer<typeof FieldTypeSchema>;
 
 export type DynamicField = {
@@ -83,7 +83,7 @@ export function buildDynamicZodSchema(
           : z.string();
     if (f.type === "list" || f.type === "reference_list")
       fieldSchema = z.array(z.string());
-    if (f.type === "abilities") fieldSchema = z.array(KitItemSchema);
+    if (f.type === "abilities" || f.type === "weapon") fieldSchema = z.array(KitItemSchema);
     if (f.type === "object_array") fieldSchema = z.array(z.unknown());
     
     if (f.required) {
@@ -97,7 +97,7 @@ export function buildDynamicZodSchema(
         f.type === "object_array"
       )
         fieldSchema = z.array(z.unknown()).min(1, "Required");
-      else if (f.type === "abilities")
+      else if (f.type === "abilities" || f.type === "weapon")
         fieldSchema = z.array(KitItemSchema).min(1, "Required");
       else fieldSchema = z.string().min(1, "Required");
     } else {
@@ -108,7 +108,7 @@ export function buildDynamicZodSchema(
         f.type === "object_array"
       )
         fieldSchema = z.array(z.unknown()).nullish().catch(undefined);
-      else if (f.type === "abilities")
+      else if (f.type === "abilities" || f.type === "weapon")
         fieldSchema = z.array(KitItemSchema).nullish().catch(undefined);
       else fieldSchema = fieldSchema.nullish().or(z.literal("")).catch(undefined);
     }
