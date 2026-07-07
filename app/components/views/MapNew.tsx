@@ -18,7 +18,8 @@ import { FormField } from "~/components/FormField";
 import { useToast } from "~/components/ToastProvider";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
 
-function AutoGenerateId({ control, setValue }: any) {
+import type { Control, UseFormSetValue, FieldValues, FieldError } from "react-hook-form";
+function AutoGenerateId({ control, setValue }: { control: Control<FieldValues>, setValue: UseFormSetValue<FieldValues> }) {
   const nameValue = useWatch({ control, name: "name" });
   
   useEffect(() => {
@@ -84,7 +85,7 @@ export default function NewMap() {
     },
   });
 
-  const onSubmit = async (formData: any) => {
+  const onSubmit = async (formData: Record<string, unknown>) => {
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -215,12 +216,13 @@ export default function NewMap() {
                         options={f.options || []}
                         multiple={f.type === "list"}
                         required={f.required}
-                        error={!!(errors as Record<string, any>)[f.key]}
+                        error={!!(errors as Record<string, FieldError>)[f.key]}
                         helperText={
-                          (errors as Record<string, any>)[f.key]
+                          (errors as Record<string, FieldError>)[f.key]
                             ?.message as string
                         }
                         {...field}
+                        value={field.value as string | string[] | undefined}
                       />
                     )}
                   />
@@ -233,9 +235,9 @@ export default function NewMap() {
                   required={f.required}
                   type={f.type === "number" ? "number" : "text"}
                   {...register(f.key)}
-                  error={!!(errors as Record<string, any>)[f.key]}
+                  error={!!(errors as Record<string, FieldError>)[f.key]}
                   helperText={
-                    (errors as Record<string, any>)[f.key]?.message as string
+                    (errors as Record<string, FieldError>)[f.key]?.message as string
                   }
                 />
               );

@@ -26,11 +26,11 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
   const [error, setError] = useState<string | null>(null);
 
   const { data, loading } = useData<{ 
-    fileData: { sha: string; content?: any }; 
+    fileData: { sha: string; content?: Record<string, unknown> }; 
     dependencies: { id: string; name: string; targetEntity: string }[];
   } | null>(
     async () => {
-      const file = await getFile<any>(`data/${game}/${entityType}/${id}.json`);
+      const file = await getFile<Record<string, unknown>>(`data/${game}/${entityType}/${id}.json`);
       if (!file) return null;
 
       let dependencies: { id: string; name: string; targetEntity: string }[] = [];
@@ -65,11 +65,11 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
         try {
           // Check for any deep references (keys or values) across all entity categories
           // This catches mode_overrides-style cross-references, cron_job targets, schema reference_lists, etc.
-          const checkDeepReference = (obj: any, target: string): boolean => {
+          const checkDeepReference = (obj: unknown, target: string): boolean => {
             if (!obj) return false;
             if (typeof obj === "string") return obj === target;
             if (Array.isArray(obj)) return obj.some(v => checkDeepReference(v, target));
-            if (typeof obj === "object") {
+            if (typeof obj === "object" && obj !== null) {
               for (const [k, v] of Object.entries(obj)) {
                 if (k === target || checkDeepReference(v, target)) return true;
               }
@@ -79,11 +79,11 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
 
           const checkCategory = async (category: string) => {
             try {
-              const entities = await listDirectory<any>(game!, category, true);
+              const entities = await listDirectory<Record<string, unknown>>(game!, category, true);
               const referencing = entities.filter(e => e && e.id !== id && checkDeepReference(e, id!));
               referencing.forEach(e => dependencies.push({ 
-                id: e.id || e.patch || "unknown", 
-                name: e.name || e.patch || e.id || "Unknown", 
+                id: (e.id || e.patch || "unknown") as string, 
+                name: (e.name || e.patch || e.id || "Unknown") as string, 
                 targetEntity: category 
               }));
             } catch (e) {

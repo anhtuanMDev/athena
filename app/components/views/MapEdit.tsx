@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, type FieldError } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { MapSchema, type Map } from "~/schemas/map";
@@ -60,13 +60,13 @@ export default function EditMap() {
     if (fileData?.content) {
       const defaultValues = { ...fileData.content };
       if (defaultValues.game_modes && Array.isArray(defaultValues.game_modes)) {
-        defaultValues.game_modes = defaultValues.game_modes.join(", ") as any;
+        (defaultValues as Record<string, unknown>).game_modes = defaultValues.game_modes.join(", ");
       }
       reset(defaultValues);
     }
   }, [fileData, reset]);
 
-  const onSubmit = async (formData: any) => {
+  const onSubmit = async (formData: Record<string, unknown>) => {
     if (!fileData) return;
     setSubmitting(true);
     setSubmitError(null);
@@ -191,10 +191,11 @@ export default function EditMap() {
                         options={f.options || []}
                         multiple={f.type === "list"}
                         required={f.required}
-                        error={!!(errors as Record<string, any>)[f.key]}
-                        helperText={(errors as Record<string, any>)[f.key]?.message as string}
+                        error={!!(errors as Record<string, FieldError>)[f.key]}
+                        helperText={(errors as Record<string, FieldError>)[f.key]?.message as string}
                         currentValue={field.value}
                         {...field}
+                        value={field.value as string | string[] | undefined}
                       />
                     )}
                   />
@@ -207,8 +208,8 @@ export default function EditMap() {
                   required={f.required} 
                   type={f.type === "number" ? "number" : "text"} 
                   {...register(f.key)}
-                  error={!!(errors as Record<string, any>)[f.key]}
-                  helperText={(errors as Record<string, any>)[f.key]?.message as string}
+                  error={!!(errors as Record<string, FieldError>)[f.key]}
+                  helperText={(errors as Record<string, FieldError>)[f.key]?.message as string}
                 />
               );
             })}

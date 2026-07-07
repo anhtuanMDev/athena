@@ -6,17 +6,17 @@ interface DynamicSelectFieldProps extends Omit<React.InputHTMLAttributes<HTMLSel
   options: string[];
   multiple?: boolean;
   required?: boolean;
-  currentValue?: any;
+  currentValue?: unknown;
   error?: boolean;
   helperText?: string;
-  value?: any;
+  value?: string | number | readonly string[];
 }
 
-export const DynamicSelectField = forwardRef<any, DynamicSelectFieldProps>(
+export const DynamicSelectField = forwardRef<HTMLInputElement & HTMLSelectElement, DynamicSelectFieldProps>(
   ({ name, label, options, multiple = false, required = false, currentValue, error, helperText, ...props }, ref) => {
     // Check if current value exists but is not in options
     const valArray = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
-    const hasInvalidOldData = valArray.some(v => v && !options.includes(v));
+    const hasInvalidOldData = valArray.some(v => v && !options.includes(String(v)));
     
     return (
       <div>
@@ -39,8 +39,8 @@ export const DynamicSelectField = forwardRef<any, DynamicSelectFieldProps>(
                   value={opt}
                   defaultChecked={valArray.includes(opt)}
                   className={`rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${error ? 'border-red-500' : ''}`}
-                  ref={ref as any}
-                  {...(props as any)}
+                  ref={ref as React.Ref<HTMLInputElement>}
+                  {...(props as React.InputHTMLAttributes<HTMLInputElement>)}
                 />
                 <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">{opt}</span>
               </label>
@@ -51,8 +51,8 @@ export const DynamicSelectField = forwardRef<any, DynamicSelectFieldProps>(
             name={name}
             required={required}
             className={`mt-1 block w-full rounded-md border ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'} bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 dark:bg-gray-800 dark:text-gray-100 ${error ? 'dark:border-red-500' : 'dark:border-gray-600'}`}
-            ref={ref as any}
-            {...(props as any)}
+            ref={ref as React.Ref<HTMLSelectElement>}
+            {...(props as React.SelectHTMLAttributes<HTMLSelectElement>)}
             value={props.value || ""}
           >
             <option value="" disabled>Select an option</option>

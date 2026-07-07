@@ -17,7 +17,7 @@ interface DataTableProps<T> {
   emptyMessage?: string;
 }
 
-export function DataTable<T extends Record<string, any>>({
+export function DataTable<T extends object>({
   columns,
   data,
   baseUrl,
@@ -45,14 +45,15 @@ export function DataTable<T extends Record<string, any>>({
             <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-widest dark:text-gray-400">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200/50 dark:divide-gray-800/50">
+        <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
           {data.map((item) => {
-            const id = item[idKey] as string;
+            const typedItem = item as Record<string, unknown>;
+            const id = typedItem[idKey] as string;
             return (
-              <tr key={id} className="hover:bg-white/50 dark:hover:bg-gray-800/50 transition-colors group">
+              <tr key={id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                 {columns.map((col) => (
-                  <td key={col.key} className="whitespace-nowrap px-6 py-4 text-sm text-gray-700 dark:text-gray-300 font-medium">
-                    {col.render ? col.render(item) : String(item[col.key] ?? "")}
+                  <td key={col.key} className="whitespace-nowrap px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
+                    {col.render ? col.render(item) : String(typedItem[col.key] ?? "")}
                   </td>
                 ))}
                 <td className="whitespace-nowrap px-6 py-4 text-right text-sm">

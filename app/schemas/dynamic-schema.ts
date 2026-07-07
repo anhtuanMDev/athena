@@ -69,7 +69,7 @@ export function getCategoryDirectory(category: SchemaCategory): string {
 
 export function buildDynamicZodSchema(
   fields: DynamicField[],
-  baseSchema: z.ZodObject<any, any, any>,
+  baseSchema: z.ZodObject<any, any>,
   excludeKeys: string[] = []
 ) {
   let shape: Record<string, z.ZodTypeAny> = {};
