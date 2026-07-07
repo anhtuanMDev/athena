@@ -30,6 +30,7 @@ export default function EditMode() {
   );
 
   const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string[]> | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null);
 
@@ -66,12 +67,15 @@ export default function EditMode() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    setErrors(null);
     const formData = new FormData(e.currentTarget);
     try {
       const raw = Object.fromEntries(formData);
       const parsed = ModeSchema.safeParse({ ...raw, id });
       if (!parsed.success) {
-        const msgs = Object.values(parsed.error.flatten().fieldErrors).flat();
+        const fieldErrors = parsed.error.flatten().fieldErrors as Record<string, string[]>;
+        setErrors(fieldErrors);
+        const msgs = Object.values(fieldErrors).flat();
         setError(msgs.length > 0 ? msgs.join("; ") : "Validation failed");
         toastError("Validation failed. Check your inputs.");
         return;
@@ -205,8 +209,8 @@ export default function EditMode() {
         <CardContent>
           {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800/50 mb-4">{error}</p>}
           <form onSubmit={handleUpdate} className="space-y-5">
-            <FormField name="name" label="Name" defaultValue={m.name} />
-            <FormField name="description" label="Description" defaultValue={m.description ?? ""} required={false} />
+            <FormField name="name" label="Name" defaultValue={m.name} error={!!errors?.name} helperText={errors?.name?.[0]} />
+            <FormField name="description" label="Description" defaultValue={m.description ?? ""} required={false} error={!!errors?.description} helperText={errors?.description?.[0]} />
             
             <div className="pt-4">
               <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20 w-full sm:w-auto">

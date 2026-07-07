@@ -136,10 +136,18 @@ export default function NewMode() {
           )}
           <form onSubmit={handleSubmit} className="space-y-5">
             <input type="hidden" name="id" value="" />
-            <FormField name="name" label="Name" placeholder="e.g. Payload" />
+            <FormField name="name" label="Name" placeholder="e.g. Payload" error={!!errors?.name} helperText={errors?.name?.[0]} />
+            <FormField
+              name="description"
+              label="Description (optional)"
+              placeholder="A short summary"
+              required={false}
+              error={!!errors?.description}
+              helperText={errors?.description?.[0]}
+            />
 
             {data.fields.map((f) => {
-              if (f.key === "name") return null;
+              if (f.key === "name" || f.key === "description") return null;
               if (f.type === "enum" || f.type === "list") {
                 return (
                   <div key={f.key}>
@@ -177,6 +185,8 @@ export default function NewMode() {
                   label={f.label}
                   required={f.required}
                   type={f.type === "number" ? "number" : "text"}
+                  error={!!errors?.[f.key]}
+                  helperText={errors?.[f.key]?.[0]}
                 />
               );
             })}

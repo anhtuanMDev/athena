@@ -246,12 +246,46 @@ Example Output:
     URL.revokeObjectURL(url);
   };
 
+  const formatImportedJson = (json: any) => {
+    const formattedJson = { ...json };
+    fields.forEach((f) => {
+      if (f.type === "abilities" && Array.isArray(formattedJson[f.key])) {
+        formattedJson[f.key] = formattedJson[f.key].map((item: any) => {
+          if (typeof item !== "object" || item === null) return item;
+          const standardKeys = ["id", "name", "type", "description", "icon", "mode_overrides"];
+          const formattedItem: any = { params: {} };
+          
+          if (!item.id && item.name) {
+            formattedItem.id = item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+          } else if (!item.id) {
+            formattedItem.id = Math.random().toString(36).substring(7);
+          }
+          
+          Object.keys(item).forEach((k) => {
+            if (standardKeys.includes(k)) {
+              formattedItem[k] = item[k];
+            } else {
+              formattedItem.params[k] = item[k];
+            }
+          });
+          
+          if (!formattedItem.name) formattedItem.name = "";
+          if (!formattedItem.type) formattedItem.type = "";
+          
+          return formattedItem;
+        });
+      }
+    });
+    return formattedJson;
+  };
+
   const handleImportPastedJson = () => {
     try {
       const json = JSON.parse(pastedJson);
       if (typeof json === "object" && json !== null) {
-        Object.keys(json).forEach((key) => {
-          setValue(key, json[key], { shouldDirty: true, shouldValidate: true });
+        const formatted = formatImportedJson(json);
+        Object.keys(formatted).forEach((key) => {
+          setValue(key, formatted[key], { shouldDirty: true, shouldValidate: true });
         });
         toastSuccess("Imported hero data from pasted text!");
         setShowImportModal(false);
@@ -272,8 +306,9 @@ Example Output:
       try {
         const json = JSON.parse(event.target?.result as string);
         if (typeof json === "object" && json !== null) {
-          Object.keys(json).forEach((key) => {
-            setValue(key, json[key], {
+          const formatted = formatImportedJson(json);
+          Object.keys(formatted).forEach((key) => {
+            setValue(key, formatted[key], {
               shouldDirty: true,
               shouldValidate: true,
             });

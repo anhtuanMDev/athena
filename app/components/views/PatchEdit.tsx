@@ -23,6 +23,7 @@ export default function EditPatch() {
   );
 
   const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string[]> | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   if (result.loading) {
@@ -59,6 +60,7 @@ export default function EditPatch() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    setErrors(null);
     const formData = new FormData(e.currentTarget);
     try {
       const changesRaw = formData.get("_changes") as string;
@@ -81,7 +83,9 @@ export default function EditPatch() {
         changes,
       });
       if (!parsed.success) {
-        const msgs = Object.values(parsed.error.flatten().fieldErrors).flat();
+        const fieldErrors = parsed.error.flatten().fieldErrors as Record<string, string[]>;
+        setErrors(fieldErrors);
+        const msgs = Object.values(fieldErrors).flat();
         setError(msgs.length > 0 ? msgs.join("; ") : "Validation failed");
         toastError("Validation failed. Check your inputs.");
         return;
@@ -147,8 +151,8 @@ export default function EditPatch() {
               <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Patch ID</label>
               <p className="mt-1 text-sm font-bold text-gray-900 dark:text-gray-100">{p.patch}</p>
             </div>
-            <FormField name="date" label="Date" defaultValue={p.date} type="date" />
-            <FormField name="summary" label="Summary" defaultValue={p.summary ?? ""} required={false} />
+            <FormField name="date" label="Date" defaultValue={p.date} type="date" error={!!errors?.date} helperText={errors?.date?.[0]} />
+            <FormField name="summary" label="Summary" defaultValue={p.summary ?? ""} required={false} error={!!errors?.summary} helperText={errors?.summary?.[0]} />
             <div className="space-y-2 pt-2">
               <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Changes (JSON array)</label>
               <textarea

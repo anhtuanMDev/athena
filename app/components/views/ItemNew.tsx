@@ -218,11 +218,15 @@ export default function NewItem() {
               name="id"
               label="Item ID (kebab-case)"
               placeholder="e.g. aghs-scepter"
+              error={!!errors?.id}
+              helperText={errors?.id?.[0]}
             />
             <FormField
               name="name"
               label="Name"
               placeholder="e.g. Aghanim's Scepter"
+              error={!!errors?.name}
+              helperText={errors?.name?.[0]}
             />
 
             <div className="grid grid-cols-2 gap-4">
@@ -317,6 +321,8 @@ export default function NewItem() {
                   label={f.label}
                   required={f.required}
                   type={f.type === "number" ? "number" : "text"}
+                  error={!!errors?.[f.key]}
+                  helperText={errors?.[f.key]?.[0]}
                 />
               );
             })}

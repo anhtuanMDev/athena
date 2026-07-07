@@ -37,6 +37,7 @@ export default function EditItem() {
   );
 
   const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string[]> | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   if (itemResult.loading || heroesResult.loading || modesResult.loading) {
@@ -88,6 +89,7 @@ export default function EditItem() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    setErrors(null);
     const formData = new FormData(e.currentTarget);
     try {
       const raw = Object.fromEntries(formData);
@@ -115,7 +117,9 @@ export default function EditItem() {
       });
 
       if (!parsed.success) {
-        const msgs = Object.values(parsed.error.flatten().fieldErrors).flat();
+        const fieldErrors = parsed.error.flatten().fieldErrors as Record<string, string[]>;
+        setErrors(fieldErrors);
+        const msgs = Object.values(fieldErrors).flat();
         setError(msgs.length > 0 ? msgs.join("; ") : "Validation failed");
         toastError("Validation failed. Check your inputs.");
         return;
@@ -241,7 +245,7 @@ export default function EditItem() {
             </p>
           )}
           <form onSubmit={handleUpdate} className="space-y-5">
-            <FormField name="name" label="Name" defaultValue={item.name} />
+            <FormField name="name" label="Name" defaultValue={item.name} error={!!errors?.name} helperText={errors?.name?.[0]} />
 
             <div className="grid grid-cols-2 gap-4">
               <div>

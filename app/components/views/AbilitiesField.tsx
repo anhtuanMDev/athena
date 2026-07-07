@@ -138,12 +138,15 @@ export function AbilitiesField({ name, label, control, register, setValue, error
                               </div>
                             );
                           }
+                          const paramError = abilityErrors?.params?.[sf.key];
                           return (
                             <FormField
                               key={sf.key}
                               label={sf.label}
                               type={sf.type === 'number' ? 'number' : 'text'}
                               {...register(`${name}.${i}.params.${sf.key}`)}
+                              error={!!paramError}
+                              helperText={paramError?.message as string}
                             />
                           );
                         })}

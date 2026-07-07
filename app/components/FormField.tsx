@@ -13,7 +13,13 @@ export const FormField = forwardRef<HTMLDivElement, FormFieldProps>(
         size="small"
         fullWidth
         autoComplete="off"
-        slotProps={{ ...slotProps }}
+        slotProps={{
+          ...slotProps,
+          htmlInput: {
+            step: props.type === "number" ? "any" : undefined,
+            ...slotProps?.htmlInput,
+          },
+        }}
         inputRef={ref}
         {...props}
       />

@@ -162,6 +162,8 @@ export default function NewPatch() {
               name="patch"
               label="Patch ID (e.g. 2026.07)"
               placeholder="2026.07"
+              error={!!errors?.patch}
+              helperText={errors?.patch?.[0]}
             />
             {data.fields.map((f) => {
               if (["patch", "changes"].includes(f.key)) return null;
@@ -206,6 +208,8 @@ export default function NewPatch() {
                   label={f.label}
                   required={f.required}
                   type={type}
+                  error={!!errors?.[f.key]}
+                  helperText={errors?.[f.key]?.[0]}
                 />
               );
             })}

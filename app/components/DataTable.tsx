@@ -50,7 +50,7 @@ export function DataTable<T extends object>({
             const typedItem = item as Record<string, unknown>;
             const id = typedItem[idKey] as string;
             return (
-              <tr key={id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+              <tr key={id} className="group hover:bg-gray-50 dark:hover:bg-gray-800/50">
                 {columns.map((col) => (
                   <td key={col.key} className="whitespace-nowrap px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
                     {col.render ? col.render(item) : String(typedItem[col.key] ?? "")}
