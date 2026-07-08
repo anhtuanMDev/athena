@@ -36,6 +36,8 @@ import {
   type DynamicField,
   type DynamicSchemaFile,
 } from "~/schemas/dynamic-schema";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
+import { EmptyState } from "~/components/ui/EmptyState";
 
 export default function DynamicSchemaEdit() {
   const { game, "*": splat } = useParams();
@@ -437,42 +439,24 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
   }
 
   if (loadError) {
-    return (
-      <div className="w-full py-16 flex items-center justify-center">
-        <div className="max-w-md w-full bg-white dark:bg-gray-900 border border-red-100 dark:border-red-900/30 shadow-2xl rounded-3xl p-8 text-center relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1.5 bg-linear-to-r from-red-500 to-orange-500" />
-          <div className="w-20 h-20 bg-red-50 dark:bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <AlertTriangle className="w-10 h-10 text-red-500 dark:text-red-400" />
-          </div>
-          <h3 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight mb-3">
-            Failed to Load Schema
-          </h3>
-          <p className="text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
-            We couldn't retrieve the requested dynamic schema. The file might
-            have been moved, deleted, or there's a temporary network issue.
-            <br />
-            <br />
-            <span className="inline-block bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-lg text-sm font-mono border border-red-100 dark:border-red-500/20 break-all">
-              {(loadError as Error).message || "Unknown error"}
-            </span>
-          </p>
-          <div className="flex items-center justify-center gap-4">
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/admin/games/${game}/schemas`)}
-              className="px-6 py-2.5 rounded-xl border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800"
-            >
-              Go Back
-            </Button>
-            <Button
-              onClick={() => window.location.reload()}
-              className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/20"
-            >
-              Try Again
-            </Button>
-          </div>
+    const isNotFound = String(loadError).includes("not found");
+    if (isNotFound) {
+      return (
+        <div className="w-full py-12">
+          <EmptyState
+            title="Schema Not Found"
+            description="The schema you are trying to edit could not be found or has been deleted."
+            action={<Button variant="outline" onClick={() => window.history.back()}>Go Back</Button>}
+          />
         </div>
-      </div>
+      );
+    }
+    return (
+      <LoadErrorState
+        title="Failed to Load Schema"
+        error={loadError}
+        onBack={() => navigate(`/admin/games/${game}/schemas`)}
+      />
     );
   }
 

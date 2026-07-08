@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import type { ReactNode } from "react";
 import { Edit2 } from "lucide-react";
+import { EmptyState } from "~/components/ui/EmptyState";
 
 export interface Column<T> {
   key: string;
@@ -26,9 +27,10 @@ export function DataTable<T extends object>({
 }: DataTableProps<T>) {
   if (data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-4 bg-white/30 dark:bg-gray-900/30 backdrop-blur-sm rounded-xl border border-gray-200/50 dark:border-gray-800/50">
-        <p className="text-gray-500 dark:text-gray-400">{emptyMessage}</p>
-      </div>
+      <EmptyState 
+        title="No Items Found" 
+        description={emptyMessage} 
+      />
     );
   }
 

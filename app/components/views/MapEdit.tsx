@@ -13,6 +13,7 @@ import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 import { FormField } from "~/components/FormField";
 import { useData } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
+import { EmptyState } from "~/components/ui/EmptyState";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
 
 export default function EditMap() {
@@ -150,8 +151,12 @@ export default function EditMap() {
   );
 
   if (!fileData || !schemaData) return (
-    <div className="w-full p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
-      <h3 className="font-bold text-lg">Map not found or Schema missing</h3>
+    <div className="w-full py-12">
+      <EmptyState
+        title="Map or Schema Not Found"
+        description="The map you are trying to edit could not be found or the required schema is missing."
+        action={<Button variant="outline" onClick={() => window.history.back()}>Go Back</Button>}
+      />
     </div>
   );
 

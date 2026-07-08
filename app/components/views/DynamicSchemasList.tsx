@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { listDirectory } from "~/lib/github";
 import { useData } from "~/lib/use-data";
 import { type DynamicSchemaFile } from "~/schemas/dynamic-schema";
+import { Plus } from "lucide-react";
+import { EmptyState } from "~/components/ui/EmptyState";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 export default function SchemasList() {
@@ -68,20 +70,18 @@ export default function SchemasList() {
       </div>
 
       {!data || data.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              No Schemas Found
-            </h3>
-            <p className="text-sm text-gray-500 mt-2 mb-4">
-              Create your first schema to define data structures for heroes,
-              modes, or patches.
-            </p>
+        <EmptyState
+          title="No Schemas Found"
+          description="Create your first schema to define data structures for heroes, modes, or patches."
+          action={
             <Link to={`/${game}/schemas/new`}>
-              <Button>Create Schema</Button>
+              <Button className="shadow-lg shadow-orange-500/20">
+                <Plus className="w-4 h-4 mr-2" />
+                Create Schema
+              </Button>
             </Link>
-          </CardContent>
-        </Card>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {data.map((schema) => (

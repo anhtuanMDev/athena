@@ -14,6 +14,7 @@ import { PatchSchema } from "~/schemas/patch";
 import { ItemSchema } from "~/schemas/item";
 import { useToast } from "~/components/ToastProvider";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
+import { EmptyState } from "~/components/ui/EmptyState";
 
 const typeValidators: Record<string, (data: unknown) => { success: boolean }> = {
   heroes: (d) => HeroSchema.safeParse(d),
@@ -37,7 +38,7 @@ export default function RawEditor() {
 
   const { data: loaderData, loading, error: loadError } = useData(async () => {
     const file = await getFile(path);
-    if (!file) throw new Error("File not found");
+    if (!file) throw new Error("NOT_FOUND");
     return { content: file.content, sha: file.sha, path, type };
   }, [game, type, id], "RawEdit-37");
 
@@ -69,7 +70,7 @@ export default function RawEditor() {
     }
 
     if (!loaderData) {
-      setError("File not found");
+      setError("NOT_FOUND");
       return;
     }
 
@@ -116,13 +117,27 @@ export default function RawEditor() {
   }
 
   if (loading) return <div>Loading...</div>;
-  if (loadError) return (
-    <LoadErrorState
-      title="Failed to Load Data"
-      error={loadError}
-      onBack={() => window.history.back()}
-    />
-  );
+  if (loadError) {
+    const isNotFound = String(loadError).includes("NOT_FOUND") || loadError === "NOT_FOUND";
+    if (isNotFound) {
+      return (
+        <div className="w-full py-12">
+          <EmptyState
+            title="File Not Found"
+            description="The file you are trying to edit could not be found or has been deleted."
+            action={<Button variant="outline" onClick={() => window.history.back()}>Go Back</Button>}
+          />
+        </div>
+      );
+    }
+    return (
+      <LoadErrorState
+        title="Failed to Load Data"
+        error={loadError}
+        onBack={() => window.history.back()}
+      />
+    );
+  }
   if (!loaderData) return null;
 
   if (step === "preview" && diffs) {

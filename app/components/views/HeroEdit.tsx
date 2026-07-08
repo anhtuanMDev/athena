@@ -1,10 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ClipboardPaste, Download, Sparkles, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Sparkles, Download, Upload, ClipboardPaste } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router";
-import { z } from "zod";
 import { DiffView } from "~/components/DiffView";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
 import { EntityReferenceField } from "~/components/EntityReferenceField";
@@ -16,6 +15,8 @@ import {
 import { useToast } from "~/components/ToastProvider";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
+import { EmptyState } from "~/components/ui/EmptyState";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { AbilitiesField } from "~/components/views/AbilitiesField";
 import { ObjectArrayField } from "~/components/views/ObjectArrayField";
 import type { DiffEntry } from "~/lib/diff";
@@ -28,11 +29,13 @@ import {
   updateFile,
   uploadAsset,
 } from "~/lib/github";
-import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { assertSafeEntityId, assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
-import {type DynamicField,
-  type DynamicSchemaFile, buildDynamicZodSchema} from "~/schemas/dynamic-schema";
+import {
+  buildDynamicZodSchema,
+  type DynamicField,
+  type DynamicSchemaFile,
+} from "~/schemas/dynamic-schema";
 import { HeroSchema, type Hero } from "~/schemas/hero";
 
 export default function EditHero() {
@@ -43,23 +46,28 @@ export default function EditHero() {
   const navigate = useNavigate();
   const heroResult = useData<{ content: Hero; sha: string } | null>(
     () => getFile<Hero>(`data/${game}/heroes/${id}.json`),
-    [game, id], "HeroEdit-45"
+    [game, id],
+    "HeroEdit-45",
   );
   const schemaResult = useData<{
     schemas: DynamicSchemaFile[];
-  } | null>(async () => {
-    try {
-      const schemas = await listDirectory<DynamicSchemaFile>(
-        game!,
-        "schemas",
-        true,
-      );
-      const heroSchemas = schemas.filter((s) => s && s.category === "hero");
-      return { schemas: heroSchemas };
-    } catch (e) {
-      return { schemas: [] };
-    }
-  }, [game], "HeroEdit-49");
+  } | null>(
+    async () => {
+      try {
+        const schemas = await listDirectory<DynamicSchemaFile>(
+          game!,
+          "schemas",
+          true,
+        );
+        const heroSchemas = schemas.filter((s) => s && s.category === "hero");
+        return { schemas: heroSchemas };
+      } catch (e) {
+        return { schemas: [] };
+      }
+    },
+    [game],
+    "HeroEdit-49",
+  );
 
   if (heroResult.loading || schemaResult.loading) {
     return (
@@ -86,7 +94,19 @@ export default function EditHero() {
     );
   }
   if (!heroResult.data) {
-    return <div className="text-red-500 p-4">Hero not found</div>;
+    return (
+      <div className="w-full py-12">
+        <EmptyState
+          title="Hero Not Found"
+          description="The hero you are trying to edit could not be found or has been deleted."
+          action={
+            <Button variant="outline" onClick={() => window.history.back()}>
+              Go Back
+            </Button>
+          }
+        />
+      </div>
+    );
   }
 
   return (
@@ -159,17 +179,21 @@ function EditHeroForm({
       previewUrl: url as string,
     }));
   });
-  const [abilityIcons, setAbilityIcons] = useState<Record<string, ImageEntry[]>>(() => {
+  const [abilityIcons, setAbilityIcons] = useState<
+    Record<string, ImageEntry[]>
+  >(() => {
     const icons: Record<string, ImageEntry[]> = {};
     if (hero.kit && Array.isArray(hero.kit)) {
       hero.kit.forEach((ability: any, i: number) => {
         if (!ability._clientId) ability._clientId = ability.id || i.toString();
         if (ability.icon && typeof ability.icon === "object") {
-          icons[ability._clientId] = Object.entries(ability.icon).map(([key, url]) => ({
-            id: Math.random().toString(36).substring(7),
-            key,
-            previewUrl: url as string,
-          }));
+          icons[ability._clientId] = Object.entries(ability.icon).map(
+            ([key, url]) => ({
+              id: Math.random().toString(36).substring(7),
+              key,
+              previewUrl: url as string,
+            }),
+          );
         }
       });
     }
@@ -185,7 +209,16 @@ function EditHeroForm({
   );
   const fields = activeSchema?.fields || [];
 
-  const dynamicZodSchema = useMemo(() => buildDynamicZodSchema(fields, HeroSchema, ["id", "name", "real_name", "portrait"]), [fields]);
+  const dynamicZodSchema = useMemo(
+    () =>
+      buildDynamicZodSchema(fields, HeroSchema, [
+        "id",
+        "name",
+        "real_name",
+        "portrait",
+      ]),
+    [fields],
+  );
 
   const defaultValues = useMemo(() => {
     const vals = { ...hero };
@@ -300,18 +333,31 @@ CRITICAL: DO NOT output any markdown formatting (e.g. no \`\`\`json block). DO N
   const formatImportedJson = (json: any) => {
     const formattedJson = { ...json };
     fields.forEach((f) => {
-      if ((f.type === "abilities" || f.type === "weapon") && Array.isArray(formattedJson[f.key])) {
+      if (
+        (f.type === "abilities" || f.type === "weapon") &&
+        Array.isArray(formattedJson[f.key])
+      ) {
         formattedJson[f.key] = formattedJson[f.key].map((item: any) => {
           if (typeof item !== "object" || item === null) return item;
-          const standardKeys = ["id", "name", "type", "description", "icon", "mode_overrides"];
+          const standardKeys = [
+            "id",
+            "name",
+            "type",
+            "description",
+            "icon",
+            "mode_overrides",
+          ];
           const formattedItem: any = { params: {} };
-          
+
           if (!item.id && item.name) {
-            formattedItem.id = item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+            formattedItem.id = item.name
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-+|-+$/g, "");
           } else if (!item.id) {
             formattedItem.id = Math.random().toString(36).substring(7);
           }
-          
+
           Object.keys(item).forEach((k) => {
             if (standardKeys.includes(k)) {
               formattedItem[k] = item[k];
@@ -319,10 +365,10 @@ CRITICAL: DO NOT output any markdown formatting (e.g. no \`\`\`json block). DO N
               formattedItem.params[k] = item[k];
             }
           });
-          
+
           if (!formattedItem.name) formattedItem.name = "";
           if (!formattedItem.type) formattedItem.type = "";
-          
+
           return formattedItem;
         });
       }
@@ -336,7 +382,10 @@ CRITICAL: DO NOT output any markdown formatting (e.g. no \`\`\`json block). DO N
       if (typeof json === "object" && json !== null) {
         const formatted = formatImportedJson(json);
         Object.keys(formatted).forEach((key) => {
-          setValue(key, formatted[key], { shouldDirty: true, shouldValidate: true });
+          setValue(key, formatted[key], {
+            shouldDirty: true,
+            shouldValidate: true,
+          });
         });
         toastSuccess("Imported hero data from pasted text!");
         setShowImportModal(false);
@@ -386,20 +435,28 @@ CRITICAL: DO NOT output any markdown formatting (e.g. no \`\`\`json block). DO N
       let portraitData: string | Record<string, string> =
         formData.portrait || "";
       if (portraits.length === 1 && portraits[0].key === "main") {
-        const ext = portraits[0].name?.split(".").pop() || portraits[0].previewUrl?.split(".").pop() || "png";
+        const ext =
+          portraits[0].name?.split(".").pop() ||
+          portraits[0].previewUrl?.split(".").pop() ||
+          "png";
         portraitData = `/api/assets/${game}/heroes/${id}/portrait.${ext}`;
       } else if (portraits.length > 0) {
         portraitData = {};
         for (const p of portraits) {
-          const ext = p.name?.split(".").pop() || p.previewUrl?.split(".").pop() || "png";
+          const ext =
+            p.name?.split(".").pop() || p.previewUrl?.split(".").pop() || "png";
           (portraitData as Record<string, string>)[p.key] =
             `/api/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
         }
       }
       if (portraitData) formData.portrait = portraitData;
 
-      const abilityUploads: { path: string; base64: string; message: string }[] = [];
-      
+      const abilityUploads: {
+        path: string;
+        base64: string;
+        message: string;
+      }[] = [];
+
       // Validate mode_overrides
       const modes = await listDirectory(game, "modes");
       const modeSet = new Set(modes);
@@ -409,7 +466,9 @@ CRITICAL: DO NOT output any markdown formatting (e.g. no \`\`\`json block). DO N
           if (ability.mode_overrides) {
             for (const modeId of Object.keys(ability.mode_overrides)) {
               if (!modeSet.has(modeId as string)) {
-                throw new Error(`Ability '${ability.name || ability.id}' references invalid mode override: '${modeId}'`);
+                throw new Error(
+                  `Ability '${ability.name || ability.id}' references invalid mode override: '${modeId}'`,
+                );
               }
             }
           }
@@ -423,9 +482,13 @@ CRITICAL: DO NOT output any markdown formatting (e.g. no \`\`\`json block). DO N
           const abilityList = formData[f.key] || [];
           abilityList.forEach((ability: any, i: number) => {
             if (!ability.params) ability.params = {};
-            const aIcons = abilityIcons[ability._clientId || ability.id || i] || [];
+            const aIcons =
+              abilityIcons[ability._clientId || ability.id || i] || [];
             if (aIcons.length === 1 && aIcons[0].key === "main") {
-              const ext = aIcons[0].name?.split(".").pop() || aIcons[0].previewUrl?.split(".").pop() || "png";
+              const ext =
+                aIcons[0].name?.split(".").pop() ||
+                aIcons[0].previewUrl?.split(".").pop() ||
+                "png";
               ability.icon = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
               if (aIcons[0].base64) {
                 abilityUploads.push({
@@ -437,7 +500,10 @@ CRITICAL: DO NOT output any markdown formatting (e.g. no \`\`\`json block). DO N
             } else if (aIcons.length > 0) {
               ability.icon = {};
               for (const icon of aIcons) {
-                const ext = icon.name?.split(".").pop() || icon.previewUrl?.split(".").pop() || "png";
+                const ext =
+                  icon.name?.split(".").pop() ||
+                  icon.previewUrl?.split(".").pop() ||
+                  "png";
                 ability.icon[icon.key] =
                   `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
                 if (icon.base64) {
@@ -454,7 +520,12 @@ CRITICAL: DO NOT output any markdown formatting (e.g. no \`\`\`json block). DO N
 
       const parsed = dynamicZodSchema.parse(formData) as any;
       const diffs = computeDiff(hero, parsed);
-      setPreview({ diffs, heroJson: JSON.stringify(parsed), sha: sha, abilityUploads });
+      setPreview({
+        diffs,
+        heroJson: JSON.stringify(parsed),
+        sha: sha,
+        abilityUploads,
+      });
     } catch (err) {
       const msg = (err as Error).message;
       setSubmitError(msg);
@@ -473,7 +544,9 @@ CRITICAL: DO NOT output any markdown formatting (e.g. no \`\`\`json block). DO N
       const parsedData = JSON.parse(preview.heroJson);
       const parsed = dynamicZodSchema.safeParse(parsedData);
       if (!parsed.success) {
-        setSubmitError("Hero data failed validation on commit: " + parsed.error.message);
+        setSubmitError(
+          "Hero data failed validation on commit: " + parsed.error.message,
+        );
         toastError("Validation failed on commit");
         return;
       }
@@ -492,8 +565,8 @@ CRITICAL: DO NOT output any markdown formatting (e.g. no \`\`\`json block). DO N
               path,
               p.base64,
               sha || undefined,
-              `Update portrait ${p.key} for ${id}`
-            )
+              `Update portrait ${p.key} for ${id}`,
+            ),
           );
         }
       }
@@ -505,8 +578,8 @@ CRITICAL: DO NOT output any markdown formatting (e.g. no \`\`\`json block). DO N
               upload.path,
               upload.base64,
               sha || undefined,
-              upload.message
-            )
+              upload.message,
+            ),
           );
         }
       }

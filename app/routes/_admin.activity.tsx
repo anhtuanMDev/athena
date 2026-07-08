@@ -1,6 +1,7 @@
 import { Card, CardContent } from "~/components/ui/card";
 import { useData } from "~/lib/use-data";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
+import { EmptyState } from "~/components/ui/EmptyState";
 
 interface Commit { sha: string; message: string; date: string; url: string; }
 
@@ -60,7 +61,12 @@ export default function Activity() {
           </Card>
         ))}
         {data && data.commits.length === 0 && !data.error && (
-          <p className="text-sm text-gray-500">No commits found.</p>
+          <div className="py-8">
+            <EmptyState 
+              title="No Activity Found"
+              description="There are no recent commits or activities in the repository."
+            />
+          </div>
         )}
       </div>
     </div>

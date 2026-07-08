@@ -9,6 +9,7 @@ import { FormField } from "~/components/FormField";
 import { useData } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
+import { EmptyState } from "~/components/ui/EmptyState";
 
 export default function EditPatch() {
   const { game, "*": splat } = useParams();
@@ -50,8 +51,12 @@ export default function EditPatch() {
   );
 
   if (!result.data) return (
-    <div className="max-w-lg mx-auto p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
-      <h3 className="font-bold text-lg">Patch not found</h3>
+    <div className="w-full py-12">
+      <EmptyState
+        title="Patch Not Found"
+        description="The patch you are trying to edit could not be found or has been deleted."
+        action={<Button variant="outline" onClick={() => window.history.back()}>Go Back</Button>}
+      />
     </div>
   );
 

@@ -16,6 +16,7 @@ import { computeDiff } from "~/lib/diff";
 import type { DiffEntry } from "~/lib/diff";
 import { isConflictError, updateFile, getFile } from "~/lib/github";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
+import { EmptyState } from "~/components/ui/EmptyState";
 
 export default function EnumEdit() {
   const { game, "*": splat } = useParams();
@@ -52,7 +53,15 @@ export default function EnumEdit() {
     );
   }
   if (!enumResult) {
-    return <div className="text-red-500 p-4">Enum not found</div>;
+    return (
+      <div className="w-full py-12">
+        <EmptyState
+          title="Enum Not Found"
+          description="The enum you are trying to edit could not be found or has been deleted."
+          action={<Button variant="outline" onClick={() => window.history.back()}>Go Back</Button>}
+        />
+      </div>
+    );
   }
 
   return (

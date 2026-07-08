@@ -4,6 +4,7 @@ import { deleteFile, getFile, isConflictError, listDirectory } from "~/lib/githu
 import { Link } from "react-router";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/EmptyState";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 import { useData, clearDataCache } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
@@ -139,9 +140,11 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
   if (!data?.fileData) {
     return (
       <div className="max-w-md mx-auto py-12">
-        <div className="p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
-          Entity not found or already deleted.
-        </div>
+        <EmptyState
+          title="Entity Not Found"
+          description="Entity not found or already deleted."
+          action={<Button variant="outline" onClick={() => window.history.back()}>Go Back</Button>}
+        />
       </div>
     );
   }
