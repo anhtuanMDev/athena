@@ -1,5 +1,6 @@
 import { Card, CardContent } from "~/components/ui/card";
 import { useData } from "~/lib/use-data";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 interface Commit { sha: string; message: string; date: string; url: string; }
 
@@ -35,14 +36,17 @@ export default function Activity() {
     </div>
   );
 
+  if (data?.error) return (
+    <LoadErrorState
+      title="Failed to Load Activity"
+      error={data.error}
+      onBack={() => window.history.back()}
+    />
+  );
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Activity</h1>
-      {data?.error && (
-        <Card>
-          <CardContent><p className="text-sm text-red-500">{data.error}</p></CardContent>
-        </Card>
-      )}
       <div className="space-y-2">
         {data?.commits.map((commit) => (
           <Card key={commit.sha}>

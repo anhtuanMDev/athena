@@ -9,6 +9,7 @@ import { useData } from "~/lib/use-data";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Clock, ArrowLeft } from "lucide-react";
 import { useToast } from "~/components/ToastProvider";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 export default function CronJobEdit() {
   const { game, "*": splat } = useParams();
@@ -133,7 +134,14 @@ export default function CronJobEdit() {
     );
   }
   
-  if (loadError || !loaderData || !fieldMappings) return null;
+  if (loadError) return (
+    <LoadErrorState
+      title="Failed to Load Cron Job"
+      error={loadError}
+      onBack={() => window.history.back()}
+    />
+  );
+  if (!loaderData || !fieldMappings) return null;
 
   const selectedSchema = loaderData.schemas.find(s => s.id === schemaId);
 

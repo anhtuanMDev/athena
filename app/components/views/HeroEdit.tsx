@@ -28,6 +28,7 @@ import {
   updateFile,
   uploadAsset,
 } from "~/lib/github";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { assertSafeEntityId, assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
 import {type DynamicField,
@@ -77,10 +78,11 @@ export default function EditHero() {
   }
   if (heroResult.error) {
     return (
-      <div className="w-full p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
-        <h3 className="font-bold text-lg mb-2">Failed to load hero</h3>
-        <p>{String(heroResult.error)}</p>
-      </div>
+      <LoadErrorState
+        title="Failed to Load Hero"
+        error={heroResult.error}
+        onBack={() => window.history.back()}
+      />
     );
   }
   if (!heroResult.data) {

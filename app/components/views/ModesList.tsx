@@ -5,6 +5,7 @@ import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus } from "lucide-react";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 interface ModeRow {
   id: string;
@@ -23,9 +24,11 @@ export default function ModesIndex() {
   const { data: modes, loading, error } = useEntityList<ModeRow>(game!, "modes");
 
   if (error) return (
-    <div className="p-8 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400">
-      Error loading modes data.
-    </div>
+    <LoadErrorState
+      title="Failed to Load Modes"
+      error={error}
+      onBack={() => window.history.back()}
+    />
   );
 
   

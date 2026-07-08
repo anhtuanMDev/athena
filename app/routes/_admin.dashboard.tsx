@@ -2,6 +2,7 @@ import { getDashboardData } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Link } from "react-router";
 import { useData } from "~/lib/use-data";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 async function fetchDashboardData() {
   return await getDashboardData();
@@ -39,7 +40,13 @@ export default function Dashboard() {
       </div>
     </div>
   );
-  if (error) return <div>Error loading dashboard</div>;
+  if (error) return (
+    <LoadErrorState
+      title="Failed to Load Dashboard"
+      error={error}
+      onBack={() => window.history.back()}
+    />
+  );
   if (!data) return null;
 
   return (

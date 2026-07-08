@@ -15,6 +15,7 @@ import {
 import { useData } from "~/lib/use-data";
 import type { Game } from "~/schemas/game";
 import { GameSchema } from "~/schemas/game";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 export default function GamesList() {
   const { data, loading, error } = useData(
@@ -231,7 +232,13 @@ export default function GamesList() {
         </div>
       </div>
     );
-  if (error) return <div>Error loading games</div>;
+  if (error) return (
+    <LoadErrorState
+      title="Failed to Load Games"
+      error={error}
+      onBack={() => window.history.back()}
+    />
+  );
   if (!data) return null;
 
   return (

@@ -15,6 +15,7 @@ import { DiffView } from "~/components/DiffView";
 import { computeDiff } from "~/lib/diff";
 import type { DiffEntry } from "~/lib/diff";
 import { isConflictError, updateFile, getFile } from "~/lib/github";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 export default function EnumEdit() {
   const { game, "*": splat } = useParams();
@@ -43,10 +44,11 @@ export default function EnumEdit() {
   }
   if (error) {
     return (
-      <div className="w-full p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
-        <h3 className="font-bold text-lg mb-2">Failed to load enum</h3>
-        <p>{String(error)}</p>
-      </div>
+      <LoadErrorState
+        title="Failed to Load Enum"
+        error={error}
+        onBack={() => window.history.back()}
+      />
     );
   }
   if (!enumResult) {

@@ -8,6 +8,7 @@ import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 import { FormField } from "~/components/FormField";
 import { useData } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 export default function EditPatch() {
   const { game, "*": splat } = useParams();
@@ -41,10 +42,11 @@ export default function EditPatch() {
   }
 
   if (result.error) return (
-    <div className="max-w-lg mx-auto p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
-      <h3 className="font-bold text-lg mb-2">Failed to load patch</h3>
-      <p>{String(result.error)}</p>
-    </div>
+    <LoadErrorState
+      title="Failed to Load Patch"
+      error={result.error}
+      onBack={() => window.history.back()}
+    />
   );
 
   if (!result.data) return (

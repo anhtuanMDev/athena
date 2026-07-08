@@ -5,6 +5,7 @@ import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus } from "lucide-react";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 interface HeroRow {
   id: string;
@@ -124,9 +125,11 @@ export default function HeroesIndex() {
 
   if (error)
     return (
-      <div className="p-8 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400">
-        Error loading heroes data.
-      </div>
+      <LoadErrorState
+        title="Failed to Load Heroes"
+        error={error}
+        onBack={() => window.history.back()}
+      />
     );
 
   if (loading) return <EntityListSkeleton columns={6} rows={8} />;

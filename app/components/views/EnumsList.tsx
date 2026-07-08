@@ -7,6 +7,7 @@ import { Button } from "~/components/ui/button";
 import { Plus } from "lucide-react";
 import type { GlobalEnum } from "~/schemas/enum";
 import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 export default function EnumsIndex() {
   const { game } = useParams();
@@ -31,10 +32,11 @@ export default function EnumsIndex() {
 
   if (error) {
     return (
-      <div className="p-6 bg-red-50 text-red-600 rounded-lg shadow-sm">
-        <h3 className="font-bold text-lg mb-2">Failed to load enums</h3>
-        <p>{String(error)}</p>
-      </div>
+      <LoadErrorState
+        title="Failed to Load Enums"
+        error={error}
+        onBack={() => window.history.back()}
+      />
     );
   }
   

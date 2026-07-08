@@ -13,6 +13,7 @@ import { ModeSchema } from "~/schemas/mode";
 import { PatchSchema } from "~/schemas/patch";
 import { ItemSchema } from "~/schemas/item";
 import { useToast } from "~/components/ToastProvider";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 const typeValidators: Record<string, (data: unknown) => { success: boolean }> = {
   heroes: (d) => HeroSchema.safeParse(d),
@@ -115,7 +116,13 @@ export default function RawEditor() {
   }
 
   if (loading) return <div>Loading...</div>;
-  if (loadError) return <div>Error: {(loadError as Error).message}</div>;
+  if (loadError) return (
+    <LoadErrorState
+      title="Failed to Load Data"
+      error={loadError}
+      onBack={() => window.history.back()}
+    />
+  );
   if (!loaderData) return null;
 
   if (step === "preview" && diffs) {

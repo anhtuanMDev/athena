@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { listDirectory } from "~/lib/github";
 import { useData } from "~/lib/use-data";
 import { type DynamicSchemaFile } from "~/schemas/dynamic-schema";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 export default function SchemasList() {
   const { game } = useParams();
@@ -47,7 +48,13 @@ export default function SchemasList() {
       </div>
     );
   if (error)
-    return <div>Error loading schemas: {(error as Error).message}</div>;
+    return (
+      <LoadErrorState
+        title="Failed to Load Schemas"
+        error={error}
+        onBack={() => window.history.back()}
+      />
+    );
 
   return (
     <div className="space-y-6">

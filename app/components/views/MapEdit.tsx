@@ -8,6 +8,7 @@ import { getFile, updateFile, deleteFile, isConflictError, listDirectory } from 
 import { type DynamicSchemaFile, type DynamicField, buildDynamicZodSchema } from "~/schemas/dynamic-schema";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 import { FormField } from "~/components/FormField";
 import { useData } from "~/lib/use-data";
@@ -141,10 +142,11 @@ export default function EditMap() {
   }
 
   if (fileFetchError || schemaFetchError) return (
-    <div className="w-full p-6 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 rounded-xl">
-      <h3 className="font-bold text-lg mb-2">Error</h3>
-      <p>{String(fileFetchError || schemaFetchError)}</p>
-    </div>
+    <LoadErrorState
+      title="Failed to Load Map"
+      error={fileFetchError || schemaFetchError}
+      onBack={() => window.history.back()}
+    />
   );
 
   if (!fileData || !schemaData) return (

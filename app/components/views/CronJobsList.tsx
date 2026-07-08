@@ -5,6 +5,7 @@ import { listDirectory } from "~/lib/github";
 import { useData } from "~/lib/use-data";
 import { type CronJob } from "~/schemas/cron";
 import { Clock } from "lucide-react";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 export default function CronJobsList() {
   const { game } = useParams();
@@ -49,7 +50,13 @@ export default function CronJobsList() {
     );
 
   if (error)
-    return <div>Error loading cron jobs: {(error as Error).message}</div>;
+    return (
+      <LoadErrorState
+        title="Failed to Load Cron Jobs"
+        error={error}
+        onBack={() => window.history.back()}
+      />
+    );
 
   return (
     <div className="space-y-6">
