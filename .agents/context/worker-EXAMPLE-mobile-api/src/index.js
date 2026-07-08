@@ -93,12 +93,15 @@ async function listDirectory(game, subpath, env, ctx) {
   let cached = await cache.match(cacheKey);
   if (cached) return cached.json();
 
-  const upstream = await fetch(url, {
-    headers: {
-      "User-Agent": "hero-shooter-info-api",
-      Accept: "application/vnd.github.v3+json",
-    },
-  });
+  const headers = {
+    "User-Agent": "hero-shooter-info-api",
+    Accept: "application/vnd.github.v3+json",
+  };
+  if (env.GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`;
+  }
+
+  const upstream = await fetch(url, { headers });
   if (!upstream.ok) return [];
 
   const listing = await upstream.json();
@@ -133,6 +136,38 @@ export default {
 
     if (parts[0] !== "api") {
       return errorResponse("Not found", 404);
+    }
+
+    if (parts.length === 2 && parts[1] === "purge" && request.method === "POST") {
+      const secret = env.WORKER_PURGE_SECRET;
+      if (secret && request.headers.get("Authorization") !== `Bearer ${secret}`) {
+        return errorResponse("Unauthorized", 401);
+      }
+      const body = await request.json().catch(() => ({}));
+      const purgePath = body.path;
+      if (!purgePath) return errorResponse("path required", 400);
+
+      const cache = caches.default;
+      
+      const pathWithoutData = purgePath.replace(/^data\//, "");
+      
+      // Purge the file url
+      const fileUrl = `${githubRawBase(env)}/${pathWithoutData}`;
+      await cache.delete(new Request(fileUrl));
+      
+      // Purge the directory listing url
+      const pathParts = pathWithoutData.split('/');
+      pathParts.pop();
+      const dirPath = pathParts.join('/');
+      if (dirPath) {
+        const owner = env.GITHUB_OWNER || "YOUR_ORG";
+        const repo = env.GITHUB_REPO || "YOUR_REPO";
+        const branch = env.BRANCH || "main";
+        const dirUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/${dirPath}?ref=${branch}`;
+        await cache.delete(new Request(dirUrl));
+      }
+      
+      return jsonResponse({ purged: true });
     }
 
     // GET /api/games

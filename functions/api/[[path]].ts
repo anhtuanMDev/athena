@@ -21,6 +21,8 @@ export interface Env {
   ADMIN_PASSWORD_HASH?: string;
   SESSION_SECRET: string;
   COOKIE_SECURE?: string;
+  WORKER_PURGE_URL?: string;
+  WORKER_PURGE_SECRET?: string;
 }
 
 async function checkRateLimit(
@@ -190,10 +192,10 @@ function assertSafeFilePath(path: string): void {
   }
 }
 
-function json(data: unknown, status = 200): Response {
+function json(data: unknown, status = 200, headers: HeadersInit = {}): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
   });
 }
 
@@ -217,6 +219,33 @@ interface PagesFunctionContext {
   env: Env;
   params: Record<string, string>;
   next: () => Promise<Response>;
+  waitUntil?: (promise: Promise<any>) => void;
+}
+
+function triggerCachePurge(context: PagesFunctionContext, path: string) {
+  const cache = caches.default;
+  const url = new URL(context.request.url);
+
+  const urlsToPurge: string[] = [];
+  
+  if (path.startsWith("public/assets/")) {
+    const assetPath = path.slice("public/assets/".length);
+    // encode path parts explicitly to match browser behavior
+    const encodedAssetPath = assetPath.split('/').map(encodeURIComponent).join('/');
+    urlsToPurge.push(`${url.origin}/api/assets/${encodedAssetPath}`);
+  }
+
+  // Use explicit encodeURIComponent to match the client's `path=${encodeURIComponent(path)}`
+  urlsToPurge.push(`${url.origin}/api/data/file?path=${encodeURIComponent(path)}`);
+
+
+  const promise = Promise.all(
+    urlsToPurge.map(u => cache.delete(u))
+  ).catch(err => console.error("Cache purge failed:", err));
+
+  if (context.waitUntil) {
+    context.waitUntil(promise);
+  }
 }
 
 export async function onRequest(
@@ -234,21 +263,21 @@ export async function onRequest(
     if (path === "auth/check" && request.method === "GET")
       return await handleCheck(request, env);
     if (path === "data/file" && request.method === "GET")
-      return await handleGetFile(request, env);
+      return await handleGetFile(context);
     if (path === "data/file" && request.method === "POST")
-      return await handleWriteFile(request, env);
+      return await handleWriteFile(context);
     if (path === "data/file" && request.method === "DELETE")
-      return await handleDeleteFile(request, env);
+      return await handleDeleteFile(context);
     if (path === "data/directory" && request.method === "GET")
-      return await handleListDirectory(request, env);
+      return await handleListDirectory(context);
     if (path === "data/games" && request.method === "GET")
       return await handleListGames(request, env);
     if (path === "data/dashboard" && request.method === "GET")
-      return await handleDashboardData(request, env);
+      return await handleDashboardData(context);
     if (path === "data/commits" && request.method === "GET")
-      return await handleCommits(request, env);
+      return await handleCommits(context);
     if (path.startsWith("assets/") && request.method === "GET")
-      return await handleGetAsset(request, env);
+      return await handleGetAsset(context);
     return json({ error: "Not found" }, 404);
   } catch (err) {
     if (err instanceof AuthError) return json({ error: "Unauthorized" }, 401);
@@ -275,7 +304,7 @@ async function handleLogin(request: Request, env: Env): Promise<Response> {
     return json({ error: "Too many attempts", retryAfter }, 429);
   }
 
-  const body: { password?: string } = await request.json().catch(() => ({}));
+  const body = (await request.json().catch(() => ({}))) as { password?: string };
   const password = body.password;
   if (!password) {
     return json({ error: "Password is required" }, 400);
@@ -323,8 +352,23 @@ async function handleCheck(request: Request, env: Env): Promise<Response> {
   return json({ authenticated });
 }
 
-async function handleGetFile(request: Request, env: Env): Promise<Response> {
-  await requireAuth({ request, env } as PagesFunctionContext);
+async function handleGetFile(context: PagesFunctionContext): Promise<Response> {
+  const { request, env } = context;
+  await requireAuth(context);
+
+  const cache = caches.default;
+  const cacheKey = request.url;
+  const cached = await cache.match(cacheKey);
+  if (cached) {
+    const response = new Response(cached.body, {
+      status: cached.status,
+      statusText: cached.statusText,
+      headers: cached.headers,
+    });
+    response.headers.set("Cache-Control", "no-store");
+    return response;
+  }
+
   const url = new URL(request.url);
   const path = url.searchParams.get("path");
   if (!path) return json({ error: "path is required" }, 400);
@@ -347,7 +391,14 @@ async function handleGetFile(request: Request, env: Env): Promise<Response> {
       if (path.endsWith(".json")) {
         content = JSON.parse(atob(data.content));
       }
-      return json({ sha: data.sha, content });
+      const payload = { sha: data.sha, content };
+      const cacheableResponse = json(payload, 200, {
+        "Cache-Control": "public, max-age=3600",
+      });
+      context.waitUntil?.(cache.put(cacheKey, cacheableResponse));
+      return json(payload, 200, {
+        "Cache-Control": "no-store",
+      });
     }
     return json(null);
   } catch (err: unknown) {
@@ -362,15 +413,16 @@ async function handleGetFile(request: Request, env: Env): Promise<Response> {
   }
 }
 
-async function handleWriteFile(request: Request, env: Env): Promise<Response> {
-  await requireAuth({ request, env } as PagesFunctionContext);
-  const body: {
+async function handleWriteFile(context: PagesFunctionContext): Promise<Response> {
+  const { request, env } = context;
+  await requireAuth(context);
+  const body = (await request.json().catch(() => ({}))) as {
     path: string;
     content: unknown;
     message?: string;
     sha?: string;
     isBase64?: boolean;
-  } = await request.json().catch(() => ({}));
+  };
   if (!body.path) return json({ error: "path is required" }, 400);
   assertSafeFilePath(body.path);
 
@@ -392,6 +444,7 @@ async function handleWriteFile(request: Request, env: Env): Promise<Response> {
       sha: body.sha,
       branch,
     });
+    triggerCachePurge(context, body.path);
     return json({ ok: true });
   } catch (err: unknown) {
     if (
@@ -412,11 +465,12 @@ async function handleWriteFile(request: Request, env: Env): Promise<Response> {
   }
 }
 
-async function handleDeleteFile(request: Request, env: Env): Promise<Response> {
-  await requireAuth({ request, env } as PagesFunctionContext);
-  const body: { path: string; sha: string; message?: string } = await request
+async function handleDeleteFile(context: PagesFunctionContext): Promise<Response> {
+  const { request, env } = context;
+  await requireAuth(context);
+  const body = (await request
     .json()
-    .catch(() => ({}));
+    .catch(() => ({}))) as { path: string; sha: string; message?: string };
   if (!body.path || !body.sha)
     return json({ error: "path and sha are required" }, 400);
   assertSafeFilePath(body.path);
@@ -435,6 +489,7 @@ async function handleDeleteFile(request: Request, env: Env): Promise<Response> {
       sha: body.sha,
       branch,
     });
+    triggerCachePurge(context, body.path);
     return json({ ok: true });
   } catch (err: unknown) {
     if (
@@ -455,10 +510,11 @@ async function handleDeleteFile(request: Request, env: Env): Promise<Response> {
 }
 
 async function handleListDirectory(
-  request: Request,
-  env: Env,
+  context: PagesFunctionContext,
 ): Promise<Response> {
-  await requireAuth({ request, env } as PagesFunctionContext);
+  const { request, env } = context;
+  await requireAuth(context);
+
   const url = new URL(request.url);
   const game = url.searchParams.get("game");
   const subpath = url.searchParams.get("subpath");
@@ -488,7 +544,10 @@ async function handleListDirectory(
       const keysOnly = keysOnlyStr ? keysOnlyStr.split(",") : null;
 
       if (!includeContent) {
-        return json(files.map((entry) => entry.name.replace(".json", "")));
+        const payload = files.map((entry) => entry.name.replace(".json", ""));
+        return json(payload, 200, {
+          "Cache-Control": "no-store",
+        });
       }
 
       // Fetch the parsed JSON content for all files in parallel, but chunked to respect CF limits (max 50 concurrent) and GitHub limits
@@ -532,7 +591,10 @@ async function handleListDirectory(
         items.push(...chunkResults);
       }
 
-      return json(items.filter(Boolean));
+      const payload = items.filter(Boolean);
+      return json(payload, 200, {
+        "Cache-Control": "no-store",
+      });
     }
     return json([]);
   } catch {
@@ -568,8 +630,10 @@ async function handleListGames(request: Request, env: Env): Promise<Response> {
   }
 }
 
-async function handleDashboardData(request: Request, env: Env): Promise<Response> {
-  await requireAuth({ request, env } as PagesFunctionContext);
+async function handleDashboardData(context: PagesFunctionContext): Promise<Response> {
+  const { request, env } = context;
+  await requireAuth(context);
+
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
   const owner = env.GITHUB_OWNER;
   const repo = env.GITHUB_REPO;
@@ -608,15 +672,19 @@ async function handleDashboardData(request: Request, env: Env): Promise<Response
       return { ...game, heroCount, patchCount };
     });
 
-    return json({ games: gameStats });
+    return json({ games: gameStats }, 200, {
+      "Cache-Control": "no-store",
+    });
   } catch (err) {
     console.error("handleDashboardData error:", err);
     return json({ games: [] });
   }
 }
 
-async function handleCommits(request: Request, env: Env): Promise<Response> {
-  await requireAuth({ request, env } as PagesFunctionContext);
+async function handleCommits(context: PagesFunctionContext): Promise<Response> {
+  const { request, env } = context;
+  await requireAuth(context);
+
   const token = env.GITHUB_TOKEN;
   const owner = env.GITHUB_OWNER ?? "YOUR_ORG";
   const repo = env.GITHUB_REPO ?? "YOUR_REPO";
@@ -658,7 +726,9 @@ async function handleCommits(request: Request, env: Env): Promise<Response> {
           }),
         )
       : [];
-    return json({ commits, error: null });
+    return json({ commits, error: null }, 200, {
+      "Cache-Control": "no-store",
+    });
   } catch (err) {
     return json({
       commits: [],
@@ -667,7 +737,21 @@ async function handleCommits(request: Request, env: Env): Promise<Response> {
   }
 }
 
-async function handleGetAsset(request: Request, env: Env): Promise<Response> {
+async function handleGetAsset(context: PagesFunctionContext): Promise<Response> {
+  const { request, env } = context;
+  const cache = caches.default;
+  const cacheKey = request.url;
+  const cached = await cache.match(cacheKey);
+  if (cached) {
+    const response = new Response(cached.body, {
+      status: cached.status,
+      statusText: cached.statusText,
+      headers: cached.headers,
+    });
+    response.headers.set("Cache-Control", "no-store");
+    return response;
+  }
+
   const url = new URL(request.url);
   const path = url.pathname.replace(/^\/api\//, "").replace(/\/$/, "");
   // path is "assets/..."
@@ -696,14 +780,23 @@ async function handleGetAsset(request: Request, env: Env): Promise<Response> {
       return new Response("Asset not found", { status: 404 });
     }
 
-    const resHeaders = new Headers();
+    const cacheableHeaders = new Headers();
     const contentType = response.headers.get("content-type");
-    if (contentType) resHeaders.set("Content-Type", contentType);
-    resHeaders.set("Cache-Control", "public, max-age=3600");
+    if (contentType) cacheableHeaders.set("Content-Type", contentType);
+    cacheableHeaders.set("Cache-Control", "public, max-age=3600");
+
+    const cacheableResponse = new Response(response.clone().body, {
+      status: 200,
+      headers: cacheableHeaders,
+    });
+    context.waitUntil?.(cache.put(cacheKey, cacheableResponse));
+
+    const clientHeaders = new Headers(cacheableHeaders);
+    clientHeaders.set("Cache-Control", "no-store");
 
     return new Response(response.body, {
       status: 200,
-      headers: resHeaders,
+      headers: clientHeaders,
     });
   } catch (err) {
     return new Response("Internal error", { status: 500 });

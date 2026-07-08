@@ -18,8 +18,8 @@ data/
   marvel-rivals/         <- same shape, different vocabulary (roles, team_up mechanic)
   deadlock/               <- same shape, different vocabulary (souls, item slots)
 
-worker/
-  src/index.js           <- Cloudflare Worker, routes + GitHub fetch + edge caching
+worker-EXAMPLE-mobile-api/
+  src/index.js           <- UNUSED EXAMPLE ONLY: Cloudflare Worker, routes + edge caching
   wrangler.toml
 ```
 
@@ -41,18 +41,15 @@ worker/
 1. Add an entry to `data/_meta/games.json`.
 2. Create `data/<slug>/schema.json`, `data/<slug>/heroes/*.json`, etc., following the same
    folder shape as the existing games.
-3. Nothing in `worker/src/index.js` needs to change - routes are already parameterized by `:game`.
+3. Nothing in the backend needs to change - routes are already parameterized by `:game`.
 
-## Running the Worker locally
+## Running the Backend locally
+
+> **Note:** The `worker-EXAMPLE-mobile-api/` directory is an unused scaffold/example. The real backend is deployed via Cloudflare Pages Functions in `functions/api/[[path]].ts`.
 
 ```bash
-cd worker
-npm install -g wrangler   # if you don't have it
-wrangler dev
+npm run dev
 ```
-
-Then edit `wrangler.toml` and set `GITHUB_OWNER` / `GITHUB_REPO` / `BRANCH` to point at
-wherever you push this `data/` folder (it can live in this same repo or a separate one).
 
 ## Deploying
 
