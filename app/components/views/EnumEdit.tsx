@@ -29,7 +29,8 @@ export default function EnumEdit() {
     error,
   } = useData<{ content: GlobalEnum; sha: string } | null>(
     () => getFile<GlobalEnum>(`data/${game}/enums/${id}.json`),
-    [game, id], `${game}-enum-${id}`
+    [game, id],
+    `${game}-enum-${id}`,
   );
 
   if (loading) {
@@ -58,7 +59,11 @@ export default function EnumEdit() {
         <EmptyState
           title="Enum Not Found"
           description="The enum you are trying to edit could not be found or has been deleted."
-          action={<Button variant="outline" onClick={() => window.history.back()}>Go Back</Button>}
+          action={
+            <Button variant="outline" onClick={() => window.history.back()}>
+              Go Back
+            </Button>
+          }
         />
       </div>
     );
@@ -93,12 +98,21 @@ export default function EnumEdit() {
   );
 }
 
-function AutoGenerateOptionId({ control, setValue, touchedFields, index }: any) {
+function AutoGenerateOptionId({
+  control,
+  setValue,
+  touchedFields,
+  index,
+}: any) {
   const nameValue = useWatch({ control, name: `options.${index}.name` });
   const idValue = useWatch({ control, name: `options.${index}.id` });
 
   useEffect(() => {
-    if (nameValue && typeof nameValue === "string" && !touchedFields?.options?.[index]?.id) {
+    if (
+      nameValue &&
+      typeof nameValue === "string" &&
+      !touchedFields?.options?.[index]?.id
+    ) {
       const generatedId = nameValue
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
@@ -110,7 +124,13 @@ function AutoGenerateOptionId({ control, setValue, touchedFields, index }: any) 
         });
       }
     }
-  }, [nameValue, touchedFields?.options?.[index]?.id, setValue, idValue, index]);
+  }, [
+    nameValue,
+    touchedFields?.options?.[index]?.id,
+    setValue,
+    idValue,
+    index,
+  ]);
 
   return null;
 }
@@ -165,7 +185,11 @@ function EditEnumForm({
 
     try {
       formData.options.forEach((opt) => {
-         if (!opt.id) opt.id = opt.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        if (!opt.id)
+          opt.id = opt.name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "");
       });
 
       const parsed = EnumSchema.parse(formData);
@@ -198,7 +222,7 @@ function EditEnumForm({
         `data/${game}/enums/${id}.json`,
         parsed.data,
         sha,
-        `Update enum: ${parsed.data.name}`
+        `Update enum: ${parsed.data.name}`,
       );
       toastSuccess(`Enum ${parsed.data.name} updated successfully!`);
       navigate(`/${game}/enums`);
@@ -233,7 +257,11 @@ function EditEnumForm({
           className="flex gap-4 pt-4 border-t border-gray-200/50 dark:border-gray-800/50"
         >
           <input type="hidden" name="_enumJson" value={preview.enumJson} />
-          <Button type="button" variant="outline" onClick={() => setPreview(null)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setPreview(null)}
+          >
             Edit Again
           </Button>
           <Button
@@ -286,27 +314,41 @@ function EditEnumForm({
       <div className="border border-gray-200 dark:border-gray-800 rounded-xl p-4 bg-gray-50 dark:bg-gray-800/30">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white">Options</h3>
-            <p className="text-xs text-gray-500">The values that will be selectable in the schema.</p>
+            <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+              Options
+            </h3>
+            <p className="text-xs text-gray-500">
+              The values that will be selectable in the schema.
+            </p>
           </div>
           <Button
             type="button"
             size="small"
             variant="outline"
-            onClick={() => prepend({ id: "", name: "" })}
+            onClick={() => prepend({ id: "", name: "", description: "" })}
           >
             <Plus className="w-4 h-4 mr-2" /> Add Option
           </Button>
         </div>
 
         {errors.options && typeof errors.options.message === "string" && (
-          <div className="text-sm text-red-500 mb-4">{errors.options.message}</div>
+          <div className="text-sm text-red-500 mb-4">
+            {errors.options.message}
+          </div>
         )}
 
         <div className="space-y-3">
           {fields.map((field, index) => (
-            <div key={field.id} className="flex gap-3 items-start p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg">
-              <AutoGenerateOptionId control={control} setValue={setValue} touchedFields={touchedFields} index={index} />
+            <div
+              key={field.id}
+              className="flex gap-3 items-start p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg"
+            >
+              <AutoGenerateOptionId
+                control={control}
+                setValue={setValue}
+                touchedFields={touchedFields}
+                index={index}
+              />
               <div className="flex-1 grid grid-cols-1 gap-3">
                 <div className="grid grid-cols-2 gap-3">
                   <FormField
@@ -314,7 +356,9 @@ function EditEnumForm({
                     placeholder="e.g. Hitscan"
                     {...register(`options.${index}.name` as const)}
                     error={!!errors.options?.[index]?.name}
-                    helperText={errors.options?.[index]?.name?.message as string}
+                    helperText={
+                      errors.options?.[index]?.name?.message as string
+                    }
                   />
                   <FormField
                     label="Value (ID)"
@@ -322,7 +366,13 @@ function EditEnumForm({
                     {...register(`options.${index}.id` as const)}
                     error={!!errors.options?.[index]?.id}
                     helperText={errors.options?.[index]?.id?.message as string}
-                    slotProps={{ inputLabel: { shrink: control._formValues.options?.[index]?.id ? true : undefined } }}
+                    slotProps={{
+                      inputLabel: {
+                        shrink: control._formValues.options?.[index]?.id
+                          ? true
+                          : undefined,
+                      },
+                    }}
                   />
                 </div>
                 <FormField
@@ -330,7 +380,9 @@ function EditEnumForm({
                   placeholder="Optional description"
                   {...register(`options.${index}.description` as const)}
                   error={!!errors.options?.[index]?.description}
-                  helperText={errors.options?.[index]?.description?.message as string}
+                  helperText={
+                    errors.options?.[index]?.description?.message as string
+                  }
                 />
               </div>
               <Button

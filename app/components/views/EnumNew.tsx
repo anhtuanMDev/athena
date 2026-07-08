@@ -36,12 +36,21 @@ function AutoGenerateId({ control, setValue, touchedFields }: any) {
   return null;
 }
 
-function AutoGenerateOptionId({ control, setValue, touchedFields, index }: any) {
+function AutoGenerateOptionId({
+  control,
+  setValue,
+  touchedFields,
+  index,
+}: any) {
   const nameValue = useWatch({ control, name: `options.${index}.name` });
   const idValue = useWatch({ control, name: `options.${index}.id` });
 
   useEffect(() => {
-    if (nameValue && typeof nameValue === "string" && !touchedFields?.options?.[index]?.id) {
+    if (
+      nameValue &&
+      typeof nameValue === "string" &&
+      !touchedFields?.options?.[index]?.id
+    ) {
       const generatedId = nameValue
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
@@ -53,7 +62,13 @@ function AutoGenerateOptionId({ control, setValue, touchedFields, index }: any) 
         });
       }
     }
-  }, [nameValue, touchedFields?.options?.[index]?.id, setValue, idValue, index]);
+  }, [
+    nameValue,
+    touchedFields?.options?.[index]?.id,
+    setValue,
+    idValue,
+    index,
+  ]);
 
   return null;
 }
@@ -79,7 +94,7 @@ export default function EnumNew() {
       id: "",
       name: "",
       description: "",
-      options: [{ id: "", name: "" }],
+      options: [{ id: "", name: "", description: "" }],
     },
   });
 
@@ -98,15 +113,19 @@ export default function EnumNew() {
       if (!data.id || !/^[a-z0-9-]+$/.test(data.id)) {
         throw new Error("Invalid ID format");
       }
-      
+
       data.options.forEach((opt, idx) => {
-         if (!opt.id) opt.id = opt.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        if (!opt.id)
+          opt.id = opt.name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "");
       });
 
       await createFile(
         `data/${game}/enums/${data.id}.json`,
         data,
-        `Add enum: ${data.name}`
+        `Add enum: ${data.name}`,
       );
       toastSuccess(`Enum ${data.name} created successfully!`);
       navigate(`/${game}/enums`);
@@ -129,8 +148,12 @@ export default function EnumNew() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <AutoGenerateId control={control} setValue={setValue} touchedFields={touchedFields} />
-            
+            <AutoGenerateId
+              control={control}
+              setValue={setValue}
+              touchedFields={touchedFields}
+            />
+
             {submitError && (
               <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">
                 {submitError}
@@ -151,7 +174,9 @@ export default function EnumNew() {
                 {...register("id")}
                 error={!!errors.id}
                 helperText={errors.id?.message as string}
-                slotProps={{ inputLabel: { shrink: idValue ? true : undefined } }}
+                slotProps={{
+                  inputLabel: { shrink: idValue ? true : undefined },
+                }}
               />
               <div className="col-span-1 md:col-span-2">
                 <FormField
@@ -167,27 +192,41 @@ export default function EnumNew() {
             <div className="border border-gray-200 dark:border-gray-800 rounded-xl p-4 bg-gray-50 dark:bg-gray-800/30">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">Options</h3>
-                  <p className="text-xs text-gray-500">The values that will be selectable in the schema.</p>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                    Options
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    The values that will be selectable in the schema.
+                  </p>
                 </div>
                 <Button
                   type="button"
                   size="small"
                   variant="outline"
-                  onClick={() => prepend({ id: "", name: "" })}
+                  onClick={() => prepend({ id: "", name: "", description: "" })}
                 >
                   <Plus className="w-4 h-4 mr-2" /> Add Option
                 </Button>
               </div>
 
               {errors.options && typeof errors.options.message === "string" && (
-                <div className="text-sm text-red-500 mb-4">{errors.options.message}</div>
+                <div className="text-sm text-red-500 mb-4">
+                  {errors.options.message}
+                </div>
               )}
 
               <div className="space-y-3">
                 {fields.map((field, index) => (
-                  <div key={field.id} className="flex gap-3 items-start p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg">
-                    <AutoGenerateOptionId control={control} setValue={setValue} touchedFields={touchedFields} index={index} />
+                  <div
+                    key={field.id}
+                    className="flex gap-3 items-start p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg"
+                  >
+                    <AutoGenerateOptionId
+                      control={control}
+                      setValue={setValue}
+                      touchedFields={touchedFields}
+                      index={index}
+                    />
                     <div className="flex-1 grid grid-cols-1 gap-3">
                       <div className="grid grid-cols-2 gap-3">
                         <FormField
@@ -195,15 +234,25 @@ export default function EnumNew() {
                           placeholder="e.g. Hitscan"
                           {...register(`options.${index}.name` as const)}
                           error={!!errors.options?.[index]?.name}
-                          helperText={errors.options?.[index]?.name?.message as string}
+                          helperText={
+                            errors.options?.[index]?.name?.message as string
+                          }
                         />
                         <FormField
                           label="Value (ID)"
                           placeholder="e.g. hitscan (auto-generates if empty)"
                           {...register(`options.${index}.id` as const)}
                           error={!!errors.options?.[index]?.id}
-                          helperText={errors.options?.[index]?.id?.message as string}
-                          slotProps={{ inputLabel: { shrink: control._formValues.options?.[index]?.id ? true : undefined } }}
+                          helperText={
+                            errors.options?.[index]?.id?.message as string
+                          }
+                          slotProps={{
+                            inputLabel: {
+                              shrink: control._formValues.options?.[index]?.id
+                                ? true
+                                : undefined,
+                            },
+                          }}
                         />
                       </div>
                       <FormField
@@ -211,7 +260,10 @@ export default function EnumNew() {
                         placeholder="Optional description"
                         {...register(`options.${index}.description` as const)}
                         error={!!errors.options?.[index]?.description}
-                        helperText={errors.options?.[index]?.description?.message as string}
+                        helperText={
+                          errors.options?.[index]?.description
+                            ?.message as string
+                        }
                       />
                     </div>
                     <Button
