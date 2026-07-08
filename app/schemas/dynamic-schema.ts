@@ -30,14 +30,21 @@ export const DynamicFieldSchema: z.ZodType<DynamicField> = z.lazy(() => z.object
   referenceLabelKey: z.string().optional(),
 }));
 
-export const SchemaCategorySchema = z.enum(["hero", "mode", "patch", "event", "item", "map"]);
+export const SchemaCategorySchema = z.enum(["hero", "mode", "patch", "event", "item", "map", "cron_job"]);
 export type SchemaCategory = z.infer<typeof SchemaCategorySchema>;
+
+export const CronConfigSchema = z.object({
+  apiResponseDefinition: z.string().default(""),
+  dataHandling: z.string().default(""),
+  finalResultDestination: z.string().default(""),
+});
 
 export const DynamicSchemaFileSchema = z.object({
   id: z.string().min(1).regex(/^[a-z0-9-]+$/, "ID must be kebab-case"),
   name: z.string().min(1),
   category: SchemaCategorySchema,
-  fields: z.array(DynamicFieldSchema),
+  fields: z.array(DynamicFieldSchema).default([]),
+  cronConfig: CronConfigSchema.optional(),
 }).superRefine((data, ctx) => {
   const keys = new Set();
   for (let i = 0; i < data.fields.length; i++) {
@@ -63,6 +70,7 @@ export function getCategoryDirectory(category: SchemaCategory): string {
     patch: "patches",
     item: "items",
     event: "events",
+    cron_job: "cron_jobs",
   };
   return categoryMap[category] || `${category}s`;
 }

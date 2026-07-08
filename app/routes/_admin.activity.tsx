@@ -5,6 +5,10 @@ interface Commit { sha: string; message: string; date: string; url: string; }
 
 async function fetchCommits() {
   const res = await fetch("/api/data/commits");
+  if (res.status === 401) {
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new Error("Unauthorized: Session expired");
+  }
   const data: { commits: Commit[]; error: string | null } = await res.json();
   return data;
 }

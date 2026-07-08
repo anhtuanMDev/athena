@@ -19,6 +19,7 @@ import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router";
 import { useToast } from "~/components/ToastProvider";
 import { Button } from "~/components/ui/button";
+import { Card, CardContent } from "~/components/ui/card";
 import {
   getFile,
   isConflictError,
@@ -46,17 +47,28 @@ export default function DynamicSchemaEdit() {
     data: loaderData,
     loading,
     error: loadError,
-  } = useData(async () => {
-    if (!id) throw new Error("Schema ID missing");
-    const [file, schemas] = await Promise.all([
-      getFile<DynamicSchemaFile>(`data/${game}/schemas/${id}.json`),
-      listDirectory<DynamicSchemaFile>(game!, "schemas", true).catch(() => []),
-    ]);
-    if (!file) throw new Error("Schema not found");
-    return { schema: file.content, sha: file.sha, allSchemas: schemas };
-  }, [game, id], "DynamicSchemaEdit-49");
+  } = useData(
+    async () => {
+      if (!id) throw new Error("Schema ID missing");
+      const [file, schemas] = await Promise.all([
+        getFile<DynamicSchemaFile>(`data/${game}/schemas/${id}.json`),
+        listDirectory<DynamicSchemaFile>(game!, "schemas", true).catch(
+          () => [],
+        ),
+      ]);
+      if (!file) throw new Error("Schema not found");
+      return { schema: file.content, sha: file.sha, allSchemas: schemas };
+    },
+    [game, id],
+    "DynamicSchemaEdit-49",
+  );
 
   const [fields, setFields] = useState<DynamicField[] | null>(null);
+  const [cronConfig, setCronConfig] = useState({
+    apiResponseDefinition: "",
+    dataHandling: "",
+    finalResultDestination: "",
+  });
   const [submitting, setSubmitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
 
@@ -88,7 +100,7 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
 \`\`\`json
 {
   "name": "Base Hero Attributes",
-  "category": "hero", // enum: "hero", "map", "mode", "patch", "event", "item"
+  "category": "hero", // enum: "hero", "map", "mode", "patch", "event", "item", "cron_job"
   "fields": [
     {
       "key": "health",
@@ -185,6 +197,10 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
     setLoadingApiKeys((prev) => ({ ...prev, [index]: true }));
     try {
       const res = await fetch(endpoint.replace("{game}", game!));
+      if (res.status === 401) {
+        if (typeof window !== "undefined") window.location.href = "/login";
+        throw new Error("Unauthorized: Session expired");
+      }
       if (!res.ok) throw new Error("Failed to fetch");
       const json = (await res.json()) as Record<string, unknown> | unknown[];
       let arr: unknown[] = [];
@@ -219,6 +235,13 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
   useEffect(() => {
     if (loaderData && fields === null) {
       setFields(loaderData.schema.fields || []);
+      if (loaderData.schema.cronConfig) {
+        setCronConfig({
+          apiResponseDefinition: loaderData.schema.cronConfig.apiResponseDefinition || "",
+          dataHandling: loaderData.schema.cronConfig.dataHandling || "",
+          finalResultDestination: loaderData.schema.cronConfig.finalResultDestination || "",
+        });
+      }
     }
   }, [loaderData, fields]);
 
@@ -239,32 +262,32 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
   const handleChangeField = (
     index: number,
     key: keyof DynamicField,
-    value: any,
+    value: string | boolean | string[],
   ) => {
     if (!fields) return;
     const newFields = [...fields];
     const field = newFields[index];
 
     if (key === "options") {
-      newFields[index] = { ...field, [key]: value.split("\n") };
+      newFields[index] = { ...field, [key]: (value as string).split("\n") };
     } else if (key === "label") {
       const oldSlug = (field.label || "")
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/(^_|_$)/g, "");
-      const newSlug = (value || "")
+      const newSlug = (value as string || "")
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/(^_|_$)/g, "");
 
       const shouldUpdateKey = !field.key || field.key === oldSlug;
 
-      newFields[index] = { ...field, label: value };
+      newFields[index] = { ...field, label: value as string };
       if (shouldUpdateKey) {
         newFields[index].key = newSlug;
       }
     } else {
-      newFields[index] = { ...field, [key]: value };
+      newFields[index] = { ...field, [key]: value } as DynamicField;
     }
     setFields(newFields);
   };
@@ -295,7 +318,7 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
     parentIndex: number,
     subIndex: number,
     key: keyof DynamicField,
-    value: any,
+    value: string | boolean | string[],
   ) => {
     if (!fields) return;
     const newFields = [...fields];
@@ -304,21 +327,21 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
     if (key === "options") {
       newFields[parentIndex].subFields![subIndex] = {
         ...subField,
-        [key]: value.split("\n"),
+        [key]: (value as string).split("\n"),
       };
     } else if (key === "label") {
       const oldSlug = (subField.label || "")
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/(^_|_$)/g, "");
-      const newSlug = (value || "")
+      const newSlug = (value as string || "")
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/(^_|_$)/g, "");
       const shouldUpdateKey = !subField.key || subField.key === oldSlug;
       newFields[parentIndex].subFields![subIndex] = {
         ...subField,
-        label: value,
+        label: value as string,
       };
       if (shouldUpdateKey) {
         newFields[parentIndex].subFields![subIndex].key = newSlug;
@@ -327,7 +350,7 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
       newFields[parentIndex].subFields![subIndex] = {
         ...subField,
         [key]: value,
-      };
+      } as DynamicField;
     }
     setFields(newFields);
   };
@@ -358,7 +381,8 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
 
     const updatedSchema = {
       ...loaderData.schema,
-      fields: cleanedFields,
+      fields: loaderData.schema.category === "cron_job" ? [] : cleanedFields,
+      ...(loaderData.schema.category === "cron_job" ? { cronConfig } : {}),
     };
 
     const parsed = DynamicSchemaFileSchema.safeParse(updatedSchema);
@@ -510,48 +534,103 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
           </div>
         )}
 
-        {/* Fields List */}
-        <div className="space-y-6">
-          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
-              Fields Configuration
-            </h2>
-            <div className="flex gap-2">
-              {loaderData?.allSchemas && loaderData.allSchemas.length > 0 && (
-                <div className="flex items-center gap-2 mr-4">
-                  <select
-                    value={importSchemaId}
-                    onChange={(e) => setImportSchemaId(e.target.value)}
-                    className="block w-48 rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                  >
-                    <option value="">-- Import from Schema --</option>
-                    {loaderData.allSchemas.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.fields?.length || 0} fields)
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    type="button"
-                    onClick={handleImportFields}
-                    disabled={!importSchemaId}
-                    size="small"
-                    variant="outline"
-                  >
-                    Import
-                  </Button>
-                </div>
-              )}
-              <Button
-                type="button"
-                onClick={handleAddField}
-                size="small"
-                className="bg-gray-900 hover:bg-gray-800 text-white dark:bg-white dark:hover:bg-gray-200 dark:text-gray-900 shadow-sm flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" /> Add New Field
-              </Button>
+        {/* Conditionally Render Fields or Cron Config */}
+        {loaderData.schema.category === "cron_job" ? (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
+                Cron Job Configuration
+              </h2>
             </div>
+            <Card className="border-orange-500/20 shadow-sm">
+              <CardContent className="p-6 md:p-8 space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                    API Response Definition
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">Define how the API responds (e.g. JSON structure, expected fields).</p>
+                  <textarea
+                    value={cronConfig.apiResponseDefinition}
+                    onChange={(e) => setCronConfig({ ...cronConfig, apiResponseDefinition: e.target.value })}
+                    rows={4}
+                    className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                    Data Handling
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">How we handle the API response (convert, add, extract, filter, mapping).</p>
+                  <textarea
+                    value={cronConfig.dataHandling}
+                    onChange={(e) => setCronConfig({ ...cronConfig, dataHandling: e.target.value })}
+                    rows={4}
+                    className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                    Final Result Destination
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">Select other schema to know the structure to insert new data or calling another cron job.</p>
+                  <textarea
+                    value={cronConfig.finalResultDestination}
+                    onChange={(e) => setCronConfig({ ...cronConfig, finalResultDestination: e.target.value })}
+                    rows={4}
+                    className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                  />
+                </div>
+              </CardContent>
+            </Card>
           </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
+                Fields Configuration
+              </h2>
+              <div className="flex gap-2">
+                {loaderData?.allSchemas && loaderData.allSchemas.length > 0 && (
+                  <div className="flex items-center gap-2 mr-4">
+                    <select
+                      value={importSchemaId}
+                      onChange={(e) => setImportSchemaId(e.target.value)}
+                      className="block w-48 rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                    >
+                      <option value="">Import Schema</option>
+                      {loaderData.allSchemas
+                        .filter(
+                          (s) =>
+                            s.category === loaderData.schema.category &&
+                            s.id !== loaderData.schema.id,
+                        )
+                        .map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.fields?.length || 0} fields)
+                          </option>
+                        ))}
+                    </select>
+                    <Button
+                      type="button"
+                      onClick={handleImportFields}
+                      disabled={!importSchemaId}
+                      size="small"
+                      variant="outline"
+                    >
+                      Import
+                    </Button>
+                  </div>
+                )}
+                <Button
+                  type="button"
+                  onClick={handleAddField}
+                  size="small"
+                  className="bg-gray-900 hover:bg-gray-800 text-white dark:bg-white dark:hover:bg-gray-200 dark:text-gray-900 shadow-sm flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Add New Field
+                </Button>
+              </div>
+            </div>
 
           {fields.length === 0 ? (
             <div className="text-center py-16 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl bg-gray-50/50 dark:bg-gray-900/20">
@@ -653,9 +732,7 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                           <option value="abilities">
                             Kit Abilities (Complex List)
                           </option>
-                          <option value="weapon">
-                            Weapons (Complex List)
-                          </option>
+                          <option value="weapon">Weapons (Complex List)</option>
                           <option value="object_array">
                             Object Group (Nested List)
                           </option>
@@ -692,7 +769,7 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                       <div className="flex-1">
                         <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
                           {field.type === "abilities" || field.type === "weapon"
-                            ? `${field.type === 'weapon' ? 'Weapon' : 'Ability'} Types (Optional, one per line)`
+                            ? `${field.type === "weapon" ? "Weapon" : "Ability"} Types (Optional, one per line)`
                             : "Options (One per line)"}
                         </label>
                         <textarea
@@ -704,8 +781,8 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                             field.type === "abilities"
                               ? "Ultimate\nPassive\nPrimary Fire"
                               : field.type === "weapon"
-                              ? "Hitscan\nProjectile\nBeam"
-                              : "Tank\nDamage\nSupport"
+                                ? "Hitscan\nProjectile\nBeam"
+                                : "Tank\nDamage\nSupport"
                           }
                           rows={4}
                           className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white resize-none transition-colors"
@@ -1053,6 +1130,7 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
             </div>
           )}
         </div>
+        )}
       </form>
 
       {/* Prompt Modal */}

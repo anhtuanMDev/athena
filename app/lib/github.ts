@@ -32,6 +32,12 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
   const res = await fetch(`/api/${path}`, opts);
   const data = await res.json();
   if (!res.ok) {
+    if (res.status === 401) {
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+      throw new Error("Unauthorized: Session expired.");
+    }
     if (res.status === 409 && (data as Record<string, unknown>).conflict) {
       const pathMatch = (body as Record<string, unknown>)?.path as string | undefined;
       throw new ConflictError(pathMatch ?? "unknown");

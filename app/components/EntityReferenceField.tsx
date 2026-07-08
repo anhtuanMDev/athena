@@ -23,6 +23,10 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
       
       const endpoint = referenceApiEndpoint.replace("{game}", game);
       const res = await fetch(endpoint);
+      if (res.status === 401) {
+        if (typeof window !== "undefined") window.location.href = "/login";
+        throw new Error("Unauthorized: Session expired");
+      }
       if (!res.ok) throw new Error("Failed to fetch reference data");
       const results = (await res.json()) as Record<string, unknown> | unknown[];
       
