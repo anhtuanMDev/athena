@@ -83,7 +83,7 @@ export default function EnumNew() {
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, prepend, remove } = useFieldArray({
     control,
     name: "options",
   });
@@ -174,7 +174,7 @@ export default function EnumNew() {
                   type="button"
                   size="small"
                   variant="outline"
-                  onClick={() => append({ id: "", name: "" })}
+                  onClick={() => prepend({ id: "", name: "" })}
                 >
                   <Plus className="w-4 h-4 mr-2" /> Add Option
                 </Button>

@@ -534,6 +534,10 @@ async function handleListDirectory(
       repo,
       path: `data/${game}/${subpath}`,
       ref: branch,
+      headers: {
+        "If-None-Match": "",
+        "Cache-Control": "no-cache",
+      },
     });
     if (Array.isArray(data)) {
       const files = data.filter(
@@ -564,6 +568,10 @@ async function handleListDirectory(
                 repo,
                 path: entry.path,
                 ref: branch,
+                headers: {
+                  "If-None-Match": "",
+                  "Cache-Control": "no-cache",
+                },
               });
               const fileData = fileReq.data;
               if (
