@@ -35,6 +35,7 @@ export type SchemaCategory = z.infer<typeof SchemaCategorySchema>;
 
 export const CronConfigSchema = z.object({
   apiResponseDefinition: z.string().default(""),
+  apiPayloadDefinition: z.string().default(""),
   dataHandling: z.string().default(""),
   finalResultDestination: z.string().default(""),
 });

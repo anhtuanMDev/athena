@@ -66,6 +66,7 @@ export default function DynamicSchemaEdit() {
   const [fields, setFields] = useState<DynamicField[] | null>(null);
   const [cronConfig, setCronConfig] = useState({
     apiResponseDefinition: "",
+    apiPayloadDefinition: "",
     dataHandling: "",
     finalResultDestination: "",
   });
@@ -238,6 +239,7 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
       if (loaderData.schema.cronConfig) {
         setCronConfig({
           apiResponseDefinition: loaderData.schema.cronConfig.apiResponseDefinition || "",
+          apiPayloadDefinition: loaderData.schema.cronConfig.apiPayloadDefinition || "",
           dataHandling: loaderData.schema.cronConfig.dataHandling || "",
           finalResultDestination: loaderData.schema.cronConfig.finalResultDestination || "",
         });
@@ -552,6 +554,18 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                   <textarea
                     value={cronConfig.apiResponseDefinition}
                     onChange={(e) => setCronConfig({ ...cronConfig, apiResponseDefinition: e.target.value })}
+                    rows={4}
+                    className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                    API Params / Payload
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">Define parameters or payload (enum, current/custom time, required params, or call another API with params).</p>
+                  <textarea
+                    value={cronConfig.apiPayloadDefinition}
+                    onChange={(e) => setCronConfig({ ...cronConfig, apiPayloadDefinition: e.target.value })}
                     rows={4}
                     className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                   />
