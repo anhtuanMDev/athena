@@ -76,7 +76,7 @@ export default function NewMap() {
     formState: { errors, isValid },
   } = useForm({
     resolver: zodResolver(dynamicZodSchema),
-    mode: "onTouched",
+    mode: "onChange",
     defaultValues: {
       game: game!,
       id: "",

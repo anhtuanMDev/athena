@@ -55,7 +55,7 @@ export default function EditMap() {
     formState: { errors, isValid }
   } = useForm({
     resolver: zodResolver(dynamicZodSchema),
-    mode: "onTouched",
+    mode: "onChange",
   });
 
   useEffect(() => {
