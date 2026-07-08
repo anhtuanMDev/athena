@@ -77,6 +77,13 @@ export default function CronJobEdit() {
     setCommitError(null);
 
     const selectedSchema = loaderData.schemas.find((s) => s.id === schemaId);
+    if (!selectedSchema) {
+      setCommitError("Please select a valid schema.");
+      toastError("Please select a valid schema.");
+      setSubmitting(false);
+      return;
+    }
+
     let prunedMappings = fieldMappings;
     
     // Prune orphaned keys before saving
@@ -93,6 +100,7 @@ export default function CronJobEdit() {
     const updatedCron = {
       ...loaderData.cron,
       schema_id: schemaId,
+      category: selectedSchema?.category,
       api_endpoint: apiEndpoint,
       schedule: schedule as any,
       active,

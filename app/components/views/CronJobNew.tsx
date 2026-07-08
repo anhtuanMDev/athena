@@ -84,10 +84,19 @@ export default function CronJobNew() {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "")}`;
 
+    const selectedSchema = schemas.find((s) => s.id === schemaId);
+    if (!selectedSchema) {
+      setCommitError("Please select a valid schema.");
+      toastError("Please select a valid schema.");
+      setSubmitting(false);
+      return;
+    }
+
     const newCron = {
       id: generatedId,
       name: name.trim(),
       schema_id: schemaId,
+      category: selectedSchema.category,
       api_endpoint: apiEndpoint,
       schedule: schedule as any,
       active,
