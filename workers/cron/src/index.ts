@@ -29,9 +29,11 @@ export default {
   async scheduled(
     controller: ScheduledController,
     env: Env,
-    ctx: ExecutionContext
+    ctx: ExecutionContext,
   ): Promise<void> {
-    console.log(`Cron triggered by ${controller.cron} at ${new Date().toISOString()}`);
+    console.log(
+      `Cron triggered by ${controller.cron} at ${new Date().toISOString()}`,
+    );
     ctx.waitUntil(runScheduledJobs(env, controller.cron));
   },
 
@@ -39,10 +41,15 @@ export default {
    * For local testing or manual triggers, you can expose a fetch handler.
    * Make sure to secure this with an API key if you deploy it!
    */
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/trigger" && request.method === "POST") {
-      const secret = request.headers.get("Authorization")?.replace("Bearer ", "") || "";
+      const secret =
+        request.headers.get("Authorization")?.replace("Bearer ", "") || "";
       if (!env.CRON_SECRET || !timingSafeEqual(secret, env.CRON_SECRET)) {
         return new Response("Unauthorized", { status: 401 });
       }
@@ -54,33 +61,39 @@ export default {
       return new Response(`Triggered jobs manually`, { status: 200 });
     }
     return new Response("Athena Cron Worker running", { status: 200 });
-  }
+  },
 };
 
 function getSemanticSchedule(cronExpr: string): string | null {
   switch (cronExpr) {
-    case "0 * * * *": return "hourly";
-    case "0 0 * * *": return "daily";
-    case "0 0 * * 0": return "weekly";
-    default: return null;
+    case "0 * * * *":
+      return "hourly";
+    case "0 0 * * *":
+      return "daily";
+    case "0 0 * * 7":
+      return "weekly";
+    default:
+      return null;
   }
 }
 
 async function runScheduledJobs(env: Env, schedule: string) {
   const semanticSchedule = getSemanticSchedule(schedule);
   if (!semanticSchedule) {
-    console.error(`CRITICAL WARNING: Unmapped cron expression executed: ${schedule}. Please update getSemanticSchedule() in the worker code to support this schedule!`);
+    console.error(
+      `CRITICAL WARNING: Unmapped cron expression executed: ${schedule}. Please update getSemanticSchedule() in the worker code to support this schedule!`,
+    );
     return;
   }
 
   const gamesFile = await getGitHubFile(env, "data/_meta/games.json");
   if (!gamesFile) return;
-  const games = Array.isArray(gamesFile) ? gamesFile : (gamesFile.games || []);
-  
+  const games = Array.isArray(gamesFile) ? gamesFile : gamesFile.games || [];
+
   for (const gameObj of games) {
-    const game = typeof gameObj === 'string' ? gameObj : gameObj.id;
+    const game = typeof gameObj === "string" ? gameObj : gameObj.id;
     if (!game) continue;
-    
+
     const cronJobs = await listGitHubDirectory(env, `data/${game}/cron_jobs`);
     for (const job of cronJobs) {
       if (job.schedule === semanticSchedule) {
@@ -91,16 +104,20 @@ async function runScheduledJobs(env: Env, schedule: string) {
   }
 }
 
-async function runManualJobs(env: Env, targetGame: string | null, targetJobId: string | null) {
+async function runManualJobs(
+  env: Env,
+  targetGame: string | null,
+  targetJobId: string | null,
+) {
   const gamesFile = await getGitHubFile(env, "data/_meta/games.json");
   if (!gamesFile) return;
-  const games = Array.isArray(gamesFile) ? gamesFile : (gamesFile.games || []);
-  
+  const games = Array.isArray(gamesFile) ? gamesFile : gamesFile.games || [];
+
   for (const gameObj of games) {
-    const game = typeof gameObj === 'string' ? gameObj : gameObj.id;
+    const game = typeof gameObj === "string" ? gameObj : gameObj.id;
     if (!game) continue;
     if (targetGame && game !== targetGame) continue;
-    
+
     const cronJobs = await listGitHubDirectory(env, `data/${game}/cron_jobs`);
     for (const job of cronJobs) {
       if (targetJobId && job.id !== targetJobId) continue;
@@ -113,12 +130,16 @@ async function runManualJobs(env: Env, targetGame: string | null, targetJobId: s
 async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
   try {
     if (!job.api_endpoint) {
-      console.log(`Cron job ${job.id} has no api_endpoint configured. Exiting.`);
+      console.log(
+        `Cron job ${job.id} has no api_endpoint configured. Exiting.`,
+      );
       return;
     }
 
     if (!(await isSafeUrl(job.api_endpoint))) {
-      console.error(`Cron job ${job.id} has an unsafe api_endpoint: ${job.api_endpoint}. Exiting to prevent SSRF.`);
+      console.error(
+        `Cron job ${job.id} has an unsafe api_endpoint: ${job.api_endpoint}. Exiting to prevent SSRF.`,
+      );
       return;
     }
 
@@ -129,8 +150,8 @@ async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
     let response;
     try {
       response = await fetch(job.api_endpoint, {
-        redirect: 'manual',
-        signal: controller.signal
+        redirect: "manual",
+        signal: controller.signal,
       });
     } catch (err) {
       clearTimeout(timeoutId);
@@ -139,7 +160,9 @@ async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
 
     if (response.status >= 300 && response.status < 400) {
       clearTimeout(timeoutId);
-      throw new Error(`Redirects are not allowed for security reasons (SSRF protection).`);
+      throw new Error(
+        `Redirects are not allowed for security reasons (SSRF protection).`,
+      );
     }
 
     if (!response.ok) {
@@ -161,37 +184,49 @@ async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
     }
 
     const fetchedData = JSON.parse(text);
-    
+
     let targetSchema: any = null;
     if (job.schema_id) {
       try {
-        targetSchema = await getGitHubFile(env, `data/${game}/schemas/${job.schema_id}.json`);
+        targetSchema = await getGitHubFile(
+          env,
+          `data/${game}/schemas/${job.schema_id}.json`,
+        );
       } catch (e) {
         console.warn(`Could not load schema ${job.schema_id} for coercion`);
       }
     }
-    
+
     let processedData = fetchedData;
     if (job.field_mappings && Object.keys(job.field_mappings).length > 0) {
       processedData = {};
       for (const [schemaKey, apiPath] of Object.entries(job.field_mappings)) {
         if (typeof apiPath === "string") {
           // Limit path traversal depth to 10
-          const parts = apiPath.split('.');
-          if (parts.length > 10) throw new Error("Field mapping path is too deep.");
+          const parts = apiPath.split(".");
+          if (parts.length > 10)
+            throw new Error("Field mapping path is too deep.");
           let value = parts.reduce((obj: any, key) => obj?.[key], fetchedData);
-          
+
           if (targetSchema?.fields) {
-            const fieldDef = targetSchema.fields.find((f: any) => f.key === schemaKey);
+            const fieldDef = targetSchema.fields.find(
+              (f: any) => f.key === schemaKey,
+            );
             if (fieldDef) {
               if (fieldDef.type === "number") {
                 value = Number(value);
                 if (isNaN(value)) value = 0;
               } else if (fieldDef.type === "string") {
-                value = value === null || value === undefined ? "" : String(value);
+                value =
+                  value === null || value === undefined ? "" : String(value);
               } else if (fieldDef.type === "boolean") {
                 value = Boolean(value);
-              } else if (fieldDef.type === "list" || fieldDef.type === "reference_list" || fieldDef.type === "abilities" || fieldDef.type === "weapon") {
+              } else if (
+                fieldDef.type === "list" ||
+                fieldDef.type === "reference_list" ||
+                fieldDef.type === "abilities" ||
+                fieldDef.type === "weapon"
+              ) {
                 if (!Array.isArray(value)) value = [];
               }
             }
@@ -207,13 +242,13 @@ async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
       last_sync: new Date().toISOString(),
       data: processedData,
     };
-    
+
     console.log(`New data processed for ${job.id}. Saving to GitHub...`);
     await saveGitHubFile(
-      env, 
-      `data/${game}/syncs/${job.id}.json`, 
-      newSyncData, 
-      `chore: auto-fetch data for ${job.id}`
+      env,
+      `data/${game}/syncs/${job.id}.json`,
+      newSyncData,
+      `chore: auto-fetch data for ${job.id}`,
     );
     console.log("Successfully saved new data!");
   } catch (error: any) {
@@ -223,13 +258,13 @@ async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
         const errorData = {
           id: job.id,
           last_sync_attempt: new Date().toISOString(),
-          last_error: sanitizeError(error)
+          last_error: sanitizeError(error),
         };
         await saveGitHubFile(
-          env, 
-          `data/${game}/syncs/${job.id}.json`, 
-          errorData, 
-          `chore: log cron failure for ${job.id}`
+          env,
+          `data/${game}/syncs/${job.id}.json`,
+          errorData,
+          `chore: log cron failure for ${job.id}`,
         );
       }
     } catch (e) {
@@ -242,37 +277,42 @@ async function listGitHubDirectory(env: Env, path: string): Promise<any[]> {
   const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${path}?ref=${env.GITHUB_BRANCH || "main"}`;
   const response = await fetch(url, {
     headers: {
-      "Accept": "application/vnd.github.v3+json",
-      "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
-      "User-Agent": "Athena-Cron-Worker"
-    }
+      Accept: "application/vnd.github.v3+json",
+      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      "User-Agent": "Athena-Cron-Worker",
+    },
   });
 
   if (!response.ok) return [];
   const entries: any[] = await response.json();
   const files = await Promise.all(
     entries
-      .filter((entry: any) => entry.type === "file" && entry.name.endsWith(".json"))
-      .map(async (entry: any) => await getGitHubFile(env, entry.path))
+      .filter(
+        (entry: any) => entry.type === "file" && entry.name.endsWith(".json"),
+      )
+      .map(async (entry: any) => await getGitHubFile(env, entry.path)),
   );
-  
+
   return files.filter(Boolean);
 }
 
 function sanitizeError(error: any): string {
   if (!error) return "Unknown error";
   const msg = String(error.message || error);
-  
-  if (msg.includes("Redirects are not allowed")) return "Redirects are not allowed (SSRF protection).";
-  
+
+  if (msg.includes("Redirects are not allowed"))
+    return "Redirects are not allowed (SSRF protection).";
+
   const statusMatch = msg.match(/^API returned \d{3}/);
   if (statusMatch) return statusMatch[0];
-  
+
   if (msg.includes("5MB")) return "Response exceeded 5MB size limit.";
   if (msg.includes("too deep")) return "Field mapping path is too deep.";
-  if (error.name === "AbortError" || msg.includes("aborted")) return "API request timed out.";
-  if (error.name === "SyntaxError" || msg.includes("JSON")) return "Failed to parse API response as JSON.";
-  
+  if (error.name === "AbortError" || msg.includes("aborted"))
+    return "API request timed out.";
+  if (error.name === "SyntaxError" || msg.includes("JSON"))
+    return "Failed to parse API response as JSON.";
+
   return "An unexpected error occurred during sync.";
 }
 
@@ -280,21 +320,28 @@ async function isSafeUrl(urlString: string): Promise<boolean> {
   try {
     const url = new URL(urlString);
     if (url.protocol !== "https:") return false;
-    
+
     const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
     if (ipv4Regex.test(url.hostname) || url.hostname.includes(":")) {
       return false; // Direct IP fetch not allowed
     }
-    
-    if (url.hostname === "localhost" || url.hostname.endsWith(".local") || url.hostname.endsWith(".internal")) {
+
+    if (
+      url.hostname === "localhost" ||
+      url.hostname.endsWith(".local") ||
+      url.hostname.endsWith(".internal")
+    ) {
       return false;
     }
 
     // Resolve via DoH to prevent DNS rebinding
-    const response = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(url.hostname)}&type=A`, {
-      headers: { "Accept": "application/dns-json" }
-    });
-    
+    const response = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(url.hostname)}&type=A`,
+      {
+        headers: { Accept: "application/dns-json" },
+      },
+    );
+
     if (!response.ok) return false;
     const data: any = await response.json();
     if (data.Answer) {
@@ -305,10 +352,13 @@ async function isSafeUrl(urlString: string): Promise<boolean> {
       }
     }
 
-    const responseV6 = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(url.hostname)}&type=AAAA`, {
-      headers: { "Accept": "application/dns-json" }
-    });
-    
+    const responseV6 = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(url.hostname)}&type=AAAA`,
+      {
+        headers: { Accept: "application/dns-json" },
+      },
+    );
+
     if (responseV6.ok) {
       const dataV6: any = await responseV6.json();
       if (dataV6.Answer) {
@@ -319,7 +369,7 @@ async function isSafeUrl(urlString: string): Promise<boolean> {
         }
       }
     }
-    
+
     return true;
   } catch {
     return false;
@@ -327,9 +377,10 @@ async function isSafeUrl(urlString: string): Promise<boolean> {
 }
 
 function isInternalIP(ip: string): boolean {
-  const parts = ip.split('.').map(Number);
+  const parts = ip.split(".").map(Number);
   if (parts.length !== 4) return false;
-  if (parts[0] === 127 || parts[0] === 10 || parts[0] === 0 || parts[0] === 169) return true;
+  if (parts[0] === 127 || parts[0] === 10 || parts[0] === 0 || parts[0] === 169)
+    return true;
   if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
   if (parts[0] === 192 && parts[1] === 168) return true;
   return false;
@@ -339,7 +390,13 @@ function isInternalIPv6(ip: string): boolean {
   if (ip === "::1" || ip === "0:0:0:0:0:0:0:1") return true;
   const ipLower = ip.toLowerCase();
   if (ipLower.startsWith("fc") || ipLower.startsWith("fd")) return true;
-  if (ipLower.startsWith("fe8") || ipLower.startsWith("fe9") || ipLower.startsWith("fea") || ipLower.startsWith("feb")) return true;
+  if (
+    ipLower.startsWith("fe8") ||
+    ipLower.startsWith("fe9") ||
+    ipLower.startsWith("fea") ||
+    ipLower.startsWith("feb")
+  )
+    return true;
   if (ipLower.startsWith("::ffff:")) {
     const ipv4 = ipLower.split("::ffff:")[1];
     if (ipv4) return isInternalIP(ipv4);
@@ -353,13 +410,13 @@ function isInternalIPv6(ip: string): boolean {
 
 async function getGitHubFile(env: Env, path: string): Promise<any | null> {
   const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${path}?ref=${env.GITHUB_BRANCH || "main"}`;
-  
+
   const response = await fetch(url, {
     headers: {
-      "Accept": "application/vnd.github.v3+json",
-      "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
-      "User-Agent": "Athena-Cron-Worker"
-    }
+      Accept: "application/vnd.github.v3+json",
+      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      "User-Agent": "Athena-Cron-Worker",
+    },
   });
 
   if (!response.ok) {
@@ -369,7 +426,7 @@ async function getGitHubFile(env: Env, path: string): Promise<any | null> {
 
   const data: any = await response.json();
   const content = decodeBase64(data.content);
-  
+
   try {
     return JSON.parse(content);
   } catch (e) {
@@ -377,24 +434,29 @@ async function getGitHubFile(env: Env, path: string): Promise<any | null> {
   }
 }
 
-async function saveGitHubFile(env: Env, path: string, contentObj: any, message: string): Promise<void> {
+async function saveGitHubFile(
+  env: Env,
+  path: string,
+  contentObj: any,
+  message: string,
+): Promise<void> {
   const url = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/contents/${path}`;
-  
+
   const contentBase64 = encodeBase64(JSON.stringify(contentObj, null, 2));
 
   const response = await fetch(url, {
     method: "PUT",
     headers: {
-      "Accept": "application/vnd.github.v3+json",
-      "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
+      Accept: "application/vnd.github.v3+json",
+      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
       "User-Agent": "Athena-Cron-Worker",
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       message,
       content: contentBase64,
-      branch: env.GITHUB_BRANCH || "main"
-    })
+      branch: env.GITHUB_BRANCH || "main",
+    }),
   });
 
   if (!response.ok) {
@@ -403,13 +465,20 @@ async function saveGitHubFile(env: Env, path: string, contentObj: any, message: 
 }
 
 function encodeBase64(str: string): string {
-  return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
-    (match, p1) => String.fromCharCode(parseInt(p1, 16))
-  ));
+  return btoa(
+    encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) =>
+      String.fromCharCode(parseInt(p1, 16)),
+    ),
+  );
 }
 
 function decodeBase64(str: string): string {
-  return decodeURIComponent(Array.prototype.map.call(atob(str), (c) =>
-    '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-  ).join(''));
+  return decodeURIComponent(
+    Array.prototype.map
+      .call(
+        atob(str),
+        (c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2),
+      )
+      .join(""),
+  );
 }

@@ -8,3 +8,5 @@
 /build/
 diff.txt
 .wrangler/
+workers/cron/node_modules/
+workers/cron/package-lock.json
