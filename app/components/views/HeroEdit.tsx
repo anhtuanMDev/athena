@@ -237,11 +237,8 @@ function EditHeroForm({
     defaultValues: defaultValues as any,
   });
 
-  const aiPromptMarkdown = `# Athena Hero Data Generation Guidelines
-You are a strict data extraction system. You are tasked with generating JSON data for a hero in the Athena platform based on provided context.
-CRITICAL: You MUST output ONLY a valid JSON object. You MUST NOT output any conversational text, explanations, analysis, or markdown formatting. Any output other than the raw JSON object will break the system.
+  const aiPromptMarkdown = `I have provided a source (like a wiki page) about a hero. I want you to extract the hero's data and output it as a single JSON object that follows this schema:
 
-## Schema Definition
 \`\`\`json
 ${JSON.stringify(
   [
@@ -260,60 +257,7 @@ ${JSON.stringify(
 )}
 \`\`\`
 
-## Expected Output JSON
-Return ONLY a single valid JSON object that conforms exactly to the provided schema.
-
-### Requirements
-- Populate every field defined in the schema, even if the field is not required.
-- Never omit a property. If a value is unknown or not applicable, use:
-  - "" for strings
-  - 0 for numbers
-  - false for booleans
-  - [] for arrays (abilities, weapon, object_array, list, reference_list)
-  - null only if the field explicitly supports null.
-- Do not invent additional properties.
-- Preserve the exact field names.
-- Return valid JSON only. Do not wrap the response in markdown.
-
-### abilities & weapon
-Fields with type \`abilities\` or \`weapon\` MUST be an array of objects.
-Every object MUST include:
-- \`name\`
-- \`type\`
-- \`description\`
-plus every property defined in the schema's \`subFields\`, even if its value is empty or zero.
-
-Example:
-{
-  "name": "Sleep Dart",
-  "type": "Utility",
-  "description": "Fires a dart that puts an enemy to sleep.",
-  "cooldown": 14,
-  "duration": 5
-}
-
-### object_array
-Fields with type \`object_array\` MUST contain every property listed in their \`subFields\`.
-
-Example:
-{
-  "health": 250,
-  "armor": 0,
-  "shields": 0
-}
-
-### reference / reference_list
-Return IDs only.
-
-Example:
-"weapon_override": [
-  "biotic_rifle"
-]
-
-## Output
-Return one complete hero object with 100% schema coverage. Every field from the schema must appear in the output exactly once.
-CRITICAL: DO NOT output any markdown formatting (e.g. no \`\`\`json block). DO NOT output any conversational text, advice, or analysis before or after the JSON. Output the raw, raw JSON ONLY.
-`;
+Please populate every field where possible based on the source content. Use empty/default values ("", 0, false, []) for anything not found in the source, and return ONLY the JSON object with no extra commentary.`;
 
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(aiPromptMarkdown);
