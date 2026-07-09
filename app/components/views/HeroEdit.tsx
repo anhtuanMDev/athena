@@ -626,7 +626,7 @@ CRITICAL: DO NOT output any markdown formatting (e.g. no \`\`\`json block). DO N
           <input type="hidden" name="_heroJson" value={preview.heroJson} />
           <Button
             type="submit"
-            disabled={submittingCommit}
+            disabled={submittingCommit || preview.diffs.length === 0}
             className="shadow-lg shadow-orange-500/20 w-40"
           >
             {submittingCommit ? "Committing..." : "Confirm Commit"}
