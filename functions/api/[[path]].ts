@@ -385,6 +385,10 @@ async function handleGetFile(context: PagesFunctionContext): Promise<Response> {
       repo,
       path,
       ref: branch,
+      headers: {
+        "If-None-Match": "",
+        "Cache-Control": "no-cache",
+      },
     });
     if ("content" in data && "sha" in data) {
       let content: unknown = data.content;

@@ -43,7 +43,7 @@ export default function SchemasList() {
       // If folder doesn't exist yet, return empty array
       return [];
     }
-  }, [game], "DynamicSchemasList-11");
+  }, [game], `${game}-schema-list`);
 
   if (loading)
     return (

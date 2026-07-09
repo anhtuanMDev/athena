@@ -66,7 +66,7 @@ export default function DynamicSchemaEdit() {
       return { schema: file.content, sha: file.sha, allSchemas: schemas };
     },
     [game, id],
-    "DynamicSchemaEdit-49",
+    `${game}-schema-${id}`,
   );
 
   const [fields, setFields] = useState<DynamicField[] | null>(null);
