@@ -73,7 +73,7 @@ export default function NewHero() {
       schemaCount: heroSchemas.length,
       game: game!,
     };
-  }, [game], "HeroNew-66");
+  }, [game], `${game}-hero-schemas`);
 
   if (loading) {
     return (
@@ -229,34 +229,39 @@ Please populate every field where possible based on the source content. Use empt
 
   const handleDownloadPrompt = () => {
     const blob = new Blob([aiPromptMarkdown], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
+    const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
+    a.href = objectUrl;
     a.download = "athena_hero_data_prompt.md";
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    URL.revokeObjectURL(objectUrl);
   };
 
-  const formatImportedJson = (json: any) => {
-    const formattedJson = { ...json };
+  const formatImportedJson = (json: Record<string, unknown>): Record<string, unknown> => {
+    const formattedJson: Record<string, unknown> = { ...json };
     fields.forEach((f) => {
       if ((f.type === "abilities" || f.type === "weapon") && Array.isArray(formattedJson[f.key])) {
-        formattedJson[f.key] = formattedJson[f.key].map((item: any) => {
+        formattedJson[f.key] = (formattedJson[f.key] as unknown[]).map((item) => {
           if (typeof item !== "object" || item === null) return item;
+          const raw = item as Record<string, unknown>;
           const standardKeys = ["id", "name", "type", "description", "icon", "mode_overrides"];
-          const formattedItem: any = { params: {} };
+          const formattedItem: Record<string, unknown> = { params: {} as Record<string, unknown> };
           
-          if (!item.id && item.name) {
-            formattedItem.id = item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-          } else if (!item.id) {
+          if (!raw.id && raw.name && typeof raw.name === "string") {
+            formattedItem.id = raw.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+          } else if (!raw.id) {
             formattedItem.id = Math.random().toString(36).substring(7);
+          } else {
+            formattedItem.id = raw.id;
           }
           
-          Object.keys(item).forEach((k) => {
+          Object.keys(raw).forEach((k) => {
             if (standardKeys.includes(k)) {
-              formattedItem[k] = item[k];
+              formattedItem[k] = raw[k];
             } else {
-              formattedItem.params[k] = item[k];
+              (formattedItem.params as Record<string, unknown>)[k] = raw[k];
             }
           });
           
@@ -275,8 +280,18 @@ Please populate every field where possible based on the source content. Use empt
       const json = JSON.parse(pastedJson);
       if (typeof json === "object" && json !== null) {
         const formatted = formatImportedJson(json);
-        Object.keys(formatted).forEach((key) => {
-          setValue(key, formatted[key], { shouldDirty: true, shouldValidate: true });
+        const parsed = dynamicZodSchema.safeParse(formatted);
+
+        if (!parsed.success) {
+          const errorMessage = parsed.error.issues
+            .map((issue: any) => `${issue.path.join(".")}: ${issue.message}`)
+            .join(", ");
+          toastError(`Validation failed: ${errorMessage}`);
+          return;
+        }
+
+        Object.keys(parsed.data).forEach((key) => {
+          setValue(key, (parsed.data as any)[key], { shouldDirty: true, shouldValidate: true });
         });
         toastSuccess("Imported hero data from pasted text!");
         setShowImportModal(false);
@@ -298,8 +313,18 @@ Please populate every field where possible based on the source content. Use empt
         const json = JSON.parse(event.target?.result as string);
         if (typeof json === "object" && json !== null) {
           const formatted = formatImportedJson(json);
-          Object.keys(formatted).forEach((key) => {
-            setValue(key, formatted[key], {
+          const parsed = dynamicZodSchema.safeParse(formatted);
+
+          if (!parsed.success) {
+            const errorMessage = parsed.error.issues
+              .map((issue: any) => `${issue.path.join(".")}: ${issue.message}`)
+              .join(", ");
+            toastError(`Validation failed: ${errorMessage}`);
+            return;
+          }
+
+          Object.keys(parsed.data).forEach((key) => {
+            setValue(key, (parsed.data as any)[key], {
               shouldDirty: true,
               shouldValidate: true,
             });
@@ -366,9 +391,9 @@ Please populate every field where possible based on the source content. Use empt
         }
       }
 
-      // Ensure Abilities are formatted correctly (icons processing)
+      // Ensure Abilities and Weapons are formatted correctly (icons processing)
       fields
-        .filter((f) => f.type === "abilities")
+        .filter((f) => f.type === "abilities" || f.type === "weapon")
         .forEach((f) => {
           const abilityList = formData[f.key] || [];
           abilityList.forEach((ability: any, i: number) => {
@@ -422,24 +447,24 @@ Please populate every field where possible based on the source content. Use empt
             portraits.length === 1 && p.key === "main"
               ? `public/assets/${game}/heroes/${id}/portrait.${ext}`
               : `public/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
-          const sha = await getFileSha(path);
+          const portraitSha = await getFileSha(path);
           uploads.push(
             uploadAsset(
               path,
               p.base64,
-              sha || undefined,
+              portraitSha || undefined,
               `Add portrait ${p.key} for ${id}`,
             ),
           );
         }
       }
       for (const upload of abilityUploads) {
-        const sha = await getFileSha(upload.path);
+        const assetSha = await getFileSha(upload.path);
         uploads.push(
           uploadAsset(
             upload.path,
             upload.base64,
-            sha || undefined,
+            assetSha || undefined,
             upload.message,
           ),
         );
