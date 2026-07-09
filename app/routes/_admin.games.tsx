@@ -39,11 +39,20 @@ export default function GamesList() {
   const [developer, setDeveloper] = useState("");
   const [icon, setIcon] = useState("");
   const [iconFile, setIconFile] = useState<File | null>(null);
-  const [primaryColor, setPrimaryColor] = useState("#f97316");
-  const [secondaryColor, setSecondaryColor] = useState("");
-  const [accentColor, setAccentColor] = useState("");
-  const [textColor, setTextColor] = useState("");
-  const [backgroundColor, setBackgroundColor] = useState("");
+  const [primary, setPrimary] = useState("#6366F1");
+  const [secondary, setSecondary] = useState("#8B5CF6");
+  const [accent, setAccent] = useState("#EC4899");
+  const [background, setBackground] = useState("#F8FAFC");
+  const [surface, setSurface] = useState("#FFFFFF");
+  const [surfaceVariant, setSurfaceVariant] = useState("#F1F5F9");
+  const [onPrimary, setOnPrimary] = useState("#FFFFFF");
+  const [onSecondary, setOnSecondary] = useState("#FFFFFF");
+  const [onBackground, setOnBackground] = useState("#0F172A");
+  const [onSurface, setOnSurface] = useState("#1E293B");
+  const [errorColor, setErrorColor] = useState("#EF4444");
+  const [warning, setWarning] = useState("#F59E0B");
+  const [success, setSuccess] = useState("#10B981");
+  const [border, setBorder] = useState("#E2E8F0");
   const [active, setActive] = useState(true);
   const [originalGame, setOriginalGame] = useState<Game | null>(null);
 
@@ -57,11 +66,20 @@ export default function GamesList() {
           developer !== (originalGame.developer || "") ||
           icon !== (originalGame.icon || "") ||
           iconFile !== null ||
-          primaryColor !== (originalGame.primaryColor || "") ||
-          secondaryColor !== (originalGame.secondaryColor || "") ||
-          accentColor !== (originalGame.accentColor || "") ||
-          textColor !== (originalGame.textColor || "") ||
-          backgroundColor !== (originalGame.backgroundColor || "") ||
+          primary !== (originalGame.primary || "") ||
+          secondary !== (originalGame.secondary || "") ||
+          accent !== (originalGame.accent || "") ||
+          background !== (originalGame.background || "") ||
+          surface !== (originalGame.surface || "") ||
+          surfaceVariant !== (originalGame.surfaceVariant || "") ||
+          onPrimary !== (originalGame.onPrimary || "") ||
+          onSecondary !== (originalGame.onSecondary || "") ||
+          onBackground !== (originalGame.onBackground || "") ||
+          onSurface !== (originalGame.onSurface || "") ||
+          errorColor !== (originalGame.error || "") ||
+          warning !== (originalGame.warning || "") ||
+          success !== (originalGame.success || "") ||
+          border !== (originalGame.border || "") ||
           active !== originalGame.active
         : false;
 
@@ -71,11 +89,20 @@ export default function GamesList() {
     setDeveloper("");
     setIcon("");
     setIconFile(null);
-    setPrimaryColor("#f97316");
-    setSecondaryColor("");
-    setAccentColor("");
-    setTextColor("");
-    setBackgroundColor("");
+    setPrimary("#6366F1");
+    setSecondary("#8B5CF6");
+    setAccent("#EC4899");
+    setBackground("#F8FAFC");
+    setSurface("#FFFFFF");
+    setSurfaceVariant("#F1F5F9");
+    setOnPrimary("#FFFFFF");
+    setOnSecondary("#FFFFFF");
+    setOnBackground("#0F172A");
+    setOnSurface("#1E293B");
+    setErrorColor("#EF4444");
+    setWarning("#F59E0B");
+    setSuccess("#10B981");
+    setBorder("#E2E8F0");
     setActive(true);
     setFormErrors(null);
     setOriginalGame(null);
@@ -89,11 +116,20 @@ export default function GamesList() {
     setDeveloper(game.developer || "");
     setIcon(game.icon || "");
     setIconFile(null);
-    setPrimaryColor(game.primaryColor || "");
-    setSecondaryColor(game.secondaryColor || "");
-    setAccentColor(game.accentColor || "");
-    setTextColor(game.textColor || "");
-    setBackgroundColor(game.backgroundColor || "");
+    setPrimary(game.primary || "");
+    setSecondary(game.secondary || "");
+    setAccent(game.accent || "");
+    setBackground(game.background || "");
+    setSurface(game.surface || "");
+    setSurfaceVariant(game.surfaceVariant || "");
+    setOnPrimary(game.onPrimary || "");
+    setOnSecondary(game.onSecondary || "");
+    setOnBackground(game.onBackground || "");
+    setOnSurface(game.onSurface || "");
+    setErrorColor(game.error || "");
+    setWarning(game.warning || "");
+    setSuccess(game.success || "");
+    setBorder(game.border || "");
     setActive(game.active);
     setFormErrors(null);
     setOriginalGame(game);
@@ -138,11 +174,20 @@ export default function GamesList() {
         name,
         developer,
         icon: finalIconUrl,
-        primaryColor,
-        secondaryColor,
-        accentColor,
-        textColor,
-        backgroundColor,
+        primary,
+        secondary,
+        accent,
+        background,
+        surface,
+        surfaceVariant,
+        onPrimary,
+        onSecondary,
+        onBackground,
+        onSurface,
+        error: errorColor,
+        warning,
+        success,
+        border,
         active,
       });
 
@@ -267,7 +312,7 @@ export default function GamesList() {
                     <div
                       className="w-6 h-6 rounded-md border border-gray-200 dark:border-gray-800"
                       style={{
-                        backgroundColor: game.primaryColor || "#f97316",
+                        backgroundColor: game.primary || "#6366F1",
                       }}
                     />
                   )}
@@ -462,138 +507,45 @@ export default function GamesList() {
                           )}
                         </div>
 
-                        <div className="flex gap-4 items-center">
-                          <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0 border border-gray-200 dark:border-gray-800 shadow-sm">
-                            <input
-                              type="color"
-                              className="absolute -inset-2 w-14 h-14 cursor-pointer"
-                              value={
-                                /^#[0-9A-F]{6}$/i.test(primaryColor)
-                                  ? primaryColor
-                                  : "#f97316"
-                              }
-                              onChange={(e) => setPrimaryColor(e.target.value)}
-                            />
+                        {(
+                          [
+                            { key: "primary",       label: "Primary",         value: primary,       set: setPrimary,       fallback: "#6366F1" },
+                            { key: "secondary",     label: "Secondary",       value: secondary,     set: setSecondary,     fallback: "#8B5CF6" },
+                            { key: "accent",        label: "Accent",          value: accent,        set: setAccent,        fallback: "#EC4899" },
+                            { key: "background",    label: "Background",      value: background,    set: setBackground,    fallback: "#F8FAFC" },
+                            { key: "surface",       label: "Surface",         value: surface,       set: setSurface,       fallback: "#FFFFFF" },
+                            { key: "surfaceVariant",label: "Surface Variant",  value: surfaceVariant,set: setSurfaceVariant,fallback: "#F1F5F9" },
+                            { key: "onPrimary",     label: "On Primary",      value: onPrimary,     set: setOnPrimary,     fallback: "#FFFFFF" },
+                            { key: "onSecondary",   label: "On Secondary",    value: onSecondary,   set: setOnSecondary,   fallback: "#FFFFFF" },
+                            { key: "onBackground",  label: "On Background",   value: onBackground,  set: setOnBackground,  fallback: "#0F172A" },
+                            { key: "onSurface",     label: "On Surface",      value: onSurface,     set: setOnSurface,     fallback: "#1E293B" },
+                            { key: "error",         label: "Error",           value: errorColor,    set: setErrorColor,    fallback: "#EF4444" },
+                            { key: "warning",       label: "Warning",         value: warning,       set: setWarning,       fallback: "#F59E0B" },
+                            { key: "success",       label: "Success",         value: success,       set: setSuccess,       fallback: "#10B981" },
+                            { key: "border",        label: "Border",          value: border,        set: setBorder,        fallback: "#E2E8F0" },
+                         ] as Array<{ key: string; label: string; value: string; set: (v: string) => void; fallback: string }>
+                        ).map(({ key, label, value, set, fallback }) => (
+                          <div key={key} className="flex gap-4 items-center">
+                            <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0 border border-gray-200 dark:border-gray-800 shadow-sm">
+                              <input
+                                type="color"
+                                className="absolute -inset-2 w-14 h-14 cursor-pointer"
+                                value={/^#[0-9A-F]{6}$/i.test(value) ? value : fallback}
+                                onChange={(e) => set(e.target.value)}
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <FormField
+                                name={key}
+                                label={`${label} (Hex)`}
+                                placeholder={fallback}
+                                required={false}
+                                value={value}
+                                onChange={(e) => set(e.target.value)}
+                              />
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <FormField
-                              name="primaryColor"
-                              label="Primary Color (Hex)"
-                              placeholder="#f97316"
-                              required={false}
-                              value={primaryColor}
-                              onChange={(e) => setPrimaryColor(e.target.value)}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex gap-4 items-center">
-                          <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0 border border-gray-200 dark:border-gray-800 shadow-sm">
-                            <input
-                              type="color"
-                              className="absolute -inset-2 w-14 h-14 cursor-pointer"
-                              value={
-                                /^#[0-9A-F]{6}$/i.test(secondaryColor)
-                                  ? secondaryColor
-                                  : "#3b82f6"
-                              }
-                              onChange={(e) =>
-                                setSecondaryColor(e.target.value)
-                              }
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <FormField
-                              name="secondaryColor"
-                              label="Secondary Color (Hex)"
-                              placeholder="#3b82f6"
-                              required={false}
-                              value={secondaryColor}
-                              onChange={(e) =>
-                                setSecondaryColor(e.target.value)
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex gap-4 items-center">
-                          <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0 border border-gray-200 dark:border-gray-800 shadow-sm">
-                            <input
-                              type="color"
-                              className="absolute -inset-2 w-14 h-14 cursor-pointer"
-                              value={
-                                /^#[0-9A-F]{6}$/i.test(accentColor)
-                                  ? accentColor
-                                  : "#10b981"
-                              }
-                              onChange={(e) => setAccentColor(e.target.value)}
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <FormField
-                              name="accentColor"
-                              label="Accent Color (Hex)"
-                              placeholder="#10b981"
-                              required={false}
-                              value={accentColor}
-                              onChange={(e) => setAccentColor(e.target.value)}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex gap-4 items-center">
-                          <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0 border border-gray-200 dark:border-gray-800 shadow-sm">
-                            <input
-                              type="color"
-                              className="absolute -inset-2 w-14 h-14 cursor-pointer"
-                              value={
-                                /^#[0-9A-F]{6}$/i.test(textColor)
-                                  ? textColor
-                                  : "#ffffff"
-                              }
-                              onChange={(e) => setTextColor(e.target.value)}
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <FormField
-                              name="textColor"
-                              label="Text Color (Hex)"
-                              placeholder="#ffffff"
-                              required={false}
-                              value={textColor}
-                              onChange={(e) => setTextColor(e.target.value)}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex gap-4 items-center">
-                          <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0 border border-gray-200 dark:border-gray-800 shadow-sm">
-                            <input
-                              type="color"
-                              className="absolute -inset-2 w-14 h-14 cursor-pointer"
-                              value={
-                                /^#[0-9A-F]{6}$/i.test(backgroundColor)
-                                  ? backgroundColor
-                                  : "#000000"
-                              }
-                              onChange={(e) =>
-                                setBackgroundColor(e.target.value)
-                              }
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <FormField
-                              name="backgroundColor"
-                              label="Background Color (Hex)"
-                              placeholder="#000000"
-                              required={false}
-                              value={backgroundColor}
-                              onChange={(e) =>
-                                setBackgroundColor(e.target.value)
-                              }
-                            />
-                          </div>
-                        </div>
+                        ))}
                       </div>
                     </div>
 
