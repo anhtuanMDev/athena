@@ -14,6 +14,9 @@ import {
   Sparkles,
   ClipboardPaste,
   AlertTriangle,
+  FileJson,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -75,6 +78,31 @@ export default function DynamicSchemaEdit() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
+  const [exportCopied, setExportCopied] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
+
+  const handleExportCopy = async () => {
+    if (!loaderData) return;
+    await navigator.clipboard.writeText(
+      JSON.stringify(loaderData.schema, null, 2),
+    );
+    setExportCopied(true);
+    setTimeout(() => setExportCopied(false), 2000);
+  };
+
+  const handleExportDownload = () => {
+    if (!loaderData) return;
+    const schema = loaderData.schema;
+    const blob = new Blob([JSON.stringify(schema, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${schema.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -446,7 +474,11 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
           <EmptyState
             title="Schema Not Found"
             description="The schema you are trying to edit could not be found or has been deleted."
-            action={<Button variant="outline" onClick={() => window.history.back()}>Go Back</Button>}
+            action={
+              <Button variant="outline" onClick={() => window.history.back()}>
+                Go Back
+              </Button>
+            }
           />
         </div>
       );
@@ -517,13 +549,12 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
           </div>
         </div>
 
-        {/* AI & File Actions */}
-        <div className="flex flex-wrap gap-3 items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded-xl mb-6">
-          <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 text-sm font-medium">
-            <Sparkles className="w-5 h-5 text-blue-500" />
-            AI Schema Generation
-          </div>
-          <div className="flex items-center gap-3">
+        {/* Schema Tools */}
+        <div className="flex flex-wrap gap-2 items-center p-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-xl justify-between">
+          <div className="flex items-center justify-center gap-2">
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider pr-2 border-r border-gray-200 dark:border-gray-700 mr-1">
+              <Sparkles className="w-3.5 h-3.5" /> AI
+            </span>
             <Button
               type="button"
               variant="outline"
@@ -531,8 +562,7 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
               onClick={() => setShowPromptModal(true)}
               className="text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/50"
             >
-              <Sparkles className="w-4 h-4 mr-2" />
-              Get AI Prompt
+              <Sparkles className="w-4 h-4 mr-1.5" /> Get AI Prompt
             </Button>
             <Button
               type="button"
@@ -541,10 +571,47 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
               onClick={() => setShowImportModal(true)}
               className="text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/50"
             >
-              <Download className="w-4 h-4 mr-2" />
-              Import AI Schema
+              <Download className="w-4 h-4 mr-1.5" /> Import AI Schema
+            </Button>
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-2 border-l border-gray-200 dark:border-gray-700 ml-1">
+              <FileJson className="w-3.5 h-3.5" /> Export
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="small"
+              onClick={handleExportCopy}
+              disabled={!loaderData}
+              className="text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-800/50"
+            >
+              {exportCopied ? (
+                <Check className="w-4 h-4 mr-1.5 text-emerald-500" />
+              ) : (
+                <Copy className="w-4 h-4 mr-1.5" />
+              )}
+              {exportCopied ? "Copied!" : "Copy JSON"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="small"
+              onClick={handleExportDownload}
+              disabled={!loaderData}
+              className="text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-800/50"
+            >
+              <Download className="w-4 h-4 mr-1.5" /> Download .json
             </Button>
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="small"
+            disabled={!fields || fields.length < 2}
+            onClick={() => setShowClearModal(true)}
+            className="ml-auto text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/60 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40"
+          >
+            <Trash2 className="w-4 h-4 mr-1.5" /> Clear All Fields
+          </Button>
         </div>
 
         {commitError && (
@@ -1202,6 +1269,59 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
           </div>
         )}
       </form>
+
+      {/* Clear All Fields Confirm Modal */}
+      {showClearModal &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Trash2 className="w-5 h-5 text-red-500" /> Clear All Fields
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowClearModal(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  This will remove all{" "}
+                  <span className="font-semibold text-gray-900 dark:text-white">
+                    {fields?.length} fields
+                  </span>{" "}
+                  from the schema. This action cannot be undone.
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="small"
+                    onClick={() => setShowClearModal(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="small"
+                    className="bg-red-600 hover:bg-red-700 text-white border-0"
+                    onClick={() => {
+                      setFields([]);
+                      setShowClearModal(false);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1.5" /> Clear All
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Prompt Modal */}
       {showPromptModal &&

@@ -1,15 +1,33 @@
 import { Link, useParams } from "react-router";
+import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { listDirectory } from "~/lib/github";
 import { useData } from "~/lib/use-data";
 import { type DynamicSchemaFile } from "~/schemas/dynamic-schema";
-import { Plus } from "lucide-react";
+import { Plus, FileJson, Copy, Check, Download } from "lucide-react";
 import { EmptyState } from "~/components/ui/EmptyState";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 export default function SchemasList() {
   const { game } = useParams();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const exportCopy = async (schema: DynamicSchemaFile) => {
+    await navigator.clipboard.writeText(JSON.stringify(schema, null, 2));
+    setCopiedId(schema.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const exportDownload = (schema: DynamicSchemaFile) => {
+    const blob = new Blob([JSON.stringify(schema, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${schema.id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const { data, loading, error } = useData(async () => {
     try {
@@ -113,6 +131,26 @@ export default function SchemasList() {
                   >
                     Edit Schema
                   </Link>
+                </div>
+                <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                  <button
+                    type="button"
+                    onClick={() => exportCopy(schema)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all"
+                  >
+                    {copiedId === schema.id
+                      ? <Check className="w-3.5 h-3.5" />
+                      : <Copy className="w-3.5 h-3.5" />}
+                    {copiedId === schema.id ? "Copied!" : "Copy JSON"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportDownload(schema)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download .json
+                  </button>
                 </div>
               </CardContent>
             </Card>
