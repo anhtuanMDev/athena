@@ -10,6 +10,7 @@ import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Clock, ArrowLeft } from "lucide-react";
 import { useToast } from "~/components/ToastProvider";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
+import { CronJobInstructions } from "~/components/views/CronJobInstructions";
 
 export default function CronJobEdit() {
   const { game, "*": splat } = useParams();
@@ -207,6 +208,8 @@ export default function CronJobEdit() {
             )}
           </div>
         )}
+
+        <CronJobInstructions />
 
         {/* Basic Settings Section */}
         <Card className="border-orange-500/20 shadow-sm">

@@ -8,6 +8,7 @@ import { createFile, getFile, listDirectory } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { CronJobSchema } from "~/schemas/cron";
 import { type DynamicSchemaFile } from "~/schemas/dynamic-schema";
+import { CronJobInstructions } from "~/components/views/CronJobInstructions";
 
 export default function CronJobNew() {
   const { game } = useParams();
@@ -183,6 +184,7 @@ export default function CronJobNew() {
         )}
 
 
+        <CronJobInstructions />
 
         {/* Basic Settings Section */}
         <Card className="border-orange-500/20 shadow-sm">
