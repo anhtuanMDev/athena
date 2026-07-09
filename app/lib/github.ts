@@ -46,15 +46,7 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
   }
 
   if (method !== "GET") {
-    const pathMatch = (body as Record<string, unknown>)?.path as string | undefined;
-    if (pathMatch && pathMatch.startsWith("data/") && !pathMatch.startsWith("data/_meta/")) {
-      const game = pathMatch.split("/")[1];
-      clearDataCache(`["${game}"`);
-      clearDataCache(`${game}-`);
-      clearDataCache(`dashboard`);
-    } else {
-      clearDataCache();
-    }
+    clearDataCache();
   }
 
   return data as T;

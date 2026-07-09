@@ -228,15 +228,16 @@ function triggerCachePurge(context: PagesFunctionContext, path: string) {
 
   const urlsToPurge: string[] = [];
   
+  // Use a constant origin to bypass any Vite proxy Host header discrepancies
+  const internalOrigin = "https://api.internal";
+
   if (path.startsWith("public/assets/")) {
     const assetPath = path.slice("public/assets/".length);
-    // encode path parts explicitly to match browser behavior
     const encodedAssetPath = assetPath.split('/').map(encodeURIComponent).join('/');
-    urlsToPurge.push(`${url.origin}/api/assets/${encodedAssetPath}`);
+    urlsToPurge.push(`${internalOrigin}/api/assets/${encodedAssetPath}`);
   }
 
-  // Use explicit encodeURIComponent to match the client's `path=${encodeURIComponent(path)}`
-  urlsToPurge.push(`${url.origin}/api/data/file?path=${encodeURIComponent(path)}`);
+  urlsToPurge.push(`${internalOrigin}/api/data/file?path=${encodeURIComponent(path)}`);
 
 
   const promise = Promise.all(
@@ -356,8 +357,13 @@ async function handleGetFile(context: PagesFunctionContext): Promise<Response> {
   const { request, env } = context;
   await requireAuth(context);
 
+  const url = new URL(request.url);
+  const path = url.searchParams.get("path");
+  if (!path) return json({ error: "path is required" }, 400);
+
   const cache = caches.default;
-  const cacheKey = request.url;
+  const internalOrigin = "https://api.internal";
+  const cacheKey = new Request(`${internalOrigin}/api/data/file?path=${encodeURIComponent(path)}`);
   const cached = await cache.match(cacheKey);
   if (cached) {
     const response = new Response(cached.body, {
@@ -369,9 +375,6 @@ async function handleGetFile(context: PagesFunctionContext): Promise<Response> {
     return response;
   }
 
-  const url = new URL(request.url);
-  const path = url.searchParams.get("path");
-  if (!path) return json({ error: "path is required" }, 400);
   assertSafeFilePath(path);
 
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
@@ -751,8 +754,12 @@ async function handleCommits(context: PagesFunctionContext): Promise<Response> {
 
 async function handleGetAsset(context: PagesFunctionContext): Promise<Response> {
   const { request, env } = context;
+  const url = new URL(request.url);
+  const path = url.pathname.replace(/^\/api\//, "").replace(/\/$/, "");
+
   const cache = caches.default;
-  const cacheKey = request.url;
+  const internalOrigin = "https://api.internal";
+  const cacheKey = new Request(`${internalOrigin}/api/${path}`);
   const cached = await cache.match(cacheKey);
   if (cached) {
     const response = new Response(cached.body, {
@@ -764,8 +771,6 @@ async function handleGetAsset(context: PagesFunctionContext): Promise<Response> 
     return response;
   }
 
-  const url = new URL(request.url);
-  const path = url.pathname.replace(/^\/api\//, "").replace(/\/$/, "");
   // path is "assets/..."
   const githubPath = `public/${path}`;
 
