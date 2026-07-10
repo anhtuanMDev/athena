@@ -15,6 +15,7 @@ import { DiffView } from "~/components/DiffView";
 import { computeDiff } from "~/lib/diff";
 import type { DiffEntry } from "~/lib/diff";
 import { isConflictError, updateFile, getFile } from "~/lib/github";
+import { clearDataCache } from "~/lib/use-data";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { EmptyState } from "~/components/ui/EmptyState";
 
@@ -23,6 +24,11 @@ export default function EnumEdit() {
   const id = splat?.split("/")[1];
   assertSafeGameSlug(game!);
 
+  const cacheKey = `${game}-enum-${id}`;
+
+  // Always fetch fresh data — enums may have been updated since last visit
+  clearDataCache(cacheKey);
+
   const {
     data: enumResult,
     loading,
@@ -30,7 +36,7 @@ export default function EnumEdit() {
   } = useData<{ content: GlobalEnum; sha: string } | null>(
     () => getFile<GlobalEnum>(`data/${game}/enums/${id}.json`),
     [game, id],
-    `${game}-enum-${id}`,
+    cacheKey,
   );
 
   if (loading) {
@@ -191,6 +197,15 @@ function EditEnumForm({
             .replace(/[^a-z0-9]+/g, "-")
             .replace(/(^-|-$)/g, "");
       });
+
+      // Check for duplicate option IDs
+      const ids = formData.options.map((o) => o.id);
+      const duplicates = ids.filter((id, i) => ids.indexOf(id) !== i);
+      if (duplicates.length > 0) {
+        throw new Error(
+          `Duplicate option ID${duplicates.length > 1 ? "s" : ""}: ${[...new Set(duplicates)].join(", ")}`,
+        );
+      }
 
       const parsed = EnumSchema.parse(formData);
       const diffs = computeDiff(enumData, parsed);

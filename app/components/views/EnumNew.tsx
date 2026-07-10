@@ -122,6 +122,15 @@ export default function EnumNew() {
             .replace(/(^-|-$)/g, "");
       });
 
+      // Check for duplicate option IDs
+      const ids = data.options.map((o) => o.id);
+      const duplicates = ids.filter((id, i) => ids.indexOf(id) !== i);
+      if (duplicates.length > 0) {
+        throw new Error(
+          `Duplicate option ID${duplicates.length > 1 ? "s" : ""}: ${[...new Set(duplicates)].join(", ")}`,
+        );
+      }
+
       await createFile(
         `data/${game}/enums/${data.id}.json`,
         data,
