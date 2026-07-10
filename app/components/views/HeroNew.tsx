@@ -26,8 +26,11 @@ import {
 } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
-import {type DynamicField,
-  type DynamicSchemaFile, buildDynamicZodSchema} from "~/schemas/dynamic-schema";
+import {
+  type DynamicField,
+  type DynamicSchemaFile,
+  buildDynamicZodSchema,
+} from "~/schemas/dynamic-schema";
 import { HeroSchema } from "~/schemas/hero";
 
 function AutoGenerateId({ control, setValue, touchedFields }: any) {
@@ -61,19 +64,23 @@ export default function NewHero() {
     data,
     loading,
     error: fetchError,
-  } = useData(async () => {
-    const schemas = await listDirectory<DynamicSchemaFile>(
-      game!,
-      "schemas",
-      true,
-    );
-    const heroSchemas = schemas.filter((s) => s && s.category === "hero");
-    return {
-      schemas: heroSchemas,
-      schemaCount: heroSchemas.length,
-      game: game!,
-    };
-  }, [game], `${game}-hero-schemas`);
+  } = useData(
+    async () => {
+      const schemas = await listDirectory<DynamicSchemaFile>(
+        game!,
+        "schemas",
+        true,
+      );
+      const heroSchemas = schemas.filter((s) => s && s.category === "hero");
+      return {
+        schemas: heroSchemas,
+        schemaCount: heroSchemas.length,
+        game: game!,
+      };
+    },
+    [game],
+    `${game}-hero-schemas`,
+  );
 
   if (loading) {
     return (
@@ -158,6 +165,7 @@ function HeroForm({
 
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const [pastedJson, setPastedJson] = useState("");
 
   // Images state is handled outside react-hook-form as it's complex media
@@ -176,7 +184,16 @@ function HeroForm({
   );
   const fields = activeSchema?.fields || [];
 
-  const dynamicZodSchema = useMemo(() => buildDynamicZodSchema(fields, HeroSchema, ["id", "name", "real_name", "portrait"]), [fields]);
+  const dynamicZodSchema = useMemo(
+    () =>
+      buildDynamicZodSchema(fields, HeroSchema, [
+        "id",
+        "name",
+        "real_name",
+        "portrait",
+      ]),
+    [fields],
+  );
 
   const {
     register,
@@ -200,8 +217,11 @@ function HeroForm({
 
   const idValue = useWatch({ control, name: "id" });
 
-  const aiPromptMarkdown = `I have provided a source (like a wiki page) about a hero. I want you to extract the hero's data and output it as a single JSON object that follows this schema:
+  const aiPromptMarkdown = `I have provided a source (like a wiki page) about a hero. Extract the hero's data and output a **single JSON object** matching the schema below.
 
+> **Note:** Do NOT include \`id\` or \`game\` — these are injected automatically by the system.
+
+### Field Schema
 \`\`\`json
 ${JSON.stringify(
   [
@@ -220,7 +240,18 @@ ${JSON.stringify(
 )}
 \`\`\`
 
-Please populate every field where possible based on the source content. Use empty/default values ("", 0, false, []) for anything not found in the source, and return ONLY the JSON object with no extra commentary.`;
+### Rules for \`abilities\` / \`weapon\` arrays
+Each item in these arrays **must** follow this exact shape. \`name\` and \`type\` are **required non-empty strings**:
+\`\`\`json
+{
+  "name": "Ability Name",
+  "type": "ability_type",
+  "description": "Optional description",
+  "params": {}
+}
+\`\`\`
+
+Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the source. Return ONLY the JSON object with no extra commentary.`;
 
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(aiPromptMarkdown);
@@ -239,37 +270,72 @@ Please populate every field where possible based on the source content. Use empt
     URL.revokeObjectURL(objectUrl);
   };
 
-  const formatImportedJson = (json: Record<string, unknown>): Record<string, unknown> => {
+  const formatImportedJson = (
+    json: Record<string, unknown>,
+  ): Record<string, unknown> => {
     const formattedJson: Record<string, unknown> = { ...json };
+
+    // Inject system fields the AI does not produce
+    if (!formattedJson.game) formattedJson.game = game;
+    if (!formattedJson.id) {
+      const heroName = formattedJson.name;
+      if (heroName && typeof heroName === "string") {
+        formattedJson.id = heroName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+      }
+    }
+
     fields.forEach((f) => {
-      if ((f.type === "abilities" || f.type === "weapon") && Array.isArray(formattedJson[f.key])) {
-        formattedJson[f.key] = (formattedJson[f.key] as unknown[]).map((item) => {
-          if (typeof item !== "object" || item === null) return item;
-          const raw = item as Record<string, unknown>;
-          const standardKeys = ["id", "name", "type", "description", "icon", "mode_overrides"];
-          const formattedItem: Record<string, unknown> = { params: {} as Record<string, unknown> };
-          
-          if (!raw.id && raw.name && typeof raw.name === "string") {
-            formattedItem.id = raw.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-          } else if (!raw.id) {
-            formattedItem.id = Math.random().toString(36).substring(7);
-          } else {
-            formattedItem.id = raw.id;
-          }
-          
-          Object.keys(raw).forEach((k) => {
-            if (standardKeys.includes(k)) {
-              formattedItem[k] = raw[k];
-            } else {
-              (formattedItem.params as Record<string, unknown>)[k] = raw[k];
+      if (
+        (f.type === "abilities" || f.type === "weapon") &&
+        Array.isArray(formattedJson[f.key])
+      ) {
+        formattedJson[f.key] = (formattedJson[f.key] as unknown[]).map(
+          (item) => {
+            if (typeof item !== "object" || item === null) return item;
+            const raw = item as Record<string, unknown>;
+            const standardKeys = [
+              "id",
+              "name",
+              "type",
+              "description",
+              "icon",
+              "mode_overrides",
+            ];
+            const formattedItem: Record<string, unknown> = {
+              params: {} as Record<string, unknown>,
+            };
+
+            Object.keys(raw).forEach((k) => {
+              if (standardKeys.includes(k)) {
+                formattedItem[k] = raw[k];
+              } else {
+                (formattedItem.params as Record<string, unknown>)[k] = raw[k];
+              }
+            });
+
+            // Auto-generate id from name if missing
+            if (!formattedItem.id) {
+              if (formattedItem.name && typeof formattedItem.name === "string") {
+                formattedItem.id = formattedItem.name
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, "-")
+                  .replace(/^-+|-+$/g, "");
+              } else {
+                formattedItem.id = Math.random().toString(36).substring(7);
+              }
             }
-          });
-          
-          if (!formattedItem.name) formattedItem.name = "";
-          if (!formattedItem.type) formattedItem.type = "";
-          
-          return formattedItem;
-        });
+
+            // Ensure params always exists
+            if (!formattedItem.params || typeof formattedItem.params !== "object") {
+              formattedItem.params = {};
+            }
+
+            return formattedItem;
+          },
+        );
       }
     });
     return formattedJson;
@@ -284,23 +350,27 @@ Please populate every field where possible based on the source content. Use empt
 
         if (!parsed.success) {
           const errorMessage = parsed.error.issues
-            .map((issue: any) => `${issue.path.join(".")}: ${issue.message}`)
-            .join(", ");
-          toastError(`Validation failed: ${errorMessage}`);
+            .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+            .join("\n");
+          setImportError(`Validation failed:\n${errorMessage}`);
           return;
         }
 
         Object.keys(parsed.data).forEach((key) => {
-          setValue(key, (parsed.data as any)[key], { shouldDirty: true, shouldValidate: true });
+          setValue(key, (parsed.data as any)[key], {
+            shouldDirty: true,
+            shouldValidate: true,
+          });
         });
         toastSuccess("Imported hero data from pasted text!");
         setShowImportModal(false);
+        setImportError(null);
         setPastedJson("");
       } else {
-        toastError("JSON must be an object");
+        setImportError("JSON must be an object, not a primitive or array.");
       }
     } catch (e) {
-      toastError("Invalid JSON format");
+      setImportError("Invalid JSON: could not parse the pasted text.");
     }
   };
 
@@ -317,9 +387,9 @@ Please populate every field where possible based on the source content. Use empt
 
           if (!parsed.success) {
             const errorMessage = parsed.error.issues
-              .map((issue: any) => `${issue.path.join(".")}: ${issue.message}`)
-              .join(", ");
-            toastError(`Validation failed: ${errorMessage}`);
+              .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+              .join("\n");
+            setImportError(`Validation failed:\n${errorMessage}`);
             return;
           }
 
@@ -331,11 +401,12 @@ Please populate every field where possible based on the source content. Use empt
           });
           toastSuccess("Imported hero data from file!");
           setShowImportModal(false);
+          setImportError(null);
         } else {
-          toastError("JSON must be an object");
+          setImportError("JSON must be an object, not a primitive or array.");
         }
       } catch (err) {
-        toastError("Invalid JSON file");
+        setImportError("Invalid JSON file: could not parse the file contents.");
       }
     };
     reader.readAsText(file);
@@ -357,12 +428,16 @@ Please populate every field where possible based on the source content. Use empt
       let portraitData: string | Record<string, string> =
         formData.portrait || "";
       if (portraits.length === 1 && portraits[0].key === "main") {
-        const ext = portraits[0].name?.split(".").pop() || portraits[0].previewUrl?.split(".").pop() || "png";
+        const ext =
+          portraits[0].name?.split(".").pop() ||
+          portraits[0].previewUrl?.split(".").pop() ||
+          "png";
         portraitData = `/api/assets/${game}/heroes/${id}/portrait.${ext}`;
       } else if (portraits.length > 0) {
         portraitData = {};
         for (const p of portraits) {
-          const ext = p.name?.split(".").pop() || p.previewUrl?.split(".").pop() || "png";
+          const ext =
+            p.name?.split(".").pop() || p.previewUrl?.split(".").pop() || "png";
           (portraitData as Record<string, string>)[p.key] =
             `/api/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
         }
@@ -374,7 +449,7 @@ Please populate every field where possible based on the source content. Use empt
         base64: string;
         message: string;
       }[] = [];
-      
+
       // Validate mode_overrides
       const modes = await listDirectory(game, "modes");
       const modeSet = new Set(modes);
@@ -384,7 +459,9 @@ Please populate every field where possible based on the source content. Use empt
           if (ability.mode_overrides) {
             for (const modeId of Object.keys(ability.mode_overrides)) {
               if (!modeSet.has(modeId as string)) {
-                throw new Error(`Ability '${ability.name || ability.id}' references invalid mode override: '${modeId}'`);
+                throw new Error(
+                  `Ability '${ability.name || ability.id}' references invalid mode override: '${modeId}'`,
+                );
               }
             }
           }
@@ -399,9 +476,13 @@ Please populate every field where possible based on the source content. Use empt
           abilityList.forEach((ability: any, i: number) => {
             if (!ability.params) ability.params = {};
 
-            const aIcons = abilityIcons[ability._clientId || ability.id || i] || [];
+            const aIcons =
+              abilityIcons[ability._clientId || ability.id || i] || [];
             if (aIcons.length === 1 && aIcons[0].key === "main") {
-              const ext = aIcons[0].name?.split(".").pop() || aIcons[0].previewUrl?.split(".").pop() || "png";
+              const ext =
+                aIcons[0].name?.split(".").pop() ||
+                aIcons[0].previewUrl?.split(".").pop() ||
+                "png";
               const displayPath = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
               const uploadPath = `public/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
               ability.icon = displayPath;
@@ -414,7 +495,10 @@ Please populate every field where possible based on the source content. Use empt
             } else if (aIcons.length > 0) {
               ability.icon = {};
               for (const icon of aIcons) {
-                const ext = icon.name?.split(".").pop() || icon.previewUrl?.split(".").pop() || "png";
+                const ext =
+                  icon.name?.split(".").pop() ||
+                  icon.previewUrl?.split(".").pop() ||
+                  "png";
                 const displayPath = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
                 const uploadPath = `public/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
                 ability.icon[icon.key] = displayPath;
@@ -521,7 +605,10 @@ Please populate every field where possible based on the source content. Use empt
             type="button"
             variant="outline"
             size="small"
-            onClick={() => setShowImportModal(true)}
+            onClick={() => {
+              setImportError(null);
+              setShowImportModal(true);
+            }}
             className="text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/50"
           >
             <Download className="w-4 h-4 mr-2" />
@@ -819,6 +906,16 @@ Please populate every field where possible based on the source content. Use empt
                 </h3>
               </div>
               <div className="p-6 overflow-y-auto max-h-[60vh] space-y-6">
+                {importError && (
+                  <div className="rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 p-4">
+                    <p className="text-sm font-semibold text-red-700 dark:text-red-400 mb-1">
+                      Import Error
+                    </p>
+                    <pre className="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap font-mono">
+                      {importError}
+                    </pre>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                     Option 1: Upload JSON File
@@ -828,6 +925,7 @@ Please populate every field where possible based on the source content. Use empt
                       type="file"
                       accept=".json"
                       onChange={(e) => {
+                        setImportError(null);
                         handleFileUpload(e);
                       }}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -853,7 +951,10 @@ Please populate every field where possible based on the source content. Use empt
                   </label>
                   <textarea
                     value={pastedJson}
-                    onChange={(e) => setPastedJson(e.target.value)}
+                    onChange={(e) => {
+                      setPastedJson(e.target.value);
+                      if (importError) setImportError(null);
+                    }}
                     placeholder="Paste your JSON data here..."
                     rows={6}
                     className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-gray-200 transition-colors"
@@ -864,15 +965,16 @@ Please populate every field where possible based on the source content. Use empt
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => setShowImportModal(false)}
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportError(null);
+                  }}
                 >
                   Cancel
                 </Button>
                 <Button
                   type="button"
-                  onClick={() => {
-                    handleImportPastedJson();
-                  }}
+                  onClick={() => handleImportPastedJson()}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                   disabled={!pastedJson.trim()}
                 >

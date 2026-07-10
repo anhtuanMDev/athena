@@ -166,6 +166,7 @@ function EditHeroForm({
 
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const [pastedJson, setPastedJson] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submittingCommit, setSubmittingCommit] = useState(false);
@@ -237,8 +238,11 @@ function EditHeroForm({
     defaultValues: defaultValues as any,
   });
 
-  const aiPromptMarkdown = `I have provided a source (like a wiki page) about a hero. I want you to extract the hero's data and output it as a single JSON object that follows this schema:
+  const aiPromptMarkdown = `I have provided a source (like a wiki page) about a hero. Extract the hero's data and output a **single JSON object** matching the schema below.
 
+> **Note:** Do NOT include \`id\` or \`game\` — these are injected automatically by the system.
+
+### Field Schema
 \`\`\`json
 ${JSON.stringify(
   [
@@ -257,7 +261,18 @@ ${JSON.stringify(
 )}
 \`\`\`
 
-Please populate every field where possible based on the source content. Use empty/default values ("", 0, false, []) for anything not found in the source, and return ONLY the JSON object with no extra commentary.`;
+### Rules for \`abilities\` / \`weapon\` arrays
+Each item in these arrays **must** follow this exact shape. \`name\` and \`type\` are **required non-empty strings**:
+\`\`\`json
+{
+  "name": "Ability Name",
+  "type": "ability_type",
+  "description": "Optional description",
+  "params": {}
+}
+\`\`\`
+
+Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the source. Return ONLY the JSON object with no extra commentary.`;
 
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(aiPromptMarkdown);
@@ -278,6 +293,12 @@ Please populate every field where possible based on the source content. Use empt
 
   const formatImportedJson = (json: Record<string, unknown>): Record<string, unknown> => {
     const formattedJson: Record<string, unknown> = { ...json };
+
+    // Inject system fields the AI does not produce
+    if (!formattedJson.game) formattedJson.game = game;
+    // In edit mode the id is known from the URL — always preserve it
+    if (!formattedJson.id) formattedJson.id = id;
+
     fields.forEach((f) => {
       if (
         (f.type === "abilities" || f.type === "weapon") &&
@@ -296,17 +317,6 @@ Please populate every field where possible based on the source content. Use empt
           ];
           const formattedItem: Record<string, unknown> = { params: {} as Record<string, unknown> };
 
-          if (!raw.id && raw.name && typeof raw.name === "string") {
-            formattedItem.id = raw.name
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/^-+|-+$/g, "");
-          } else if (!raw.id) {
-            formattedItem.id = Math.random().toString(36).substring(7);
-          } else {
-            formattedItem.id = raw.id;
-          }
-
           Object.keys(raw).forEach((k) => {
             if (standardKeys.includes(k)) {
               formattedItem[k] = raw[k];
@@ -315,8 +325,22 @@ Please populate every field where possible based on the source content. Use empt
             }
           });
 
-          if (!formattedItem.name) formattedItem.name = "";
-          if (!formattedItem.type) formattedItem.type = "";
+          // Auto-generate id from name if missing
+          if (!formattedItem.id) {
+            if (formattedItem.name && typeof formattedItem.name === "string") {
+              formattedItem.id = formattedItem.name
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-+|-+$/g, "");
+            } else {
+              formattedItem.id = Math.random().toString(36).substring(7);
+            }
+          }
+
+          // Ensure params always exists
+          if (!formattedItem.params || typeof formattedItem.params !== "object") {
+            formattedItem.params = {};
+          }
 
           return formattedItem;
         });
@@ -334,9 +358,9 @@ Please populate every field where possible based on the source content. Use empt
         
         if (!parsed.success) {
           const errorMessage = parsed.error.issues
-            .map((issue: any) => `${issue.path.join(".")}: ${issue.message}`)
-            .join(", ");
-          toastError(`Validation failed: ${errorMessage}`);
+            .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+            .join("\n");
+          setImportError(`Validation failed:\n${errorMessage}`);
           return;
         }
 
@@ -348,12 +372,13 @@ Please populate every field where possible based on the source content. Use empt
         });
         toastSuccess("Imported hero data from pasted text!");
         setShowImportModal(false);
+        setImportError(null);
         setPastedJson("");
       } else {
-        toastError("JSON must be an object");
+        setImportError("JSON must be an object, not a primitive or array.");
       }
     } catch (e) {
-      toastError("Invalid JSON format");
+      setImportError("Invalid JSON: could not parse the pasted text.");
     }
   };
 
@@ -370,9 +395,9 @@ Please populate every field where possible based on the source content. Use empt
 
           if (!parsed.success) {
             const errorMessage = parsed.error.issues
-              .map((issue: any) => `${issue.path.join(".")}: ${issue.message}`)
-              .join(", ");
-            toastError(`Validation failed: ${errorMessage}`);
+              .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+              .join("\n");
+            setImportError(`Validation failed:\n${errorMessage}`);
             return;
           }
 
@@ -384,11 +409,12 @@ Please populate every field where possible based on the source content. Use empt
           });
           toastSuccess("Imported hero data from file!");
           setShowImportModal(false);
+          setImportError(null);
         } else {
-          toastError("JSON must be an object");
+          setImportError("JSON must be an object, not a primitive or array.");
         }
       } catch (err) {
-        toastError("Invalid JSON file");
+        setImportError("Invalid JSON file: could not parse the file contents.");
       }
     };
     reader.readAsText(file);
@@ -645,7 +671,10 @@ Please populate every field where possible based on the source content. Use empt
             type="button"
             variant="outline"
             size="small"
-            onClick={() => setShowImportModal(true)}
+            onClick={() => {
+                setImportError(null);
+                setShowImportModal(true);
+              }}
             className="text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/50"
           >
             <Download className="w-4 h-4 mr-2" />
@@ -927,6 +956,12 @@ Please populate every field where possible based on the source content. Use empt
                 </h3>
               </div>
               <div className="p-6 overflow-y-auto max-h-[60vh] space-y-6">
+                {importError && (
+                  <div className="rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 p-4">
+                    <p className="text-sm font-semibold text-red-700 dark:text-red-400 mb-1">Import Error</p>
+                    <pre className="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap font-mono">{importError}</pre>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                     Option 1: Upload JSON File
@@ -936,6 +971,7 @@ Please populate every field where possible based on the source content. Use empt
                       type="file"
                       accept=".json"
                       onChange={(e) => {
+                        setImportError(null);
                         handleFileUpload(e);
                       }}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
@@ -961,7 +997,10 @@ Please populate every field where possible based on the source content. Use empt
                   </label>
                   <textarea
                     value={pastedJson}
-                    onChange={(e) => setPastedJson(e.target.value)}
+                    onChange={(e) => {
+                      setPastedJson(e.target.value);
+                      if (importError) setImportError(null);
+                    }}
                     placeholder="Paste your JSON data here..."
                     rows={6}
                     className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-gray-200 transition-colors"
@@ -972,15 +1011,16 @@ Please populate every field where possible based on the source content. Use empt
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => setShowImportModal(false)}
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportError(null);
+                  }}
                 >
                   Cancel
                 </Button>
                 <Button
                   type="button"
-                  onClick={() => {
-                    handleImportPastedJson();
-                  }}
+                  onClick={() => handleImportPastedJson()}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                   disabled={!pastedJson.trim()}
                 >
