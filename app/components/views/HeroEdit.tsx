@@ -153,6 +153,46 @@ function EditHeroForm({
   game: string;
   id: string;
 }) {
+  const [formKey, setFormKey] = useState(0);
+  const [initData, setInitData] = useState<Record<string, any>>({ ...hero });
+
+  const handleImportSuccess = (data: Record<string, any>) => {
+    // Always preserve the canonical id/game from the URL
+    setInitData({ ...data, id, game });
+    setFormKey((k) => k + 1);
+  };
+
+  return (
+    <EditHeroFormInner
+      key={formKey}
+      hero={hero}
+      sha={sha}
+      schemas={schemas}
+      game={game}
+      id={id}
+      initData={initData}
+      onImportSuccess={handleImportSuccess}
+    />
+  );
+}
+
+function EditHeroFormInner({
+  hero,
+  sha,
+  schemas,
+  game,
+  id,
+  initData,
+  onImportSuccess,
+}: {
+  hero: Hero;
+  sha: string;
+  schemas: DynamicSchemaFile[];
+  game: string;
+  id: string;
+  initData: Record<string, any>;
+  onImportSuccess: (data: Record<string, any>) => void;
+}) {
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -202,7 +242,7 @@ function EditHeroForm({
   });
 
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>(
-    hero.schema_id || schemas[0]?.id || "",
+    initData.schema_id || schemas[0]?.id || "",
   );
   const activeSchema = useMemo(
     () => schemas.find((s) => s.id === selectedSchemaId) || schemas[0],
@@ -221,10 +261,7 @@ function EditHeroForm({
     [fields],
   );
 
-  const defaultValues = useMemo(() => {
-    const vals = { ...hero };
-    return vals;
-  }, [hero, fields]);
+  const defaultValues = useMemo(() => ({ ...initData }), [initData]);
 
   const {
     register,
@@ -364,12 +401,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
           return;
         }
 
-        Object.keys(parsed.data).forEach((key) => {
-          setValue(key, (parsed.data as any)[key], {
-            shouldDirty: true,
-            shouldValidate: true,
-          });
-        });
+        onImportSuccess(parsed.data);
         toastSuccess("Imported hero data from pasted text!");
         setShowImportModal(false);
         setImportError(null);
@@ -401,12 +433,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
             return;
           }
 
-          Object.keys(parsed.data).forEach((key) => {
-            setValue(key, (parsed.data as any)[key], {
-              shouldDirty: true,
-              shouldValidate: true,
-            });
-          });
+          onImportSuccess(parsed.data);
           toastSuccess("Imported hero data from file!");
           setShowImportModal(false);
           setImportError(null);

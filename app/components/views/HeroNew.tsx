@@ -158,6 +158,46 @@ function HeroForm({
   schemas: DynamicSchemaFile[];
   game: string;
 }) {
+  const [formKey, setFormKey] = useState(0);
+  const [initData, setInitData] = useState<Record<string, any>>({
+    game,
+    id: "",
+    schema_id: schemas[0]?.id || "",
+    name: "",
+    real_name: "",
+    portrait: "",
+    kit: [],
+  });
+
+  const handleImportSuccess = (data: Record<string, any>) => {
+    setInitData(data);
+    setFormKey((k) => k + 1);
+  };
+
+  return (
+    <HeroFormInner
+      key={formKey}
+      schemas={schemas}
+      game={game}
+      initData={initData}
+      onImportSuccess={handleImportSuccess}
+    />
+  );
+}
+
+type HeroFormInnerProps = {
+  schemas: DynamicSchemaFile[];
+  game: string;
+  initData: Record<string, any>;
+  onImportSuccess: (data: Record<string, any>) => void;
+};
+
+function HeroFormInner({
+  schemas,
+  game,
+  initData,
+  onImportSuccess,
+}: HeroFormInnerProps) {
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
   const [submitting, setSubmitting] = useState(false);
@@ -176,7 +216,7 @@ function HeroForm({
   >({});
 
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>(
-    schemas[0]?.id || "",
+    initData.schema_id || schemas[0]?.id || "",
   );
   const activeSchema = useMemo(
     () => schemas.find((s) => s.id === selectedSchemaId) || schemas[0],
@@ -204,15 +244,7 @@ function HeroForm({
   } = useForm<any>({
     resolver: zodResolver(dynamicZodSchema),
     mode: "onChange",
-    defaultValues: {
-      game,
-      id: "",
-      schema_id: schemas[0]?.id || "",
-      name: "",
-      real_name: "",
-      portrait: "",
-      kit: [] as any[],
-    },
+    defaultValues: initData,
   });
 
   const idValue = useWatch({ control, name: "id" });
@@ -356,12 +388,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
           return;
         }
 
-        Object.keys(parsed.data).forEach((key) => {
-          setValue(key, (parsed.data as any)[key], {
-            shouldDirty: true,
-            shouldValidate: true,
-          });
-        });
+        onImportSuccess(parsed.data);
         toastSuccess("Imported hero data from pasted text!");
         setShowImportModal(false);
         setImportError(null);
@@ -393,12 +420,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
             return;
           }
 
-          Object.keys(parsed.data).forEach((key) => {
-            setValue(key, (parsed.data as any)[key], {
-              shouldDirty: true,
-              shouldValidate: true,
-            });
-          });
+          onImportSuccess(parsed.data);
           toastSuccess("Imported hero data from file!");
           setShowImportModal(false);
           setImportError(null);
