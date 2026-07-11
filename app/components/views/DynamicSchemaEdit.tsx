@@ -56,14 +56,13 @@ export default function DynamicSchemaEdit() {
   } = useData(
     async () => {
       if (!id) throw new Error("Schema ID missing");
-      const [file, schemas] = await Promise.all([
+      const [file, schemas, enums] = await Promise.all([
         getFile<DynamicSchemaFile>(`data/${game}/schemas/${id}.json`),
-        listDirectory<DynamicSchemaFile>(game!, "schemas", true).catch(
-          () => [],
-        ),
+        listDirectory<DynamicSchemaFile>(game!, "schemas", true).catch(() => []),
+        listDirectory(game!, "enums").catch(() => []),
       ]);
       if (!file) throw new Error("Schema not found");
-      return { schema: file.content, sha: file.sha, allSchemas: schemas };
+      return { schema: file.content, sha: file.sha, allSchemas: schemas, enums };
     },
     [game, id],
     `${game}-schema-${id}`,
@@ -298,14 +297,16 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
   const handleChangeField = (
     index: number,
     key: keyof DynamicField,
-    value: string | boolean | string[],
+    value: string | boolean | string[] | undefined,
   ) => {
     if (!fields) return;
     const newFields = [...fields];
-    const field = newFields[index];
+    const field = { ...newFields[index] };
 
     if (key === "options") {
-      newFields[index] = { ...field, [key]: (value as string).split("\n") };
+      field.options = value
+        ? (value as string).split("\n").map((s) => s.trim())
+        : undefined;
     } else if (key === "label") {
       const oldSlug = (field.label || "")
         .toLowerCase()
@@ -351,20 +352,20 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
   };
 
   const handleChangeSubField = (
-    parentIndex: number,
-    subIndex: number,
+    fieldIndex: number,
+    subFieldIndex: number,
     key: keyof DynamicField,
-    value: string | boolean | string[],
+    value: string | boolean | string[] | undefined,
   ) => {
     if (!fields) return;
     const newFields = [...fields];
-    const subField = newFields[parentIndex].subFields![subIndex];
+    const subFields = [...(newFields[fieldIndex].subFields || [])];
+    const subField = { ...subFields[subFieldIndex] };
 
     if (key === "options") {
-      newFields[parentIndex].subFields![subIndex] = {
-        ...subField,
-        [key]: (value as string).split("\n"),
-      };
+      subField.options = value
+        ? (value as string).split("\n").map((s) => s.trim())
+        : undefined;
     } else if (key === "label") {
       const oldSlug = (subField.label || "")
         .toLowerCase()
@@ -375,19 +376,16 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/(^_|_$)/g, "");
       const shouldUpdateKey = !subField.key || subField.key === oldSlug;
-      newFields[parentIndex].subFields![subIndex] = {
-        ...subField,
-        label: value as string,
-      };
+      subField.label = value as string;
       if (shouldUpdateKey) {
-        newFields[parentIndex].subFields![subIndex].key = newSlug;
+        subField.key = newSlug;
       }
     } else {
-      newFields[parentIndex].subFields![subIndex] = {
-        ...subField,
-        [key]: value,
-      } as DynamicField;
+      (subField as any)[key] = value;
     }
+
+    subFields[subFieldIndex] = subField;
+    newFields[fieldIndex].subFields = subFields;
     setFields(newFields);
   };
 
@@ -899,31 +897,56 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                       field.type === "abilities" ||
                       field.type === "weapon" ? (
                         <div className="flex-1">
-                          <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
-                            {field.type === "abilities" ||
-                            field.type === "weapon"
-                              ? `${field.type === "weapon" ? "Weapon" : "Ability"} Types (Optional, one per line)`
-                              : "Options (One per line)"}
-                          </label>
-                          <textarea
-                            value={field.options?.join("\n") || ""}
-                            onChange={(e) =>
-                              handleChangeField(
-                                index,
-                                "options",
-                                e.target.value,
-                              )
-                            }
-                            placeholder={
-                              field.type === "abilities"
-                                ? "Ultimate\nPassive\nPrimary Fire"
-                                : field.type === "weapon"
-                                  ? "Hitscan\nProjectile\nBeam"
-                                  : "Tank\nDamage\nSupport"
-                            }
-                            rows={4}
-                            className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white resize-none transition-colors"
-                          />
+                          {(field.type === "enum" || field.type === "list") && (
+                            <div className="mb-3">
+                              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                                Global Enum Reference (Optional)
+                              </label>
+                              <select
+                                value={field.globalEnumId || ""}
+                                onChange={(e) => {
+                                  handleChangeField(index, "globalEnumId", e.target.value || undefined);
+                                  if (e.target.value) handleChangeField(index, "options", undefined);
+                                }}
+                                className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                              >
+                                <option value="">-- No Global Enum (Use Custom Options) --</option>
+                                {loaderData?.enums?.map((eId: string) => (
+                                  <option key={eId} value={eId}>{eId}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {((field.type !== "enum" && field.type !== "list") || !field.globalEnumId) && (
+                            <>
+                              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                                {field.type === "abilities" ||
+                                field.type === "weapon"
+                                  ? `${field.type === "weapon" ? "Weapon" : "Ability"} Types (Optional, one per line)`
+                                  : "Custom Options (One per line)"}
+                              </label>
+                              <textarea
+                                value={field.options?.join("\n") || ""}
+                                onChange={(e) =>
+                                  handleChangeField(
+                                    index,
+                                    "options",
+                                    e.target.value,
+                                  )
+                                }
+                                placeholder={
+                                  field.type === "abilities"
+                                    ? "Ultimate\nPassive\nPrimary Fire"
+                                    : field.type === "weapon"
+                                      ? "Hitscan\nProjectile\nBeam"
+                                      : "Tank\nDamage\nSupport"
+                                }
+                                rows={4}
+                                className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white resize-none transition-colors"
+                              />
+                            </>
+                          )}
                         </div>
                       ) : field.type === "reference" ||
                         field.type === "reference_list" ? (
@@ -1176,10 +1199,11 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                             {(field.subFields || []).length > 0 ? (
                               <div className="space-y-3">
                                 {field.subFields!.map((subField, sIndex) => (
-                                  <div
-                                    key={sIndex}
-                                    className="flex flex-col sm:flex-row gap-3 items-center bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm transition-colors hover:border-gray-300 dark:hover:border-gray-600"
-                                  >
+                                <div
+                                  key={sIndex}
+                                  className="flex flex-col gap-3 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm transition-colors hover:border-gray-300 dark:hover:border-gray-600"
+                                >
+                                  <div className="flex flex-col sm:flex-row gap-3 items-center w-full">
                                     <input
                                       className="w-full sm:w-1/3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
                                       placeholder="Label"
@@ -1221,6 +1245,8 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                                       <option value="string">String</option>
                                       <option value="number">Number</option>
                                       <option value="boolean">Boolean</option>
+                                      <option value="enum">Enum (Single Select)</option>
+                                      <option value="list">List (Multiple Select)</option>
                                     </select>
                                     <button
                                       type="button"
@@ -1233,6 +1259,51 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                                       <Trash2 className="w-4 h-4" />
                                     </button>
                                   </div>
+                                  
+                                  {(subField.type === "enum" || subField.type === "list") && (
+                                    <div className="w-full mt-1 space-y-3">
+                                      <div>
+                                        <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                                          Global Enum Reference (Optional)
+                                        </label>
+                                        <select
+                                          value={subField.globalEnumId || ""}
+                                          onChange={(e) => {
+                                            handleChangeSubField(index, sIndex, "globalEnumId", e.target.value || undefined);
+                                            if (e.target.value) handleChangeSubField(index, sIndex, "options", undefined);
+                                          }}
+                                          className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
+                                        >
+                                          <option value="">-- No Global Enum (Use Custom Options) --</option>
+                                          {loaderData?.enums?.map((eId: string) => (
+                                            <option key={eId} value={eId}>{eId}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      {!subField.globalEnumId && (
+                                        <div>
+                                          <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                                            Custom Options (One per line)
+                                          </label>
+                                          <textarea
+                                            value={subField.options?.join("\n") || ""}
+                                            onChange={(e) =>
+                                              handleChangeSubField(
+                                                index,
+                                                sIndex,
+                                                "options",
+                                                e.target.value,
+                                              )
+                                            }
+                                            placeholder="Option 1\nOption 2\nOption 3"
+                                            rows={3}
+                                            className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors resize-y"
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                                 ))}
                               </div>
                             ) : (

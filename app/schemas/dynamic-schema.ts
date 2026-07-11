@@ -15,6 +15,7 @@ export type DynamicField = {
   referenceApiEndpoint?: string;
   referenceValueKey?: string;
   referenceLabelKey?: string;
+  globalEnumId?: string;
 };
 
 export const DynamicFieldSchema: z.ZodType<DynamicField> = z.lazy(() => z.object({
@@ -28,6 +29,7 @@ export const DynamicFieldSchema: z.ZodType<DynamicField> = z.lazy(() => z.object
   referenceApiEndpoint: z.string().optional(),
   referenceValueKey: z.string().optional(),
   referenceLabelKey: z.string().optional(),
+  globalEnumId: z.string().optional(),
 }));
 
 export const SchemaCategorySchema = z.enum(["hero", "mode", "patch", "event", "item", "map", "cron_job"]);

@@ -80,12 +80,16 @@ export default function DynamicSchemaNew() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [pastedJson, setPastedJson] = useState("");
 
-  const { data: existingSchemas } = useData(
+  const { data: loadedData } = useData(
     async () => {
       try {
-        return await listDirectory<DynamicSchemaFile>(game!, "schemas", true);
+        const [schemas, enums] = await Promise.all([
+          listDirectory<DynamicSchemaFile>(game!, "schemas", true),
+          listDirectory(game!, "enums")
+        ]);
+        return { schemas, enums };
       } catch (e) {
-        return [];
+        return { schemas: [], enums: [] as string[] };
       }
     },
     [game],
@@ -95,8 +99,8 @@ export default function DynamicSchemaNew() {
   const [importSchemaId, setImportSchemaId] = useState("");
 
   const handleImportFields = () => {
-    if (!importSchemaId || !existingSchemas) return;
-    const schemaToImport = existingSchemas.find((s) => s.id === importSchemaId);
+    if (!importSchemaId || !loadedData?.schemas) return;
+    const schemaToImport = loadedData.schemas.find((s) => s.id === importSchemaId);
     if (schemaToImport && schemaToImport.fields) {
       const clonedFields = JSON.parse(JSON.stringify(schemaToImport.fields));
       setFields((prev) => [...prev, ...clonedFields]);
@@ -219,13 +223,15 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
   const handleChangeField = (
     index: number,
     key: keyof DynamicField,
-    value: string | boolean | string[],
+    value: string | boolean | string[] | undefined,
   ) => {
     const newFields = [...fields];
-    const field = newFields[index];
+    const field = { ...newFields[index] };
 
     if (key === "options") {
-      newFields[index] = { ...field, [key]: (value as string).split("\n") };
+      field.options = value
+        ? (value as string).split("\n").map((s) => s.trim())
+        : undefined;
     } else if (key === "label") {
       const oldSlug = (field.label || "")
         .toLowerCase()
@@ -239,13 +245,15 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
       // Auto-generate if key is currently empty or matches exactly what the label used to slugify to
       const shouldUpdateKey = !field.key || field.key === oldSlug;
 
-      newFields[index] = { ...field, label: value as string };
+      field.label = value as string;
       if (shouldUpdateKey) {
-        newFields[index].key = newSlug;
+        field.key = newSlug;
       }
     } else {
-      newFields[index] = { ...field, [key]: value } as DynamicField;
+      (field as any)[key] = value;
     }
+
+    newFields[index] = field;
     setFields(newFields);
   };
 
@@ -270,19 +278,19 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
   };
 
   const handleChangeSubField = (
-    parentIndex: number,
-    subIndex: number,
+    fieldIndex: number,
+    subFieldIndex: number,
     key: keyof DynamicField,
-    value: string | boolean | string[],
+    value: string | boolean | string[] | undefined,
   ) => {
     const newFields = [...fields];
-    const subField = newFields[parentIndex].subFields![subIndex];
+    const subFields = [...(newFields[fieldIndex].subFields || [])];
+    const subField = { ...subFields[subFieldIndex] };
 
     if (key === "options") {
-      newFields[parentIndex].subFields![subIndex] = {
-        ...subField,
-        [key]: (value as string).split("\n"),
-      };
+      subField.options = value
+        ? (value as string).split("\n").map((s) => s.trim())
+        : undefined;
     } else if (key === "label") {
       const oldSlug = (subField.label || "")
         .toLowerCase()
@@ -292,20 +300,20 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/(^_|_$)/g, "");
+
+      // Auto-generate if key is currently empty or matches exactly what the label used to slugify to
       const shouldUpdateKey = !subField.key || subField.key === oldSlug;
-      newFields[parentIndex].subFields![subIndex] = {
-        ...subField,
-        label: value as string,
-      };
+
+      subField.label = value as string;
       if (shouldUpdateKey) {
-        newFields[parentIndex].subFields![subIndex].key = newSlug;
+        subField.key = newSlug;
       }
     } else {
-      newFields[parentIndex].subFields![subIndex] = {
-        ...subField,
-        [key]: value,
-      } as DynamicField;
+      (subField as any)[key] = value;
     }
+
+    subFields[subFieldIndex] = subField;
+    newFields[fieldIndex].subFields = subFields;
     setFields(newFields);
   };
 
@@ -570,7 +578,7 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                 Fields Configuration
               </h2>
               <div className="flex gap-2">
-                {existingSchemas && existingSchemas.length > 0 && (
+                {loadedData?.schemas && loadedData.schemas.length > 0 && (
                   <div className="flex items-center gap-2 mr-4">
                     <select
                       value={importSchemaId}
@@ -578,7 +586,7 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                       className="block w-48 rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                     >
                       <option value="">Import Schema</option>
-                      {existingSchemas
+                      {loadedData.schemas
                         .filter((s) => s.category === category)
                         .map((s) => (
                           <option key={s.id} value={s.id}>
@@ -737,26 +745,51 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                     field.type === "abilities" ||
                     field.type === "weapon" ? (
                       <div className="flex-1">
-                        <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
-                          {field.type === "abilities" || field.type === "weapon"
-                            ? `${field.type === "weapon" ? "Weapon" : "Ability"} Types (Optional, one per line)`
-                            : "Options (One per line)"}
-                        </label>
-                        <textarea
-                          value={field.options?.join("\n") || ""}
-                          onChange={(e) =>
-                            handleChangeField(index, "options", e.target.value)
-                          }
-                          placeholder={
-                            field.type === "abilities"
-                              ? "Ultimate\nPassive\nPrimary Fire"
-                              : field.type === "weapon"
-                                ? "Hitscan\nProjectile\nBeam"
-                                : "Tank\nDamage\nSupport"
-                          }
-                          rows={4}
-                          className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white resize-none transition-colors"
-                        />
+                        {(field.type === "enum" || field.type === "list") && (
+                          <div className="mb-3">
+                            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                              Global Enum Reference (Optional)
+                            </label>
+                            <select
+                              value={field.globalEnumId || ""}
+                              onChange={(e) => {
+                                handleChangeField(index, "globalEnumId", e.target.value || undefined);
+                                if (e.target.value) handleChangeField(index, "options", undefined);
+                              }}
+                              className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                            >
+                              <option value="">-- No Global Enum (Use Custom Options) --</option>
+                              {loadedData?.enums?.map((eId: string) => (
+                                <option key={eId} value={eId}>{eId}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {((field.type !== "enum" && field.type !== "list") || !field.globalEnumId) && (
+                          <>
+                            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                              {field.type === "abilities" || field.type === "weapon"
+                                ? `${field.type === "weapon" ? "Weapon" : "Ability"} Types (Optional, one per line)`
+                                : "Custom Options (One per line)"}
+                            </label>
+                            <textarea
+                              value={field.options?.join("\n") || ""}
+                              onChange={(e) =>
+                                handleChangeField(index, "options", e.target.value)
+                              }
+                              placeholder={
+                                field.type === "abilities"
+                                  ? "Ultimate\nPassive\nPrimary Fire"
+                                  : field.type === "weapon"
+                                    ? "Hitscan\nProjectile\nBeam"
+                                    : "Tank\nDamage\nSupport"
+                              }
+                              rows={4}
+                              className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white resize-none transition-colors"
+                            />
+                          </>
+                        )}
                       </div>
                     ) : field.type === "object_array" ? (
                       <div className="flex-1 flex flex-col items-center justify-center p-4 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl text-gray-500 dark:text-gray-400 text-xs text-center bg-gray-50/50 dark:bg-gray-900/30">
@@ -911,60 +944,108 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                               {field.subFields!.map((subField, sIndex) => (
                                 <div
                                   key={sIndex}
-                                  className="flex flex-col sm:flex-row gap-3 items-center bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm transition-colors hover:border-gray-300 dark:hover:border-gray-600"
+                                  className="flex flex-col gap-3 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm transition-colors hover:border-gray-300 dark:hover:border-gray-600"
                                 >
-                                  <input
-                                    className="w-full sm:w-1/3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
-                                    placeholder="Label"
-                                    value={subField.label}
-                                    onChange={(e) =>
-                                      handleChangeSubField(
-                                        index,
-                                        sIndex,
-                                        "label",
-                                        e.target.value,
-                                      )
-                                    }
-                                  />
-                                  <input
-                                    className="w-full sm:w-1/3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-mono focus:ring-1 focus:ring-blue-500 transition-colors"
-                                    placeholder="key_internal"
-                                    value={subField.key}
-                                    onChange={(e) =>
-                                      handleChangeSubField(
-                                        index,
-                                        sIndex,
-                                        "key",
-                                        e.target.value,
-                                      )
-                                    }
-                                  />
-                                  <select
-                                    className="w-full sm:w-1/4 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
-                                    value={subField.type}
-                                    onChange={(e) =>
-                                      handleChangeSubField(
-                                        index,
-                                        sIndex,
-                                        "type",
-                                        e.target.value,
-                                      )
-                                    }
-                                  >
-                                    <option value="string">String</option>
-                                    <option value="number">Number</option>
-                                    <option value="boolean">Boolean</option>
-                                  </select>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleRemoveSubField(index, sIndex)
-                                    }
-                                    className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ml-auto"
-                                    title="Remove sub-field"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
+                                  <div className="flex flex-col sm:flex-row gap-3 items-center w-full">
+                                    <input
+                                      className="w-full sm:w-1/3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
+                                      placeholder="Label"
+                                      value={subField.label}
+                                      onChange={(e) =>
+                                        handleChangeSubField(
+                                          index,
+                                          sIndex,
+                                          "label",
+                                          e.target.value,
+                                        )
+                                      }
+                                    />
+                                    <input
+                                      className="w-full sm:w-1/3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-mono focus:ring-1 focus:ring-blue-500 transition-colors"
+                                      placeholder="key_internal"
+                                      value={subField.key}
+                                      onChange={(e) =>
+                                        handleChangeSubField(
+                                          index,
+                                          sIndex,
+                                          "key",
+                                          e.target.value,
+                                        )
+                                      }
+                                    />
+                                    <select
+                                      className="w-full sm:w-1/4 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
+                                      value={subField.type}
+                                      onChange={(e) =>
+                                        handleChangeSubField(
+                                          index,
+                                          sIndex,
+                                          "type",
+                                          e.target.value,
+                                        )
+                                      }
+                                    >
+                                      <option value="string">String</option>
+                                      <option value="number">Number</option>
+                                      <option value="boolean">Boolean</option>
+                                      <option value="enum">Enum (Single Select)</option>
+                                      <option value="list">List (Multiple Select)</option>
+                                    </select>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleRemoveSubField(index, sIndex)
+                                      }
+                                      className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ml-auto"
+                                      title="Remove sub-field"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+
+                                  {(subField.type === "enum" || subField.type === "list") && (
+                                    <div className="w-full mt-1 space-y-3">
+                                      <div>
+                                        <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                                          Global Enum Reference (Optional)
+                                        </label>
+                                        <select
+                                          value={subField.globalEnumId || ""}
+                                          onChange={(e) => {
+                                            handleChangeSubField(index, sIndex, "globalEnumId", e.target.value || undefined);
+                                            if (e.target.value) handleChangeSubField(index, sIndex, "options", undefined);
+                                          }}
+                                          className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
+                                        >
+                                          <option value="">-- No Global Enum (Use Custom Options) --</option>
+                                          {loadedData?.enums?.map((eId: string) => (
+                                            <option key={eId} value={eId}>{eId}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      {!subField.globalEnumId && (
+                                        <div>
+                                          <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                                            Custom Options (One per line)
+                                          </label>
+                                          <textarea
+                                            value={subField.options?.join("\n") || ""}
+                                            onChange={(e) =>
+                                              handleChangeSubField(
+                                                index,
+                                                sIndex,
+                                                "options",
+                                                e.target.value,
+                                              )
+                                            }
+                                            placeholder="Option 1\nOption 2\nOption 3"
+                                            rows={3}
+                                            className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors resize-y"
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>

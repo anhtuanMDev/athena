@@ -773,6 +773,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                 key={f.key}
                 name={f.key}
                 label={f.label}
+                game={game}
                 control={control}
                 register={register}
                 setValue={setValue}
@@ -790,6 +791,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                 <ObjectArrayField
                   name={f.key}
                   label={f.label}
+                  game={game}
                   control={control}
                   register={register}
                   errors={errors}
@@ -798,7 +800,8 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
               </div>
             );
           }
-          if (f.type === "reference" || f.type === "reference_list") {
+          if (f.type === "reference" || f.type === "reference_list" || ((f.type === "enum" || f.type === "list") && f.globalEnumId)) {
+            const isEnumRef = (f.type === "enum" || f.type === "list") && f.globalEnumId;
             return (
               <div className="col-span-1 md:col-span-2" key={f.key}>
                 <Controller
@@ -808,10 +811,10 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                     <EntityReferenceField
                       label={f.label}
                       game={game}
-                      referenceApiEndpoint={f.referenceApiEndpoint}
-                      referenceValueKey={f.referenceValueKey}
-                      referenceLabelKey={f.referenceLabelKey}
-                      multiple={f.type === "reference_list"}
+                      referenceApiEndpoint={isEnumRef ? `/api/{game}/enums/${f.globalEnumId}` : f.referenceApiEndpoint}
+                      referenceValueKey={isEnumRef ? "id" : f.referenceValueKey}
+                      referenceLabelKey={isEnumRef ? "name" : f.referenceLabelKey}
+                      multiple={f.type === "reference_list" || f.type === "list"}
                       required={f.required}
                       error={!!errors[f.key]}
                       helperText={errors[f.key]?.message as string}

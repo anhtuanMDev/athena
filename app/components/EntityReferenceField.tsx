@@ -62,6 +62,15 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
       });
     }, [game, referenceApiEndpoint, referenceValueKey, referenceLabelKey], "EntityReferenceField-21");
 
+    const options = (entities as {id: string, name: string}[]) || [];
+    
+    const [searchQuery, setSearchQuery] = useState("");
+    const filteredOptions = useMemo(() => {
+      if (!searchQuery.trim()) return options;
+      const q = searchQuery.toLowerCase();
+      return options.filter(opt => opt.name.toLowerCase().includes(q) || opt.id.toLowerCase().includes(q));
+    }, [options, searchQuery]);
+
     const valArray = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
     
     if (loading) {
@@ -87,15 +96,6 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
         </div>
       );
     }
-
-    const options = (entities as {id: string, name: string}[]) || [];
-    
-    const [searchQuery, setSearchQuery] = useState("");
-    const filteredOptions = useMemo(() => {
-      if (!searchQuery.trim()) return options;
-      const q = searchQuery.toLowerCase();
-      return options.filter(opt => opt.name.toLowerCase().includes(q) || opt.id.toLowerCase().includes(q));
-    }, [options, searchQuery]);
 
     return (
       <div>

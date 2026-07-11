@@ -279,6 +279,12 @@ export async function onRequest(
       return await handleCommits(context);
     if (path.startsWith("assets/") && request.method === "GET")
       return await handleGetAsset(context);
+      
+    const enumMatch = path.match(/^([^\/]+)\/enums\/([^\/]+)$/);
+    if (enumMatch && request.method === "GET") {
+      return await handleGetEnum(context, enumMatch[1], enumMatch[2]);
+    }
+    
     return json({ error: "Not found" }, 404);
   } catch (err) {
     if (err instanceof AuthError) return json({ error: "Unauthorized" }, 401);
@@ -749,6 +755,66 @@ async function handleCommits(context: PagesFunctionContext): Promise<Response> {
       commits: [],
       error: err instanceof Error ? err.message : "Unknown error",
     });
+  }
+}
+
+async function handleGetEnum(context: PagesFunctionContext, game: string, enumId: string): Promise<Response> {
+  const { request, env } = context;
+  await requireAuth(context);
+
+  const cache = caches.default;
+  const internalOrigin = "https://api.internal";
+  const cacheKey = new Request(`${internalOrigin}/api/${game}/enums/${enumId}`);
+  const cached = await cache.match(cacheKey);
+  if (cached) {
+    const response = new Response(cached.body, {
+      status: cached.status,
+      statusText: cached.statusText,
+      headers: cached.headers,
+    });
+    response.headers.set("Cache-Control", "no-store");
+    return response;
+  }
+
+  assertSafeFilePath(`data/${game}/enums/${enumId}.json`);
+
+  const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
+  const owner = env.GITHUB_OWNER;
+  const repo = env.GITHUB_REPO;
+  const branch = env.GITHUB_BRANCH ?? "main";
+  const path = `data/${game}/enums/${enumId}.json`;
+
+  try {
+    const { data } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path,
+      ref: branch,
+      headers: {
+        "If-None-Match": "",
+        "Cache-Control": "no-cache",
+      },
+    });
+    if ("content" in data && "sha" in data) {
+      const content = JSON.parse(atob(data.content));
+      const cacheableResponse = json(content, 200, {
+        "Cache-Control": "public, max-age=3600",
+      });
+      context.waitUntil?.(cache.put(cacheKey, cacheableResponse));
+      return json(content, 200, {
+        "Cache-Control": "no-store",
+      });
+    }
+    return json({ error: "Not found" }, 404);
+  } catch (err: unknown) {
+    if (
+      err instanceof Error &&
+      "status" in err &&
+      (err as { status: number }).status === 404
+    ) {
+      return json({ error: "Not found" }, 404);
+    }
+    throw err;
   }
 }
 

@@ -6,9 +6,12 @@ import { DynamicSelectField } from "~/components/DynamicSelectField";
 import { MultiImageUploadField } from "~/components/MultiImageUploadField";
 import type { DynamicField } from "~/schemas/dynamic-schema";
 
+import { EntityReferenceField } from "~/components/EntityReferenceField";
+
 interface AbilitiesFieldProps {
   name: string;
   label: string;
+  game: string;
   control: Control<any>;
   register: UseFormRegister<any>;
   setValue: UseFormSetValue<any>;
@@ -19,7 +22,7 @@ interface AbilitiesFieldProps {
   options?: string[];
 }
 
-export function AbilitiesField({ name, label, control, register, setValue, errors, abilityIcons, setAbilityIcons, subFields, options }: AbilitiesFieldProps) {
+export function AbilitiesField({ name, label, game, control, register, setValue, errors, abilityIcons, setAbilityIcons, subFields, options }: AbilitiesFieldProps) {
   const { fields, append, remove } = useFieldArray({
     control,
     name
@@ -139,6 +142,43 @@ export function AbilitiesField({ name, label, control, register, setValue, error
                             );
                           }
                           const paramError = abilityErrors?.params?.[sf.key];
+                          if (sf.type === "reference" || sf.type === "reference_list" || ((sf.type === "enum" || sf.type === "list") && sf.globalEnumId)) {
+                            const isEnumRef = (sf.type === "enum" || sf.type === "list") && sf.globalEnumId;
+                            return (
+                              <Controller
+                                key={sf.key}
+                                name={`${name}.${i}.params.${sf.key}` as const}
+                                control={control}
+                                render={({ field }) => (
+                                  <EntityReferenceField
+                                    label={sf.label}
+                                    game={game}
+                                    referenceApiEndpoint={isEnumRef ? `/api/{game}/enums/${sf.globalEnumId}` : sf.referenceApiEndpoint}
+                                    referenceValueKey={isEnumRef ? "id" : sf.referenceValueKey}
+                                    referenceLabelKey={isEnumRef ? "name" : sf.referenceLabelKey}
+                                    multiple={sf.type === "reference_list" || sf.type === "list"}
+                                    error={!!paramError}
+                                    helperText={paramError?.message as string}
+                                    currentValue={field.value}
+                                    {...field}
+                                  />
+                                )}
+                              />
+                            );
+                          }
+                          if (sf.type === 'enum' || sf.type === 'list') {
+                            return (
+                              <DynamicSelectField
+                                key={sf.key}
+                                label={sf.label}
+                                options={sf.options || []}
+                                multiple={sf.type === 'list'}
+                                {...register(`${name}.${i}.params.${sf.key}`)}
+                                error={!!paramError}
+                                helperText={paramError?.message as string}
+                              />
+                            );
+                          }
                           return (
                             <FormField
                               key={sf.key}
