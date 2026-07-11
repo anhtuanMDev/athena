@@ -173,6 +173,14 @@ export default function EditMap() {
             <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200 mb-4">{submitError}</div>
           )}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            {/* Top Actions */}
+            <div className="flex justify-between items-center border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+              <Button type="button" variant="ghost" onClick={() => window.history.back()}>Cancel</Button>
+              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
+                {submitting ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+
             <input type="hidden" {...register("game")} />
             <input type="hidden" {...register("id")} />
             

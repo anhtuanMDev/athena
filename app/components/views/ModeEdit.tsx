@@ -192,6 +192,7 @@ export default function EditMode() {
             )}
             <div className="flex gap-4 pt-4">
               <form onSubmit={handleDeleteConfirm} className="w-1/2">
+
                 <Button type="submit" variant="destructive" disabled={submitting} className="w-full shadow-lg shadow-red-500/20">
                   {submitting ? "Deleting..." : "Delete Anyway"}
                 </Button>
@@ -216,6 +217,13 @@ export default function EditMode() {
         <CardContent>
           {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800/50 mb-4">{error}</p>}
           <form onSubmit={handleUpdate} className="space-y-5">
+            {/* Top Actions */}
+            <div className="flex justify-between items-center border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+              <Button type="button" variant="ghost" onClick={() => window.history.back()}>Cancel</Button>
+              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
+                {submitting ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
             <FormField name="name" label="Name" defaultValue={m.name} error={!!errors?.name} helperText={errors?.name?.[0]} />
             <FormField name="description" label="Description" defaultValue={m.description ?? ""} required={false} error={!!errors?.description} helperText={errors?.description?.[0]} />
             

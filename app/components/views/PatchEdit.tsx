@@ -154,6 +154,14 @@ export default function EditPatch() {
         <CardContent>
           {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800/50 mb-4">{error}</p>}
           <form onSubmit={handleUpdate} className="space-y-5">
+            {/* Top Actions */}
+            <div className="flex justify-between items-center border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+              <Button type="button" variant="ghost" onClick={() => window.history.back()}>Cancel</Button>
+              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
+                {submitting ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Patch ID</label>
               <p className="mt-1 text-sm font-bold text-gray-900 dark:text-gray-100">{p.patch}</p>

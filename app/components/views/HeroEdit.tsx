@@ -677,6 +677,24 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
         </div>
       )}
 
+      {/* Top Actions */}
+      <div className="flex justify-between items-center border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => navigate(`/${game}/heroes`)}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={submitting || !isDirty}
+          className="shadow-lg shadow-orange-500/20"
+        >
+          {submitting ? "Processing..." : "Preview Changes"}
+        </Button>
+      </div>
+
       {/* AI & File Actions */}
       <div className="flex flex-wrap gap-3 items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded-xl mb-6">
         <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 text-sm font-medium">

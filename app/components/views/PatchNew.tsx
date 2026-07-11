@@ -158,6 +158,14 @@ export default function NewPatch() {
             </div>
           )}
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Top Actions */}
+            <div className="flex justify-between items-center border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+              <Button type="button" variant="ghost" onClick={() => window.history.back()}>Cancel</Button>
+              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
+                {submitting ? "Creating..." : "Create Patch"}
+              </Button>
+            </div>
+
             <FormField
               name="patch"
               label="Patch ID (e.g. 2026.07)"

@@ -1325,8 +1325,8 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
               </div>
             )}
 
-            {fields.length > 0 && (
-              <div className="flex justify-center pt-4">
+                        {fields.length > 0 && (
+              <div className="flex justify-between items-center pt-4">
                 <Button
                   type="button"
                   onClick={handleAddField}
@@ -1334,6 +1334,14 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                   className="border-dashed border-2 rounded-xl shadow-sm bg-white dark:bg-gray-900 px-12"
                 >
                   <Plus className="w-4 h-4 mr-2" /> Add Another Field
+                </Button>
+                <Button
+                  type="submit"
+                  variant="default"
+                  disabled={submitting || (fields?.length === 0)}
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  {submitting ? "Saving..." : "Save Schema"}
                 </Button>
               </div>
             )}

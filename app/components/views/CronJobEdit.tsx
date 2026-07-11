@@ -157,6 +157,14 @@ export default function CronJobEdit() {
   return (
     <div className="w-full py-8 pb-32">
       <form onSubmit={handleCommit} className="space-y-8">
+            {/* Top Actions */}
+            <div className="flex justify-between items-center border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+              <Button type="button" variant="ghost" onClick={() => window.history.back()}>Cancel</Button>
+              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
+                {submitting ? "Saving..." : "Save Cron Job"}
+              </Button>
+            </div>
+
         
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

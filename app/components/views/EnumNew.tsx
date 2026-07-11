@@ -169,6 +169,13 @@ export default function EnumNew() {
               </div>
             )}
 
+            {/* Top Actions */}
+            <div className="flex justify-end border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+              <Button type="submit" variant="default" disabled={submitting}>
+                {submitting ? "Creating..." : "Create Enum"}
+              </Button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 label="Enum Name"
