@@ -367,20 +367,6 @@ async function handleGetFile(context: PagesFunctionContext): Promise<Response> {
   const path = url.searchParams.get("path");
   if (!path) return json({ error: "path is required" }, 400);
 
-  const cache = caches.default;
-  const internalOrigin = "https://api.internal";
-  const cacheKey = new Request(`${internalOrigin}/api/data/file?path=${encodeURIComponent(path)}`);
-  const cached = await cache.match(cacheKey);
-  if (cached) {
-    const response = new Response(cached.body, {
-      status: cached.status,
-      statusText: cached.statusText,
-      headers: cached.headers,
-    });
-    response.headers.set("Cache-Control", "no-store");
-    return response;
-  }
-
   assertSafeFilePath(path);
 
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
@@ -405,10 +391,6 @@ async function handleGetFile(context: PagesFunctionContext): Promise<Response> {
         content = JSON.parse(atob(data.content));
       }
       const payload = { sha: data.sha, content };
-      const cacheableResponse = json(payload, 200, {
-        "Cache-Control": "public, max-age=3600",
-      });
-      context.waitUntil?.(cache.put(cacheKey, cacheableResponse));
       return json(payload, 200, {
         "Cache-Control": "no-store",
       });
@@ -636,6 +618,10 @@ async function handleListGames(request: Request, env: Env): Promise<Response> {
       repo,
       path: "data/_meta/games.json",
       ref: branch,
+      headers: {
+        "If-None-Match": "",
+        "Cache-Control": "no-cache",
+      },
     });
     if ("content" in data && "sha" in data) {
       const decoded = atob(data.content);
@@ -666,6 +652,10 @@ async function handleDashboardData(context: PagesFunctionContext): Promise<Respo
       repo,
       path: "data/_meta/games.json",
       ref: branch,
+      headers: {
+        "If-None-Match": "",
+        "Cache-Control": "no-cache",
+      },
     });
     let games = [];
     if ("content" in data && "sha" in data) {
@@ -762,20 +752,6 @@ async function handleGetEnum(context: PagesFunctionContext, game: string, enumId
   const { request, env } = context;
   await requireAuth(context);
 
-  const cache = caches.default;
-  const internalOrigin = "https://api.internal";
-  const cacheKey = new Request(`${internalOrigin}/api/${game}/enums/${enumId}`);
-  const cached = await cache.match(cacheKey);
-  if (cached) {
-    const response = new Response(cached.body, {
-      status: cached.status,
-      statusText: cached.statusText,
-      headers: cached.headers,
-    });
-    response.headers.set("Cache-Control", "no-store");
-    return response;
-  }
-
   assertSafeFilePath(`data/${game}/enums/${enumId}.json`);
 
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
@@ -797,10 +773,6 @@ async function handleGetEnum(context: PagesFunctionContext, game: string, enumId
     });
     if ("content" in data && "sha" in data) {
       const content = JSON.parse(atob(data.content));
-      const cacheableResponse = json(content, 200, {
-        "Cache-Control": "public, max-age=3600",
-      });
-      context.waitUntil?.(cache.put(cacheKey, cacheableResponse));
       return json(content, 200, {
         "Cache-Control": "no-store",
       });
