@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate, useParams } from "react-router";
 import { assertSafeGameSlug } from "~/lib/safe-path";
@@ -89,7 +89,7 @@ export default function EnumNew() {
     setValue,
     formState: { errors, touchedFields },
   } = useForm<GlobalEnum>({
-    resolver: zodResolver(EnumSchema),
+    resolver: zodResolver(EnumSchema) as any,
     defaultValues: {
       id: "",
       name: "",
@@ -280,6 +280,35 @@ export default function EnumNew() {
                           errors.options?.[index]?.description
                             ?.message as string
                         }
+                      />
+                      <Controller
+                        control={control}
+                        name={`options.${index}.params` as const}
+                        render={({ field: { value, onChange, onBlur } }) => (
+                          <div className="space-y-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Sub-Field Params (JSON Array)
+                            </label>
+                            <textarea
+                              className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-mono shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                              rows={3}
+                              placeholder='[{"key": "damage", "type": "number", "label": "Damage"}]'
+                              defaultValue={value ? JSON.stringify(value, null, 2) : ""}
+                              onBlur={(e) => {
+                                try {
+                                  const parsed = e.target.value.trim() ? JSON.parse(e.target.value) : undefined;
+                                  onChange(parsed);
+                                } catch (err) {
+                                  // Invalid JSON will just fail Zod validation later
+                                }
+                                onBlur();
+                              }}
+                            />
+                            {errors.options?.[index]?.params && (
+                              <p className="text-xs text-red-500 mt-1">Invalid JSON or schema</p>
+                            )}
+                          </div>
+                        )}
                       />
                     </div>
                     <Button
