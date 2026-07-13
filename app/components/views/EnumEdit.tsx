@@ -27,7 +27,9 @@ export default function EnumEdit() {
   const cacheKey = `${game}-enum-${id}`;
 
   // Always fetch fresh data — enums may have been updated since last visit
-  clearDataCache(cacheKey);
+  useEffect(() => {
+    clearDataCache(cacheKey);
+  }, [cacheKey]);
 
   const {
     data: enumResult,

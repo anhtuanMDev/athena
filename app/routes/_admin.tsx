@@ -6,6 +6,8 @@ import { listGames } from "~/lib/github";
 import { SidebarNav } from "~/components/SidebarNav";
 import { useData } from "~/lib/use-data";
 
+import { ReauthModal } from "~/components/ReauthModal";
+
 export default function AdminLayout() {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -18,8 +20,12 @@ export default function AdminLayout() {
   }, [], "_admin-13");
 
   useEffect(() => {
-    if (error instanceof Error && error.message === "unauthorized") {
-      navigate("/login");
+    if (error instanceof Error && (error.message === "unauthorized" || error.message.includes("Unauthorized"))) {
+      if (typeof window !== "undefined" && localStorage.getItem("has_session") === "true") {
+        window.dispatchEvent(new CustomEvent("AUTH_EXPIRED"));
+      } else {
+        navigate("/login");
+      }
     }
   }, [error, navigate]);
 
@@ -38,6 +44,7 @@ export default function AdminLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-[#030712] selection:bg-orange-500/30">
+      <ReauthModal />
       {/* Background ambient glow */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-orange-500/10 rounded-full blur-[100px]" />

@@ -34,7 +34,11 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
   if (!res.ok) {
     if (res.status === 401) {
       if (typeof window !== "undefined") {
-        window.location.href = "/login";
+        if (localStorage.getItem("has_session") === "true") {
+          window.dispatchEvent(new CustomEvent("AUTH_EXPIRED"));
+        } else {
+          window.location.href = "/login";
+        }
       }
       throw new Error("Unauthorized: Session expired.");
     }
