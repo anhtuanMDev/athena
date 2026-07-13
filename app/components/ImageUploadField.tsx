@@ -9,7 +9,12 @@ interface ImageUploadFieldProps {
 }
 
 export function ImageUploadField({ label, onFileSelect, defaultPreview, className = "" }: ImageUploadFieldProps) {
-  const [preview, setPreview] = useState<string | null>(defaultPreview || null);
+  let initialPreview = defaultPreview || null;
+  if (initialPreview && initialPreview.startsWith("/assets/")) {
+    initialPreview = `/api${initialPreview}`;
+  }
+
+  const [preview, setPreview] = useState<string | null>(initialPreview);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

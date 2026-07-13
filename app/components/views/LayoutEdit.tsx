@@ -170,7 +170,7 @@ export default function LayoutEdit() {
 
         <div className="flex gap-8 items-start justify-center">
           {/* Mobile Canvas */}
-          <div className="w-[393px] h-[852px] bg-gray-50 dark:bg-[#0B1324] border-[12px] border-gray-900 rounded-[3rem] overflow-y-auto shadow-2xl shrink-0 flex flex-col relative custom-scrollbar">
+          <div className="w-[393px] h-[852px] bg-gray-50 dark:bg-[#0B1324] border-12 border-gray-900 rounded-[3rem] overflow-y-auto shadow-2xl shrink-0 flex flex-col relative custom-scrollbar">
             {/* Phone Notch */}
             <div className="sticky top-0 inset-x-0 h-7 bg-gray-900 rounded-b-3xl mx-auto w-40 z-10 mb-2"></div>
             

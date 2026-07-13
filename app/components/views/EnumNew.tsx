@@ -4,7 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate, useParams } from "react-router";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useToast } from "~/components/ToastProvider";
-import { createFile } from "~/lib/github";
+import { createFile, uploadAsset } from "~/lib/github";
+import { ImageUploadField } from "~/components/ImageUploadField";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { FormField } from "~/components/FormField";
 import { Button } from "~/components/ui/button";
@@ -230,6 +231,7 @@ export default function EnumNew() {
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [iconUploads, setIconUploads] = useState<Record<number, { name: string; base64: string }>>({});
 
   const {
     register,
@@ -279,6 +281,30 @@ export default function EnumNew() {
           `Duplicate option ID${duplicates.length > 1 ? "s" : ""}: ${[...new Set(duplicates)].join(", ")}`,
         );
       }
+
+      // Upload Icons
+      const uploads = [];
+      for (const indexStr of Object.keys(iconUploads)) {
+        const index = parseInt(indexStr);
+        const upload = iconUploads[index];
+        const option = data.options[index];
+        
+        const ext = upload.name.split(".").pop();
+        const uploadPath = `public/assets/${game}/enums/${data.id}/${option.id}.${ext}`;
+        
+        uploads.push(
+          uploadAsset(
+            uploadPath,
+            upload.base64,
+            undefined,
+            `Upload icon for enum ${data.id} option ${option.id}`
+          )
+        );
+        
+        option.icon = `/api/${uploadPath.replace("public/", "")}`;
+      }
+
+      if (uploads.length > 0) await Promise.all(uploads);
 
       await createFile(
         `data/${game}/enums/${data.id}.json`,
@@ -434,14 +460,25 @@ export default function EnumNew() {
                           />
                         </div>
                         <div>
-                          <FormField
-                            label="Icon (Optional)"
-                            placeholder="/icons/item.png"
-                            {...register(`options.${index}.icon` as const)}
-                            error={!!errors.options?.[index]?.icon}
-                            helperText={
-                              errors.options?.[index]?.icon?.message as string
-                            }
+                          <Controller
+                            control={control}
+                            name={`options.${index}.icon`}
+                            render={({ field }) => (
+                              <ImageUploadField
+                                label="Icon (Optional)"
+                                defaultPreview={field.value}
+                                onFileSelect={(file) => {
+                                  if (file) {
+                                    setIconUploads((prev) => ({ ...prev, [index]: file }));
+                                  } else {
+                                    const newUploads = { ...iconUploads };
+                                    delete newUploads[index];
+                                    setIconUploads(newUploads);
+                                    field.onChange("");
+                                  }
+                                }}
+                              />
+                            )}
                           />
                         </div>
                       </div>

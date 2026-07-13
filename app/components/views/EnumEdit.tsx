@@ -14,7 +14,8 @@ import { useData } from "~/lib/use-data";
 import { DiffView } from "~/components/DiffView";
 import { computeDiff } from "~/lib/diff";
 import type { DiffEntry } from "~/lib/diff";
-import { isConflictError, updateFile, getFile } from "~/lib/github";
+import { isConflictError, updateFile, getFile, getFileSha, uploadAsset } from "~/lib/github";
+import { ImageUploadField } from "~/components/ImageUploadField";
 import { clearDataCache } from "~/lib/use-data";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { EmptyState } from "~/components/ui/EmptyState";
@@ -314,6 +315,7 @@ function EditEnumForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submittingCommit, setSubmittingCommit] = useState(false);
+  const [iconUploads, setIconUploads] = useState<Record<number, { name: string; base64: string }>>({});
 
   const defaultValues = useMemo(() => {
     return { ...enumData };
@@ -359,6 +361,16 @@ function EditEnumForm({
       }
 
       const parsed = EnumSchema.parse(formData);
+      
+      // Merge upload changes into parsed preview so diff is correct
+      for (const indexStr of Object.keys(iconUploads)) {
+        const index = parseInt(indexStr);
+        const upload = iconUploads[index];
+        const option = parsed.options[index];
+        const ext = upload.name.split(".").pop();
+        option.icon = `/api/assets/${game}/enums/${id}/${option.id}.${ext}`;
+      }
+
       const diffs = computeDiff(enumData, parsed);
       setPreview({ diffs, enumJson: JSON.stringify(parsed), sha });
     } catch (err) {
@@ -383,6 +395,32 @@ function EditEnumForm({
         toastError("Validation failed on commit");
         return;
       }
+
+      // Upload Icons
+      const uploads = [];
+      for (const indexStr of Object.keys(iconUploads)) {
+        const index = parseInt(indexStr);
+        const upload = iconUploads[index];
+        const option = parsed.data.options[index];
+        
+        const ext = upload.name.split(".").pop();
+        const uploadPath = `public/assets/${game}/enums/${id}/${option.id}.${ext}`;
+        
+        const assetSha = await getFileSha(uploadPath).catch(() => undefined);
+        
+        uploads.push(
+          uploadAsset(
+            uploadPath,
+            upload.base64,
+            assetSha || undefined,
+            `Update icon for enum ${id} option ${option.id}`
+          )
+        );
+        
+        option.icon = `/api/${uploadPath.replace("public/", "")}`;
+      }
+
+      if (uploads.length > 0) await Promise.all(uploads);
 
       await updateFile(
         `data/${game}/enums/${id}.json`,
@@ -565,14 +603,25 @@ function EditEnumForm({
                     />
                   </div>
                   <div>
-                    <FormField
-                      label="Icon (Optional)"
-                      placeholder="/icons/item.png"
-                      {...register(`options.${index}.icon` as const)}
-                      error={!!errors.options?.[index]?.icon}
-                      helperText={
-                        errors.options?.[index]?.icon?.message as string
-                      }
+                    <Controller
+                      control={control}
+                      name={`options.${index}.icon`}
+                      render={({ field }) => (
+                        <ImageUploadField
+                          label="Icon (Optional)"
+                          defaultPreview={field.value}
+                          onFileSelect={(file) => {
+                            if (file) {
+                              setIconUploads((prev) => ({ ...prev, [index]: file }));
+                            } else {
+                              const newUploads = { ...iconUploads };
+                              delete newUploads[index];
+                              setIconUploads(newUploads);
+                              field.onChange("");
+                            }
+                          }}
+                        />
+                      )}
                     />
                   </div>
                 </div>
