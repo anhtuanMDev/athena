@@ -239,6 +239,10 @@ function triggerCachePurge(context: PagesFunctionContext, path: string) {
 
   urlsToPurge.push(`${internalOrigin}/api/data/file?path=${encodeURIComponent(path)}`);
 
+  // Invalidate mobile cache when global data changes
+  if (path === "data/_meta/games.json" || path.includes("/schemas/") || path.includes("/enums/")) {
+    urlsToPurge.push(`${internalOrigin}/mobile/init`);
+  }
 
   const promise = Promise.all(
     urlsToPurge.map(u => cache.delete(u))
