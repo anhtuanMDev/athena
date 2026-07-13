@@ -1,7 +1,7 @@
 # Mobile API Context
 
 ## Overview
-The Athena project serves not just as an administration panel but also acts as the backend for the Athena Mobile App. To accommodate the mobile app efficiently, we maintain a dedicated API layer prefix `/mobile/` (implemented via Cloudflare Pages Functions in `functions/mobile/`).
+The Mobile API is strictly separate from the admin panel activities. While the admin application is focused on behaviors to review, add, and edit game data, the Mobile API (prefixed with `/mobile/` and implemented via Cloudflare Pages Functions in `functions/mobile/`) is exclusively designed for the mobile app to consume. Its primary purpose is to efficiently serve and display game information for players to see.
 
 This document outlines the architecture, caching strategies, and specific endpoint details for the Mobile API.
 
@@ -62,6 +62,38 @@ Since the admin panel allows users to create entirely custom Dynamic Schemas and
     ]
   }
 }
+```
+
+### `GET /mobile/data`
+
+**Purpose**: 
+To fetch the actual entity records (e.g., heroes, maps, gameplay elements) corresponding to the schemas. This endpoint is used by the mobile app to populate the UI with the detailed content that players will view.
+
+**Data Sourced**:
+- **Entity Records**: Dynamically fetches the JSON data arrays containing the instances for a specific schema within a specific game.
+
+**Request Parameters**: 
+- `gameId` (Query Parameter): The ID of the game (e.g., `overwatch`).
+- `schemaId` (Query Parameter): The ID of the schema to retrieve data for (e.g., `hero_base`, `map_data`).
+
+**Response Structure**:
+Returns an array of JSON objects. Each object represents a single entity record matching the requested schema.
+
+```json
+[
+  {
+    "id": "tracer",
+    "name": "Tracer",
+    "role": "damage",
+    "health": 175
+  },
+  {
+    "id": "reinhardt",
+    "name": "Reinhardt",
+    "role": "tank",
+    "health": 600
+  }
+]
 ```
 
 ---
