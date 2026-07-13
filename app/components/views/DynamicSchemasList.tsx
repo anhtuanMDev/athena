@@ -124,12 +124,19 @@ export default function SchemasList() {
                 <p className="text-sm text-gray-500 mb-4">
                   {schema.fields?.length || 0} fields configured
                 </p>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-3">
                   <Link
                     to={`/${game}/schemas/${schema.id}`}
                     className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 font-medium"
                   >
                     Edit Schema
+                  </Link>
+                  <span className="text-gray-300 dark:text-gray-700">•</span>
+                  <Link
+                    to={`/${game}/layouts/${schema.id}`}
+                    className="text-sm text-orange-600 hover:text-orange-800 dark:text-orange-400 font-medium flex items-center gap-1"
+                  >
+                    Edit App Layout
                   </Link>
                 </div>
                 <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">

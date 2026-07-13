@@ -43,6 +43,10 @@ import CronJobEdit from "~/components/views/CronJobEdit";
 import CronJobNew from "~/components/views/CronJobNew";
 import CronJobsList from "~/components/views/CronJobsList";
 
+// Layouts
+import LayoutEdit from "~/components/views/LayoutEdit";
+import LayoutsList from "~/components/views/LayoutsList";
+
 export default function GameDashboardRouter() {
   const params = useParams();
   const splat = params["*"] || "";
@@ -112,6 +116,22 @@ export default function GameDashboardRouter() {
         <RawEdit />
       </PanelTransition>
     );
+
+  // Route: /:game/layouts/:id
+  if (entity === "layouts") {
+    if (!idOrAction) {
+      return (
+        <PanelTransition>
+          <LayoutsList />
+        </PanelTransition>
+      );
+    }
+    return (
+      <PanelTransition>
+        <LayoutEdit />
+      </PanelTransition>
+    );
+  }
 
   const renderContent = () => {
     switch (entity) {

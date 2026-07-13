@@ -240,7 +240,7 @@ function triggerCachePurge(context: PagesFunctionContext, path: string) {
   urlsToPurge.push(`${internalOrigin}/api/data/file?path=${encodeURIComponent(path)}`);
 
   // Invalidate mobile cache when global data changes
-  if (path === "data/_meta/games.json" || path.includes("/schemas/") || path.includes("/enums/")) {
+  if (path === "data/_meta/games.json" || path.includes("/schemas/") || path.includes("/enums/") || path.includes("/layouts/")) {
     urlsToPurge.push(`${internalOrigin}/mobile/init_v2`);
   }
 
@@ -392,7 +392,7 @@ async function handleGetFile(context: PagesFunctionContext): Promise<Response> {
     if ("content" in data && "sha" in data) {
       let content: unknown = data.content;
       if (path.endsWith(".json")) {
-        content = JSON.parse(atob(data.content));
+        content = JSON.parse(atob(data.content.replace(/\n/g, '')));
       }
       const payload = { sha: data.sha, content };
       return json(payload, 200, {
@@ -578,7 +578,7 @@ async function handleListDirectory(
                 fileData.type === "file" &&
                 "content" in fileData
               ) {
-                const decoded = atob(fileData.content);
+                const decoded = atob(fileData.content.replace(/\n/g, ''));
                 const parsed = JSON.parse(decoded);
                 if (keysOnly) {
                   const filtered: Record<string, unknown> = {};
@@ -604,7 +604,8 @@ async function handleListDirectory(
       });
     }
     return json([]);
-  } catch {
+  } catch (err) {
+    console.error("handleListDirectory error:", err);
     return json([]);
   }
 }
@@ -628,7 +629,7 @@ async function handleListGames(request: Request, env: Env): Promise<Response> {
       },
     });
     if ("content" in data && "sha" in data) {
-      const decoded = atob(data.content);
+      const decoded = atob(data.content.replace(/\n/g, ''));
       const parsed = JSON.parse(decoded);
       return json(parsed.games ?? []);
     }
@@ -663,7 +664,7 @@ async function handleDashboardData(context: PagesFunctionContext): Promise<Respo
     });
     let games = [];
     if ("content" in data && "sha" in data) {
-      games = JSON.parse(atob(data.content)).games ?? [];
+      games = JSON.parse(atob(data.content.replace(/\n/g, ''))).games ?? [];
     }
 
     const { data: branchData } = await octokit.repos.getBranch({ owner, repo, branch });
@@ -776,7 +777,7 @@ async function handleGetEnum(context: PagesFunctionContext, game: string, enumId
       },
     });
     if ("content" in data && "sha" in data) {
-      const content = JSON.parse(atob(data.content));
+      const content = JSON.parse(atob(data.content.replace(/\n/g, '')));
       return json(content, 200, {
         "Cache-Control": "no-store",
       });

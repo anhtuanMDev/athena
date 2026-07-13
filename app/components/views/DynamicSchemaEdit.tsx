@@ -17,6 +17,7 @@ import {
   FileJson,
   Copy,
   Check,
+  LayoutTemplate,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -533,6 +534,15 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
           </div>
 
           <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 w-full md:w-auto">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate(`/${game}/layouts/${id}`)}
+              className="border-blue-500 text-blue-600 hover:bg-blue-50 w-full sm:w-auto"
+            >
+              <LayoutTemplate className="w-4 h-4 mr-2" />
+              Edit App Layout
+            </Button>
             <Button
               type="button"
               variant="ghost"

@@ -1,137 +1,68 @@
-# Mobile API Context
+# Mobile API & Architecture Context
 
 ## Overview
-The Mobile API is strictly separate from the admin panel activities. While the admin application is focused on behaviors to review, add, and edit game data, the Mobile API (prefixed with `/mobile/` and implemented via Cloudflare Pages Functions in `functions/mobile/`) is exclusively designed for the mobile app to consume. Its primary purpose is to efficiently serve and display game information for players to see.
+The Mobile API is specifically designed to feed a **Schema-Driven UI (Server-Driven UI)** React Native application. The mobile app acts as a generic "renderer" that downloads configuration blueprints (schemas, enums, layouts) and raw data, allowing the Admin Panel to entirely dictate what displays, in what order, without requiring App Store updates.
 
-This document outlines the architecture, caching strategies, and specific endpoint details for the Mobile API.
-
----
-
-## 1. Core Endpoints
-
-### `GET /mobile/init`
-
-**Purpose**: 
-To retrieve all the global initialization values required by the mobile app upon startup. This drastically reduces the number of API calls the mobile app needs to make by aggregating the configuration of all active games into a single response.
-
-**Data Sourced**:
-- **Games**: Fetches the core `games.json` list and rigorously filters it to only return games where `active` is not strictly `false`.
-- **Schemas**: For every active game, it dynamically fetches and parses all JSON files inside the `data/{game.id}/schemas/` directory.
-- **Enums**: For every active game, it fetches and parses all JSON files inside the `data/{game.id}/enums/` directory.
-
-**Request Parameters**: 
-- None. (Currently a parameter-less global initialization endpoint).
-
-**Response Structure (Highly Dynamic)**:
-Since the admin panel allows users to create entirely custom Dynamic Schemas and Global Enums, the response is inherently dynamic. The mobile app must be prepared to parse schema `fields` array and resolve `globalEnumId` references dynamically.
-
-```json
-{
-  "games": [
-    {
-      "id": "overwatch",
-      "name": "Overwatch 2",
-      "active": true
-    }
-  ],
-  "schemas": {
-    "overwatch": [
-      {
-        "id": "hero_base",
-        "name": "Hero Base Schema",
-        "category": "hero",
-        "fields": [
-          {
-            "key": "role",
-            "type": "enum",
-            "globalEnumId": "hero_roles"
-          }
-        ]
-      }
-    ]
-  },
-  "enums": {
-    "overwatch": [
-      {
-        "id": "hero_roles",
-        "name": "Hero Roles",
-        "options": [
-          { "id": "tank", "label": "Tank", "icon": "/api/assets/..." }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### `GET /mobile/data`
-
-**Purpose**: 
-To fetch the actual entity records (e.g., heroes, maps, gameplay elements) corresponding to the schemas. This endpoint is used by the mobile app to populate the UI with the detailed content that players will view.
-
-**Data Sourced**:
-- **Entity Records**: Dynamically fetches the JSON data arrays containing the instances for a specific schema within a specific game.
-
-**Request Parameters**: 
-- `gameId` (Query Parameter): The ID of the game (e.g., `overwatch`).
-- `schemaId` (Query Parameter): The ID of the schema to retrieve data for (e.g., `hero_base`, `map_data`).
-
-**Response Structure**:
-Returns an array of JSON objects. Each object represents a single entity record matching the requested schema.
-
-```json
-[
-  {
-    "id": "tracer",
-    "name": "Tracer",
-    "role": "damage",
-    "health": 175
-  },
-  {
-    "id": "reinhardt",
-    "name": "Reinhardt",
-    "role": "tank",
-    "health": 600
-  }
-]
-```
+This document outlines the API calling flow, the offline-first caching strategy, and what specifically belongs in the local device storage (MMKV).
 
 ---
 
-## 2. Advanced Caching Architecture
+## 1. App Startup (The Initial Boot)
 
-Because `/mobile/init` aggregates multiple files directly from the GitHub Repository via the Octokit REST API, generating this response on the fly for every single mobile app startup would quickly exceed GitHub API Rate Limits and result in extremely slow mobile load times.
+When the app launches, it needs to know what games exist, what the data structures look like (schemas), how to resolve dropdowns (enums), and exactly how to visually render screens (layouts).
 
-To solve this, a specialized caching architecture is employed:
-
-### The Workers Cache API
-The response payload is aggressively cached using Cloudflare's internal Workers Cache API (`caches.default`). 
-- **Cache Key**: `https://api.internal/mobile/init` (an internal pseudo-URL strictly used for cache matching).
-- **TTL**: 1 Year (`max-age=31536000`).
-
-### Bypassing the Edge CDN
-If we sent `Cache-Control: public, max-age=31536000` to the mobile client, Cloudflare's Edge CDN (and the mobile browser/OS network layer itself) would intercept requests and return the stale response. Purging the Edge CDN programmatically requires Zone-level API tokens, which we want to avoid.
-- **Solution**: The Pages Function modifies the final `Response` to the client to send `"Cache-Control": "no-store"`.
-- **Result**: The mobile client's HTTP request ALWAYS reaches our Cloudflare Worker. The Worker then checks the internal `caches.default`, finds the 1-year cached response, and returns it instantly.
+* **API Call:** `GET /mobile/init_v2`
+* **Flow:** The app hits the Cloudflare Worker, which instantly returns a 1-year cached configuration payload containing all `.json` files from `data/_meta/`, `data/{game}/schemas`, `data/{game}/enums`, and `data/{game}/layouts`.
+* **MMKV Strategy: `STORE FULLY`**
+  * Save this entire payload in MMKV (e.g., under the key `global_config`). 
+  * **Why:** This data dictates the entire layout and structure of the app. By storing it in MMKV, the app boots *instantly* offline. On boot, the app immediately reads MMKV to populate the UI navigation, and fires off a background request to `/mobile/init_v2`. If the JSON payload differs, it silently updates MMKV and triggers a re-render.
 
 ---
 
-## 3. Cache Invalidation (Admin Integration)
+## 2. Category List Screen (e.g., "Overwatch Heroes" or "Valorant Maps")
 
-Because the Worker holds the cache indefinitely, we must actively purge it when data changes in the Admin Panel. 
+When a user navigates to a specific list of entities, the app needs the actual content.
 
-This is handled inside `functions/api/[[path]].ts` within the `triggerCachePurge()` function.
-Whenever a user modifies `data/_meta/games.json` or edits/creates any file under the `/schemas/` or `/enums/` paths via the admin dashboard, the API intercepts the change and executes:
-```typescript
-cache.delete("https://api.internal/mobile/init")
-```
-
-This seamlessly drops the stale configuration. The very next time a mobile app opens and requests `/mobile/init`, the Worker will experience a cache miss, re-fetch all the latest data from GitHub, and store the newly generated configuration in the internal cache.
+* **API Call:** `GET /mobile/data?game={gameId}&entity={schemaId}` (e.g., `game=overwatch&entity=hero_base`)
+* **Flow:** The endpoint reads the GitHub folder (e.g., `data/overwatch/hero_base/*.json`) and returns an array of all entity records belonging to that schema.
+* **MMKV Strategy: `STORE FULLY`**
+  * Store the resulting array under a dynamic MMKV key like `data_overwatch_hero_base`.
+  * **Why:** To provide an offline-first dossier experience. When the user taps the "Heroes" tab, instantly read the array from MMKV and render the `<FlatList>`. Fetch the API in the background and silently update MMKV (and the list) if new heroes or balance changes were pushed.
 
 ---
 
-## 4. Notes & Restrictions
+## 3. Entity Detail Screen (Heroes, Maps, Modes, Events, Patches, etc.)
 
-1. **Authentication**: The mobile API endpoints are currently strictly **Read-Only** and unauthenticated. Do not expose sensitive data inside schemas, enums, or game metadata.
-2. **Rate Limiting**: Currently, `/mobile/init` is not strictly rate-limited against DDoS attacks (unlike the admin login endpoint). However, because it serves statically from the internal Workers cache, it is highly resilient to traffic spikes. If write-endpoints are ever added for Mobile, strict Rate Limit KV checks must be implemented.
-3. **Inactive Games**: Data for games where `active: false` is strictly excluded. The mobile API guarantees that mobile clients will not receive schemas or enums for hidden/inactive games, saving bandwidth and preventing accidental data leakage.
+When a user taps an item in **any** list to view its full dossier.
+
+* **API Call:** `NONE` 
+* **Flow:** Because `GET /mobile/data` fetched the full array of entities for that category, the specific record (whether it's Tracer, the King's Row map, a Deathmatch mode, or Patch 2.0) is already downloaded on the device.
+  1. Extract the specific data record from your MMKV store (e.g., from `data_overwatch_maps`).
+  2. Extract the layout configuration for that specific category (e.g., `maps`) from your `global_config` in MMKV.
+  3. Pass both to your universal renderer component: `<SchemaRenderer layout={layoutConfig} data={entityRecord} />`.
+* **MMKV Strategy: `N/A`** 
+  * No new caching is needed here, as the Category List step already cached all the necessary data.
+
+**Crucial Concept:** The React Native app *does not have* a `MapScreen.tsx`, `ModeScreen.tsx`, or `PatchScreen.tsx`. It only has a generic `EntityDetailScreen.tsx` that blindly maps the layout JSON over the data JSON. This is why adding a new category like "Events" requires absolutely zero app code changes!
+
+---
+
+## 4. Images & Media Assets (e.g., Portraits, Ability Icons)
+
+The JSON payloads only contain relative paths or URLs to images (e.g., `/api/assets/heroes/tracer.png`).
+
+* **API Call:** `GET /api/assets/...`
+* **MMKV Strategy: `DO NOT STORE`**
+  * **Why:** MMKV is an ultra-fast synchronous key-value store meant for text/JSON. Stuffing raw base64 or binary image data into it will bloat the memory map, crash the app, and degrade performance.
+  * **Solution:** Use native image caching mechanisms. Use a library like `react-native-fast-image` or `expo-image`. These libraries will download the image once and cache it in the device's native file system (not MMKV), ensuring instant loads on subsequent views.
+
+---
+
+## Cache Invalidation (Admin Integration)
+
+Because the Cloudflare Worker holds the `/mobile/init_v2` payload indefinitely (to save GitHub rate limits), it must be actively purged when data changes. 
+
+Inside `functions/api/[[path]].ts` within the `triggerCachePurge()` function:
+Whenever an Admin modifies `data/_meta/games.json` or edits/creates any file under the `/schemas/`, `/enums/`, or `/layouts/` paths via the dashboard, the API intercepts the change and executes a purge on the internal cache key.
+
+This ensures the mobile app always receives the latest structural blueprints the next time it boots up, without manual intervention.

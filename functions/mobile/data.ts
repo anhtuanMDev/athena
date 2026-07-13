@@ -58,7 +58,7 @@ export async function onRequest(context: any): Promise<Response> {
         try {
           const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
           if (!Array.isArray(fileReq.data) && fileReq.data.type === "file" && "content" in fileReq.data) {
-            return JSON.parse(atob(fileReq.data.content));
+            return JSON.parse(atob(fileReq.data.content.replace(/\n/g, '')));
           }
         } catch (e) {
           // ignore individual file errors

@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ChevronDown,
   List,
+  LayoutTemplate,
 } from "lucide-react";
 import React, { useState } from "react";
 
@@ -172,6 +173,7 @@ function CollapsibleGameSection({
     isActive(`/${game.slug}/patches`) ||
     isActive(`/${game.slug}/items`) ||
     isActive(`/${game.slug}/schemas`) ||
+    isActive(`/${game.slug}/layouts`) ||
     isActive(`/${game.slug}/enums`) ||
     isActive(`/${game.slug}/cron`);
 
@@ -255,6 +257,14 @@ function CollapsibleGameSection({
           label="Schemas"
           icon={Database}
           isActive={isActive(`/${game.slug}/schemas`)}
+          onClick={onClose}
+          primaryColor={game.primaryColor}
+        />
+        <NavLink
+          href={`/${game.slug}/layouts`}
+          label="App Layouts"
+          icon={LayoutTemplate}
+          isActive={isActive(`/${game.slug}/layouts`)}
           onClick={onClose}
           primaryColor={game.primaryColor}
         />

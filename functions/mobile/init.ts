@@ -47,8 +47,8 @@ export async function onRequest(context: any): Promise<Response> {
     });
     
     let games: any[] = [];
-    if ("content" in (gamesData as any) && "sha" in (gamesData as any)) {
-      const decoded = atob((gamesData as any).content);
+    if ("content" in (gamesData as any)) {
+      const decoded = atob((gamesData as any).content.replace(/\n/g, ''));
       const parsed = JSON.parse(decoded);
       games = parsed.games ?? [];
     }
@@ -58,12 +58,14 @@ export async function onRequest(context: any): Promise<Response> {
     
     const schemas: Record<string, any[]> = {};
     const enums: Record<string, any[]> = {};
+    const layouts: Record<string, any[]> = {};
 
-    // 2. Fetch schemas and enums for each active game
+    // 2. Fetch schemas, enums, and layouts for each active game
     await Promise.all(activeGames.map(async (game) => {
       const gameId = game.slug || game.id;
       schemas[gameId] = [];
       enums[gameId] = [];
+      layouts[gameId] = [];
       
       try {
         // Fetch schemas directory
@@ -75,7 +77,7 @@ export async function onRequest(context: any): Promise<Response> {
           const chunkResults = await Promise.all(files.map(async (entry) => {
             const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
             if (!Array.isArray(fileReq.data) && fileReq.data.type === "file" && "content" in fileReq.data) {
-              return JSON.parse(atob(fileReq.data.content));
+              return JSON.parse(atob(fileReq.data.content.replace(/\n/g, '')));
             }
             return null;
           }));
@@ -95,11 +97,31 @@ export async function onRequest(context: any): Promise<Response> {
           const chunkResults = await Promise.all(files.map(async (entry) => {
             const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
             if (!Array.isArray(fileReq.data) && fileReq.data.type === "file" && "content" in fileReq.data) {
-              return JSON.parse(atob(fileReq.data.content));
+              return JSON.parse(atob(fileReq.data.content.replace(/\n/g, '')));
             }
             return null;
           }));
           enums[gameId] = chunkResults.filter(Boolean);
+        }
+      } catch (e) {
+        // Ignore if directory doesn't exist
+      }
+
+      try {
+        // Fetch layouts directory
+        const { data: layoutFiles } = await octokit.repos.getContent({
+          owner, repo, path: `data/${gameId}/layouts`, ref: branch,
+        });
+        if (Array.isArray(layoutFiles)) {
+          const files = layoutFiles.filter(entry => entry.type === "file" && entry.name.endsWith(".json"));
+          const chunkResults = await Promise.all(files.map(async (entry) => {
+            const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
+            if (!Array.isArray(fileReq.data) && fileReq.data.type === "file" && "content" in fileReq.data) {
+              return JSON.parse(atob(fileReq.data.content.replace(/\n/g, '')));
+            }
+            return null;
+          }));
+          layouts[gameId] = chunkResults.filter(Boolean);
         }
       } catch (e) {
         // Ignore if directory doesn't exist
@@ -109,7 +131,8 @@ export async function onRequest(context: any): Promise<Response> {
     const responseData = {
       games: activeGames,
       schemas,
-      enums
+      enums,
+      layouts
     };
 
     const cacheableResponse = json(responseData, 200, {
