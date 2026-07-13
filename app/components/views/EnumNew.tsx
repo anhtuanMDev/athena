@@ -73,6 +73,155 @@ function AutoGenerateOptionId({
   return null;
 }
 
+function OptionParamsEditor({ control, register, errors, setValue, touchedFields, optionIndex }: any) {
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: `options.${optionIndex}.params`,
+  });
+
+  return (
+    <div className="space-y-3 mt-4 border-t border-gray-100 dark:border-gray-800 pt-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Sub-Field Params
+          </label>
+          <p className="text-xs text-gray-500">Add predefined parameters for this enum option.</p>
+        </div>
+        <Button
+          type="button"
+          size="small"
+          variant="outline"
+          onClick={() => append({ id: "", label: "", value: "", suffix: "", type: "string" })}
+          className="h-8 text-[11px] px-3"
+        >
+          <Plus className="w-3 h-3 mr-1" /> Add Param
+        </Button>
+      </div>
+
+      {fields.length === 0 && (
+        <div className="text-[11px] text-gray-500 italic bg-gray-50/50 dark:bg-gray-900/30 p-4 rounded-lg border border-dashed border-gray-200 dark:border-gray-800 text-center">
+          No custom parameters defined for this option.
+        </div>
+      )}
+
+      {fields.length > 0 && (
+        <div className="space-y-2">
+          {fields.map((field, index) => {
+            return (
+              <div key={field.id} className="flex gap-3 items-start bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
+                  <Controller
+                    control={control}
+                    name={`options.${optionIndex}.params.${index}.id` as any}
+                    render={({ field: idField }) => (
+                      <div>
+                        <input
+                          {...idField}
+                          placeholder="ID (e.g. damage_multiplier)"
+                          className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
+                        />
+                        {errors?.options?.[optionIndex]?.params?.[index]?.id && (
+                          <span className="text-[10px] text-red-500 block mt-1">{errors.options[optionIndex].params[index].id.message}</span>
+                        )}
+                      </div>
+                    )}
+                  />
+                  <Controller
+                    control={control}
+                    name={`options.${optionIndex}.params.${index}.label` as any}
+                    render={({ field: labelField }) => (
+                      <div>
+                        <input
+                          {...labelField}
+                          placeholder="Label (e.g. Damage Multiplier)"
+                          onChange={(e) => {
+                            labelField.onChange(e);
+                            const label = e.target.value;
+                            const isTouched = control._formState.touchedFields?.options?.[optionIndex]?.params?.[index]?.id;
+                            if (!isTouched) {
+                              setValue(`options.${optionIndex}.params.${index}.id`, label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/(^_|_$)/g, ""), { shouldValidate: true, shouldDirty: true });
+                            }
+                          }}
+                          className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
+                        />
+                        {errors?.options?.[optionIndex]?.params?.[index]?.label && (
+                          <span className="text-[10px] text-red-500 block mt-1">{errors.options[optionIndex].params[index].label.message}</span>
+                        )}
+                      </div>
+                    )}
+                  />
+                  <Controller
+                    control={control}
+                    name={`options.${optionIndex}.params.${index}.type` as any}
+                    defaultValue="string"
+                    render={({ field: typeField }) => {
+                      const paramType = typeField.value as string;
+                      return (
+                        <>
+                          <div>
+                            <select
+                              {...typeField}
+                              className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
+                            >
+                              <option value="string">Text</option>
+                              <option value="number">Number</option>
+                              <option value="boolean">Boolean</option>
+                            </select>
+                          </div>
+                          <div>
+                            {paramType === "boolean" ? (
+                              <div className="flex items-center h-full px-1 pt-1">
+                                <label className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    {...register(`options.${optionIndex}.params.${index}.value` as any)}
+                                    className="rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 w-4 h-4 text-orange-600 focus:ring-orange-500"
+                                  />
+                                  True / False
+                                </label>
+                              </div>
+                            ) : (
+                              <input
+                                type={paramType === "number" ? "number" : "text"}
+                                step={paramType === "number" ? "any" : undefined}
+                                placeholder="Value"
+                                {...register(`options.${optionIndex}.params.${index}.value` as any, {
+                                  setValueAs: (v: any) => paramType === "number" ? (v === "" ? "" : Number(v)) : v
+                                })}
+                                className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
+                              />
+                            )}
+                          </div>
+                        </>
+                      );
+                    }}
+                  />
+                  <div>
+                    <input
+                      placeholder="Suffix (e.g. %)"
+                      {...register(`options.${optionIndex}.params.${index}.suffix`)}
+                      className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
+                    />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => remove(index)}
+                  className="text-gray-400 hover:text-red-500 p-2 h-auto"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function EnumNew() {
   const { game } = useParams();
   assertSafeGameSlug(game!);
@@ -281,34 +430,13 @@ export default function EnumNew() {
                             ?.message as string
                         }
                       />
-                      <Controller
+                      <OptionParamsEditor
                         control={control}
-                        name={`options.${index}.params` as const}
-                        render={({ field: { value, onChange, onBlur } }) => (
-                          <div className="space-y-1">
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                              Sub-Field Params (JSON Array)
-                            </label>
-                            <textarea
-                              className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-mono shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                              rows={3}
-                              placeholder='[{"key": "damage", "type": "number", "label": "Damage"}]'
-                              defaultValue={value ? JSON.stringify(value, null, 2) : ""}
-                              onBlur={(e) => {
-                                try {
-                                  const parsed = e.target.value.trim() ? JSON.parse(e.target.value) : undefined;
-                                  onChange(parsed);
-                                } catch (err) {
-                                  // Invalid JSON will just fail Zod validation later
-                                }
-                                onBlur();
-                              }}
-                            />
-                            {errors.options?.[index]?.params && (
-                              <p className="text-xs text-red-500 mt-1">Invalid JSON or schema</p>
-                            )}
-                          </div>
-                        )}
+                        register={register}
+                        errors={errors}
+                        setValue={setValue}
+                        touchedFields={touchedFields}
+                        optionIndex={index}
                       />
                     </div>
                     <Button

@@ -1,11 +1,20 @@
 import { z } from "zod";
-import { DynamicFieldSchema, type DynamicField } from "./dynamic-schema";
+
+export const EnumParamSchema = z.object({
+  id: z.string().min(1, "ID is required").regex(/^[a-z0-9_]+$/, "Must be lowercase alphanumeric and underscores"),
+  label: z.string().min(1, "Label is required"),
+  value: z.any(),
+  suffix: z.string().optional(),
+  type: z.enum(["string", "number", "boolean"]),
+});
+
+export type EnumParam = z.infer<typeof EnumParamSchema>;
 
 export const EnumOptionSchema = z.lazy(() => z.object({
   id: z.string().min(1, "ID is required"),
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
-  params: z.array(DynamicFieldSchema).optional(),
+  params: z.array(EnumParamSchema).optional(),
 }));
 
 export const EnumSchema = z.object({
