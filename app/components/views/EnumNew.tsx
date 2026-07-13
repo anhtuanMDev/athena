@@ -420,16 +420,31 @@ export default function EnumNew() {
                           }}
                         />
                       </div>
-                      <FormField
-                        label="Description"
-                        placeholder="Optional description"
-                        {...register(`options.${index}.description` as const)}
-                        error={!!errors.options?.[index]?.description}
-                        helperText={
-                          errors.options?.[index]?.description
-                            ?.message as string
-                        }
-                      />
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="md:col-span-2">
+                          <FormField
+                            label="Description"
+                            placeholder="Optional description"
+                            {...register(`options.${index}.description` as const)}
+                            error={!!errors.options?.[index]?.description}
+                            helperText={
+                              errors.options?.[index]?.description
+                                ?.message as string
+                            }
+                          />
+                        </div>
+                        <div>
+                          <FormField
+                            label="Icon (Optional)"
+                            placeholder="/icons/item.png"
+                            {...register(`options.${index}.icon` as const)}
+                            error={!!errors.options?.[index]?.icon}
+                            helperText={
+                              errors.options?.[index]?.icon?.message as string
+                            }
+                          />
+                        </div>
+                      </div>
                       <OptionParamsEditor
                         control={control}
                         register={register}

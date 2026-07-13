@@ -14,6 +14,7 @@ export const EnumOptionSchema = z.lazy(() => z.object({
   id: z.string().min(1, "ID is required"),
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
+  icon: z.string().optional(),
   params: z.array(EnumParamSchema).optional(),
 }));
 
