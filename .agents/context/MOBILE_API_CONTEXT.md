@@ -19,7 +19,21 @@ When the app launches, it needs to know what games exist, what the data structur
 
 ---
 
-## 2. Category List Screen (e.g., "Overwatch Heroes" or "Valorant Maps")
+## 2. Home Screen (Global Layout)
+
+The Home Screen is a unique screen that aggregates data from multiple categories rather than displaying a single entity. It acts as the main landing page of the application.
+
+* **API Call:** `NONE` (Configured by App Startup)
+* **Flow:** 
+  1. Extract the `home` layout configuration from the `global_config.layouts` array retrieved during app startup.
+  2. Pass this specific layout to your universal renderer: `<SchemaRenderer layout={homeLayout} data={globalDataStore} />`.
+  3. Because the Home Screen is not bound to a specific entity, its layout configuration uses "global" sections that fetch or extract aggregated data across multiple schemas (e.g., pulling the latest patch from `data_overwatch_patches` or a featured hero from `data_overwatch_heroes`).
+* **MMKV Strategy: `N/A`**
+  * The structure is already stored in MMKV via the App Startup boot payload.
+
+---
+
+## 3. Category List Screen (e.g., "Overwatch Heroes" or "Valorant Maps")
 
 When a user navigates to a specific list of entities, the app needs the actual content.
 
@@ -31,7 +45,7 @@ When a user navigates to a specific list of entities, the app needs the actual c
 
 ---
 
-## 3. Entity Detail Screen (Heroes, Maps, Modes, Events, Patches, etc.)
+## 4. Entity Detail Screen (Heroes, Maps, Modes, Events, Patches, etc.)
 
 When a user taps an item in **any** list to view its full dossier.
 
@@ -47,7 +61,7 @@ When a user taps an item in **any** list to view its full dossier.
 
 ---
 
-## 4. Images & Media Assets (e.g., Portraits, Ability Icons)
+## 5. Images & Media Assets (e.g., Portraits, Ability Icons)
 
 The JSON payloads only contain relative paths or URLs to images (e.g., `/api/assets/heroes/tracer.png`).
 
