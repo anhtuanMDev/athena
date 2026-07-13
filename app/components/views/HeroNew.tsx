@@ -32,6 +32,7 @@ import {
   buildDynamicZodSchema,
 } from "~/schemas/dynamic-schema";
 import { HeroSchema } from "~/schemas/hero";
+import { type GlobalEnum } from "~/schemas/enum";
 
 function AutoGenerateId({ control, setValue, touchedFields }: any) {
   const nameValue = useWatch({ control, name: "name" });
@@ -71,10 +72,16 @@ export default function NewHero() {
         "schemas",
         true,
       );
+      const enums = await listDirectory<GlobalEnum>(
+        game!,
+        "enums",
+        true
+      );
       const heroSchemas = schemas.filter((s) => s && s.category === "hero");
       return {
         schemas: heroSchemas,
         schemaCount: heroSchemas.length,
+        enums,
         game: game!,
       };
     },
@@ -144,7 +151,7 @@ export default function NewHero() {
           </Button>
         </CardHeader>
         <CardContent>
-          <HeroForm schemas={data.schemas} game={data.game} />
+          <HeroForm schemas={data.schemas} enums={data.enums} game={data.game} />
         </CardContent>
       </Card>
     </div>
@@ -153,9 +160,11 @@ export default function NewHero() {
 
 function HeroForm({
   schemas,
+  enums,
   game,
 }: {
   schemas: DynamicSchemaFile[];
+  enums: GlobalEnum[];
   game: string;
 }) {
   const [formKey, setFormKey] = useState(0);
@@ -178,6 +187,7 @@ function HeroForm({
     <HeroFormInner
       key={formKey}
       schemas={schemas}
+      enums={enums}
       game={game}
       initData={initData}
       onImportSuccess={handleImportSuccess}
@@ -187,6 +197,7 @@ function HeroForm({
 
 type HeroFormInnerProps = {
   schemas: DynamicSchemaFile[];
+  enums: GlobalEnum[];
   game: string;
   initData: Record<string, any>;
   onImportSuccess: (data: Record<string, any>) => void;
@@ -194,6 +205,7 @@ type HeroFormInnerProps = {
 
 function HeroFormInner({
   schemas,
+  enums,
   game,
   initData,
   onImportSuccess,
@@ -259,13 +271,37 @@ ${JSON.stringify(
   [
     { key: "name", type: "string", required: true },
     { key: "real_name", type: "string", required: false },
-    ...fields.map((f) => ({
-      key: f.key,
-      type: f.type,
-      required: f.required,
-      options: f.options,
-      subFields: f.subFields,
-    })),
+    ...fields.map((f) => {
+      let options = f.options;
+      if (f.globalEnumId) {
+        const globalEnum = enums.find(e => e.id === f.globalEnumId);
+        if (globalEnum) {
+          options = globalEnum.options.map(o => o.id);
+        }
+      }
+      
+      let subFields = f.subFields;
+      if (subFields) {
+        subFields = subFields.map(sf => {
+          let sfOptions = sf.options;
+          if (sf.globalEnumId) {
+            const sfGlobalEnum = enums.find(e => e.id === sf.globalEnumId);
+            if (sfGlobalEnum) {
+              sfOptions = sfGlobalEnum.options.map(o => o.id);
+            }
+          }
+          return { ...sf, options: sfOptions };
+        });
+      }
+
+      return {
+        key: f.key,
+        type: f.type,
+        required: f.required,
+        options: options,
+        subFields: subFields,
+      };
+    }),
   ],
   null,
   2,

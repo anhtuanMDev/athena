@@ -37,6 +37,7 @@ import {
   type DynamicSchemaFile,
 } from "~/schemas/dynamic-schema";
 import { HeroSchema, type Hero } from "~/schemas/hero";
+import { type GlobalEnum } from "~/schemas/enum";
 
 export default function EditHero() {
   const { game, "*": splat } = useParams();
@@ -51,6 +52,7 @@ export default function EditHero() {
   );
   const schemaResult = useData<{
     schemas: DynamicSchemaFile[];
+    enums: GlobalEnum[];
   } | null>(
     async () => {
       try {
@@ -59,10 +61,15 @@ export default function EditHero() {
           "schemas",
           true,
         );
+        const enums = await listDirectory<GlobalEnum>(
+          game!,
+          "enums",
+          true
+        );
         const heroSchemas = schemas.filter((s) => s && s.category === "hero");
-        return { schemas: heroSchemas };
+        return { schemas: heroSchemas, enums };
       } catch (e) {
-        return { schemas: [] };
+        return { schemas: [], enums: [] };
       }
     },
     [game],
@@ -131,6 +138,7 @@ export default function EditHero() {
             hero={heroResult.data.content}
             sha={heroResult.data.sha}
             schemas={schemaResult.data?.schemas ?? []}
+            enums={schemaResult.data?.enums ?? []}
             game={game!}
             id={id!}
           />
@@ -144,12 +152,14 @@ function EditHeroForm({
   hero,
   sha,
   schemas,
+  enums,
   game,
   id,
 }: {
   hero: Hero;
   sha: string;
   schemas: DynamicSchemaFile[];
+  enums: GlobalEnum[];
   game: string;
   id: string;
 }) {
@@ -168,6 +178,7 @@ function EditHeroForm({
       hero={hero}
       sha={sha}
       schemas={schemas}
+      enums={enums}
       game={game}
       id={id}
       initData={initData}
@@ -180,6 +191,7 @@ function EditHeroFormInner({
   hero,
   sha,
   schemas,
+  enums,
   game,
   id,
   initData,
@@ -188,6 +200,7 @@ function EditHeroFormInner({
   hero: Hero;
   sha: string;
   schemas: DynamicSchemaFile[];
+  enums: GlobalEnum[];
   game: string;
   id: string;
   initData: Record<string, any>;
@@ -285,13 +298,37 @@ ${JSON.stringify(
   [
     { key: "name", type: "string", required: true },
     { key: "real_name", type: "string", required: false },
-    ...fields.map((f) => ({
-      key: f.key,
-      type: f.type,
-      required: f.required,
-      options: f.options,
-      subFields: f.subFields,
-    })),
+    ...fields.map((f) => {
+      let options = f.options;
+      if (f.globalEnumId) {
+        const globalEnum = enums.find(e => e.id === f.globalEnumId);
+        if (globalEnum) {
+          options = globalEnum.options.map(o => o.id);
+        }
+      }
+      
+      let subFields = f.subFields;
+      if (subFields) {
+        subFields = subFields.map(sf => {
+          let sfOptions = sf.options;
+          if (sf.globalEnumId) {
+            const sfGlobalEnum = enums.find(e => e.id === sf.globalEnumId);
+            if (sfGlobalEnum) {
+              sfOptions = sfGlobalEnum.options.map(o => o.id);
+            }
+          }
+          return { ...sf, options: sfOptions };
+        });
+      }
+
+      return {
+        key: f.key,
+        type: f.type,
+        required: f.required,
+        options: options,
+        subFields: subFields,
+      };
+    }),
   ],
   null,
   2,
