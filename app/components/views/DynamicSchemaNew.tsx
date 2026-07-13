@@ -225,36 +225,38 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
     key: keyof DynamicField,
     value: string | boolean | string[] | undefined,
   ) => {
-    const newFields = [...fields];
-    const field = { ...newFields[index] };
+    setFields((prevFields) => {
+      const newFields = [...prevFields];
+      const field = { ...newFields[index] };
 
-    if (key === "options") {
-      field.options = value
-        ? (value as string).split("\n").map((s) => s.trim())
-        : undefined;
-    } else if (key === "label") {
-      const oldSlug = (field.label || "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/(^_|_$)/g, "");
-      const newSlug = (value as string || "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/(^_|_$)/g, "");
+      if (key === "options") {
+        field.options = value
+          ? (value as string).split("\n").map((s) => s.trim())
+          : undefined;
+      } else if (key === "label") {
+        const oldSlug = (field.label || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/(^_|_$)/g, "");
+        const newSlug = ((value as string) || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/(^_|_$)/g, "");
 
-      // Auto-generate if key is currently empty or matches exactly what the label used to slugify to
-      const shouldUpdateKey = !field.key || field.key === oldSlug;
+        // Auto-generate if key is currently empty or matches exactly what the label used to slugify to
+        const shouldUpdateKey = !field.key || field.key === oldSlug;
 
-      field.label = value as string;
-      if (shouldUpdateKey) {
-        field.key = newSlug;
+        field.label = value as string;
+        if (shouldUpdateKey) {
+          field.key = newSlug;
+        }
+      } else {
+        (field as any)[key] = value;
       }
-    } else {
-      (field as any)[key] = value;
-    }
 
-    newFields[index] = field;
-    setFields(newFields);
+      newFields[index] = field;
+      return newFields;
+    });
   };
 
   const handleAddSubField = (parentIndex: number) => {
@@ -283,38 +285,37 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
     key: keyof DynamicField,
     value: string | boolean | string[] | undefined,
   ) => {
-    const newFields = [...fields];
-    const subFields = [...(newFields[fieldIndex].subFields || [])];
-    const subField = { ...subFields[subFieldIndex] };
+    setFields((prevFields) => {
+      const newFields = [...prevFields];
+      const subFields = [...(newFields[fieldIndex].subFields || [])];
+      const subField = { ...subFields[subFieldIndex] };
 
-    if (key === "options") {
-      subField.options = value
-        ? (value as string).split("\n").map((s) => s.trim())
-        : undefined;
-    } else if (key === "label") {
-      const oldSlug = (subField.label || "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/(^_|_$)/g, "");
-      const newSlug = (value as string || "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/(^_|_$)/g, "");
-
-      // Auto-generate if key is currently empty or matches exactly what the label used to slugify to
-      const shouldUpdateKey = !subField.key || subField.key === oldSlug;
-
-      subField.label = value as string;
-      if (shouldUpdateKey) {
-        subField.key = newSlug;
+      if (key === "options") {
+        subField.options = value
+          ? (value as string).split("\n").map((s) => s.trim())
+          : undefined;
+      } else if (key === "label") {
+        const oldSlug = (subField.label || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/(^_|_$)/g, "");
+        const newSlug = ((value as string) || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/(^_|_$)/g, "");
+        const shouldUpdateKey = !subField.key || subField.key === oldSlug;
+        subField.label = value as string;
+        if (shouldUpdateKey) {
+          subField.key = newSlug;
+        }
+      } else {
+        (subField as any)[key] = value;
       }
-    } else {
-      (subField as any)[key] = value;
-    }
 
-    subFields[subFieldIndex] = subField;
-    newFields[fieldIndex].subFields = subFields;
-    setFields(newFields);
+      subFields[subFieldIndex] = subField;
+      newFields[fieldIndex] = { ...newFields[fieldIndex], subFields };
+      return newFields;
+    });
   };
 
   async function handleCommit(e: React.FormEvent) {
@@ -711,7 +712,7 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                           <option value="string">Text (String)</option>
                           <option value="number">Number</option>
                           <option value="boolean">Toggle (Boolean)</option>
-                          <option value="list">Multiple Select (List)</option>
+                          <option value="list">Multiple Select (Enum / List)</option>
                           <option value="enum">Single Select (Enum)</option>
                           <option value="abilities">
                             Kit Abilities (Complex List)
@@ -989,7 +990,7 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                                       <option value="number">Number</option>
                                       <option value="boolean">Boolean</option>
                                       <option value="enum">Enum (Single Select)</option>
-                                      <option value="list">List (Multiple Select)</option>
+                                      <option value="list">List (Multiple Select / Enum)</option>
                                     </select>
                                     <button
                                       type="button"
