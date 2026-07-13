@@ -18,7 +18,7 @@ export async function onRequest(context: any): Promise<Response> {
   const { env, request } = context;
   const cache = (caches as any).default;
   const internalOrigin = "https://api.internal";
-  const cacheKey = new Request(`${internalOrigin}/mobile/init`);
+  const cacheKey = new Request(`${internalOrigin}/mobile/init_v2`);
 
   const cached = await cache.match(cacheKey);
   if (cached) {
@@ -61,13 +61,14 @@ export async function onRequest(context: any): Promise<Response> {
 
     // 2. Fetch schemas and enums for each active game
     await Promise.all(activeGames.map(async (game) => {
-      schemas[game.id] = [];
-      enums[game.id] = [];
+      const gameId = game.slug || game.id;
+      schemas[gameId] = [];
+      enums[gameId] = [];
       
       try {
         // Fetch schemas directory
         const { data: schemaFiles } = await octokit.repos.getContent({
-          owner, repo, path: `data/${game.id}/schemas`, ref: branch,
+          owner, repo, path: `data/${gameId}/schemas`, ref: branch,
         });
         if (Array.isArray(schemaFiles)) {
           const files = schemaFiles.filter(entry => entry.type === "file" && entry.name.endsWith(".json"));
@@ -78,7 +79,7 @@ export async function onRequest(context: any): Promise<Response> {
             }
             return null;
           }));
-          schemas[game.id] = chunkResults.filter(Boolean);
+          schemas[gameId] = chunkResults.filter(Boolean);
         }
       } catch (e) {
         // Ignore if directory doesn't exist
@@ -87,7 +88,7 @@ export async function onRequest(context: any): Promise<Response> {
       try {
         // Fetch enums directory
         const { data: enumFiles } = await octokit.repos.getContent({
-          owner, repo, path: `data/${game.id}/enums`, ref: branch,
+          owner, repo, path: `data/${gameId}/enums`, ref: branch,
         });
         if (Array.isArray(enumFiles)) {
           const files = enumFiles.filter(entry => entry.type === "file" && entry.name.endsWith(".json"));
@@ -98,7 +99,7 @@ export async function onRequest(context: any): Promise<Response> {
             }
             return null;
           }));
-          enums[game.id] = chunkResults.filter(Boolean);
+          enums[gameId] = chunkResults.filter(Boolean);
         }
       } catch (e) {
         // Ignore if directory doesn't exist

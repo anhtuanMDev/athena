@@ -241,7 +241,7 @@ function triggerCachePurge(context: PagesFunctionContext, path: string) {
 
   // Invalidate mobile cache when global data changes
   if (path === "data/_meta/games.json" || path.includes("/schemas/") || path.includes("/enums/")) {
-    urlsToPurge.push(`${internalOrigin}/mobile/init`);
+    urlsToPurge.push(`${internalOrigin}/mobile/init_v2`);
   }
 
   const promise = Promise.all(

@@ -5,10 +5,10 @@
   "scripts": {
     "build": "react-router build",
     "dev": "react-router dev",
-    "wrangler": "npx wrangler pages dev --port 8788 --ip 127.0.0.1",
+    "wrangler": "npx wrangler pages dev --port 8788 --ip 0.0.0.0",
     "typecheck": "react-router typegen && tsc",
     "pages:dev": "npm run build && npx wrangler pages dev",
-    "pages:deploy": "npm run build && wrangler pages deploy"
+    "pages:deploy": "npm run build && npx wrangler pages deploy"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
