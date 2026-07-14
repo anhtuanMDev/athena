@@ -8,6 +8,15 @@ import type { DynamicField } from "~/schemas/dynamic-schema";
 
 import { EntityReferenceField } from "~/components/EntityReferenceField";
 
+export interface AbilityFieldData {
+  _clientId?: string;
+  id?: string;
+  name?: string;
+  type?: string;
+  description?: string;
+  params?: Record<string, any>;
+}
+
 interface AbilitiesFieldProps {
   name: string;
   label: string;
@@ -44,9 +53,9 @@ export function AbilitiesField({ name, label, game, control, register, setValue,
       <div className="space-y-4">
         {fields.map((field, i) => {
           const abilityErrors = (errors[name] as any)?.[i];
-          const currentAbility = watchAbilities?.[i] || field;
+          const currentAbility = (watchAbilities?.[i] || field) as AbilityFieldData;
           // Use field.id as the stable client-side identifier
-          const dataId = (currentAbility as any)._clientId || currentAbility.id || field.id;
+          const dataId = currentAbility._clientId || currentAbility.id || field.id;
           
           return (
             <div key={field.id} className="p-4 border border-gray-200/50 dark:border-gray-700/50 rounded-xl bg-gray-50/50 dark:bg-gray-800/30">
@@ -84,9 +93,11 @@ export function AbilitiesField({ name, label, game, control, register, setValue,
                       {...register(`${name}.${i}.name` as const)}
                       onChange={(e) => {
                         register(`${name}.${i}.name` as const).onChange(e);
-                        const newName = e.target.value;
-                        const generatedId = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-                        setValue(`${name}.${i}.id`, generatedId, { shouldDirty: true, shouldValidate: true });
+                        if (currentAbility._clientId) {
+                          const newName = e.target.value;
+                          const generatedId = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                          setValue(`${name}.${i}.id`, generatedId, { shouldDirty: true, shouldValidate: true });
+                        }
                       }}
                       error={!!abilityErrors?.name}
                       helperText={abilityErrors?.name?.message as string}
