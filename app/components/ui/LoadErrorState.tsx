@@ -20,6 +20,13 @@ export function LoadErrorState({
   onRetry = () => window.location.reload(),
   retryLabel = "Try Again",
 }: LoadErrorStateProps) {
+  const errorMessage = error instanceof Error ? error.message : String(error) || "";
+  const isAuthError = errorMessage === "unauthorized" || errorMessage.toLowerCase().includes("unauthorized") || errorMessage.toLowerCase().includes("session expired");
+
+  if (isAuthError) {
+    return null;
+  }
+
   return (
     <div className="w-full py-16 flex items-center justify-center">
       <div className="max-w-md w-full bg-white dark:bg-gray-900 border border-red-100 dark:border-red-900/30 shadow-2xl rounded-3xl p-8 text-center relative overflow-hidden">

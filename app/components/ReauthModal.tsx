@@ -42,6 +42,9 @@ export function ReauthModal() {
     try {
       await authLogin(password);
       setOpen(false);
+      
+      // Dispatch an event so that useData hooks can retry their requests
+      import("~/lib/use-data").then((m) => m.clearDataCache());
     } catch (err: unknown) {
       const message = (err as Error).message || "Invalid password";
       setError(message);
