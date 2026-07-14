@@ -385,7 +385,6 @@ async function handleGetFile(context: PagesFunctionContext): Promise<Response> {
       path,
       ref: branch,
       headers: {
-        "If-None-Match": "",
         "Cache-Control": "no-cache",
       },
     });
@@ -534,7 +533,6 @@ async function handleListDirectory(
       path: `data/${game}/${subpath}`,
       ref: branch,
       headers: {
-        "If-None-Match": "",
         "Cache-Control": "no-cache",
       },
     });
@@ -568,7 +566,6 @@ async function handleListDirectory(
                 path: entry.path,
                 ref: branch,
                 headers: {
-                  "If-None-Match": "",
                   "Cache-Control": "no-cache",
                 },
               });
@@ -624,7 +621,6 @@ async function handleListGames(request: Request, env: Env): Promise<Response> {
       path: "data/_meta/games.json",
       ref: branch,
       headers: {
-        "If-None-Match": "",
         "Cache-Control": "no-cache",
       },
     });
@@ -658,7 +654,6 @@ async function handleDashboardData(context: PagesFunctionContext): Promise<Respo
       path: "data/_meta/games.json",
       ref: branch,
       headers: {
-        "If-None-Match": "",
         "Cache-Control": "no-cache",
       },
     });
@@ -772,7 +767,6 @@ async function handleGetEnum(context: PagesFunctionContext, game: string, enumId
       path,
       ref: branch,
       headers: {
-        "If-None-Match": "",
         "Cache-Control": "no-cache",
       },
     });
