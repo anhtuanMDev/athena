@@ -8,6 +8,26 @@ import { useData, clearDataCache } from "~/lib/use-data";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { EmptyState } from "~/components/ui/EmptyState";
 
+export interface LayoutSection {
+  id: string;
+  type: string;
+  props: Record<string, unknown>;
+  visible?: boolean;
+}
+
+export interface LayoutData {
+  schemaVersion?: number;
+  sections?: LayoutSection[];
+  detailLayout?: LayoutSection[];
+  cardLayout?: LayoutSection[];
+}
+
+export interface SchemaData {
+  name: string;
+  category: string;
+  fields?: { key: string; type: string }[];
+}
+
 const PRIMITIVE_TYPES = [
   "image_hero",
   "image_grid",
@@ -42,12 +62,12 @@ export default function LayoutEdit() {
       }
 
       // Load Layout (may not exist yet)
-      let layoutData: Record<string, any> | null = null;
+      let layoutData: LayoutData | null = null;
       let layoutSha: string | undefined = undefined;
       try {
         const layoutFile = await getFile(`data/${game}/layouts/${id}.json`);
         if (layoutFile) {
-          layoutData = layoutFile.content as Record<string, any>;
+          layoutData = layoutFile.content as LayoutData;
           layoutSha = layoutFile.sha;
         }
       } catch (err) {
@@ -55,7 +75,7 @@ export default function LayoutEdit() {
       }
 
       return {
-        schema: schemaFile.content as Record<string, any>,
+        schema: schemaFile.content as SchemaData,
         layoutData,
         layoutSha
       };
@@ -64,16 +84,23 @@ export default function LayoutEdit() {
     `${game}-layout-${id}`
   );
 
-  const [sections, setSections] = useState<any[]>([]);
+  const [layouts, setLayouts] = useState<{ detail: LayoutSection[]; card: LayoutSection[] }>({ detail: [], card: [] });
+  const [activeTab, setActiveTab] = useState<'detail' | 'card'>('detail');
   const [schemaVersion, setSchemaVersion] = useState(1);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (loaderData?.layoutData) {
-      setSections(loaderData.layoutData.sections || []);
+      setLayouts({
+        detail: loaderData.layoutData.detailLayout || loaderData.layoutData.sections || [],
+        card: loaderData.layoutData.cardLayout || []
+      });
       setSchemaVersion(loaderData.layoutData.schemaVersion || 1);
     }
   }, [loaderData]);
+
+  const sections = layouts[activeTab];
+  const setSections = (newSections: LayoutSection[]) => setLayouts(prev => ({ ...prev, [activeTab]: newSections }));
 
   const addSection = (type: string) => {
     setSections([
@@ -104,7 +131,9 @@ export default function LayoutEdit() {
       schemaVersion,
       gameId: game,
       category: loaderData.schema.category,
-      sections
+      sections: layouts.detail, // Backwards compatibility
+      detailLayout: layouts.detail,
+      cardLayout: layouts.card
     };
 
     try {
@@ -169,8 +198,26 @@ export default function LayoutEdit() {
         </div>
 
         <div className="flex gap-8 items-start justify-center">
-          {/* Mobile Canvas */}
-          <div className="w-[393px] h-[852px] bg-gray-50 dark:bg-[#0B1324] border-12 border-gray-900 rounded-[3rem] overflow-y-auto shadow-2xl shrink-0 flex flex-col relative custom-scrollbar">
+          <div className="flex flex-col items-center">
+            {/* Tabs */}
+            <div className="flex bg-gray-200 dark:bg-gray-800 p-1 rounded-lg mb-4">
+              <button
+                type="button"
+                onClick={() => setActiveTab('detail')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'detail' ? 'bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              >
+                Full Screen
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('card')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'card' ? 'bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              >
+                List Item Card
+              </button>
+            </div>
+            {/* Mobile Canvas */}
+            <div className={`w-[393px] bg-gray-50 dark:bg-[#0B1324] border-12 border-gray-900 overflow-y-auto shadow-2xl shrink-0 flex flex-col relative custom-scrollbar transition-all duration-300 ${activeTab === 'detail' ? 'h-[852px] rounded-[3rem]' : 'h-[350px] rounded-3xl'}`}>
             {/* Phone Notch */}
             <div className="sticky top-0 inset-x-0 h-7 bg-gray-900 rounded-b-3xl mx-auto w-40 z-10 mb-2"></div>
             
@@ -205,7 +252,10 @@ export default function LayoutEdit() {
               )}
             </div>
             {/* Home Bar */}
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-gray-300 dark:bg-gray-700 rounded-full"></div>
+            {activeTab === 'detail' && (
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-gray-300 dark:bg-gray-700 rounded-full"></div>
+            )}
+          </div>
           </div>
 
           {/* Sidebar Tools */}
@@ -233,7 +283,7 @@ export default function LayoutEdit() {
                  <Server className="w-4 h-4" /> Available Fields
               </h3>
               <div className="max-h-64 overflow-y-auto space-y-1">
-                {(loaderData.schema.fields || []).map((f: any) => (
+                {(loaderData.schema.fields || []).map((f: { key: string; type: string }) => (
                   <div key={f.key} className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate">
                     {f.key} <span className="text-gray-400 dark:text-gray-600">({f.type})</span>
                   </div>
