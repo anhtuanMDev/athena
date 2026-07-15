@@ -55,7 +55,21 @@ export default function LayoutEdit() {
       // Load Schema
       let schemaFile;
       if (id === "home") {
-        schemaFile = { content: { name: "Home Screen", category: "global", fields: [] } };
+        schemaFile = { 
+          content: { 
+            name: "Home Screen", 
+            category: "global", 
+            fields: [
+              { key: "game.name", type: "string" },
+              { key: "game.current_patch", type: "string" },
+              { key: "heroes", type: "collection" },
+              { key: "maps", type: "collection" },
+              { key: "modes", type: "collection" },
+              { key: "patches", type: "collection" },
+              { key: "items", type: "collection" }
+            ] 
+          } 
+        };
       } else {
         schemaFile = await getFile(`data/${game}/schemas/${id}.json`);
         if (!schemaFile) throw new Error("Base Schema not found");
