@@ -74,10 +74,21 @@ export default function LayoutEdit() {
         // Not found is fine, we'll create it
       }
 
+      let manifest: Record<string, any> | null = null;
+      try {
+        const manifestFile = await getFile(`data/_meta/mobile_primitives.json`);
+        if (manifestFile) {
+          manifest = manifestFile.content as Record<string, any>;
+        }
+      } catch (err) {
+        // Not found is fine
+      }
+
       return {
         schema: schemaFile.content as SchemaData,
         layoutData,
-        layoutSha
+        layoutSha,
+        manifest
       };
     },
     [game, id],
@@ -265,7 +276,7 @@ export default function LayoutEdit() {
                 <Plus className="w-4 h-4" /> Add Block
               </h3>
               <div className="space-y-2">
-                {PRIMITIVE_TYPES.map(type => (
+                {(loaderData.manifest ? Object.keys(loaderData.manifest) : PRIMITIVE_TYPES).map(type => (
                   <button 
                     key={type} 
                     type="button"
