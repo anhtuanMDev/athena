@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { useForm, useFieldArray, Controller, FormProvider, useFormContext } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate, useParams } from "react-router";
 import { assertSafeGameSlug } from "~/lib/safe-path";
@@ -15,7 +15,8 @@ import { Plus, Trash2 } from "lucide-react";
 import { useEffect } from "react";
 import { useWatch } from "react-hook-form";
 
-function AutoGenerateId({ control, setValue, touchedFields }: any) {
+function AutoGenerateId() {
+  const { control, setValue, formState: { touchedFields } } = useFormContext<any>();
   const nameValue = useWatch({ control, name: "name" });
   const idValue = useWatch({ control, name: "id" });
 
@@ -37,12 +38,8 @@ function AutoGenerateId({ control, setValue, touchedFields }: any) {
   return null;
 }
 
-function AutoGenerateOptionId({
-  control,
-  setValue,
-  touchedFields,
-  index,
-}: any) {
+function AutoGenerateOptionId({ index }: { index: number }) {
+  const { control, setValue, formState: { touchedFields } } = useFormContext<any>();
   const nameValue = useWatch({ control, name: `options.${index}.name` });
   const idValue = useWatch({ control, name: `options.${index}.id` });
 
@@ -74,7 +71,8 @@ function AutoGenerateOptionId({
   return null;
 }
 
-function OptionParamsEditor({ control, register, errors, setValue, touchedFields, optionIndex }: any) {
+function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
+  const { control, register, setValue, formState: { errors, touchedFields } } = useFormContext<any>();
   const { fields, append, remove } = useFieldArray({
     control,
     name: `options.${optionIndex}.params`,
@@ -122,8 +120,8 @@ function OptionParamsEditor({ control, register, errors, setValue, touchedFields
                           placeholder="ID (e.g. damage_multiplier)"
                           className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
                         />
-                        {errors?.options?.[optionIndex]?.params?.[index]?.id && (
-                          <span className="text-[10px] text-red-500 block mt-1">{errors.options[optionIndex].params[index].id.message}</span>
+                        {(errors as any)?.options?.[optionIndex]?.params?.[index]?.id && (
+                          <span className="text-[10px] text-red-500 block mt-1">{(errors as any).options[optionIndex].params[index].id.message}</span>
                         )}
                       </div>
                     )}
@@ -146,8 +144,8 @@ function OptionParamsEditor({ control, register, errors, setValue, touchedFields
                           }}
                           className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
                         />
-                        {errors?.options?.[optionIndex]?.params?.[index]?.label && (
-                          <span className="text-[10px] text-red-500 block mt-1">{errors.options[optionIndex].params[index].label.message}</span>
+                        {(errors as any)?.options?.[optionIndex]?.params?.[index]?.label && (
+                          <span className="text-[10px] text-red-500 block mt-1">{(errors as any).options[optionIndex].params[index].label.message}</span>
                         )}
                       </div>
                     )}
@@ -233,13 +231,7 @@ export default function EnumNew() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [iconUploads, setIconUploads] = useState<Record<number, { name: string; base64: string }>>({});
 
-  const {
-    register,
-    handleSubmit,
-    control,
-    setValue,
-    formState: { errors, touchedFields },
-  } = useForm<GlobalEnum>({
+  const methods = useForm<GlobalEnum>({
     resolver: zodResolver(EnumSchema) as any,
     defaultValues: {
       id: "",
@@ -248,6 +240,14 @@ export default function EnumNew() {
       options: [{ id: "", name: "", description: "" }],
     },
   });
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    setValue,
+    formState: { errors, touchedFields },
+  } = methods;
 
   const { fields, prepend, remove } = useFieldArray({
     control,
@@ -331,12 +331,9 @@ export default function EnumNew() {
           </h1>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <AutoGenerateId
-              control={control}
-              setValue={setValue}
-              touchedFields={touchedFields}
-            />
+          <FormProvider {...methods}>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              <AutoGenerateId />
 
             {submitError && (
               <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">
@@ -412,12 +409,7 @@ export default function EnumNew() {
                     key={field.id}
                     className="flex gap-3 items-start p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg"
                   >
-                    <AutoGenerateOptionId
-                      control={control}
-                      setValue={setValue}
-                      touchedFields={touchedFields}
-                      index={index}
-                    />
+                    <AutoGenerateOptionId index={index} />
                     <div className="flex-1 grid grid-cols-1 gap-3">
                       <div className="grid grid-cols-2 gap-3">
                         <FormField
@@ -482,14 +474,7 @@ export default function EnumNew() {
                           />
                         </div>
                       </div>
-                      <OptionParamsEditor
-                        control={control}
-                        register={register}
-                        errors={errors}
-                        setValue={setValue}
-                        touchedFields={touchedFields}
-                        optionIndex={index}
-                      />
+                      <OptionParamsEditor optionIndex={index} />
                     </div>
                     <Button
                       type="button"
@@ -514,7 +499,8 @@ export default function EnumNew() {
                 {submitting ? "Creating..." : "Create Enum"}
               </Button>
             </div>
-          </form>
+            </form>
+          </FormProvider>
         </CardContent>
       </Card>
     </div>
