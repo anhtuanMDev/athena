@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ClipboardPaste, Download, Sparkles, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, FormProvider } from "react-hook-form";
 import { useNavigate, useParams } from "react-router";
 import { DiffView } from "~/components/DiffView";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
@@ -276,17 +276,20 @@ function EditHeroFormInner({
 
   const defaultValues = useMemo(() => ({ ...initData }), [initData]);
 
+  const methods = useForm<any>({
+    resolver: zodResolver(dynamicZodSchema),
+    mode: "onChange",
+    defaultValues: defaultValues as any,
+  });
+
   const {
     register,
     handleSubmit,
     control,
     setValue,
+    getValues,
     formState: { errors, isValid, isDirty },
-  } = useForm<any>({
-    resolver: zodResolver(dynamicZodSchema),
-    mode: "onChange",
-    defaultValues: defaultValues as any,
-  });
+  } = methods;
 
   const aiPromptMarkdown = `I have provided a source (like a wiki page) about a hero. Extract the hero's data and output a **single JSON object** matching the schema below.
 
@@ -707,7 +710,8 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmitPreview)} className="space-y-4">
+    <FormProvider {...methods}>
+      <form onSubmit={handleSubmit(onSubmitPreview)} className="space-y-4">
       {submitError && (
         <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">
           {submitError}
@@ -829,10 +833,6 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                   name={f.key}
                   label={f.label}
                   game={game}
-                  control={control}
-                  register={register}
-                  setValue={setValue}
-                  errors={errors}
                   abilityIcons={abilityIcons}
                   setAbilityIcons={setAbilityIcons}
                   subFields={f.subFields}
@@ -847,9 +847,6 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                   name={f.key}
                   label={f.label}
                   game={game}
-                  control={control}
-                  register={register}
-                  errors={errors}
                   subFields={f.subFields || []}
                 />
               </div>
@@ -1118,5 +1115,6 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
           document.body,
         )}
     </form>
+    </FormProvider>
   );
 }

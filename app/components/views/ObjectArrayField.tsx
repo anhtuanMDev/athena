@@ -1,5 +1,4 @@
-import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
-import { useFieldArray, Controller } from "react-hook-form";
+import { useFieldArray, Controller, useFormContext } from "react-hook-form";
 import { FormField } from "~/components/FormField";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
 import { EntityReferenceField } from "~/components/EntityReferenceField";
@@ -9,9 +8,6 @@ interface ObjectArrayFieldProps {
   name: string;
   label: string;
   game: string;
-  control: Control<any>;
-  register: UseFormRegister<any>;
-  errors: FieldErrors<any>;
   subFields: DynamicField[];
 }
 
@@ -19,11 +15,9 @@ export function ObjectArrayField({
   name,
   label,
   game,
-  control,
-  register,
-  errors,
   subFields,
 }: ObjectArrayFieldProps) {
+  const { control, register, formState: { errors } } = useFormContext<any>();
   const { fields, append, remove } = useFieldArray({
     control,
     name,
@@ -168,9 +162,6 @@ export function ObjectArrayField({
                           name={`${name}.${i}.${sf.key}`}
                           label={sf.label}
                           game={game}
-                          control={control}
-                          register={register}
-                          errors={errors}
                           subFields={sf.subFields || []}
                         />
                       </div>

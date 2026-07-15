@@ -1,10 +1,4 @@
-import type {
-  Control,
-  UseFormRegister,
-  FieldErrors,
-  UseFormSetValue,
-} from "react-hook-form";
-import { useFieldArray, Controller, useWatch } from "react-hook-form";
+import { useFieldArray, Controller, useFormContext } from "react-hook-form";
 import type { ImageEntry } from "~/components/MultiImageUploadField";
 import { FormField } from "~/components/FormField";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
@@ -26,10 +20,6 @@ interface AbilitiesFieldProps {
   name: string;
   label: string;
   game: string;
-  control: Control<any>;
-  register: UseFormRegister<any>;
-  setValue: UseFormSetValue<any>;
-  errors: FieldErrors<any>;
   abilityIcons: Record<string, ImageEntry[]>;
   setAbilityIcons: (icons: Record<string, ImageEntry[]>) => void;
   subFields?: DynamicField[];
@@ -39,20 +29,12 @@ export function AbilitiesField({
   name,
   label,
   game,
-  control,
-  register,
-  setValue,
-  errors,
   abilityIcons,
   setAbilityIcons,
   subFields,
 }: AbilitiesFieldProps) {
+  const { control, register, setValue, getValues, formState: { errors } } = useFormContext<any>();
   const { fields, append, remove } = useFieldArray({
-    control,
-    name,
-  });
-
-  const watchAbilities = useWatch({
     control,
     name,
   });
@@ -72,11 +54,9 @@ export function AbilitiesField({
       <div className="space-y-4">
         {fields.map((field, i) => {
           const abilityErrors = (errors[name] as any)?.[i];
-          const currentAbility = (watchAbilities?.[i] ||
-            field) as AbilityFieldData;
-          // Use field.id as the stable client-side identifier
-          const dataId =
-            currentAbility._clientId || currentAbility.id || field.id;
+          const currentAbility = field as any;
+          const realId = getValues(`${name}.${i}.id`);
+          const dataId = currentAbility._clientId || realId || field.id;
 
           return (
             <div
