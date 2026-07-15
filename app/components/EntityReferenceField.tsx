@@ -72,6 +72,16 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
     }, [options, searchQuery]);
 
     const valArray = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
+
+    const handleCheckboxChange = (optId: string, isChecked: boolean, onChange?: (val: string[]) => void) => {
+      let newValue: string[];
+      if (isChecked) {
+        newValue = [...valArray, optId];
+      } else {
+        newValue = valArray.filter((v) => v !== optId);
+      }
+      if (onChange) onChange(newValue);
+    };
     
     if (loading) {
       return (
@@ -125,10 +135,9 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
                       type="checkbox"
                       name={name}
                       value={opt.id}
-                      defaultChecked={valArray.includes(opt.id)}
+                      checked={valArray.includes(opt.id)}
+                      onChange={(e) => handleCheckboxChange(opt.id, e.target.checked, props.onChange as any)}
                       className={`rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${error ? 'border-red-500' : ''}`}
-                      ref={ref as React.LegacyRef<HTMLInputElement>}
-                      {...(props as Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size' | 'value'>)}
                     />
                     <span className="ml-2 text-sm text-gray-700 dark:text-gray-300 truncate">{opt.name}</span>
                   </label>
@@ -143,7 +152,7 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
             className={`mt-1 block w-full rounded-md border ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'} bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 dark:bg-gray-800 dark:text-gray-100 ${error ? 'dark:border-red-500' : 'dark:border-gray-600'}`}
             ref={ref as React.LegacyRef<HTMLSelectElement>}
             {...(props as Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'size' | 'value'>)}
-            value={props.value || ""}
+            value={(props.value || currentValue) as string || ""}
           >
             <option value="" disabled>Select option...</option>
             {options.map((opt: { id: string; name: string }) => (

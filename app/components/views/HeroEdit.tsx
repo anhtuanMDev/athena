@@ -824,20 +824,20 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
             return null;
           if (f.type === "abilities" || f.type === "weapon") {
             return (
-              <AbilitiesField
-                key={f.key}
-                name={f.key}
-                label={f.label}
-                game={game}
-                control={control}
-                register={register}
-                setValue={setValue}
-                errors={errors}
-                abilityIcons={abilityIcons}
-                setAbilityIcons={setAbilityIcons}
-                subFields={f.subFields}
-                options={f.options}
-              />
+              <div className="col-span-1 md:col-span-2" key={f.key}>
+                <AbilitiesField
+                  name={f.key}
+                  label={f.label}
+                  game={game}
+                  control={control}
+                  register={register}
+                  setValue={setValue}
+                  errors={errors}
+                  abilityIcons={abilityIcons}
+                  setAbilityIcons={setAbilityIcons}
+                  subFields={f.subFields}
+                />
+              </div>
             );
           }
           if (f.type === "object_array") {
@@ -857,8 +857,9 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
           }
           if (f.type === "reference" || f.type === "reference_list" || ((f.type === "enum" || f.type === "list") && f.globalEnumId)) {
             const isEnumRef = (f.type === "enum" || f.type === "list") && f.globalEnumId;
+            const isMultiple = f.type === "reference_list" || f.type === "list";
             return (
-              <div className="col-span-1 md:col-span-2" key={f.key}>
+              <div className={`col-span-1 ${isMultiple ? 'md:col-span-2' : ''}`} key={f.key}>
                 <Controller
                   name={f.key}
                   control={control}
@@ -883,7 +884,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
           }
           if (f.type === "enum" || f.type === "list") {
             return (
-              <div className="col-span-1 md:col-span-2" key={f.key}>
+              <div className={`col-span-1 ${f.type === "list" ? 'md:col-span-2' : ''}`} key={f.key}>
                 <Controller
                   name={f.key}
                   control={control}

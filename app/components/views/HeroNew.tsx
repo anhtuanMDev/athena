@@ -72,11 +72,7 @@ export default function NewHero() {
         "schemas",
         true,
       );
-      const enums = await listDirectory<GlobalEnum>(
-        game!,
-        "enums",
-        true
-      );
+      const enums = await listDirectory<GlobalEnum>(game!, "enums", true);
       const heroSchemas = schemas.filter((s) => s && s.category === "hero");
       return {
         schemas: heroSchemas,
@@ -151,7 +147,11 @@ export default function NewHero() {
           </Button>
         </CardHeader>
         <CardContent>
-          <HeroForm schemas={data.schemas} enums={data.enums} game={data.game} />
+          <HeroForm
+            schemas={data.schemas}
+            enums={data.enums}
+            game={data.game}
+          />
         </CardContent>
       </Card>
     </div>
@@ -236,6 +236,8 @@ function HeroFormInner({
   );
   const fields = activeSchema?.fields || [];
 
+  console.log("fields", fields);
+
   const dynamicZodSchema = useMemo(
     () =>
       buildDynamicZodSchema(fields, HeroSchema, [
@@ -274,20 +276,20 @@ ${JSON.stringify(
     ...fields.map((f) => {
       let options = f.options;
       if (f.globalEnumId) {
-        const globalEnum = enums.find(e => e.id === f.globalEnumId);
+        const globalEnum = enums.find((e) => e.id === f.globalEnumId);
         if (globalEnum) {
-          options = globalEnum.options.map(o => o.id);
+          options = globalEnum.options.map((o) => o.id);
         }
       }
-      
+
       let subFields = f.subFields;
       if (subFields) {
-        subFields = subFields.map(sf => {
+        subFields = subFields.map((sf) => {
           let sfOptions = sf.options;
           if (sf.globalEnumId) {
-            const sfGlobalEnum = enums.find(e => e.id === sf.globalEnumId);
+            const sfGlobalEnum = enums.find((e) => e.id === sf.globalEnumId);
             if (sfGlobalEnum) {
-              sfOptions = sfGlobalEnum.options.map(o => o.id);
+              sfOptions = sfGlobalEnum.options.map((o) => o.id);
             }
           }
           return { ...sf, options: sfOptions };
@@ -386,7 +388,10 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
 
             // Auto-generate id from name if missing
             if (!formattedItem.id) {
-              if (formattedItem.name && typeof formattedItem.name === "string") {
+              if (
+                formattedItem.name &&
+                typeof formattedItem.name === "string"
+              ) {
                 formattedItem.id = formattedItem.name
                   .toLowerCase()
                   .replace(/[^a-z0-9]+/g, "-")
@@ -397,7 +402,10 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
             }
 
             // Ensure params always exists
-            if (!formattedItem.params || typeof formattedItem.params !== "object") {
+            if (
+              !formattedItem.params ||
+              typeof formattedItem.params !== "object"
+            ) {
               formattedItem.params = {};
             }
 
@@ -780,7 +788,6 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                   abilityIcons={abilityIcons}
                   setAbilityIcons={setAbilityIcons}
                   subFields={f.subFields || []}
-                  options={f.options}
                 />
               </div>
             );
@@ -800,10 +807,16 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
               </div>
             );
           }
-          if (f.type === "reference" || f.type === "reference_list" || ((f.type === "enum" || f.type === "list") && f.globalEnumId)) {
-            const isEnumRef = (f.type === "enum" || f.type === "list") && f.globalEnumId;
+          if (
+            f.type === "reference" ||
+            f.type === "reference_list" ||
+            ((f.type === "enum" || f.type === "list") && f.globalEnumId)
+          ) {
+            const isEnumRef =
+              (f.type === "enum" || f.type === "list") && f.globalEnumId;
+            const isMultiple = f.type === "reference_list" || f.type === "list";
             return (
-              <div className="col-span-1 md:col-span-2" key={f.key}>
+              <div className={`col-span-1 ${isMultiple ? 'md:col-span-2' : ''}`} key={f.key}>
                 <Controller
                   name={f.key}
                   control={control}
@@ -811,10 +824,18 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                     <EntityReferenceField
                       label={f.label}
                       game={game}
-                      referenceApiEndpoint={isEnumRef ? `/api/{game}/enums/${f.globalEnumId}` : f.referenceApiEndpoint}
+                      referenceApiEndpoint={
+                        isEnumRef
+                          ? `/api/{game}/enums/${f.globalEnumId}`
+                          : f.referenceApiEndpoint
+                      }
                       referenceValueKey={isEnumRef ? "id" : f.referenceValueKey}
-                      referenceLabelKey={isEnumRef ? "name" : f.referenceLabelKey}
-                      multiple={f.type === "reference_list" || f.type === "list"}
+                      referenceLabelKey={
+                        isEnumRef ? "name" : f.referenceLabelKey
+                      }
+                      multiple={
+                        f.type === "reference_list" || f.type === "list"
+                      }
                       required={f.required}
                       error={!!errors[f.key]}
                       helperText={errors[f.key]?.message as string}
@@ -827,7 +848,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
           }
           if (f.type === "enum" || f.type === "list") {
             return (
-              <div className="col-span-1 md:col-span-2" key={f.key}>
+              <div className={`col-span-1 ${f.type === "list" ? 'md:col-span-2' : ''}`} key={f.key}>
                 <Controller
                   name={f.key}
                   control={control}

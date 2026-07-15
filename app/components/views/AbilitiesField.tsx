@@ -1,4 +1,9 @@
-import type { Control, UseFormRegister, FieldErrors, UseFormSetValue } from "react-hook-form";
+import type {
+  Control,
+  UseFormRegister,
+  FieldErrors,
+  UseFormSetValue,
+} from "react-hook-form";
 import { useFieldArray, Controller, useWatch } from "react-hook-form";
 import type { ImageEntry } from "~/components/MultiImageUploadField";
 import { FormField } from "~/components/FormField";
@@ -28,53 +33,84 @@ interface AbilitiesFieldProps {
   abilityIcons: Record<string, ImageEntry[]>;
   setAbilityIcons: (icons: Record<string, ImageEntry[]>) => void;
   subFields?: DynamicField[];
-  options?: string[];
 }
 
-export function AbilitiesField({ name, label, game, control, register, setValue, errors, abilityIcons, setAbilityIcons, subFields, options }: AbilitiesFieldProps) {
+export function AbilitiesField({
+  name,
+  label,
+  game,
+  control,
+  register,
+  setValue,
+  errors,
+  abilityIcons,
+  setAbilityIcons,
+  subFields,
+}: AbilitiesFieldProps) {
   const { fields, append, remove } = useFieldArray({
     control,
-    name
+    name,
   });
 
   const watchAbilities = useWatch({
     control,
-    name
+    name,
   });
 
   return (
     <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
-      <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 tracking-wider uppercase">{label || "Kit Abilities"}</h3>
-      
+      <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 tracking-wider uppercase">
+        {label || "Kit Abilities"}
+      </h3>
+
       {(errors[name] as any)?.message && (
-        <p className="text-sm text-red-500 mb-2">{(errors[name] as any).message as string}</p>
+        <p className="text-sm text-red-500 mb-2">
+          {(errors[name] as any).message as string}
+        </p>
       )}
 
       <div className="space-y-4">
         {fields.map((field, i) => {
           const abilityErrors = (errors[name] as any)?.[i];
-          const currentAbility = (watchAbilities?.[i] || field) as AbilityFieldData;
+          const currentAbility = (watchAbilities?.[i] ||
+            field) as AbilityFieldData;
           // Use field.id as the stable client-side identifier
-          const dataId = currentAbility._clientId || currentAbility.id || field.id;
-          
+          const dataId =
+            currentAbility._clientId || currentAbility.id || field.id;
+
           return (
-            <div key={field.id} className="p-4 border border-gray-200/50 dark:border-gray-700/50 rounded-xl bg-gray-50/50 dark:bg-gray-800/30">
+            <div
+              key={field.id}
+              className="p-4 border border-gray-200/50 dark:border-gray-700/50 rounded-xl bg-gray-50/50 dark:bg-gray-800/30"
+            >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Ability {i + 1}</span>
-                <button type="button" onClick={() => remove(i)}
-                  className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">Remove</button>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  Ability {i + 1}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => remove(i)}
+                  className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                >
+                  Remove
+                </button>
               </div>
               <div className="flex flex-col md:flex-row gap-6">
                 <div className="w-full md:w-64">
-                  <MultiImageUploadField 
-                    label="Icons" 
+                  <MultiImageUploadField
+                    label="Icons"
                     entries={abilityIcons[dataId] || []}
-                    onChange={(newIcons: ImageEntry[]) => setAbilityIcons({ ...abilityIcons, [dataId]: newIcons })}
+                    onChange={(newIcons: ImageEntry[]) =>
+                      setAbilityIcons({ ...abilityIcons, [dataId]: newIcons })
+                    }
                     defaultKey="main"
                   />
                 </div>
                 <div className="flex-1 space-y-3">
-                  <input type="hidden" {...register(`${name}.${i}._clientId` as const)} />
+                  <input
+                    type="hidden"
+                    {...register(`${name}.${i}._clientId` as const)}
+                  />
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <Controller
                       name={`${name}.${i}.id` as const}
@@ -88,45 +124,35 @@ export function AbilitiesField({ name, label, game, control, register, setValue,
                         />
                       )}
                     />
-                    <FormField 
-                      label="Name" 
+                    <FormField
+                      label="Name"
                       {...register(`${name}.${i}.name` as const)}
                       onChange={(e) => {
                         register(`${name}.${i}.name` as const).onChange(e);
                         if (currentAbility._clientId) {
                           const newName = e.target.value;
-                          const generatedId = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-                          setValue(`${name}.${i}.id`, generatedId, { shouldDirty: true, shouldValidate: true });
+                          const generatedId = newName
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, "-")
+                            .replace(/(^-|-$)/g, "");
+                          setValue(`${name}.${i}.id`, generatedId, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
                         }
                       }}
                       error={!!abilityErrors?.name}
                       helperText={abilityErrors?.name?.message as string}
                     />
-                    {options && options.length > 0 ? (
-                      <Controller
-                        name={`${name}.${i}.type` as const}
-                        control={control}
-                        render={({ field }) => (
-                          <DynamicSelectField 
-                            label="Type"
-                            options={options}
-                            error={!!abilityErrors?.type}
-                            helperText={abilityErrors?.type?.message as string}
-                            {...field}
-                          />
-                        )}
-                      />
-                    ) : (
-                      <FormField 
-                        label="Type" 
-                        {...register(`${name}.${i}.type` as const)}
-                        error={!!abilityErrors?.type}
-                        helperText={abilityErrors?.type?.message as string}
-                      />
-                    )}
+                    <FormField
+                      label="Type"
+                      {...register(`${name}.${i}.type` as const)}
+                      error={!!abilityErrors?.type}
+                      helperText={abilityErrors?.type?.message as string}
+                    />
                   </div>
-                  <FormField 
-                    label="Description (optional)" 
+                  <FormField
+                    label="Description (optional)"
                     {...register(`${name}.${i}.description` as const)}
                     error={!!abilityErrors?.description}
                     helperText={abilityErrors?.description?.message as string}
@@ -134,27 +160,42 @@ export function AbilitiesField({ name, label, game, control, register, setValue,
 
                   {subFields && subFields.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-gray-200/50 dark:border-gray-700/50">
-                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Custom Parameters</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-white/50 dark:bg-black/20 p-3 rounded-lg border border-gray-200/50 dark:border-gray-700/50">
-                        {subFields.map(sf => {
-                          if (sf.type === 'boolean') {
+                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
+                        Custom Parameters
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 bg-white/50 dark:bg-black/20 p-3 rounded-lg border border-gray-200/50 dark:border-gray-700/50">
+                        {subFields.map((sf) => {
+                          if (sf.type === "boolean") {
                             return (
-                              <div key={sf.key} className="flex items-center gap-3 h-[40px] px-3 border border-gray-200/50 dark:border-gray-700/50 rounded-lg">
+                              <div
+                                key={sf.key}
+                                className="flex items-center gap-3 h-[40px] px-3 border border-gray-200/50 dark:border-gray-700/50 rounded-lg"
+                              >
                                 <input
                                   type="checkbox"
                                   id={`${name}-${i}-params-${sf.key}`}
                                   className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-800 cursor-pointer"
                                   {...register(`${name}.${i}.params.${sf.key}`)}
                                 />
-                                <label htmlFor={`${name}-${i}-params-${sf.key}`} className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                                <label
+                                  htmlFor={`${name}-${i}-params-${sf.key}`}
+                                  className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none"
+                                >
                                   {sf.label}
                                 </label>
                               </div>
                             );
                           }
                           const paramError = abilityErrors?.params?.[sf.key];
-                          if (sf.type === "reference" || sf.type === "reference_list" || ((sf.type === "enum" || sf.type === "list") && sf.globalEnumId)) {
-                            const isEnumRef = (sf.type === "enum" || sf.type === "list") && sf.globalEnumId;
+                          if (
+                            sf.type === "reference" ||
+                            sf.type === "reference_list" ||
+                            ((sf.type === "enum" || sf.type === "list") &&
+                              sf.globalEnumId)
+                          ) {
+                            const isEnumRef =
+                              (sf.type === "enum" || sf.type === "list") &&
+                              sf.globalEnumId;
                             return (
                               <Controller
                                 key={sf.key}
@@ -164,10 +205,21 @@ export function AbilitiesField({ name, label, game, control, register, setValue,
                                   <EntityReferenceField
                                     label={sf.label}
                                     game={game}
-                                    referenceApiEndpoint={isEnumRef ? `/api/{game}/enums/${sf.globalEnumId}` : sf.referenceApiEndpoint}
-                                    referenceValueKey={isEnumRef ? "id" : sf.referenceValueKey}
-                                    referenceLabelKey={isEnumRef ? "name" : sf.referenceLabelKey}
-                                    multiple={sf.type === "reference_list" || sf.type === "list"}
+                                    referenceApiEndpoint={
+                                      isEnumRef
+                                        ? `/api/{game}/enums/${sf.globalEnumId}`
+                                        : sf.referenceApiEndpoint
+                                    }
+                                    referenceValueKey={
+                                      isEnumRef ? "id" : sf.referenceValueKey
+                                    }
+                                    referenceLabelKey={
+                                      isEnumRef ? "name" : sf.referenceLabelKey
+                                    }
+                                    multiple={
+                                      sf.type === "reference_list" ||
+                                      sf.type === "list"
+                                    }
                                     error={!!paramError}
                                     helperText={paramError?.message as string}
                                     currentValue={field.value}
@@ -177,16 +229,23 @@ export function AbilitiesField({ name, label, game, control, register, setValue,
                               />
                             );
                           }
-                          if (sf.type === 'enum' || sf.type === 'list') {
+                          if (sf.type === "enum" || sf.type === "list") {
                             return (
-                              <DynamicSelectField
+                              <Controller
                                 key={sf.key}
-                                label={sf.label}
-                                options={sf.options || []}
-                                multiple={sf.type === 'list'}
-                                {...register(`${name}.${i}.params.${sf.key}`)}
-                                error={!!paramError}
-                                helperText={paramError?.message as string}
+                                control={control}
+                                name={`${name}.${i}.params.${sf.key}`}
+                                render={({ field, fieldState: { error } }) => (
+                                  <DynamicSelectField
+                                    label={sf.label}
+                                    options={sf.options || []}
+                                    multiple={sf.type === "list"}
+                                    currentValue={field.value}
+                                    error={!!error}
+                                    helperText={error?.message as string}
+                                    {...field}
+                                  />
+                                )}
                               />
                             );
                           }
@@ -194,7 +253,7 @@ export function AbilitiesField({ name, label, game, control, register, setValue,
                             <FormField
                               key={sf.key}
                               label={sf.label}
-                              type={sf.type === 'number' ? 'number' : 'text'}
+                              type={sf.type === "number" ? "number" : "text"}
                               {...register(`${name}.${i}.params.${sf.key}`)}
                               error={!!paramError}
                               helperText={paramError?.message as string}
@@ -210,8 +269,20 @@ export function AbilitiesField({ name, label, game, control, register, setValue,
           );
         })}
       </div>
-      <button type="button" onClick={() => append({ _clientId: Math.random().toString(36).substring(7), id: "", name: "", type: "", description: "", params: {} })}
-        className="mt-4 text-sm font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() =>
+          append({
+            _clientId: Math.random().toString(36).substring(7),
+            id: "",
+            name: "",
+            type: "",
+            description: "",
+            params: {},
+          })
+        }
+        className="mt-4 text-sm font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 inline-flex items-center gap-1"
+      >
         + Add Ability
       </button>
     </div>
