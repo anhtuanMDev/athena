@@ -371,7 +371,36 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       }
     }
 
+    const sanitizeValue = (val: any, fieldDef: DynamicField) => {
+      if (fieldDef.type === "list" || fieldDef.type === "reference_list") {
+        if (val === "" || val === null || val === undefined || val === false || val === 0) {
+          return [];
+        }
+        if (!Array.isArray(val)) {
+          return [String(val)];
+        }
+        return val.map(String);
+      }
+      return val;
+    };
+
     fields.forEach((f) => {
+      if (formattedJson[f.key] !== undefined) {
+        formattedJson[f.key] = sanitizeValue(formattedJson[f.key], f);
+      }
+
+      if (f.type === "object_array" && Array.isArray(formattedJson[f.key]) && f.subFields) {
+        (formattedJson[f.key] as any[]).forEach((item) => {
+          if (item && typeof item === "object") {
+            f.subFields!.forEach((sf) => {
+              if (item[sf.key] !== undefined) {
+                item[sf.key] = sanitizeValue(item[sf.key], sf);
+              }
+            });
+          }
+        });
+      }
+
       if (
         (f.type === "abilities" || f.type === "weapon") &&
         Array.isArray(formattedJson[f.key])
@@ -395,6 +424,8 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
             Object.keys(raw).forEach((k) => {
               if (standardKeys.includes(k)) {
                 formattedItem[k] = raw[k];
+              } else if (k === "params" && typeof raw[k] === "object" && raw[k] !== null) {
+                Object.assign(formattedItem.params as Record<string, unknown>, raw[k]);
               } else {
                 (formattedItem.params as Record<string, unknown>)[k] = raw[k];
               }
@@ -421,6 +452,16 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
               typeof formattedItem.params !== "object"
             ) {
               formattedItem.params = {};
+            }
+
+            // Sanitize subFields inside params
+            if (f.subFields) {
+              const paramsObj = formattedItem.params as Record<string, unknown>;
+              f.subFields.forEach((sf) => {
+                if (paramsObj[sf.key] !== undefined) {
+                  paramsObj[sf.key] = sanitizeValue(paramsObj[sf.key], sf);
+                }
+              });
             }
 
             return formattedItem;

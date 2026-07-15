@@ -36,7 +36,7 @@ import EnumsList from "~/components/views/EnumsList";
 import DynamicSchemaEdit from "~/components/views/DynamicSchemaEdit";
 import DynamicSchemaNew from "~/components/views/DynamicSchemaNew";
 import DynamicSchemasList from "~/components/views/DynamicSchemasList";
-import RawEdit from "~/components/views/RawEdit";
+import RawEdit from "~/RawEdit";
 
 // Cron Jobs
 import CronJobEdit from "~/components/views/CronJobEdit";
