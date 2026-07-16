@@ -364,6 +364,14 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
         }
         return val.map(String);
       }
+      if (fieldDef.type === "abilities" || fieldDef.type === "weapon" || fieldDef.type === "object_array") {
+        if (val === "" || val === null || val === undefined || val === false || val === 0) {
+          return [];
+        }
+        if (!Array.isArray(val)) {
+          return [val];
+        }
+      }
       return val;
     };
 
@@ -853,6 +861,31 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                 </div>
               );
             }
+            if (f.hasCustomSuffix) {
+              return (
+                <div className="flex gap-2 w-full" key={f.key}>
+                  <div className="flex-1">
+                    <FormField
+                      label={f.label}
+                      required={f.required}
+                      type={f.type === "number" ? "number" : "text"}
+                      {...register(f.key)}
+                      error={!!errors[f.key]}
+                      helperText={errors[f.key]?.message as string}
+                    />
+                  </div>
+                  <div className="w-1/3">
+                    <FormField
+                      label="Unit/Suffix"
+                      {...register(`${f.key}_suffix`)}
+                      error={!!errors[`${f.key}_suffix`]}
+                      helperText={errors[`${f.key}_suffix`]?.message as string}
+                    />
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <FormField
                 key={f.key}
@@ -862,6 +895,15 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                 {...register(f.key)}
                 error={!!errors[f.key]}
                 helperText={errors[f.key]?.message as string}
+                slotProps={f.unit ? {
+                  input: {
+                    endAdornment: (
+                      <span className="text-gray-500 text-sm select-none pr-1">
+                        {f.unit}
+                      </span>
+                    )
+                  }
+                } : undefined}
               />
             );
           })}

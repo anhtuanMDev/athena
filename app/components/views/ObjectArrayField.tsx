@@ -167,6 +167,31 @@ export function ObjectArrayField({
                       </div>
                     );
                   }
+                  if (sf.hasCustomSuffix) {
+                    const unitError = itemErrors?.[`${sf.key}_suffix`];
+                    return (
+                      <div className="flex gap-2 w-full" key={sf.key}>
+                        <div className="flex-1">
+                          <FormField
+                            label={sf.label}
+                            type={sf.type === "number" ? "number" : "text"}
+                            {...register(`${name}.${i}.${sf.key}`)}
+                            error={!!error}
+                            helperText={error?.message as string}
+                          />
+                        </div>
+                        <div className="w-1/3">
+                          <FormField
+                            label="Unit/Suffix"
+                            {...register(`${name}.${i}.${sf.key}_suffix`)}
+                            error={!!unitError}
+                            helperText={unitError?.message as string}
+                          />
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <FormField
                       key={sf.key}
@@ -175,6 +200,15 @@ export function ObjectArrayField({
                       {...register(`${name}.${i}.${sf.key}`)}
                       error={!!error}
                       helperText={error?.message as string}
+                      slotProps={sf.unit ? {
+                        input: {
+                          endAdornment: (
+                            <span className="text-gray-500 text-sm select-none pr-1">
+                              {sf.unit}
+                            </span>
+                          )
+                        }
+                      } : undefined}
                     />
                   );
                 })}

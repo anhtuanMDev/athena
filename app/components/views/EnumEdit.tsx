@@ -25,12 +25,8 @@ export default function EnumEdit() {
   const id = splat?.split("/")[1];
   assertSafeGameSlug(game!);
 
-  const cacheKey = `${game}-enum-${id}`;
-
-  // Always fetch fresh data — enums may have been updated since last visit
-  useEffect(() => {
-    clearDataCache(cacheKey);
-  }, [cacheKey]);
+  const [sessionKey] = useState(() => Date.now().toString());
+  const cacheKey = `${game}-enum-${id}-${sessionKey}`;
 
   const {
     data: enumResult,

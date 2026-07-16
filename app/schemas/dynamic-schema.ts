@@ -9,6 +9,7 @@ export type DynamicField = {
   label: string;
   type: FieldType;
   unit?: string;
+  hasCustomSuffix?: boolean;
   required: boolean;
   options?: string[];
   subFields?: DynamicField[];
@@ -23,6 +24,7 @@ export const DynamicFieldSchema: z.ZodType<DynamicField> = z.lazy(() => z.object
   label: z.string().min(1),
   type: FieldTypeSchema,
   unit: z.string().optional(),
+  hasCustomSuffix: z.boolean().optional(),
   required: z.boolean().default(false),
   options: z.array(z.string()).optional(),
   subFields: z.lazy(() => z.array(DynamicFieldSchema)).optional(),
@@ -124,6 +126,10 @@ export function buildDynamicZodSchema(
       else fieldSchema = fieldSchema.nullish().or(z.literal("")).catch(undefined);
     }
     shape[f.key] = fieldSchema;
+
+    if (f.hasCustomSuffix) {
+      shape[`${f.key}_suffix`] = z.string().optional();
+    }
   });
   return baseSchema.extend(shape);
 }

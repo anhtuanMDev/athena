@@ -43,6 +43,188 @@ import {
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { EmptyState } from "~/components/ui/EmptyState";
 
+function SubFieldList({
+  subFields,
+  path,
+  onChange,
+  onAdd,
+  onRemove,
+  enums,
+}: {
+  subFields: DynamicField[];
+  path: number[];
+  onChange: (
+    path: number[],
+    key: keyof DynamicField,
+    value: string | boolean | string[] | undefined,
+  ) => void;
+  onAdd: (path: number[]) => void;
+  onRemove: (path: number[], removeIndex: number) => void;
+  enums: string[];
+}) {
+  return (
+    <div className="space-y-3">
+      {subFields.map((subField, sIndex) => (
+        <div
+          key={sIndex}
+          className="flex flex-col gap-3 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm transition-colors hover:border-gray-300 dark:hover:border-gray-600"
+        >
+          <div className="flex flex-col sm:flex-row gap-3 items-center w-full">
+            <input
+              className="w-full sm:w-1/3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
+              placeholder="Label"
+              value={subField.label}
+              onChange={(e) =>
+                onChange([...path, sIndex], "label", e.target.value)
+              }
+            />
+            <input
+              className="w-full sm:w-1/3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-mono focus:ring-1 focus:ring-blue-500 transition-colors"
+              placeholder="key_internal"
+              value={subField.key}
+              onChange={(e) =>
+                onChange([...path, sIndex], "key", e.target.value)
+              }
+            />
+            <select
+              className="w-full sm:w-1/4 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
+              value={subField.type}
+              onChange={(e) =>
+                onChange([...path, sIndex], "type", e.target.value)
+              }
+            >
+              <option value="string">String</option>
+              <option value="number">Number</option>
+              <option value="boolean">Boolean</option>
+              <option value="enum">Enum (Single Select)</option>
+              <option value="list">List (Multiple Select / Enum)</option>
+              <option value="object_array">Object Group (Nested List)</option>
+            </select>
+            {subField.type !== "object_array" && subField.type !== "enum" && subField.type !== "list" && (
+              <div className="w-full sm:w-1/4 flex flex-col gap-1 justify-center">
+                <label className="flex items-center gap-1.5 text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer w-max select-none">
+                  <input
+                    type="checkbox"
+                    checked={!!subField.hasCustomSuffix}
+                    onChange={(e) => {
+                      onChange([...path, sIndex], "hasCustomSuffix", e.target.checked);
+                      if (e.target.checked) {
+                        onChange([...path, sIndex], "unit", ""); // clear predefined unit if custom is checked
+                      }
+                    }}
+                    className="w-3 h-3 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-800 cursor-pointer"
+                  />
+                  User inputs custom unit in form
+                </label>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => onRemove(path, sIndex)}
+              className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ml-auto shrink-0"
+              title="Remove sub-field"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+
+          {(subField.type === "enum" || subField.type === "list") && (
+            <div className="w-full mt-1 space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                  Global Enum Reference (Optional)
+                </label>
+                <select
+                  value={subField.globalEnumId || ""}
+                  onChange={(e) => {
+                    onChange(
+                      [...path, sIndex],
+                      "globalEnumId",
+                      e.target.value || undefined,
+                    );
+                    if (e.target.value) {
+                      onChange([...path, sIndex], "options", undefined);
+                    }
+                  }}
+                  className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
+                >
+                  <option value="">
+                    -- No Global Enum (Use Custom Options) --
+                  </option>
+                  {enums.map((eId: string) => (
+                    <option key={eId} value={eId}>
+                      {eId}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {!subField.globalEnumId && (
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                    Custom Options (One per line)
+                  </label>
+                  <textarea
+                    value={subField.options?.join("\n") || ""}
+                    onChange={(e) =>
+                      onChange([...path, sIndex], "options", e.target.value)
+                    }
+                    placeholder="Option 1\nOption 2\nOption 3"
+                    rows={3}
+                    className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors resize-y"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {subField.type === "object_array" && (
+            <div className="w-full mt-3 rounded-xl border border-blue-500/30 bg-blue-50/30 dark:bg-blue-900/10 p-4 shadow-sm relative overflow-hidden">
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500/50"></div>
+              <div className="flex justify-between items-start sm:items-center mb-4 gap-3">
+                <div>
+                  <span className="block font-bold text-sm text-blue-900 dark:text-blue-100">
+                    Nested Group Sub-Fields
+                  </span>
+                  <span className="text-xs text-blue-700/80 dark:text-blue-300/80">
+                    Define the explicit fields for each object in this nested list.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onAdd([...path, sIndex])}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-medium flex items-center gap-1.5 transition-colors text-xs whitespace-nowrap shadow-sm"
+                >
+                  <Trash2 className="w-3 h-3 hidden" /> {/* Hidden icon to match spacing conceptually if we used an icon */}
+                  <span className="flex items-center gap-1"><Plus className="w-3 h-3" /> Add Sub-Field</span>
+                </button>
+              </div>
+              
+              <div className="pl-1">
+                {(subField.subFields || []).length > 0 ? (
+                  <SubFieldList
+                    subFields={subField.subFields!}
+                    path={[...path, sIndex]}
+                    onChange={onChange}
+                    onAdd={onAdd}
+                    onRemove={onRemove}
+                    enums={enums}
+                  />
+                ) : (
+                  <div className="py-6 text-center border border-dashed border-blue-200 dark:border-blue-800/50 rounded-lg bg-white/50 dark:bg-gray-900/30">
+                    <p className="text-xs font-medium text-blue-800/60 dark:text-blue-300/60">
+                      No nested sub-fields configured.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function DynamicSchemaEdit() {
   const { game, "*": splat } = useParams();
   const id = splat?.split("/")[1];
@@ -399,6 +581,99 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
 
       subFields[subFieldIndex] = subField;
       newFields[fieldIndex] = { ...newFields[fieldIndex], subFields };
+      return newFields;
+    });
+  };
+
+  const handleChangeSubFieldDeep = (
+    path: number[],
+    key: keyof DynamicField,
+    value: string | boolean | string[] | undefined,
+  ) => {
+    setFields((prevFields) => {
+      if (!prevFields) return prevFields;
+      const newFields = JSON.parse(
+        JSON.stringify(prevFields),
+      ) as DynamicField[];
+
+      let targetArray = newFields;
+      // Traverse to the parent array of the target field
+      for (let i = 0; i < path.length - 1; i++) {
+        if (!targetArray[path[i]].subFields) {
+          targetArray[path[i]].subFields = [];
+        }
+        targetArray = targetArray[path[i]].subFields!;
+      }
+
+      const targetIndex = path[path.length - 1];
+      const field = targetArray[targetIndex];
+
+      if (key === "options") {
+        field.options = value
+          ? (value as string).split("\n").map((s) => s.trim())
+          : undefined;
+      } else if (key === "label") {
+        const oldSlug = (field.label || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/(^_|_$)/g, "");
+        const newSlug = ((value as string) || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/(^_|_$)/g, "");
+        const shouldUpdateKey = !field.key || field.key === oldSlug;
+        field.label = value as string;
+        if (shouldUpdateKey) {
+          field.key = newSlug;
+        }
+      } else {
+        (field as any)[key] = value;
+      }
+
+      return newFields;
+    });
+  };
+
+  const handleAddSubFieldDeep = (path: number[]) => {
+    setFields((prevFields) => {
+      if (!prevFields) return prevFields;
+      const newFields = JSON.parse(
+        JSON.stringify(prevFields),
+      ) as DynamicField[];
+
+      let targetArray = newFields;
+      for (let i = 0; i < path.length; i++) {
+        if (!targetArray[path[i]].subFields) {
+          targetArray[path[i]].subFields = [];
+        }
+        targetArray = targetArray[path[i]].subFields!;
+      }
+
+      const prefix = "sub_".repeat(path.length);
+      targetArray.push({
+        key: `${prefix}field_${targetArray.length + 1}`,
+        label: "New Sub-Field",
+        type: "string",
+        required: false,
+      });
+
+      return newFields;
+    });
+  };
+
+  const handleRemoveSubFieldDeep = (path: number[], removeIndex: number) => {
+    setFields((prevFields) => {
+      if (!prevFields) return prevFields;
+      const newFields = JSON.parse(
+        JSON.stringify(prevFields),
+      ) as DynamicField[];
+
+      let targetArray = newFields;
+      for (let i = 0; i < path.length; i++) {
+        targetArray = targetArray[path[i]].subFields!;
+      }
+
+      targetArray.splice(removeIndex, 1);
       return newFields;
     });
   };
@@ -900,19 +1175,31 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                           </select>
                         </div>
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
-                          Unit / Suffix (Optional)
-                        </label>
-                        <input
-                          value={field.unit || ""}
-                          onChange={(e) =>
-                            handleChangeField(index, "unit", e.target.value)
-                          }
-                          placeholder="e.g. %, HP, m/s"
-                          className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                        />
-                      </div>
+                      {field.type !== "object_array" &&
+                        field.type !== "abilities" &&
+                        field.type !== "weapon" && (
+                          <div>
+                            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                              Unit / Suffix (Optional)
+                            </label>
+                            <div className="flex flex-col gap-1.5 justify-center h-full">
+                              <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer w-max select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={!!field.hasCustomSuffix}
+                                  onChange={(e) => {
+                                    handleChangeField(index, "hasCustomSuffix", e.target.checked);
+                                    if (e.target.checked) {
+                                      handleChangeField(index, "unit", ""); // clear predefined unit if custom is checked
+                                    }
+                                  }}
+                                  className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-800 cursor-pointer"
+                                />
+                                User inputs custom unit in form
+                              </label>
+                            </div>
+                          </div>
+                        )}
                     </div>
 
                     {/* Right Column: Config & Actions */}
@@ -1236,141 +1523,14 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
                             </div>
 
                             {(field.subFields || []).length > 0 ? (
-                              <div className="space-y-3">
-                                {field.subFields!.map((subField, sIndex) => (
-                                  <div
-                                    key={sIndex}
-                                    className="flex flex-col gap-3 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm transition-colors hover:border-gray-300 dark:hover:border-gray-600"
-                                  >
-                                    <div className="flex flex-col sm:flex-row gap-3 items-center w-full">
-                                      <input
-                                        className="w-full sm:w-1/3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
-                                        placeholder="Label"
-                                        value={subField.label}
-                                        onChange={(e) =>
-                                          handleChangeSubField(
-                                            index,
-                                            sIndex,
-                                            "label",
-                                            e.target.value,
-                                          )
-                                        }
-                                      />
-                                      <input
-                                        className="w-full sm:w-1/3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-mono focus:ring-1 focus:ring-blue-500 transition-colors"
-                                        placeholder="key_internal"
-                                        value={subField.key}
-                                        onChange={(e) =>
-                                          handleChangeSubField(
-                                            index,
-                                            sIndex,
-                                            "key",
-                                            e.target.value,
-                                          )
-                                        }
-                                      />
-                                      <select
-                                        className="w-full sm:w-1/4 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
-                                        value={subField.type}
-                                        onChange={(e) =>
-                                          handleChangeSubField(
-                                            index,
-                                            sIndex,
-                                            "type",
-                                            e.target.value,
-                                          )
-                                        }
-                                      >
-                                        <option value="string">String</option>
-                                        <option value="number">Number</option>
-                                        <option value="boolean">Boolean</option>
-                                        <option value="enum">
-                                          Enum (Single Select)
-                                        </option>
-                                        <option value="list">
-                                          List (Multiple Select / Enum)
-                                        </option>
-                                      </select>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handleRemoveSubField(index, sIndex)
-                                        }
-                                        className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ml-auto"
-                                        title="Remove sub-field"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                    </div>
-
-                                    {(subField.type === "enum" ||
-                                      subField.type === "list") && (
-                                      <div className="w-full mt-1 space-y-3">
-                                        <div>
-                                          <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
-                                            Global Enum Reference (Optional)
-                                          </label>
-                                          <select
-                                            value={subField.globalEnumId || ""}
-                                            onChange={(e) => {
-                                              handleChangeSubField(
-                                                index,
-                                                sIndex,
-                                                "globalEnumId",
-                                                e.target.value || undefined,
-                                              );
-                                              if (e.target.value)
-                                                handleChangeSubField(
-                                                  index,
-                                                  sIndex,
-                                                  "options",
-                                                  undefined,
-                                                );
-                                            }}
-                                            className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
-                                          >
-                                            <option value="">
-                                              -- No Global Enum (Use Custom
-                                              Options) --
-                                            </option>
-                                            {loaderData?.enums?.map(
-                                              (eId: string) => (
-                                                <option key={eId} value={eId}>
-                                                  {eId}
-                                                </option>
-                                              ),
-                                            )}
-                                          </select>
-                                        </div>
-                                        {!subField.globalEnumId && (
-                                          <div>
-                                            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
-                                              Custom Options (One per line)
-                                            </label>
-                                            <textarea
-                                              value={
-                                                subField.options?.join("\n") ||
-                                                ""
-                                              }
-                                              onChange={(e) =>
-                                                handleChangeSubField(
-                                                  index,
-                                                  sIndex,
-                                                  "options",
-                                                  e.target.value,
-                                                )
-                                              }
-                                              placeholder="Option 1\nOption 2\nOption 3"
-                                              rows={3}
-                                              className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors resize-y"
-                                            />
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
+                              <SubFieldList
+                                subFields={field.subFields!}
+                                path={[index]}
+                                onChange={handleChangeSubFieldDeep}
+                                onAdd={handleAddSubFieldDeep}
+                                onRemove={handleRemoveSubFieldDeep}
+                                enums={loaderData?.enums || []}
+                              />
                             ) : (
                               <div className="py-8 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-xl bg-gray-50/30 dark:bg-gray-800/10">
                                 <p className="text-sm font-medium text-gray-500 dark:text-gray-500 opacity-80">
