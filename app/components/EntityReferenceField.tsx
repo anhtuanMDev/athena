@@ -71,7 +71,8 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
       return options.filter(opt => opt.name.toLowerCase().includes(q) || opt.id.toLowerCase().includes(q));
     }, [options, searchQuery]);
 
-    const valArray = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
+    const actualValue = props.value !== undefined ? props.value : currentValue;
+    const valArray = Array.isArray(actualValue) ? actualValue : (actualValue ? [actualValue] : []);
 
     const handleCheckboxChange = (optId: string, isChecked: boolean, onChange?: (val: string[]) => void) => {
       let newValue: string[];
