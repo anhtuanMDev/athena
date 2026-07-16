@@ -1,5 +1,6 @@
 import React, { forwardRef, useState, useMemo } from "react";
 import { useData } from "~/lib/use-data";
+import { useParams } from "react-router";
 
 interface EntityReferenceFieldProps extends Omit<React.InputHTMLAttributes<HTMLSelectElement | HTMLInputElement>, 'size' | 'value'> {
   name: string;
@@ -17,11 +18,14 @@ interface EntityReferenceFieldProps extends Omit<React.InputHTMLAttributes<HTMLS
 }
 
 export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElement, EntityReferenceFieldProps>(
-  ({ name, label, game, referenceApiEndpoint, referenceValueKey = "id", referenceLabelKey = "name", multiple = false, required = false, currentValue, error, helperText, ...props }, ref) => {
+  ({ name, label, game: propGame, referenceApiEndpoint, referenceValueKey = "id", referenceLabelKey = "name", multiple = false, required = false, currentValue, error, helperText, ...props }, ref) => {
+    const { game: urlGame } = useParams();
+    const game = propGame || urlGame;
+
     const { data: entities, loading, error: fetchError } = useData(async () => {
       if (!referenceApiEndpoint) return [];
       
-      const endpoint = referenceApiEndpoint.replace("{game}", game);
+      const endpoint = referenceApiEndpoint.replace("{game}", game || "");
       const res = await fetch(endpoint);
       if (res.status === 401) {
         if (typeof window !== "undefined") window.location.href = "/login";
