@@ -4,8 +4,9 @@ import { DataTable, type Column } from "~/components/DataTable";
 import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
 import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
-import { Plus } from "lucide-react";
+import { Plus, Copy } from "lucide-react";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
+import { useToast } from "~/components/ToastProvider";
 
 interface HeroRow {
   id: string;
@@ -61,6 +62,7 @@ const baseColumns: Column<any>[] = [
 
 export default function HeroesIndex() {
   const { game } = useParams();
+  const { success } = useToast();
   assertSafeGameSlug(game!);
   const {
     data: heroes,
@@ -145,12 +147,27 @@ export default function HeroesIndex() {
             Manage the hero roster, stats, and abilities.
           </p>
         </div>
-        <Link to={`/${game}/heroes/new`}>
-          <Button className="gap-2 shadow-lg shadow-orange-500/20 transition-all hover:shadow-orange-500/40">
-            <Plus className="w-4 h-4" />
-            New Hero
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => {
+              if (heroes) {
+                navigator.clipboard.writeText(JSON.stringify(heroes, null, 2));
+                success("Heroes JSON copied to clipboard!");
+              }
+            }}
+          >
+            <Copy className="w-4 h-4" />
+            Copy JSON
           </Button>
-        </Link>
+          <Link to={`/${game}/heroes/new`}>
+            <Button className="gap-2 shadow-lg shadow-orange-500/20 transition-all hover:shadow-orange-500/40">
+              <Plus className="w-4 h-4" />
+              New Hero
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {heroes ? (

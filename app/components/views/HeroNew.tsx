@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Sparkles, Download, Upload, ClipboardPaste } from "lucide-react";
+import { Sparkles, Download, Upload, ClipboardPaste, Copy } from "lucide-react";
 import {
   Controller,
   useForm,
@@ -925,21 +925,37 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
               </ul>
             </div>
           )}
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => navigate(`/${game}/heroes`)}
-            className="mr-3"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            disabled={submitting}
-            className="shadow-lg shadow-orange-500/20 w-40"
-          >
-            {submitting ? "Creating..." : "Create Hero"}
-          </Button>
+          <div className="flex justify-between items-center">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => navigate(`/${game}/heroes`)}
+            >
+              Cancel
+            </Button>
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  const data = methods.getValues();
+                  navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+                  toastSuccess("Form JSON copied to clipboard!");
+                }}
+              >
+                <Copy className="w-4 h-4" />
+                Copy JSON
+              </Button>
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="shadow-lg shadow-orange-500/20 w-40"
+              >
+                {submitting ? "Creating..." : "Create Hero"}
+              </Button>
+            </div>
+          </div>
         </div>
 
 

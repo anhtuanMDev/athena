@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ClipboardPaste, Download, Sparkles, Upload } from "lucide-react";
+import { ClipboardPaste, Download, Sparkles, Upload, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Controller, useForm, FormProvider } from "react-hook-form";
@@ -949,7 +949,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
             </ul>
           </div>
         )}
-        <div className="flex justify-between">
+        <div className="flex justify-between items-center">
           <Button
             type="button"
             variant="ghost"
@@ -957,13 +957,28 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
           >
             Cancel
           </Button>
-          <Button
-            type="submit"
-            disabled={submitting || !isDirty}
-            className="shadow-lg shadow-orange-500/20"
-          >
-            {submitting ? "Processing..." : "Preview Changes"}
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2"
+              onClick={() => {
+                const data = methods.getValues();
+                navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+                toastSuccess("Form JSON copied to clipboard!");
+              }}
+            >
+              <Copy className="w-4 h-4" />
+              Copy JSON
+            </Button>
+            <Button
+              type="submit"
+              disabled={submitting || !isDirty}
+              className="shadow-lg shadow-orange-500/20"
+            >
+              {submitting ? "Processing..." : "Preview Changes"}
+            </Button>
+          </div>
         </div>
       </div>
     </form>

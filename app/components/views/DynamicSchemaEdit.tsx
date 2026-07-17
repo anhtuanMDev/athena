@@ -508,7 +508,8 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
           .replace(/[^a-z0-9]+/g, "_")
           .replace(/(^_|_$)/g, "");
 
-        const shouldUpdateKey = !field.key || field.key === oldSlug;
+        const isDefaultKey = !field.key || String(field.key).includes("field_") || String(field.key).includes("sub_");
+        const shouldUpdateKey = !field.key || field.key === oldSlug || isDefaultKey;
 
         field.label = value as string;
         if (shouldUpdateKey) {
@@ -570,7 +571,9 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "_")
           .replace(/(^_|_$)/g, "");
-        const shouldUpdateKey = !subField.key || subField.key === oldSlug;
+        
+        const isDefaultKey = !subField.key || String(subField.key).includes("field_") || String(subField.key).includes("sub_");
+        const shouldUpdateKey = !subField.key || subField.key === oldSlug || isDefaultKey;
         subField.label = value as string;
         if (shouldUpdateKey) {
           subField.key = newSlug;
@@ -621,7 +624,20 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "_")
           .replace(/(^_|_$)/g, "");
-        const shouldUpdateKey = !field.key || field.key === oldSlug;
+        
+        const isDefaultKey = !field.key || String(field.key).includes("field_") || String(field.key).includes("sub_");
+        const shouldUpdateKey = !field.key || field.key === oldSlug || isDefaultKey;
+        
+        console.log("handleChangeSubFieldDeep LABEL UPDATE", {
+          oldLabel: field.label,
+          newLabel: value,
+          oldSlug,
+          newSlug,
+          currentKey: field.key,
+          isDefaultKey,
+          shouldUpdateKey
+        });
+
         field.label = value as string;
         if (shouldUpdateKey) {
           field.key = newSlug;
