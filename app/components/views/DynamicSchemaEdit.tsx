@@ -328,7 +328,8 @@ export default function DynamicSchemaEdit() {
     else if (category === "event") categoryHint = "Think about start/end dates, event type, rewards, and related game modes.";
 
     return `# Athena Schema Generation Guidelines
-You are tasked with generating a JSON schema for a **${entityName}** in the Athena platform.
+You are an AI Architect. You are tasked with creating the structural blueprint (a JSON schema definition) for a **${entityName}** in the Athena platform.
+DO NOT extract or generate data for a specific entity (e.g., do not give me Tracer's actual stats). Instead, generate the abstract structural fields that will be used as a template to define ANY ${entityName}.
 
 ## JSON Structure
 \`\`\`json
@@ -370,7 +371,7 @@ You are tasked with generating a JSON schema for a **${entityName}** in the Athe
 1. Generate the JSON structure EXACTLY as specified above.
 2. Ensure \`key\` values are lowercase and alphanumeric with underscores.
 3. Do not include extra root properties. Do NOT include empty \`options\` or \`subFields\` on field types that do not require them.
-4. Generate a COMPREHENSIVE schema for a **${entityName}**. Do not just generate a single field. Include ALL relevant ${entityName}-specific fields and attributes that would be necessary to fully define this entity in the game.
+4. Generate a COMPREHENSIVE structural blueprint for a **${entityName}**. Do not just generate a single field. Include ALL relevant ${entityName}-specific fields and attributes that would be necessary to fully define ANY entity of this type in the game. Remember: You are defining the data model structure, not extracting data for a specific character/map/item.
 5. ${categoryHint} Do not include hero-specific concepts (like passives or weapons) unless this is a Hero schema.
 `;
   }, [loaderData?.schema.category, loaderData?.schema.name]);
