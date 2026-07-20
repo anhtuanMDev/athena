@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Sparkles, Download, Upload, ClipboardPaste, Copy } from "lucide-react";
 import {
-  Controller,
   useForm,
   useWatch,
   FormProvider,
@@ -11,8 +10,6 @@ import {
 } from "react-hook-form";
 import { useNavigate, useParams } from "react-router";
 import { z } from "zod";
-import { DynamicSelectField } from "~/components/DynamicSelectField";
-import { EntityReferenceField } from "~/components/EntityReferenceField";
 import { FormField } from "~/components/FormField";
 import {
   MultiImageUploadField,
@@ -21,8 +18,6 @@ import {
 import { useToast } from "~/components/ToastProvider";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import { AbilitiesField } from "~/components/views/AbilitiesField";
-import { ObjectArrayField } from "~/components/views/ObjectArrayField";
 import { AIPromptModalWrapper, ImportDataModalWrapper } from "~/components/views/HeroFormModals";
 import {
   createFile,
@@ -40,6 +35,7 @@ import {
 } from "~/schemas/dynamic-schema";
 import { HeroSchema } from "~/schemas/hero";
 import { type GlobalEnum } from "~/schemas/enum";
+import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
 
 function AutoGenerateId() {
   const {
@@ -737,176 +733,16 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          {fields.map((f: DynamicField) => {
-            if (["id", "name", "real_name", "portrait"].includes(f.key))
-              return null;
-            if (f.type === "abilities" || f.type === "weapon") {
-              return (
-                <div className="col-span-1 md:col-span-2" key={f.key}>
-                  <AbilitiesField
-                    name={f.key}
-                    label={f.label}
-                    game={game}
-                    abilityIcons={abilityIcons}
-                    setAbilityIcons={setAbilityIcons}
-                    subFields={f.subFields || []}
-                  />
-                </div>
-              );
-            }
-            if (f.type === "object_array") {
-              return (
-                <div className="col-span-1 md:col-span-2" key={f.key}>
-                  <ObjectArrayField
-                    name={f.key}
-                    label={f.label}
-                    game={game}
-                    subFields={f.subFields || []}
-                  />
-                </div>
-              );
-            }
-            if (
-              f.type === "reference" ||
-              f.type === "reference_list" ||
-              ((f.type === "enum" || f.type === "list") && f.globalEnumId)
-            ) {
-              const isEnumRef =
-                (f.type === "enum" || f.type === "list") && f.globalEnumId;
-              const isMultiple =
-                f.type === "reference_list" || f.type === "list";
-              return (
-                <div
-                  className={`col-span-1 ${isMultiple ? "md:col-span-2" : ""}`}
-                  key={f.key}
-                >
-                  <Controller
-                    name={f.key}
-                    control={control}
-                    render={({ field }) => (
-                      <EntityReferenceField
-                        label={f.label}
-                        game={game}
-                        referenceApiEndpoint={
-                          isEnumRef
-                            ? `/api/{game}/enums/${f.globalEnumId}`
-                            : f.referenceApiEndpoint
-                        }
-                        referenceValueKey={
-                          isEnumRef ? "id" : f.referenceValueKey
-                        }
-                        referenceLabelKey={
-                          isEnumRef ? "name" : f.referenceLabelKey
-                        }
-                        multiple={
-                          f.type === "reference_list" || f.type === "list"
-                        }
-                        required={f.required}
-                        error={!!errors[f.key]}
-                        helperText={errors[f.key]?.message as string}
-                        {...field}
-                      />
-                    )}
-                  />
-                </div>
-              );
-            }
-            if (f.type === "enum" || f.type === "list") {
-              return (
-                <div
-                  className={`col-span-1 ${f.type === "list" ? "md:col-span-2" : ""}`}
-                  key={f.key}
-                >
-                  <Controller
-                    name={f.key}
-                    control={control}
-                    render={({ field }) => (
-                      <DynamicSelectField
-                        label={f.label}
-                        options={f.options || []}
-                        multiple={f.type === "list"}
-                        required={f.required}
-                        error={!!errors[f.key]}
-                        helperText={errors[f.key]?.message as string}
-                        {...field}
-                      />
-                    )}
-                  />
-                </div>
-              );
-            }
-            if (f.type === "boolean") {
-              return (
-                <div
-                  key={f.key}
-                  className="flex items-center gap-3 h-[40px] px-3 mt-1 border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-transparent"
-                >
-                  <input
-                    type="checkbox"
-                    id={`field-${f.key}`}
-                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-800 cursor-pointer"
-                    {...register(f.key)}
-                  />
-                  <label
-                    htmlFor={`field-${f.key}`}
-                    className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none"
-                  >
-                    {f.label}
-                  </label>
-                  {errors[f.key] && (
-                    <span className="text-xs text-red-500 ml-auto">
-                      {(errors[f.key] as any)?.message}
-                    </span>
-                  )}
-                </div>
-              );
-            }
-            if (f.hasCustomSuffix) {
-              return (
-                <div className="flex gap-2 w-full" key={f.key}>
-                  <div className="flex-1">
-                    <FormField
-                      label={f.label}
-                      required={f.required}
-                      type={f.type === "number" ? "number" : "text"}
-                      {...register(f.key)}
-                      error={!!errors[f.key]}
-                      helperText={errors[f.key]?.message as string}
-                    />
-                  </div>
-                  <div className="w-1/3">
-                    <FormField
-                      label="Unit/Suffix"
-                      {...register(`${f.key}_suffix`)}
-                      error={!!errors[`${f.key}_suffix`]}
-                      helperText={errors[`${f.key}_suffix`]?.message as string}
-                    />
-                  </div>
-                </div>
-              );
-            }
-
-            return (
-              <FormField
-                key={f.key}
-                label={f.label}
-                required={f.required}
-                type={f.type === "number" ? "number" : "text"}
-                {...register(f.key)}
-                error={!!errors[f.key]}
-                helperText={errors[f.key]?.message as string}
-                slotProps={f.unit ? {
-                  input: {
-                    endAdornment: (
-                      <span className="text-gray-500 text-sm select-none pr-1">
-                        {f.unit}
-                      </span>
-                    )
-                  }
-                } : undefined}
-              />
-            );
-          })}
+          <DynamicFieldsRenderer
+            fields={fields}
+            game={game}
+            abilityIcons={abilityIcons}
+            setAbilityIcons={setAbilityIcons}
+            control={control}
+            register={register}
+            errors={errors}
+            skipFields={["id", "name", "real_name", "portrait"]}
+          />
         </div>
 
         <div className="pt-6">
