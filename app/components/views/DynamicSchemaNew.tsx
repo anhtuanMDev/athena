@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router";
 import {
@@ -111,23 +111,39 @@ export default function DynamicSchemaNew() {
     }
   };
 
-  const aiPromptMarkdown = `# Athena Schema Generation Guidelines
-You are tasked with generating a JSON schema for a game entity in the Athena platform.
+  const aiPromptMarkdown = useMemo(() => {
+    const entityName = category === "hero" ? "Hero" : category === "map" ? "Map" : category === "mode" ? "Game Mode" : category === "patch" ? "Patch" : category === "item" ? "Item" : category === "event" ? "Event" : "Entity";
+    
+    let categoryHint = "";
+    if (category === "hero") categoryHint = "Think about roles, health, armor, movement speed, abilities, weapons, and passives.";
+    else if (category === "map") categoryHint = "Think about map locations, supported game modes, release date, climate, and lore.";
+    else if (category === "mode") categoryHint = "Think about win conditions, team sizes, time limits, and scoring mechanics.";
+    else if (category === "patch") categoryHint = "Think about version string, release date, developer notes, and highlights.";
+    else if (category === "item") categoryHint = "Think about cost, tier, effects, stat bonuses, and descriptions.";
+    else if (category === "event") categoryHint = "Think about start/end dates, event type, rewards, and related game modes.";
+
+    return `# Athena Schema Generation Guidelines
+You are tasked with generating a JSON schema for a **${entityName}** in the Athena platform.
 
 ## JSON Structure
 \`\`\`json
 {
-  "name": "Base Hero Attributes",
-  "category": "hero", // enum: "hero", "map", "mode", "patch", "event", "item"
+  "name": "${name || `Base ${entityName} Attributes`}",
+  "category": "${category}", // enum: "hero", "map", "mode", "patch", "event", "item"
   "fields": [
     {
-      "key": "health",
-      "label": "Base Health",
-      "type": "number", // "string", "number", "boolean", "list", "enum", "abilities", "object_array", "reference", "reference_list"
+      "key": "example_basic_field",
+      "label": "Example Basic Field",
+      "type": "number", // "string", "number", "boolean", "list", "enum", "abilities", "object_array", "reference", "reference_list", "weapon"
       "required": true,
-      "unit": "HP", // optional
-      "options": [], // array of strings for list/enum
-      "subFields": [] // optional array of sub-fields for abilities/object_array
+      "unit": "HP" // optional, only include if relevant
+    },
+    {
+      "key": "example_enum_field",
+      "label": "Example Enum Field",
+      "type": "enum",
+      "required": true,
+      "options": ["Option 1", "Option 2"] // required for list/enum
     }
   ]
 }
@@ -148,9 +164,11 @@ You are tasked with generating a JSON schema for a game entity in the Athena pla
 ## Instructions
 1. Generate the JSON structure EXACTLY as specified above.
 2. Ensure \`key\` values are lowercase and alphanumeric with underscores.
-3. Do not include extra root properties.
-4. Generate a COMPREHENSIVE schema. Do not just generate a single field (like abilities). Include ALL relevant game-specific fields, stats, passives, weapons, and attributes that would be necessary to fully define this game entity.
+3. Do not include extra root properties. Do NOT include empty \`options\` or \`subFields\` on field types that do not require them.
+4. Generate a COMPREHENSIVE schema for a **${entityName}**. Do not just generate a single field. Include ALL relevant ${entityName}-specific fields and attributes that would be necessary to fully define this entity in the game.
+5. ${categoryHint} Do not include hero-specific concepts (like passives or weapons) unless this is a Hero schema.
 `;
+  }, [category, name]);
 
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(aiPromptMarkdown);
