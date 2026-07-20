@@ -21,6 +21,12 @@ export const CronJobSchema = z.object({
   active: z.boolean().default(true),
   // Maps schema field keys (e.g. "max_health") to API JSON paths (e.g. "stats.hp")
   field_mappings: z.record(z.string(), z.string()).default({}),
+  notify_on_success: z.object({
+    topic: z.string().default("all_users"),
+    title: z.string(),
+    body: z.string(),
+    data: z.record(z.string(), z.string()).optional()
+  }).optional()
 });
 
 export type CronJob = z.infer<typeof CronJobSchema>;

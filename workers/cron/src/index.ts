@@ -4,6 +4,9 @@ export interface Env {
   GITHUB_REPO: string;
   GITHUB_BRANCH: string;
   CRON_SECRET: string;
+  FIREBASE_PROJECT_ID?: string;
+  FIREBASE_CLIENT_EMAIL?: string;
+  FIREBASE_PRIVATE_KEY?: string;
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
@@ -251,6 +254,16 @@ async function handleJobTask(env: Env, game: string, job: any): Promise<void> {
       `chore: auto-fetch data for ${job.id}`,
     );
     console.log("Successfully saved new data!");
+    
+    if (job.notify_on_success) {
+      console.log(`Triggering push notification for ${job.id}...`);
+      try {
+        await sendFirebasePush(env, job.notify_on_success);
+        console.log("Push notification sent successfully!");
+      } catch (pushErr) {
+        console.error("Failed to send push notification:", pushErr);
+      }
+    }
   } catch (error: any) {
     console.error(`Cron Job ${job?.id} Failed:`, error);
     try {
@@ -480,5 +493,108 @@ function decodeBase64(str: string): string {
         (c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2),
       )
       .join(""),
+  );
+}
+
+// ============================================================================
+// Firebase Cloud Messaging (FCM) HTTP v1 API Helpers
+// ============================================================================
+
+async function sendFirebasePush(env: Env, notifyConfig: any): Promise<void> {
+  if (!env.FIREBASE_PROJECT_ID || !env.FIREBASE_CLIENT_EMAIL || !env.FIREBASE_PRIVATE_KEY) {
+    throw new Error("Missing FIREBASE credentials in worker environment variables.");
+  }
+
+  // 1. Generate JWT
+  const header = { alg: "RS256", typ: "JWT" };
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: env.FIREBASE_CLIENT_EMAIL,
+    scope: "https://www.googleapis.com/auth/firebase.messaging",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now,
+  };
+
+  const encodedHeader = encodeBase64Url(JSON.stringify(header));
+  const encodedPayload = encodeBase64Url(JSON.stringify(payload));
+  const unsignedToken = `${encodedHeader}.${encodedPayload}`;
+
+  const privateKey = await importPrivateKey(env.FIREBASE_PRIVATE_KEY);
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    privateKey,
+    new TextEncoder().encode(unsignedToken)
+  );
+  
+  const encodedSignature = encodeBase64Url(String.fromCharCode(...new Uint8Array(signature)));
+  const jwt = `${unsignedToken}.${encodedSignature}`;
+
+  // 2. Exchange JWT for OAuth2 Access Token
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`
+  });
+
+  if (!tokenResponse.ok) {
+    const errText = await tokenResponse.text();
+    throw new Error(`Failed to get Firebase access token: ${errText}`);
+  }
+
+  const { access_token } = (await tokenResponse.json()) as any;
+
+  // 3. Send the FCM message
+  const messageBody = {
+    message: {
+      topic: notifyConfig.topic || "all",
+      notification: {
+        title: notifyConfig.title || "Update",
+        body: notifyConfig.body || "New data is available.",
+      },
+      data: notifyConfig.data || {},
+    }
+  };
+
+  const fcmUrl = `https://fcm.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/messages:send`;
+  const sendResponse = await fetch(fcmUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${access_token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(messageBody)
+  });
+
+  if (!sendResponse.ok) {
+    const errText = await sendResponse.text();
+    throw new Error(`FCM API Error: ${errText}`);
+  }
+}
+
+function encodeBase64Url(str: string): string {
+  const base64 = btoa(str);
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function importPrivateKey(pem: string) {
+  const pemHeader = "-----BEGIN PRIVATE KEY-----";
+  const pemFooter = "-----END PRIVATE KEY-----";
+  let pemContents = pem;
+  // Handle literal \n if it was stored improperly in env
+  pemContents = pemContents.replace(/\\n/g, "");
+  pemContents = pemContents.replace(pemHeader, "").replace(pemFooter, "").replace(/\s/g, "");
+  
+  const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+  
+  return await crypto.subtle.importKey(
+    "pkcs8",
+    binaryDer.buffer,
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      hash: { name: "SHA-256" },
+    },
+    false,
+    ["sign"]
   );
 }
