@@ -140,9 +140,9 @@ Heroes/Maps/Modes/Patches/Items/Schema) shared by every child route.
   the in-memory array, and writes the whole file back. Same pattern applies nowhere
   else, since every other entity is one-file-per-record.
 
-### 6.4 `/:game/schema`
+### 6.4 `/:game/schemas` (list/new/edit/delete)
 
-- **Loader:** `data/<game>/schema.json`.
+- **Loader:** `data/<game>/schemas/*.json`.
 - **UI:** three sections matching the file: a tag-input for `roles`, a tag-input for
   `ability_types`, and a table for `stat_fields` (key, label, unit, type dropdown) with
   add/remove rows.
@@ -167,7 +167,7 @@ This is the most complex page - see §7.1–§7.4 for the logic in detail. Struc
 - **Loader (edit only):** fetch the hero file + its `sha` (needed for the update
   request later - GitHub's Contents API requires the current blob `sha` to update or
   delete a file, to prevent silently overwriting someone else's concurrent edit).
-  Also fetch this game's `schema.json` to drive the dynamic form.
+  Also fetch this game's `schemas/` to drive the dynamic form.
 - **UI sections:**
   1. **Core fields** - name, roles (comma-separated input), difficulty
      (1–5), health (JSON text field - supports freeform record like `{"health": 200, "shields": 50}`),
@@ -275,7 +275,7 @@ contract: for a selected mode, shallow-merge `mode_overrides[mode_id]` onto `par
 
 The hero form does not have a hardcoded field list for `params`. On load it:
 
-1. Fetches `schema.json` for the current game.
+1. Fetches `schemas` for the current game.
 2. For each ability already in the hero's `kit[]`, renders one input per key present
    in that ability's `params`, using `schema.stat_fields[key]` for label/unit/type.
 3. Any `params` key with no matching schema entry still renders (as a plain
@@ -380,7 +380,7 @@ validation before commit) and forms (`@hookform/resolvers/zod`, client-side feed
 ```
 app/schemas/
   game.ts          # GameSchema        - mirrors §3.1
-  schema-file.ts   # SchemaFileSchema  - mirrors §3.3
+  dynamic-schema.ts  # DynamicSchemaFileSchema  - mirrors §3.3
   hero.ts          # HeroSchema, KitItemSchema - mirrors §3.4, params validated
                      # dynamically against that game's stat_fields types
                      # KitItemSchema also has optional mode_overrides for per-mode stat variance
@@ -393,7 +393,7 @@ app/schemas/
 `hero.ts`'s `params` validation is the one dynamic case: since valid keys differ per
 game, the schema is built at request time as `z.record(z.string(), z.any())`. Before
 validation, the action's `buildHeroFromFormData` output is run through `coerceKitParams`,
-which reads the game's `schema.json` and coerces string values to numbers for any param
+which reads the game's schema and coerces string values to numbers for any param
 key typed as `"number"` in `stat_fields`. This prevents `FormData.get()` (which always
 returns strings) from silently storing numeric values as strings, which would break
 client-side DPS calculators and type-aware rendering.

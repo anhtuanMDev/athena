@@ -11,16 +11,12 @@ data/
   _meta/
     games.json          <- registry of supported games
   overwatch/
-    schema.json         <- tells the client how to label/render this game's stat fields
+    schemas/*.json      <- dynamic schemas that tell the client how to label/render this game's entities
     heroes/*.json        <- one file per hero
     patches/*.json        <- one file per balance patch (diff format)
     maps/*.json
   marvel-rivals/         <- same shape, different vocabulary (roles, team_up mechanic)
   deadlock/               <- same shape, different vocabulary (souls, item slots)
-
-worker-EXAMPLE-mobile-api/
-  src/index.js           <- UNUSED EXAMPLE ONLY: Cloudflare Worker, routes + edge caching
-  wrangler.toml
 ```
 
 ## Why this shape
@@ -30,8 +26,8 @@ worker-EXAMPLE-mobile-api/
 - **`kit` is a flexible array** of ability objects. Each ability's `params` is a freeform
   object - this is where game-specific mechanics live (ult charge %, souls cost, team-up
   partners, whatever a future game needs) without changing the outer schema.
-- **`schema.json` per game** documents what keys can appear in `params`, with a label/unit/type
-  for each. Your app fetches this once per game and can render _any_ hero's stats generically,
+- **Dynamic schemas** in `schemas/` document what keys can appear for an entity, with a label/unit/type
+  for each. Your app fetches this once per game and can render _any_ entity generically,
   including new heroes/games you add later, with zero client-side code changes.
 - **Patches are diffs**, not full snapshots - `{ hero, field, from, to }` - so you get a
   changelog feature for free without duplicating whole hero files every patch.
@@ -39,13 +35,13 @@ worker-EXAMPLE-mobile-api/
 ## Adding a new game
 
 1. Add an entry to `data/_meta/games.json`.
-2. Create `data/<slug>/schema.json`, `data/<slug>/heroes/*.json`, etc., following the same
+2. Create `data/<slug>/schemas/`, `data/<slug>/heroes/*.json`, etc., following the same
    folder shape as the existing games.
 3. Nothing in the backend needs to change - routes are already parameterized by `:game`.
 
-## Running the Backend locally
+## Running locally
 
-> **Note:** The `worker-EXAMPLE-mobile-api/` directory is an unused scaffold/example. The real backend is deployed via Cloudflare Pages Functions in `functions/api/[[path]].ts`.
+The real backend is deployed via Cloudflare Pages Functions in `functions/api/[[path]].ts` and `functions/mobile/`.
 
 ```bash
 npm run dev
