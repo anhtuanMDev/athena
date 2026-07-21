@@ -25,7 +25,18 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
     const { data: entities, loading, error: fetchError } = useData(async () => {
       if (!referenceApiEndpoint) return [];
       
-      const endpoint = referenceApiEndpoint.replace("{game}", game || "");
+      let endpoint = referenceApiEndpoint.replace("{game}", game || "");
+      
+      // Admin proxy: intercept public API endpoint patterns and route them to internal github API
+      const match = endpoint.match(/^\/api\/([^\/]+)\/(.+)$/);
+      if (match && !endpoint.includes("data/directory") && !endpoint.includes("enums/")) {
+        const gameMatch = match[1];
+        const subpath = match[2];
+        const valKey = referenceValueKey || "id";
+        const labelKey = referenceLabelKey || "name";
+        endpoint = `/api/data/directory?game=${gameMatch}&subpath=${subpath}&includeContent=true&keysOnly=${valKey},${labelKey}`;
+      }
+      
       const res = await fetch(endpoint);
       if (res.status === 401) {
         if (typeof window !== "undefined") window.location.href = "/login";

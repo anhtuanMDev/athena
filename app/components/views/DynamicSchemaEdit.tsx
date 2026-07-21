@@ -514,7 +514,14 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
     if (!endpoint) return;
     setLoadingApiKeys((prev) => ({ ...prev, [index]: true }));
     try {
-      const res = await fetch(endpoint.replace("{game}", game!));
+      let actualEndpoint = endpoint.replace("{game}", game!);
+      const match = actualEndpoint.match(/^\/api\/([^\/]+)\/(.+)$/);
+      if (match && !actualEndpoint.includes("data/directory") && !actualEndpoint.includes("enums/")) {
+        const gameMatch = match[1];
+        const subpath = match[2];
+        actualEndpoint = `/api/data/directory?game=${gameMatch}&subpath=${subpath}&includeContent=true`;
+      }
+      const res = await fetch(actualEndpoint);
       if (res.status === 401) {
         if (typeof window !== "undefined") window.location.href = "/login";
         throw new Error("Unauthorized: Session expired");
