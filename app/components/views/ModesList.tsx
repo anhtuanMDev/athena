@@ -10,12 +10,21 @@ import { LoadErrorState } from "~/components/ui/LoadErrorState";
 interface ModeRow {
   id: string;
   name: string;
-  description?: string;
+  mode_name?: string;
+  objective_type?: string;
+  team_size?: number;
+  status?: string;
+  win_condition?: string;
+  map_layout_type?: string;
 }
 
 const columns: Column<ModeRow>[] = [
-  { key: "name", header: "Name" },
-  { key: "description", header: "Description", render: (m) => m.description ?? "" },
+  { key: "name", header: "Name", render: (m) => m.name || m.mode_name || m.id },
+  { key: "status", header: "Status", render: (m) => m.status ? <span className="capitalize px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-md text-xs">{m.status}</span> : '-' },
+  { key: "objective_type", header: "Objective", render: (m) => m.objective_type ? <span className="capitalize">{m.objective_type}</span> : '-' },
+  { key: "map_layout_type", header: "Map Layout", render: (m) => m.map_layout_type ? <span className="capitalize">{m.map_layout_type}</span> : '-' },
+  { key: "team_size", header: "Team Size", render: (m) => m.team_size ? `${m.team_size}v${m.team_size}` : '-' },
+  { key: "win_condition", header: "Win Condition", render: (m) => m.win_condition ?? "-" },
 ];
 
 export default function ModesIndex() {
