@@ -103,7 +103,19 @@ export default function DynamicSchemaNew() {
     const schemaToImport = loadedData.schemas.find((s) => s.id === importSchemaId);
     if (schemaToImport && schemaToImport.fields) {
       const clonedFields = JSON.parse(JSON.stringify(schemaToImport.fields));
-      setFields((prev) => [...prev, ...clonedFields]);
+      setFields((prev) => {
+        const current = prev || [];
+        const merged = [...current];
+        clonedFields.forEach((newField: any) => {
+          const existingIndex = merged.findIndex((f) => f.key === newField.key);
+          if (existingIndex >= 0) {
+            merged[existingIndex] = newField;
+          } else {
+            merged.push(newField);
+          }
+        });
+        return merged;
+      });
       toastSuccess(
         `Imported ${schemaToImport.fields.length} fields from ${schemaToImport.name}`,
       );
@@ -197,7 +209,19 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
         if (json.name) setName(json.name);
         if (json.category) setCategory(json.category);
         if (json.fields && Array.isArray(json.fields)) {
-          setFields((prev) => [...(prev || []), ...json.fields]);
+          setFields((prev) => {
+            const current = prev || [];
+            const merged = [...current];
+            json.fields.forEach((newField: any) => {
+              const existingIndex = merged.findIndex((f) => f.key === newField.key);
+              if (existingIndex >= 0) {
+                merged[existingIndex] = newField;
+              } else {
+                merged.push(newField);
+              }
+            });
+            return merged;
+          });
           toastSuccess(`Imported schema fields from file!`);
         }
       } catch (err) {
@@ -214,7 +238,19 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
       if (json.name) setName(json.name);
       if (json.category) setCategory(json.category);
       if (json.fields && Array.isArray(json.fields)) {
-        setFields((prev) => [...(prev || []), ...json.fields]);
+        setFields((prev) => {
+          const current = prev || [];
+          const merged = [...current];
+          json.fields.forEach((newField: any) => {
+            const existingIndex = merged.findIndex((f) => f.key === newField.key);
+            if (existingIndex >= 0) {
+              merged[existingIndex] = newField;
+            } else {
+              merged.push(newField);
+            }
+          });
+          return merged;
+        });
         toastSuccess(`Imported schema fields from pasted text!`);
         setShowImportModal(false);
         setPastedJson("");
@@ -381,10 +417,11 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
 
     const parsed = DynamicSchemaFileSchema.safeParse(newSchema);
     if (!parsed.success) {
+      const errorMsg = parsed.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(", ");
       setCommitError(
-        "Validation failed. Please ensure all keys are lowercase alphanumeric with underscores.",
+        `Validation failed: ${errorMsg}`,
       );
-      toastError("Validation failed. Check your fields.");
+      toastError(`Validation failed: ${parsed.error.issues[0]?.message}`);
       setSubmitting(false);
       return;
     }

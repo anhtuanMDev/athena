@@ -162,9 +162,9 @@ function EditHeroForm({
   id: string;
 }) {
   const [formKey, setFormKey] = useState(0);
-  const [initData, setInitData] = useState<Record<string, any>>({ ...hero });
+  const [initData, setInitData] = useState<Record<string, unknown>>({ ...hero });
 
-  const handleImportSuccess = (data: Record<string, any>) => {
+  const handleImportSuccess = (data: Record<string, unknown>) => {
     // Always preserve the canonical id/game from the URL
     setInitData({ ...data, id, game });
     setFormKey((k) => k + 1);
@@ -201,8 +201,8 @@ function EditHeroFormInner({
   enums: GlobalEnum[];
   game: string;
   id: string;
-  initData: Record<string, any>;
-  onImportSuccess: (data: Record<string, any>) => void;
+  initData: Record<string, unknown>;
+  onImportSuccess: (data: Record<string, unknown>) => void;
 }) {
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
@@ -232,10 +232,10 @@ function EditHeroFormInner({
   >(() => {
     const icons: Record<string, ImageEntry[]> = {};
     if (hero.kit && Array.isArray(hero.kit)) {
-      hero.kit.forEach((ability: any, i: number) => {
+      hero.kit.forEach((ability: Record<string, unknown>, i: number) => {
         if (!ability._clientId) ability._clientId = ability.id || i.toString();
         if (ability.icon && typeof ability.icon === "object") {
-          icons[ability._clientId] = Object.entries(ability.icon).map(
+          icons[ability._clientId as string] = Object.entries(ability.icon).map(
             ([key, url]) => ({
               id: Math.random().toString(36).substring(7),
               key,
@@ -249,7 +249,7 @@ function EditHeroFormInner({
   });
 
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>(
-    initData.schema_id || schemas[0]?.id || "",
+    (initData.schema_id as string) || schemas[0]?.id || "",
   );
   const activeSchema = useMemo(
     () => schemas.find((s) => s.id === selectedSchemaId) || schemas[0],
@@ -270,10 +270,10 @@ function EditHeroFormInner({
 
   const defaultValues = useMemo(() => ({ ...initData }), [initData]);
 
-  const methods = useForm<any>({
+  const methods = useForm<Record<string, unknown>>({
     resolver: zodResolver(dynamicZodSchema),
     mode: "onChange",
-    defaultValues: defaultValues as any,
+    defaultValues: defaultValues,
   });
 
   const {
@@ -290,7 +290,12 @@ function EditHeroFormInner({
 
 > **Note:** Do NOT include \`id\` or \`game\` — these are injected automatically by the system.
 
-### Field Schema
+> **IMPORTANT INSTRUCTIONS:**
+> 1. The output MUST be a pure JSON object containing the actual extracted data.
+> 2. The keys of your JSON object MUST match the "key" values from the Field Definitions below.
+> 3. DO NOT output a JSON schema. DO NOT include "category" or "fields" properties.
+
+### Field Definitions
 \`\`\`json
 ${JSON.stringify(
   [
@@ -359,7 +364,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
     // In edit mode the id is known from the URL — always preserve it
     if (!formattedJson.id) formattedJson.id = id;
 
-    const sanitizeValue = (val: any, fieldDef: DynamicField) => {
+    const sanitizeValue = (val: unknown, fieldDef: DynamicField) => {
       if (fieldDef.type === "list" || fieldDef.type === "reference_list") {
         if (val === "" || val === null || val === undefined || val === false || val === 0) {
           return [];
@@ -386,7 +391,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       }
 
       if (f.type === "object_array" && Array.isArray(formattedJson[f.key]) && f.subFields) {
-        (formattedJson[f.key] as any[]).forEach((item) => {
+        (formattedJson[f.key] as Record<string, unknown>[]).forEach((item) => {
           if (item && typeof item === "object") {
             f.subFields!.forEach((sf) => {
               if (item[sf.key] !== undefined) {
@@ -460,14 +465,14 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
 
 
 
-  const onSubmitPreview = async (formData: any) => {
+  const onSubmitPreview = async (formData: Record<string, unknown>) => {
     setSubmitting(true);
     setSubmitError(null);
 
     try {
       // Handle Portraits overrides
       let portraitData: string | Record<string, string> =
-        formData.portrait || "";
+        (formData.portrait as string | Record<string, string>) || "";
       if (portraits.length === 1 && portraits[0].key === "main") {
         const ext =
           portraits[0].name?.split(".").pop() ||
@@ -495,10 +500,10 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       const modes = await listDirectory(game, "modes");
       const modeSet = new Set(modes);
       for (const f of fields.filter((f) => f.type === "abilities")) {
-        const abilityList = formData[f.key] || [];
+        const abilityList = (formData[f.key] || []) as Record<string, unknown>[];
         for (const ability of abilityList) {
           if (ability.mode_overrides) {
-            for (const modeId of Object.keys(ability.mode_overrides)) {
+            for (const modeId of Object.keys(ability.mode_overrides as Record<string, unknown>)) {
               if (!modeSet.has(modeId as string)) {
                 throw new Error(
                   `Ability '${ability.name || ability.id}' references invalid mode override: '${modeId}'`,
@@ -513,11 +518,11 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       fields
         .filter((f) => f.type === "abilities" || f.type === "weapon")
         .forEach((f) => {
-          const abilityList = formData[f.key] || [];
-          abilityList.forEach((ability: any, i: number) => {
+          const abilityList = (formData[f.key] || []) as Record<string, unknown>[];
+          abilityList.forEach((ability: Record<string, unknown>, i: number) => {
             if (!ability.params) ability.params = {};
             const aIcons =
-              abilityIcons[ability._clientId || ability.id || i] || [];
+              abilityIcons[(ability._clientId || ability.id || i) as string] || [];
             if (aIcons.length === 1 && aIcons[0].key === "main") {
               const ext =
                 aIcons[0].name?.split(".").pop() ||
@@ -538,7 +543,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                   icon.name?.split(".").pop() ||
                   icon.previewUrl?.split(".").pop() ||
                   "png";
-                ability.icon[icon.key] =
+                (ability.icon as Record<string, string>)[icon.key] =
                   `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
                 if (icon.base64) {
                   abilityUploads.push({
@@ -552,7 +557,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
           });
         });
 
-      const parsed = dynamicZodSchema.parse(formData) as any;
+      const parsed = dynamicZodSchema.parse(formData) as Record<string, unknown>;
       const diffs = computeDiff(hero, parsed);
       setPreview({
         diffs,
@@ -800,7 +805,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
               {Object.entries(errors).map(([key, err]) => (
                 <li key={key}>
                   <span className="font-semibold">{key}:</span>{" "}
-                  {(err as any)?.message || "Invalid value"}
+                  {(err as { message?: string })?.message || "Invalid value"}
                 </li>
               ))}
             </ul>

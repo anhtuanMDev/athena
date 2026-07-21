@@ -41,7 +41,7 @@ function AutoGenerateId() {
     control,
     setValue,
     formState: { touchedFields },
-  } = useFormContext<any>();
+  } = useFormContext<Record<string, unknown>>();
   const nameValue = useWatch({ control, name: "name" });
   const idValue = useWatch({ control, name: "id" });
 
@@ -175,7 +175,7 @@ function ModeForm({
   game: string;
 }) {
   const [formKey, setFormKey] = useState(0);
-  const [initData, setInitData] = useState<Record<string, any>>({
+  const [initData, setInitData] = useState<Record<string, unknown>>({
     game,
     id: "",
     schema_id: schemas[0]?.id || "",
@@ -183,7 +183,7 @@ function ModeForm({
     description: "",
   });
 
-  const handleImportSuccess = (data: Record<string, any>) => {
+  const handleImportSuccess = (data: Record<string, unknown>) => {
     setInitData(data);
     setFormKey((k) => k + 1);
   };
@@ -204,8 +204,8 @@ type ModeFormInnerProps = {
   schemas: DynamicSchemaFile[];
   enums: GlobalEnum[];
   game: string;
-  initData: Record<string, any>;
-  onImportSuccess: (data: Record<string, any>) => void;
+  initData: Record<string, unknown>;
+  onImportSuccess: (data: Record<string, unknown>) => void;
 };
 
 function ModeFormInner({
@@ -226,7 +226,7 @@ function ModeFormInner({
   >({});
 
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>(
-    initData.schema_id || schemas[0]?.id || "",
+    (initData.schema_id as string) || schemas[0]?.id || "",
   );
   const activeSchema = useMemo(
     () => schemas.find((s) => s.id === selectedSchemaId) || schemas[0],
@@ -240,7 +240,7 @@ function ModeFormInner({
     [fields],
   );
 
-  const methods = useForm<any>({
+  const methods = useForm<Record<string, unknown>>({
     resolver: zodResolver(dynamicZodSchema),
     mode: "onChange",
     defaultValues: initData,
@@ -267,12 +267,12 @@ function ModeFormInner({
 
   const formatImportedJsonWrapper = (json: Record<string, unknown>) => formatImportedJson(json, fields, game, true);
 
-  const onSubmit = async (formData: any) => {
+  const onSubmit = async (formData: Record<string, unknown>) => {
     setSubmitting(true);
     setSubmitError(null);
 
     try {
-      const id = formData.id;
+      const id = formData.id as string;
       if (!id || !/^[a-z0-9-]+$/.test(id)) {
         setSubmitError("Valid Code Name is required to generate ID");
         setSubmitting(false);
@@ -288,11 +288,11 @@ function ModeFormInner({
       fields
         .filter((f) => f.type === "abilities" || f.type === "weapon")
         .forEach((f) => {
-          const abilityList = formData[f.key] || [];
-          abilityList.forEach((ability: any, i: number) => {
+          const abilityList = (formData[f.key] || []) as Record<string, unknown>[];
+          abilityList.forEach((ability: Record<string, unknown>, i: number) => {
             if (!ability.params) ability.params = {};
             const aIcons =
-              abilityIcons[ability._clientId || ability.id || i] || [];
+              abilityIcons[(ability._clientId || ability.id || i) as string] || [];
             if (aIcons.length === 1 && aIcons[0].key === "main") {
               const ext =
                 aIcons[0].name?.split(".").pop() ||
@@ -316,7 +316,7 @@ function ModeFormInner({
                   "png";
                 const displayPath = `/api/assets/${game}/modes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
                 const uploadPath = `public/assets/${game}/modes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
-                ability.icon[icon.key] = displayPath;
+                (ability.icon as Record<string, string>)[icon.key] = displayPath;
                 if (icon.base64)
                   abilityUploads.push({
                     path: uploadPath,
@@ -328,7 +328,7 @@ function ModeFormInner({
           });
         });
 
-      const parsed = dynamicZodSchema.parse(formData) as any;
+      const parsed = dynamicZodSchema.parse(formData) as Record<string, unknown>;
 
       const exists = await getFile(`data/${game}/modes/${parsed.id}.json`);
       if (exists) {

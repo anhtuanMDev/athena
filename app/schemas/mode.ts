@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const ModeSchema = z.object({
   id: z.string().min(1).regex(/^[a-z0-9-]+$/, "Must be kebab-case"),
+  game: z.string().min(1, "Game is required").optional(),
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
   rules: z.record(z.string(), z.unknown()).optional(),

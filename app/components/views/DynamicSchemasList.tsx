@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { listDirectory } from "~/lib/github";
 import { useData } from "~/lib/use-data";
 import { type DynamicSchemaFile } from "~/schemas/dynamic-schema";
-import { Plus, FileJson, Copy, Check, Download } from "lucide-react";
+import { Plus, FileJson, Copy, Check, Download, Trash2 } from "lucide-react";
 import { EmptyState } from "~/components/ui/EmptyState";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
@@ -137,6 +137,14 @@ export default function SchemasList() {
                     className="text-sm text-orange-600 hover:text-orange-800 dark:text-orange-400 font-medium flex items-center gap-1"
                   >
                     Edit App Layout
+                  </Link>
+
+                  <span className="text-gray-300 dark:text-gray-700">•</span>
+                  <Link
+                    to={`/${game}/schemas/${schema.id}/delete`}
+                    className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 font-medium flex items-center gap-1"
+                  >
+                    Delete
                   </Link>
                 </div>
                 <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">

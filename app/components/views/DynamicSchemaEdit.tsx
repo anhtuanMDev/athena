@@ -306,7 +306,19 @@ export default function DynamicSchemaEdit() {
     );
     if (schemaToImport && schemaToImport.fields) {
       const clonedFields = JSON.parse(JSON.stringify(schemaToImport.fields));
-      setFields((prev) => [...(prev || []), ...clonedFields]);
+      setFields((prev) => {
+        const current = prev || [];
+        const merged = [...current];
+        clonedFields.forEach((newField: any) => {
+          const existingIndex = merged.findIndex((f) => f.key === newField.key);
+          if (existingIndex >= 0) {
+            merged[existingIndex] = newField;
+          } else {
+            merged.push(newField);
+          }
+        });
+        return merged;
+      });
       toastSuccess(
         `Imported ${schemaToImport.fields.length} fields from ${schemaToImport.name}`,
       );
@@ -400,7 +412,19 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
       try {
         const json = JSON.parse(event.target?.result as string);
         if (json.fields && Array.isArray(json.fields)) {
-          setFields((prev) => [...(prev || []), ...json.fields]);
+          setFields((prev) => {
+            const current = prev || [];
+            const merged = [...current];
+            json.fields.forEach((newField: any) => {
+              const existingIndex = merged.findIndex((f) => f.key === newField.key);
+              if (existingIndex >= 0) {
+                merged[existingIndex] = newField;
+              } else {
+                merged.push(newField);
+              }
+            });
+            return merged;
+          });
           toastSuccess(`Imported schema fields from file!`);
         }
       } catch (err) {
@@ -415,7 +439,19 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
     try {
       const json = JSON.parse(pastedJson);
       if (json.fields && Array.isArray(json.fields)) {
-        setFields((prev) => [...(prev || []), ...json.fields]);
+        setFields((prev) => {
+          const current = prev || [];
+          const merged = [...current];
+          json.fields.forEach((newField: any) => {
+            const existingIndex = merged.findIndex((f) => f.key === newField.key);
+            if (existingIndex >= 0) {
+              merged[existingIndex] = newField;
+            } else {
+              merged.push(newField);
+            }
+          });
+          return merged;
+        });
         toastSuccess(`Imported schema fields from pasted text!`);
         setShowImportModal(false);
         setPastedJson("");
@@ -537,7 +573,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
           field.key = newSlug;
         }
       } else {
-        (field as any)[key] = value;
+        Object.assign(field, { [key]: value });
       }
 
       newFields[index] = field;
@@ -600,7 +636,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
           subField.key = newSlug;
         }
       } else {
-        (subField as any)[key] = value;
+        Object.assign(subField, { [key]: value });
       }
 
       subFields[subFieldIndex] = subField;
@@ -649,22 +685,14 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
         const isDefaultKey = !field.key || String(field.key).includes("field_") || String(field.key).includes("sub_");
         const shouldUpdateKey = !field.key || field.key === oldSlug || isDefaultKey;
         
-        console.log("handleChangeSubFieldDeep LABEL UPDATE", {
-          oldLabel: field.label,
-          newLabel: value,
-          oldSlug,
-          newSlug,
-          currentKey: field.key,
-          isDefaultKey,
-          shouldUpdateKey
-        });
+
 
         field.label = value as string;
         if (shouldUpdateKey) {
           field.key = newSlug;
         }
       } else {
-        (field as any)[key] = value;
+        Object.assign(field, { [key]: value });
       }
 
       return newFields;
@@ -747,10 +775,11 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
 
     const parsed = DynamicSchemaFileSchema.safeParse(updatedSchema);
     if (!parsed.success) {
+      const errorMsg = parsed.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(", ");
       setCommitError(
-        "Validation failed. Please ensure all keys are lowercase alphanumeric with underscores.",
+        `Validation failed: ${errorMsg}`,
       );
-      toastError("Validation failed. Check your fields.");
+      toastError(`Validation failed: ${parsed.error.issues[0]?.message}`);
       setSubmitting(false);
       return;
     }

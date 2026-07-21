@@ -20,7 +20,12 @@ export function generateAiPromptMarkdown({
 
 > **Note:** Do NOT include \`id\` or \`game\` — these are injected automatically by the system.
 
-### Field Schema
+> **IMPORTANT INSTRUCTIONS:**
+> 1. The output MUST be a pure JSON object containing the actual extracted data.
+> 2. The keys of your JSON object MUST match the "key" values from the Field Definitions below.
+> 3. DO NOT output a JSON schema. DO NOT include "category" or "fields" properties.
+
+### Field Definitions
 \`\`\`json
 ${JSON.stringify(
   [

@@ -16,7 +16,7 @@ import { useEffect } from "react";
 import { useWatch } from "react-hook-form";
 
 function AutoGenerateId() {
-  const { control, setValue, formState: { touchedFields } } = useFormContext<any>();
+  const { control, setValue, formState: { touchedFields } } = useFormContext<GlobalEnum>();
   const nameValue = useWatch({ control, name: "name" });
   const idValue = useWatch({ control, name: "id" });
 
@@ -39,7 +39,7 @@ function AutoGenerateId() {
 }
 
 function AutoGenerateOptionId({ index }: { index: number }) {
-  const { control, setValue, formState: { touchedFields } } = useFormContext<any>();
+  const { control, setValue, formState: { touchedFields } } = useFormContext<GlobalEnum>();
   const nameValue = useWatch({ control, name: `options.${index}.name` });
   const idValue = useWatch({ control, name: `options.${index}.id` });
 
@@ -72,7 +72,7 @@ function AutoGenerateOptionId({ index }: { index: number }) {
 }
 
 function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
-  const { control, register, setValue, formState: { errors, touchedFields } } = useFormContext<any>();
+  const { control, register, setValue, formState: { errors, touchedFields } } = useFormContext<GlobalEnum>();
   const { fields, append, remove } = useFieldArray({
     control,
     name: `options.${optionIndex}.params`,
@@ -112,7 +112,7 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                 <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
                   <Controller
                     control={control}
-                    name={`options.${optionIndex}.params.${index}.id` as any}
+                    name={`options.${optionIndex}.params.${index}.id` as const}
                     render={({ field: idField }) => (
                       <div>
                         <input
@@ -120,15 +120,15 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                           placeholder="ID (e.g. damage_multiplier)"
                           className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
                         />
-                        {(errors as any)?.options?.[optionIndex]?.params?.[index]?.id && (
-                          <span className="text-[10px] text-red-500 block mt-1">{(errors as any).options[optionIndex].params[index].id.message}</span>
+                        {errors.options?.[optionIndex]?.params?.[index]?.id && (
+                          <span className="text-[10px] text-red-500 block mt-1">{errors.options[optionIndex]?.params?.[index]?.id?.message}</span>
                         )}
                       </div>
                     )}
                   />
                   <Controller
                     control={control}
-                    name={`options.${optionIndex}.params.${index}.label` as any}
+                    name={`options.${optionIndex}.params.${index}.label` as const}
                     render={({ field: labelField }) => (
                       <div>
                         <input
@@ -144,15 +144,15 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                           }}
                           className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
                         />
-                        {(errors as any)?.options?.[optionIndex]?.params?.[index]?.label && (
-                          <span className="text-[10px] text-red-500 block mt-1">{(errors as any).options[optionIndex].params[index].label.message}</span>
+                        {errors.options?.[optionIndex]?.params?.[index]?.label && (
+                          <span className="text-[10px] text-red-500 block mt-1">{errors.options[optionIndex]?.params?.[index]?.label?.message}</span>
                         )}
                       </div>
                     )}
                   />
                   <Controller
                     control={control}
-                    name={`options.${optionIndex}.params.${index}.type` as any}
+                    name={`options.${optionIndex}.params.${index}.type` as const}
                     defaultValue="string"
                     render={({ field: typeField }) => {
                       const paramType = typeField.value as string;
@@ -174,7 +174,7 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                                 <label className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
                                   <input
                                     type="checkbox"
-                                    {...register(`options.${optionIndex}.params.${index}.value` as any)}
+                                    {...register(`options.${optionIndex}.params.${index}.value` as const)}
                                     className="rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 w-4 h-4 text-orange-600 focus:ring-orange-500"
                                   />
                                   True / False
@@ -185,8 +185,8 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                                 type={paramType === "number" ? "number" : "text"}
                                 step={paramType === "number" ? "any" : undefined}
                                 placeholder="Value"
-                                {...register(`options.${optionIndex}.params.${index}.value` as any, {
-                                  setValueAs: (v: any) => paramType === "number" ? (v === "" ? "" : Number(v)) : v
+                                {...register(`options.${optionIndex}.params.${index}.value` as const, {
+                                  setValueAs: (v: unknown) => paramType === "number" ? (v === "" ? "" : Number(v)) : v
                                 })}
                                 className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
                               />
@@ -232,7 +232,7 @@ export default function EnumNew() {
   const [iconUploads, setIconUploads] = useState<Record<number, { name: string; base64: string }>>({});
 
   const methods = useForm<GlobalEnum>({
-    resolver: zodResolver(EnumSchema) as any,
+    resolver: zodResolver(EnumSchema),
     defaultValues: {
       id: "",
       name: "",

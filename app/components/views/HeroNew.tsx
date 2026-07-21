@@ -42,7 +42,7 @@ function AutoGenerateId() {
     control,
     setValue,
     formState: { touchedFields },
-  } = useFormContext<any>();
+  } = useFormContext<Record<string, unknown>>();
   const nameValue = useWatch({ control, name: "name" });
   const idValue = useWatch({ control, name: "id" });
 
@@ -176,7 +176,7 @@ function HeroForm({
   game: string;
 }) {
   const [formKey, setFormKey] = useState(0);
-  const [initData, setInitData] = useState<Record<string, any>>({
+  const [initData, setInitData] = useState<Record<string, unknown>>({
     game,
     id: "",
     schema_id: schemas[0]?.id || "",
@@ -186,7 +186,7 @@ function HeroForm({
     kit: [],
   });
 
-  const handleImportSuccess = (data: Record<string, any>) => {
+  const handleImportSuccess = (data: Record<string, unknown>) => {
     setInitData(data);
     setFormKey((k) => k + 1);
   };
@@ -207,8 +207,8 @@ type HeroFormInnerProps = {
   schemas: DynamicSchemaFile[];
   enums: GlobalEnum[];
   game: string;
-  initData: Record<string, any>;
-  onImportSuccess: (data: Record<string, any>) => void;
+  initData: Record<string, unknown>;
+  onImportSuccess: (data: Record<string, unknown>) => void;
 };
 
 function HeroFormInner({
@@ -231,7 +231,7 @@ function HeroFormInner({
   >({});
 
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>(
-    initData.schema_id || schemas[0]?.id || "",
+    (initData.schema_id as string) || schemas[0]?.id || "",
   );
   const activeSchema = useMemo(
     () => schemas.find((s) => s.id === selectedSchemaId) || schemas[0],
@@ -239,7 +239,7 @@ function HeroFormInner({
   );
   const fields = activeSchema?.fields || [];
 
-  console.log("fields", fields);
+
 
   const dynamicZodSchema = useMemo(
     () =>
@@ -252,7 +252,7 @@ function HeroFormInner({
     [fields],
   );
 
-  const methods = useForm<any>({
+  const methods = useForm<Record<string, unknown>>({
     resolver: zodResolver(dynamicZodSchema),
     mode: "onChange",
     defaultValues: initData,
@@ -274,7 +274,12 @@ function HeroFormInner({
 
 > **Note:** Do NOT include \`id\` or \`game\` — these are injected automatically by the system.
 
-### Field Schema
+> **IMPORTANT INSTRUCTIONS:**
+> 1. The output MUST be a pure JSON object containing the actual extracted data.
+> 2. The keys of your JSON object MUST match the "key" values from the Field Definitions below.
+> 3. DO NOT output a JSON schema. DO NOT include "category" or "fields" properties.
+
+### Field Definitions
 \`\`\`json
 ${JSON.stringify(
   [
@@ -350,7 +355,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       }
     }
 
-    const sanitizeValue = (val: any, fieldDef: DynamicField) => {
+    const sanitizeValue = (val: unknown, fieldDef: DynamicField) => {
       if (fieldDef.type === "list" || fieldDef.type === "reference_list") {
         if (val === "" || val === null || val === undefined || val === false || val === 0) {
           return [];
@@ -377,7 +382,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       }
 
       if (f.type === "object_array" && Array.isArray(formattedJson[f.key]) && f.subFields) {
-        (formattedJson[f.key] as any[]).forEach((item) => {
+        (formattedJson[f.key] as Record<string, unknown>[]).forEach((item) => {
           if (item && typeof item === "object") {
             f.subFields!.forEach((sf) => {
               if (item[sf.key] !== undefined) {
@@ -461,12 +466,12 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
 
 
 
-  const onSubmit = async (formData: any) => {
+  const onSubmit = async (formData: Record<string, unknown>) => {
     setSubmitting(true);
     setSubmitError(null);
 
     try {
-      const id = formData.id;
+      const id = formData.id as string;
       if (!id || !/^[a-z0-9-]+$/.test(id)) {
         setSubmitError("Valid Agent Code Name is required to generate ID");
         setSubmitting(false);
@@ -474,7 +479,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       }
       // Handle Portraits
       let portraitData: string | Record<string, string> =
-        formData.portrait || "";
+        (formData.portrait as string | Record<string, string>) || "";
       if (portraits.length === 1 && portraits[0].key === "main") {
         const ext =
           portraits[0].name?.split(".").pop() ||
@@ -502,10 +507,10 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       const modes = await listDirectory(game, "modes");
       const modeSet = new Set(modes);
       for (const f of fields.filter((f) => f.type === "abilities")) {
-        const abilityList = formData[f.key] || [];
+        const abilityList = (formData[f.key] || []) as Record<string, unknown>[];
         for (const ability of abilityList) {
           if (ability.mode_overrides) {
-            for (const modeId of Object.keys(ability.mode_overrides)) {
+            for (const modeId of Object.keys(ability.mode_overrides as Record<string, unknown>)) {
               if (!modeSet.has(modeId as string)) {
                 throw new Error(
                   `Ability '${ability.name || ability.id}' references invalid mode override: '${modeId}'`,
@@ -520,12 +525,12 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       fields
         .filter((f) => f.type === "abilities" || f.type === "weapon")
         .forEach((f) => {
-          const abilityList = formData[f.key] || [];
-          abilityList.forEach((ability: any, i: number) => {
+          const abilityList = (formData[f.key] || []) as Record<string, unknown>[];
+          abilityList.forEach((ability: Record<string, unknown>, i: number) => {
             if (!ability.params) ability.params = {};
 
             const aIcons =
-              abilityIcons[ability._clientId || ability.id || i] || [];
+              abilityIcons[(ability._clientId || ability.id || i) as string] || [];
             if (aIcons.length === 1 && aIcons[0].key === "main") {
               const ext =
                 aIcons[0].name?.split(".").pop() ||
@@ -549,7 +554,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                   "png";
                 const displayPath = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
                 const uploadPath = `public/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
-                ability.icon[icon.key] = displayPath;
+                (ability.icon as Record<string, string>)[icon.key] = displayPath;
                 if (icon.base64)
                   abilityUploads.push({
                     path: uploadPath,
@@ -561,7 +566,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
           });
         });
 
-      const parsed = dynamicZodSchema.parse(formData) as any;
+      const parsed = dynamicZodSchema.parse(formData) as Record<string, unknown>;
 
       const exists = await getFile(`data/${game}/heroes/${parsed.id}.json`);
       if (exists) {
@@ -755,7 +760,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                 {Object.entries(errors).map(([key, err]) => (
                   <li key={key}>
                     <span className="font-semibold">{key}:</span>{" "}
-                    {(err as any)?.message || "Invalid value"}
+                    {(err as { message?: string })?.message || "Invalid value"}
                   </li>
                 ))}
               </ul>

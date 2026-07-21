@@ -103,7 +103,7 @@ export function buildDynamicZodSchema(
       if (f.type === "number")
         fieldSchema = z.coerce.number().min(1, "Required");
       else if (f.type === "boolean")
-        fieldSchema = z.boolean().refine((val) => val === true, "Required");
+        fieldSchema = z.boolean({ message: "Required" });
       else if (
         f.type === "list" ||
         f.type === "reference_list" ||
