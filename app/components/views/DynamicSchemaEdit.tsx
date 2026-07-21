@@ -1,35 +1,36 @@
 import {
   ArrowLeft,
   Box,
+  Check,
+  ClipboardPaste,
+  Copy,
+  Download,
+  FileJson,
   Hash,
+  LayoutTemplate,
   List,
   ListOrdered,
   Plus,
   Settings2,
+  Sparkles,
   ToggleLeft,
   Trash2,
   Type,
   Upload,
-  Download,
-  Sparkles,
-  ClipboardPaste,
-  AlertTriangle,
-  FileJson,
-  Copy,
-  Check,
-  LayoutTemplate,
 } from "lucide-react";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router";
 import { useToast } from "~/components/ToastProvider";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
+import { EmptyState } from "~/components/ui/EmptyState";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import {
   getFile,
   isConflictError,
-  updateFile,
   listDirectory,
+  updateFile,
 } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { clearDataCache, useData } from "~/lib/use-data";
@@ -40,8 +41,6 @@ import {
   type DynamicField,
   type DynamicSchemaFile,
 } from "~/schemas/dynamic-schema";
-import { LoadErrorState } from "~/components/ui/LoadErrorState";
-import { EmptyState } from "~/components/ui/EmptyState";
 
 function SubFieldList({
   subFields,
@@ -100,24 +99,30 @@ function SubFieldList({
               <option value="list">List (Multiple Select / Enum)</option>
               <option value="object_array">Object Group (Nested List)</option>
             </select>
-            {subField.type !== "object_array" && subField.type !== "enum" && subField.type !== "list" && (
-              <div className="w-full sm:w-1/4 flex flex-col gap-1 justify-center">
-                <label className="flex items-center gap-1.5 text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer w-max select-none">
-                  <input
-                    type="checkbox"
-                    checked={!!subField.hasCustomSuffix}
-                    onChange={(e) => {
-                      onChange([...path, sIndex], "hasCustomSuffix", e.target.checked);
-                      if (e.target.checked) {
-                        onChange([...path, sIndex], "unit", ""); // clear predefined unit if custom is checked
-                      }
-                    }}
-                    className="w-3 h-3 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-800 cursor-pointer"
-                  />
-                  User inputs custom unit in form
-                </label>
-              </div>
-            )}
+            {subField.type !== "object_array" &&
+              subField.type !== "enum" &&
+              subField.type !== "list" && (
+                <div className="w-full sm:w-1/4 flex flex-col gap-1 justify-center">
+                  <label className="flex items-center gap-1.5 text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer w-max select-none">
+                    <input
+                      type="checkbox"
+                      checked={!!subField.hasCustomSuffix}
+                      onChange={(e) => {
+                        onChange(
+                          [...path, sIndex],
+                          "hasCustomSuffix",
+                          e.target.checked,
+                        );
+                        if (e.target.checked) {
+                          onChange([...path, sIndex], "unit", ""); // clear predefined unit if custom is checked
+                        }
+                      }}
+                      className="w-3 h-3 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-800 cursor-pointer"
+                    />
+                    User inputs custom unit in form
+                  </label>
+                </div>
+              )}
             <button
               type="button"
               onClick={() => onRemove(path, sIndex)}
@@ -186,7 +191,8 @@ function SubFieldList({
                     Nested Group Sub-Fields
                   </span>
                   <span className="text-xs text-blue-700/80 dark:text-blue-300/80">
-                    Define the explicit fields for each object in this nested list.
+                    Define the explicit fields for each object in this nested
+                    list.
                   </span>
                 </div>
                 <button
@@ -194,11 +200,14 @@ function SubFieldList({
                   onClick={() => onAdd([...path, sIndex])}
                   className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-medium flex items-center gap-1.5 transition-colors text-xs whitespace-nowrap shadow-sm"
                 >
-                  <Trash2 className="w-3 h-3 hidden" /> {/* Hidden icon to match spacing conceptually if we used an icon */}
-                  <span className="flex items-center gap-1"><Plus className="w-3 h-3" /> Add Sub-Field</span>
+                  <Trash2 className="w-3 h-3 hidden" />{" "}
+                  {/* Hidden icon to match spacing conceptually if we used an icon */}
+                  <span className="flex items-center gap-1">
+                    <Plus className="w-3 h-3" /> Add Sub-Field
+                  </span>
                 </button>
               </div>
-              
+
               <div className="pl-1">
                 {(subField.subFields || []).length > 0 ? (
                   <SubFieldList
@@ -329,15 +338,40 @@ export default function DynamicSchemaEdit() {
   const aiPromptMarkdown = useMemo(() => {
     const category = loaderData?.schema.category || "entity";
     const schemaName = loaderData?.schema.name || "";
-    const entityName = category === "hero" ? "Hero" : category === "map" ? "Map" : category === "mode" ? "Game Mode" : category === "patch" ? "Patch" : category === "item" ? "Item" : category === "event" ? "Event" : "Entity";
+    const entityName =
+      category === "hero"
+        ? "Hero"
+        : category === "map"
+          ? "Map"
+          : category === "mode"
+            ? "Game Mode"
+            : category === "patch"
+              ? "Patch"
+              : category === "item"
+                ? "Item"
+                : category === "event"
+                  ? "Event"
+                  : "Entity";
 
     let categoryHint = "";
-    if (category === "hero") categoryHint = "Think about roles, health, armor, movement speed, abilities, weapons, and passives.";
-    else if (category === "map") categoryHint = "Think about map locations, supported game modes, release date, climate, and lore.";
-    else if (category === "mode") categoryHint = "Think about win conditions, team sizes, time limits, and scoring mechanics.";
-    else if (category === "patch") categoryHint = "Think about version string, release date, developer notes, and highlights.";
-    else if (category === "item") categoryHint = "Think about cost, tier, effects, stat bonuses, and descriptions.";
-    else if (category === "event") categoryHint = "Think about start/end dates, event type, rewards, and related game modes.";
+    if (category === "hero")
+      categoryHint =
+        "Think about roles, health, armor, movement speed, abilities, weapons, and passives.";
+    else if (category === "map")
+      categoryHint =
+        "Think about map locations, supported game modes, release date, climate, and lore.";
+    else if (category === "mode")
+      categoryHint =
+        "Think about win conditions, team sizes, time limits, and scoring mechanics.";
+    else if (category === "patch")
+      categoryHint =
+        "Think about version string, release date, developer notes, and highlights.";
+    else if (category === "item")
+      categoryHint =
+        "Think about cost, tier, effects, stat bonuses, and descriptions.";
+    else if (category === "event")
+      categoryHint =
+        "Think about start/end dates, event type, rewards, and related game modes.";
 
     return `# Athena Schema Generation Guidelines
 You are an AI Architect. You are tasked with creating the structural blueprint (a JSON schema definition) for a **${entityName}** in the Athena platform.
@@ -416,7 +450,9 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
             const current = prev || [];
             const merged = [...current];
             json.fields.forEach((newField: any) => {
-              const existingIndex = merged.findIndex((f) => f.key === newField.key);
+              const existingIndex = merged.findIndex(
+                (f) => f.key === newField.key,
+              );
               if (existingIndex >= 0) {
                 merged[existingIndex] = newField;
               } else {
@@ -443,7 +479,9 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
           const current = prev || [];
           const merged = [...current];
           json.fields.forEach((newField: any) => {
-            const existingIndex = merged.findIndex((f) => f.key === newField.key);
+            const existingIndex = merged.findIndex(
+              (f) => f.key === newField.key,
+            );
             if (existingIndex >= 0) {
               merged[existingIndex] = newField;
             } else {
@@ -565,8 +603,12 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
           .replace(/[^a-z0-9]+/g, "_")
           .replace(/(^_|_$)/g, "");
 
-        const isDefaultKey = !field.key || String(field.key).includes("field_") || String(field.key).includes("sub_");
-        const shouldUpdateKey = !field.key || field.key === oldSlug || isDefaultKey;
+        const isDefaultKey =
+          !field.key ||
+          String(field.key).includes("field_") ||
+          String(field.key).includes("sub_");
+        const shouldUpdateKey =
+          !field.key || field.key === oldSlug || isDefaultKey;
 
         field.label = value as string;
         if (shouldUpdateKey) {
@@ -628,9 +670,13 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "_")
           .replace(/(^_|_$)/g, "");
-        
-        const isDefaultKey = !subField.key || String(subField.key).includes("field_") || String(subField.key).includes("sub_");
-        const shouldUpdateKey = !subField.key || subField.key === oldSlug || isDefaultKey;
+
+        const isDefaultKey =
+          !subField.key ||
+          String(subField.key).includes("field_") ||
+          String(subField.key).includes("sub_");
+        const shouldUpdateKey =
+          !subField.key || subField.key === oldSlug || isDefaultKey;
         subField.label = value as string;
         if (shouldUpdateKey) {
           subField.key = newSlug;
@@ -681,11 +727,13 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "_")
           .replace(/(^_|_$)/g, "");
-        
-        const isDefaultKey = !field.key || String(field.key).includes("field_") || String(field.key).includes("sub_");
-        const shouldUpdateKey = !field.key || field.key === oldSlug || isDefaultKey;
-        
 
+        const isDefaultKey =
+          !field.key ||
+          String(field.key).includes("field_") ||
+          String(field.key).includes("sub_");
+        const shouldUpdateKey =
+          !field.key || field.key === oldSlug || isDefaultKey;
 
         field.label = value as string;
         if (shouldUpdateKey) {
@@ -775,10 +823,10 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
 
     const parsed = DynamicSchemaFileSchema.safeParse(updatedSchema);
     if (!parsed.success) {
-      const errorMsg = parsed.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(", ");
-      setCommitError(
-        `Validation failed: ${errorMsg}`,
-      );
+      const errorMsg = parsed.error.issues
+        .map((e) => `${e.path.join(".")}: ${e.message}`)
+        .join(", ");
+      setCommitError(`Validation failed: ${errorMsg}`);
       toastError(`Validation failed: ${parsed.error.issues[0]?.message}`);
       setSubmitting(false);
       return;
@@ -1254,7 +1302,11 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                   type="checkbox"
                                   checked={!!field.hasCustomSuffix}
                                   onChange={(e) => {
-                                    handleChangeField(index, "hasCustomSuffix", e.target.checked);
+                                    handleChangeField(
+                                      index,
+                                      "hasCustomSuffix",
+                                      e.target.checked,
+                                    );
                                     if (e.target.checked) {
                                       handleChangeField(index, "unit", ""); // clear predefined unit if custom is checked
                                     }
@@ -1348,8 +1400,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                               API Endpoint
                             </label>
                             <div className="flex gap-2">
-                              <input
-                                list={`api-options-${index}`}
+                              <select
                                 value={field.referenceApiEndpoint || ""}
                                 onChange={(e) =>
                                   handleChangeField(
@@ -1358,9 +1409,23 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                     e.target.value,
                                   )
                                 }
-                                placeholder="/api/{game}/heroes"
                                 className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                              />
+                              >
+                                <option value="" disabled>
+                                  Select API Endpoint
+                                </option>
+                                {SchemaCategorySchema.options.map(
+                                  (category) => (
+                                    <option
+                                      key={category}
+                                      value={`/api/{game}/${getCategoryDirectory(category)}`}
+                                    >
+                                      /api/{game}/
+                                      {getCategoryDirectory(category)}
+                                    </option>
+                                  ),
+                                )}
+                              </select>
                               <Button
                                 type="button"
                                 variant="outline"
@@ -1378,14 +1443,6 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                 {loadingApiKeys[index] ? "..." : "Fetch Fields"}
                               </Button>
                             </div>
-                            <datalist id={`api-options-${index}`}>
-                              {SchemaCategorySchema.options.map((category) => (
-                                <option
-                                  key={category}
-                                  value={`/api/{game}/${getCategoryDirectory(category)}`}
-                                />
-                              ))}
-                            </datalist>
                           </div>
                           <div className="flex gap-2">
                             <div className="flex-1">
