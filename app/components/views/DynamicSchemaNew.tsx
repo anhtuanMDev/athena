@@ -167,6 +167,8 @@ export default function DynamicSchemaNew() {
       categoryHint =
         "Think about start/end dates, event type, rewards, and related game modes.";
 
+    const apiOptionsString = SchemaCategorySchema.options.map((c) => `"/api/{game}/${getCategoryDirectory(c)}"`).join(", ");
+
     return `# Athena Schema Generation Guidelines
 You are an AI Architect. You are tasked with creating the structural blueprint (a JSON schema definition) for a **${entityName}** in the Athena platform.
 DO NOT extract or generate data for a specific entity (e.g., do not give me Tracer's actual stats). Instead, generate the abstract structural fields that will be used as a template to define ANY ${entityName}.
@@ -204,8 +206,8 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
 - \`abilities\`: Complex ability structure. Takes \`subFields\` array for extra ability parameters. DO NOT include standard fields (\`id\`, \`name\`, \`type\`, \`description\`, \`icon\`, \`mode_overrides\`) in \`subFields\` as they are natively built-in. Only use \`subFields\` for custom parameters like damage, cooldown, etc.
 - \`weapon\`: Complex weapon structure. Same behavior as \`abilities\` but semantically distinct. Takes \`subFields\` array for extra weapon parameters like ammo, reload time, spread, etc.
 - \`object_array\`: Group of nested fields. Takes \`subFields\` array (each subField is a field object with key, label, type, etc.) for properties of the object.
-- \`reference\`: API-based single select (requires \`referenceApiEndpoint\`, \`referenceValueKey\`, \`referenceLabelKey\`)
-- \`reference_list\`: API-based multiple select (requires \`referenceApiEndpoint\`, \`referenceValueKey\`, \`referenceLabelKey\`)
+- \`reference\`: API-based single select. Requires \`referenceApiEndpoint\` (MUST be one of: ${apiOptionsString}), \`referenceValueKey\` (e.g., "id"), \`referenceLabelKey\` (e.g., "name").
+- \`reference_list\`: API-based multiple select. Requires \`referenceApiEndpoint\` (MUST be one of: ${apiOptionsString}), \`referenceValueKey\`, \`referenceLabelKey\`.
 
 ## Instructions
 1. Generate the JSON structure EXACTLY as specified above.
