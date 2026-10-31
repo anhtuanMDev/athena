@@ -42,6 +42,7 @@ import RawEdit from "~/RawEdit";
 import CronJobEdit from "~/components/views/CronJobEdit";
 import CronJobNew from "~/components/views/CronJobNew";
 import CronJobsList from "~/components/views/CronJobsList";
+import ImportDraftReview from "~/components/views/ImportDraftReview";
 
 // App screens
 import ScreenEdit from "~/components/views/ScreenEdit";
@@ -100,6 +101,12 @@ export default function GameDashboardRouter() {
       return (
         <PanelTransition>
           <EntityDelete entityType="cron_jobs" />
+        </PanelTransition>
+      );
+    if (subAction === "review" && parts[3])
+      return (
+        <PanelTransition>
+          <ImportDraftReview />
         </PanelTransition>
       );
     return (

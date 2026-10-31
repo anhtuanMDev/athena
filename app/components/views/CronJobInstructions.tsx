@@ -13,147 +13,117 @@ interface InstructionSection {
 
 const SECTIONS: InstructionSection[] = [
   {
-    id: "api-response",
+    id: "source",
     icon: <BookOpen className="w-4 h-4" />,
     color: "blue",
-    title: "API Response Definition",
-    subtitle: "Define how the API responds — its JSON structure and expected fields.",
+    title: "Source",
+    subtitle: "Where the data comes from, and which part of it is one item.",
     rules: [
       {
-        label: "Dot-path notation",
+        label: "Web page (HTML)",
         description:
-          'Map each schema field to its JSON path in the API response using dot notation. E.g. "data.hero.stats.health" drills into { data: { hero: { stats: { health: 200 } } } }.',
+          'For sites without an API, such as patch notes. The item selector is a CSS selector; every element it matches becomes one draft (".PatchNotes-patch").',
       },
       {
-        label: "Array indexing",
+        label: "API (JSON)",
         description:
-          'Use bracket notation for arrays: "results[0].value" picks the first element. "items[].name" (no index) will map over every element and collect the "name" field as a list.',
+          'The items path is a dot path to an array ("data.items"); each element becomes one draft. Leave it empty when the response itself is the array, or a single item.',
       },
       {
-        label: "Root-level fields",
+        label: "Fetch limits",
         description:
-          'If the field is at the top level of the response, use the key directly: "health", "name", "patch_version".',
-      },
-      {
-        label: "Null / missing fields",
-        description:
-          "If a field is absent in the API response, the worker will skip it and leave the schema field empty. No error is thrown — design your mappings defensively.",
+          "Public HTTPS addresses only, no redirects (use the final address), 10 seconds and 5 MB at most. Put static query parameters in the URL.",
       },
     ],
     examples: [
-      '"data.attributes.health" → { data: { attributes: { health: 250 } } }',
-      '"heroes[0].name" → { heroes: [{ name: "Tracer" }] }',
-      '"patch" → { patch: "2026.06", ... }',
+      '"https://overwatch.blizzard.com/en-us/news/patch-notes/" + ".PatchNotes-patch"',
+      '"https://api.example.com/heroes?game=overwatch" + "data.heroes"',
     ],
   },
   {
-    id: "api-params",
+    id: "mapping",
     icon: <Zap className="w-4 h-4" />,
     color: "orange",
-    title: "API Params / Payload",
-    subtitle:
-      "Define parameters or payload the worker sends with the request (enum values, timestamps, required params, or chained calls).",
+    title: "Field Mapping",
+    subtitle: "Where each schema field comes from, relative to one item.",
     rules: [
       {
-        label: "Static query params",
+        label: "HTML",
         description:
-          'Append static params directly to the endpoint URL: "https://api.example.com/heroes?game=overwatch&format=json". These are sent on every run unchanged.',
+          'A CSS selector reads the text of what it matches inside the item; "a@href" reads an attribute instead; "." is the item itself and "@id" its own attribute. Lists collect every match; other fields take the first.',
       },
       {
-        label: "Dynamic time injection",
+        label: "JSON",
         description:
-          'Use the special token {{now}} in the URL or payload to inject the current ISO timestamp at execution time: "https://api.example.com/patches?since={{now}}".',
+          'A dot path reads a value ("stats.health"); "tags[0]" picks one element, and arrays along the path are read element by element.',
       },
       {
-        label: "Enum values",
+        label: "Constants and transforms",
         description:
-          "When an API requires a specific enum string (e.g. region=EU, tier=platinum), hard-code it in the URL or note it in the field mapping value as a constant prefixed with `=`: e.g. mapping value `=EU` will write the literal string \"EU\" to that field without reading from the response.",
+          '"=Live" writes that text. Pipe a value through "| date" (to YYYY-MM-DD), "| slug", "| number" (the first number in the text), "| lower" or "| upper".',
       },
       {
-        label: "Chained API calls",
+        label: "Lists of objects",
         description:
-          "If you need data from a second API to build the payload for this one, create a separate cron job for the first call and set its destination schema as the source for this job's endpoint URL param.",
+          'Give "each" a selector or path for the entries, then map each sub-field relative to one entry ("ul li" with Description ".").',
       },
     ],
     examples: [
-      '"https://api.example.com/heroes?game=overwatch" — static param',
-      '"https://api.example.com/news?after={{now}}" — dynamic timestamp',
-      'Mapping value "=EU" — injects literal constant "EU" for a field',
+      '".PatchNotes-date | date" → "2026-10-20"',
+      '".anchor@id" → "patch-2026-10-20"',
+      '"=Live" → "Live"',
     ],
   },
   {
-    id: "data-handling",
+    id: "types",
     icon: <GitMerge className="w-4 h-4" />,
     color: "purple",
-    title: "Data Handling",
-    subtitle:
-      "How the worker processes the API response — converting types, extracting values, filtering, and transforming before writing.",
+    title: "Types",
+    subtitle: "How values are fitted to the schema, and what gets flagged.",
     rules: [
       {
-        label: "Type coercion",
+        label: "Options",
         description:
-          'The worker automatically coerces values to the type declared in the target schema: a "number" field will convert "200" → 200, a "boolean" will convert "true" → true. Mismatches that cannot be coerced are logged as warnings and skipped.',
+          'Enum and list fields accept their options in any case or spacing ("hotfix" → "Hotfix"); anything else is flagged and left empty.',
       },
       {
-        label: "List extraction",
+        label: "Numbers and yes/no",
         description:
-          'For "list" type fields, the mapped path can point to an array (e.g. "data.tags") and the worker will store it as-is. If it points to a string, the worker splits on commas automatically.',
+          'Numbers must read as numbers ("250"); yes/no fields take true/false, yes/no or 1/0. Abilities and weapons aren\'t imported; fill them in during review.',
       },
       {
-        label: "Filtering responses",
+        label: "Flags, not failures",
         description:
-          "If the API returns a collection and you only need one record, use an index in the path (e.g. \"results[0]\") or configure the endpoint URL to request a specific ID directly.",
+          "A bad rule or value is flagged on its draft (missing required fields too) instead of failing the run, so the reviewer sees what to fix.",
       },
-      {
-        label: "Computed / derived fields",
-        description:
-          'Prefix a mapping value with "calc:" to write a simple expression: "calc:response.attack * 2" will multiply the extracted value by 2. Only basic arithmetic (+, -, *, /) is supported.',
-      },
-      {
-        label: "Response size limit",
-        description:
-          "The worker enforces a 5 MB response body limit. APIs returning large payloads should be filtered server-side via query params before the worker fetches them.",
-      },
-    ],
-    examples: [
-      '"data.stats.hp" with schema type "number" → auto-converts "250" to 250',
-      '"data.roles" pointing to ["tank","damage"] → stored as list',
-      '"calc:data.base_damage * 1.5" → computes derived value',
     ],
   },
   {
-    id: "destination",
+    id: "review",
     icon: <Database className="w-4 h-4" />,
     color: "green",
-    title: "Final Result Destination",
-    subtitle:
-      "Select the target schema to define where and how the processed data is written, or chain into another cron job.",
+    title: "Review and Publishing",
+    subtitle: "Imports are drafts; nothing reaches the app until someone publishes it.",
     rules: [
       {
-        label: "Target Schema (required)",
+        label: "Record id",
         description:
-          "The selected schema determines the entity type and field structure that will be written to GitHub. Every field in the schema must have either a mapping path or an acceptable empty/default value.",
+          'The field picked under "Record id comes from" becomes the id, as a slug. Items whose id is already published, waiting for review or dismissed are skipped, so runs never overwrite anything.',
       },
       {
-        label: "New record vs. update",
+        label: "Drafts",
         description:
-          "If the API returns a unique ID field mapped to the schema's \"id\" key, the worker will update an existing record with that ID. If no matching file exists, it creates a new one. Missing \"id\" mapping always creates a new record.",
+          "Each run adds at most the set number of drafts, in one commit. Review opens the draft in the schema's form; Publish writes it to the category's folder, Dismiss drops it for good.",
       },
       {
-        label: "Chaining cron jobs",
+        label: "Schedules",
         description:
-          "Set this job's destination schema to the same category that a downstream cron job reads from. The downstream job will then operate on the freshly written data on its next run.",
-      },
-      {
-        label: "Partial writes",
-        description:
-          "Only mapped fields are written. Unmapped schema fields are left at their existing values (for updates) or set to their default (for new records). You do not need to map every field.",
+          "Hourly, daily and weekly jobs run on the cron worker; Run now runs a saved job at once. Preview shows what a run would find, without saving anything.",
       },
     ],
     examples: [
-      'Schema "Hero (hero)" → writes to data/<game>/heroes/<id>.json',
-      'Mapped "id" = "data.hero_id" → updates existing hero file if found',
-      "No mapped \"id\" → always creates a new record with a generated ID",
+      'Schema "Patch (patch)" → publishes data/<game>/patches/<id>.json',
+      "Drafts wait in data/<game>/imports/<job>/<id>.json",
     ],
   },
 ];
@@ -232,7 +202,7 @@ export function CronJobInstructions() {
             Configuration Guide
           </span>
           <p className="text-xs text-ink-muted mt-0.5">
-            Rules and examples for API response, params, data handling, and destination. Click a section to expand.
+            How sources, mappings, types and review work. Click a section to expand.
           </p>
         </div>
       </div>

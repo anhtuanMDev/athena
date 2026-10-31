@@ -7,13 +7,14 @@ compatibility_date = "2024-03-20"
 crons = [
   "0 * * * *",      # Hourly
   "0 0 * * *",      # Daily
-  "0 0 * * 7"       # Weekly (Sunday at midnight)
+  "0 0 * * SUN"     # Weekly (Sunday at midnight; a named day avoids weekday numbering differences)
 ]
 
 # ==========================================================
 # Required secrets (set via `wrangler secret put`):
-#   GITHUB_TOKEN
+#   GITHUB_TOKEN    (contents: read & write on the data repo)
 #   GITHUB_OWNER
 #   GITHUB_REPO
 #   GITHUB_BRANCH
+#   CRON_SECRET     (for POST /trigger)
 # ==========================================================

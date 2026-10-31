@@ -9,6 +9,18 @@ import { assertSafeGameSlug } from "~/lib/safe-path";
 import { CronJobSchema } from "~/schemas/cron";
 import { type DynamicSchemaFile } from "~/schemas/dynamic-schema";
 import { CronJobInstructions } from "~/components/views/CronJobInstructions";
+import {
+  DEFAULT_SETTINGS,
+  ImportJobSettings,
+  pruneMappings,
+  type JobSettings,
+} from "~/components/views/ImportJobSettings";
+
+const jobIdFor = (name: string) =>
+  `cron-${name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")}`;
 
 export default function CronJobNew() {
   const { game } = useParams();
@@ -17,17 +29,8 @@ export default function CronJobNew() {
   const { success: toastSuccess, error: toastError } = useToast();
 
   const [schemas, setSchemas] = useState<DynamicSchemaFile[]>([]);
-  const [selectedSchema, setSelectedSchema] =
-    useState<DynamicSchemaFile | null>(null);
-
   const [name, setName] = useState("");
-  const [apiEndpoint, setApiEndpoint] = useState("");
-  const [schemaId, setSchemaId] = useState("");
-  const [schedule, setSchedule] = useState("manual");
-  const [active, setActive] = useState(true);
-  const [fieldMappings, setFieldMappings] = useState<Record<string, string>>(
-    {},
-  );
+  const [settings, setSettings] = useState<JobSettings>(DEFAULT_SETTINGS);
 
   const [submitting, setSubmitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
@@ -48,27 +51,6 @@ export default function CronJobNew() {
     loadSchemas();
   }, [game]);
 
-  useEffect(() => {
-    if (schemaId) {
-      const schema = schemas.find((s) => s.id === schemaId);
-      setSelectedSchema(schema || null);
-      if (schema) {
-        const newMappings: Record<string, string> = {};
-        schema.fields.forEach((f) => {
-          newMappings[f.key] = fieldMappings[f.key] || "";
-        });
-        setFieldMappings(newMappings);
-      }
-    } else {
-      setSelectedSchema(null);
-      setFieldMappings({});
-    }
-  }, [schemaId, schemas]);
-
-  const handleMappingChange = (key: string, value: string) => {
-    setFieldMappings((prev) => ({ ...prev, [key]: value }));
-  };
-
   async function handleCommit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
@@ -80,12 +62,7 @@ export default function CronJobNew() {
       return;
     }
 
-    const generatedId = `cron-${name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "")}`;
-
-    const selectedSchema = schemas.find((s) => s.id === schemaId);
+    const selectedSchema = schemas.find((s) => s.id === settings.schema_id);
     if (!selectedSchema) {
       setCommitError("Please select a valid schema.");
       toastError("Please select a valid schema.");
@@ -93,20 +70,16 @@ export default function CronJobNew() {
       return;
     }
 
-    const newCron = {
-      id: generatedId,
+    const parsed = CronJobSchema.safeParse({
+      ...settings,
+      id: jobIdFor(name),
       name: name.trim(),
-      schema_id: schemaId,
       category: selectedSchema.category,
-      api_endpoint: apiEndpoint,
-      schedule: schedule as any,
-      active,
-      field_mappings: fieldMappings,
-    };
-
-    const parsed = CronJobSchema.safeParse(newCron);
+      field_mappings: pruneMappings(selectedSchema, settings.field_mappings),
+    });
     if (!parsed.success) {
-      setCommitError("Validation failed. Please check your inputs.");
+      const message = parsed.error.issues[0]?.message ?? "Please check your inputs.";
+      setCommitError(`Validation failed: ${message}`);
       toastError("Validation failed.");
       setSubmitting(false);
       return;
@@ -131,7 +104,7 @@ export default function CronJobNew() {
         `Add cron job: ${parsed.data.name}`,
       );
       toastSuccess(`Cron Job ${parsed.data.name} created successfully!`);
-      navigate(`/${game}/cron`);
+      navigate(`/${game}/cron/${parsed.data.id}`);
     } catch (err) {
       setCommitError((err as Error).message);
       toastError((err as Error).message);
@@ -166,23 +139,6 @@ export default function CronJobNew() {
               New Cron Job - <span className="capitalize">{game}</span>
             </h1>
           </div>
-
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => navigate(`/${game}/cron`)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={submitting}
-              className="shadow-lg px-8"
-            >
-              {submitting ? "Creating..." : "Create Cron Job"}
-            </Button>
-          </div>
         </div>
 
         {commitError && (
@@ -191,138 +147,31 @@ export default function CronJobNew() {
           </div>
         )}
 
-
         <CronJobInstructions />
 
-        {/* Basic Settings Section */}
         <Card className="border-orange-500/20 shadow-sm">
-          <CardContent className="p-6 md:p-8 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-bold text-ink mb-2">
-                  Cron Job Name
-                </label>
-                <input aria-label="Cron Job Name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Sync Heroes Daily"
-                  className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-ink mb-2">
-                  Target Schema
-                </label>
-                <select aria-label="Target Schema"
-                  value={schemaId}
-                  onChange={(e) => setSchemaId(e.target.value)}
-                  className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                  required
-                >
-                  <option value="" disabled>
-                    Select a schema…
-                  </option>
-                  {schemas.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.category})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-bold text-ink mb-2">
-                  API Endpoint URL
-                </label>
-                <input aria-label="API Endpoint URL"
-                  value={apiEndpoint}
-                  onChange={(e) => setApiEndpoint(e.target.value)}
-                  placeholder="https://api.example.com/data"
-                  className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                  type="url"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-ink mb-2">
-                  Schedule
-                </label>
-                <select aria-label="Schedule"
-                  value={schedule}
-                  onChange={(e) => setSchedule(e.target.value)}
-                  className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                >
-                  <option value="manual">Manual Trigger Only</option>
-                  <option value="hourly">Hourly</option>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 pt-2">
-              <input
-                type="checkbox"
-                id="active"
-                checked={active}
-                onChange={(e) => setActive(e.target.checked)}
-                className="w-5 h-5 rounded border-border-strong text-orange-600 focus:ring-orange-500"
-              />
-              <label
-                htmlFor="active"
-                className="text-sm font-bold text-ink cursor-pointer"
-              >
-                Job is Active
-              </label>
-            </div>
+          <CardContent className="p-6 md:p-8">
+            <label className="block text-sm font-bold text-ink mb-2" htmlFor="job-name">
+              Cron Job Name
+            </label>
+            <input
+              id="job-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Overwatch Patch Notes"
+              className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+              required
+            />
           </CardContent>
         </Card>
 
-        {/* Schema Field Mappings Section */}
-        {selectedSchema && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-border pb-4">
-              <h2 className="text-xl font-bold text-ink tracking-tight">
-                API Data Mapping
-              </h2>
-            </div>
-            <p className="text-sm text-ink-muted">
-              Define the JSON path from the API response that maps to each field
-              in the <strong>{selectedSchema.name}</strong> schema.
-            </p>
-
-            <div className="space-y-4">
-              {selectedSchema.fields.map((field) => (
-                <div
-                  key={field.key}
-                  className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-surface rounded-xl border border-border shadow-sm"
-                >
-                  <div className="flex flex-col justify-center">
-                    <span className="font-bold text-ink">
-                      {field.label}
-                    </span>
-                    <span className="text-xs text-ink-muted font-mono mt-1">
-                      {field.key} ({field.type})
-                    </span>
-                  </div>
-                  <div>
-                    <input aria-label={`Source path for ${field.label}`}
-                      value={fieldMappings[field.key] || ""}
-                      onChange={(e) =>
-                        handleMappingChange(field.key, e.target.value)
-                      }
-                      placeholder={`e.g. data.attributes.${field.key}`}
-                      className="block w-full rounded-lg border-border-strong bg-surface-raised px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <ImportJobSettings
+          game={game!}
+          jobId={name.trim() ? jobIdFor(name) : "new-job"}
+          schemas={schemas}
+          value={settings}
+          onChange={setSettings}
+        />
       </form>
     </div>
   );

@@ -6,7 +6,9 @@
     "types": ["@cloudflare/workers-types"],
     "strict": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    // Type checks app modules that use the app's "~/" alias.
+    "paths": { "~/*": ["../../app/*"] }
   },
   "include": ["src/**/*.ts"]
 }
