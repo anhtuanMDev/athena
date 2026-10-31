@@ -23,7 +23,7 @@ export function conflictResponse() {
   return { errors: { _form: ["Conflict: file was modified since loading. Refresh and re-apply."] } };
 }
 
-async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
+export async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
   const opts: RequestInit = {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,

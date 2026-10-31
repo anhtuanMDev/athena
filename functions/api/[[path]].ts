@@ -3,6 +3,15 @@ import type { KVNamespace } from "@cloudflare/workers-types";
 import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
 import { bumpCacheVersion, mobileVersionKeyForPath } from "../../app/lib/mobile-cache-version";
 import { validateDataFile } from "../../app/lib/screen-policy";
+import { SourceError } from "../../app/lib/importer/fetch-source";
+import { githubRepo } from "../../app/lib/importer/repo";
+import {
+  ImportError,
+  dismissDraft,
+  previewImport,
+  publishDraft,
+  runImport,
+} from "../../app/lib/importer/run";
 
 const SESSION_KEY = "__admin_session";
 const MAX_ATTEMPTS = 5;
@@ -286,6 +295,8 @@ export async function onRequest(
       return await handleCommits(context);
     if (path.startsWith("assets/") && request.method === "GET")
       return await handleGetAsset(context);
+    if (path.startsWith("imports/") && request.method === "POST")
+      return await handleImport(context, path.slice("imports/".length));
       
     const enumMatch = path.match(/^([^\/]+)\/enums\/([^\/]+)$/);
     if (enumMatch && request.method === "GET") {
@@ -513,6 +524,40 @@ async function handleDeleteFile(context: PagesFunctionContext): Promise<Response
         409,
       );
     }
+    throw err;
+  }
+}
+
+// Import jobs (app/lib/importer): preview a mapping, run a job now, and the
+// reviewer's answers to a draft. Each write is one commit; a published record
+// refreshes the mobile caches like any other save.
+async function handleImport(context: PagesFunctionContext, action: string): Promise<Response> {
+  await requireAuth(context);
+  const body = (await context.request.json().catch(() => ({}))) as Record<string, unknown>;
+  const game = String(body.game ?? "");
+  const jobId = String(body.jobId ?? "");
+  const repo = githubRepo(context.env);
+  try {
+    switch (action) {
+      case "preview":
+        return json(await previewImport({ repo, game, job: body.job }));
+      case "run":
+        return json(await runImport({ repo, game, jobId }));
+      case "publish": {
+        const record = body.record && typeof body.record === "object" ? (body.record as Record<string, unknown>) : {};
+        const path = await publishDraft(repo, game, jobId, record);
+        triggerCachePurge(context, path);
+        return json({ ok: true, path });
+      }
+      case "dismiss":
+        await dismissDraft(repo, game, jobId, String(body.id ?? ""));
+        return json({ ok: true });
+      default:
+        return json({ error: "Not found" }, 404);
+    }
+  } catch (err) {
+    if (err instanceof ImportError) return json({ error: err.message }, err.status);
+    if (err instanceof SourceError) return json({ error: err.message }, 502);
     throw err;
   }
 }

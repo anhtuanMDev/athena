@@ -20,7 +20,12 @@ export default function CronJobsList() {
         if (s && s.id) syncMap[s.id] = s;
       });
 
-      return crons.map(job => ({ ...job, _sync: syncMap[job.id] }));
+      // Draft counts: one listing per job (names only), so a reviewer sees where work waits.
+      const pending = await Promise.all(
+        crons.map((job) => listDirectory<string>(game!, `imports/${job.id}`).then((ids) => ids.length).catch(() => 0)),
+      );
+
+      return crons.map((job, i) => ({ ...job, _sync: syncMap[job.id], _pending: pending[i] }));
     } catch (e) {
       return [];
     }
@@ -114,6 +119,12 @@ export default function CronJobsList() {
                   <strong>Schedule:</strong> {job.schedule}
                 </p>
 
+                {job._pending > 0 && (
+                  <p className="mb-4 text-sm font-semibold text-amber-700 dark:text-amber-400">
+                    {job._pending} waiting for review
+                  </p>
+                )}
+
                 {job._sync && (
                   <div className="mb-4 text-xs p-3 rounded-lg bg-surface-raised border border-border">
                     {job._sync.last_sync && (
@@ -121,7 +132,7 @@ export default function CronJobsList() {
                         <strong>Last Sync:</strong> {new Date(job._sync.last_sync).toLocaleString()}
                       </p>
                     )}
-                    {job._sync.last_error && (
+                    {job._sync.last_error && job._sync.last_sync_attempt !== job._sync.last_sync && (
                       <p className="text-red-700 dark:text-red-400 mt-1">
                         <strong>Last Error:</strong> {job._sync.last_error} <br/>
                         <span className="opacity-75 text-xs mt-0.5 inline-block">
