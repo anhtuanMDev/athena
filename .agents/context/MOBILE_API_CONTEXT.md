@@ -1,7 +1,7 @@
 # Mobile API & Architecture Context
 
 ## Overview
-The Mobile API is specifically designed to feed a **Schema-Driven UI (Server-Driven UI)** React Native application. The mobile app acts as a generic "renderer" that downloads configuration blueprints (schemas, enums, layouts) and raw data, allowing the Admin Panel to entirely dictate what displays, in what order, without requiring App Store updates.
+The Mobile API is specifically designed to feed a **Schema-Driven UI (Server-Driven UI)** React Native application. The mobile app acts as a generic "renderer" that downloads configuration blueprints (schemas, enums, screens, navigation) and raw data, allowing the Admin Panel to entirely dictate what displays, in what order, without requiring App Store updates.
 
 This document outlines the API calling flow, the offline-first caching strategy, and what specifically belongs in the local device storage (MMKV).
 
@@ -9,77 +9,47 @@ This document outlines the API calling flow, the offline-first caching strategy,
 
 ## 1. App Startup (The Initial Boot)
 
-When the app launches, it needs to know what games exist, what the data structures look like (schemas), how to resolve dropdowns (enums), and exactly how to visually render screens (layouts).
+When the app launches, it needs to know what games exist, what the data structures look like (schemas), how to resolve dropdowns (enums), and exactly which screens to show and how (screens, navigation).
 
-* **API Call:** `GET /mobile/init` (served by `functions/mobile/init.ts`). `init_v3` is only the name of its internal cache key; there is no `/mobile/init_v3` route, and requesting it returns the admin's HTML page with status 200.
-* **Flow:** The app hits the Cloudflare Worker, which first reads `data/_meta/games.json` to identify **active games** (`active !== false`). It then returns a cached configuration payload `{ games, schemas, enums, layouts }`: the entries of `games.json` plus all `.json` files from `data/{game}/schemas`, `data/{game}/enums`, and `data/{game}/layouts` for those active games. Each layout gets an `id` taken from its file name: the schema id it belongs to, or `home` for the home screen. Other files in `data/_meta/` (such as `mobile_primitives.json`) are not included.
+* **API Call:** `GET /mobile/init` (served by `functions/mobile/init.ts`). `init_v4` is only the name of its internal cache key; there is no `/mobile/init_v4` route, and requesting it returns the admin's HTML page with status 200.
+* **Flow:** The app hits the Cloudflare Worker, which first reads `data/_meta/games.json` to identify **active games** (`active !== false`). It then returns a cached configuration payload `{ games, schemas, enums, screens, navigation }`: the entries of `games.json` plus all `.json` files from `data/{game}/schemas`, `data/{game}/enums` and `data/{game}/screens` (each screen with its file name as `id`), and `data/{game}/navigation.json` (or `null`), for those active games. Other files in `data/_meta/` (such as `mobile_primitives.json`) are not included.
 * **MMKV Strategy: `STORE FULLY`**
   * Save this entire payload in MMKV (e.g., under the key `global_config`). 
   * **Why:** This data dictates the entire layout and structure of the app. By storing it in MMKV, the app boots *instantly* offline. On boot, the app immediately reads MMKV to populate the UI navigation, and fires off a background request to `/mobile/init`. If the JSON payload differs, it silently updates MMKV and triggers a re-render.
 
 ---
 
-## 2. Layout Configuration & Server-Driven UI
+## 2. Screens, Navigation & Server-Driven UI
 
-The core of the dynamic React Native app is how it interprets the `layouts` received during the App Startup. For any given schema (e.g., `hero`, `map`), the layout JSON defines exactly what UI primitives to render and what data to inject.
+Schemas only describe what fields a kind of record has. What the app shows comes from **screens** that the admin builds under **App Screens**, plus the game's **navigation**:
 
-A layout file is named after the schema it belongs to (e.g., `data/overwatch/layouts/hero-hero.json`; the home screen uses `home.json`) and contains two arrays of layout blocks:
-1. `cardLayout`: Defines the UI structure for the list view (e.g., a grid cell or a horizontal row).
-2. `detailLayout`: Defines the UI structure for the full screen detail view.
+* `data/{game}/screens/{id}.json` — one file per screen. `/mobile/init` adds each file name as `id`.
+  * `type`: `home` (the game's first page), `list` (records of one category), `detail` (one record), or `page`.
+  * `title`, `appearance` (`light` | `dark`), `source` (`{ category, schema?, sort?, order?, limit? }`, for list and detail screens), `accent` (a color or `"data.<field>"`).
+  * `blocks`: the screen's content, top to bottom. Each block is `{ id, type, props, visible?, tab? }`; `type` is a block from the app's registry, listed in `data/_meta/mobile_primitives.json` (generated from the app with `npm run primitives` in zms). `tab` shows a block only while that tab of the screen's `tab_bar` block is selected.
+* `data/{game}/navigation.json` — `{ tabs: [{ screen, label, icon }] }`, the bottom tab bar. The first tab is Home. `app:settings` opens the app's own settings screen. Without this file the app shows the `home` screen alone; a game with no screens shows "not set up".
 
-**Layout Block Structure:**
-Each block in the array is an object with:
-* `id`: Unique identifier for the block.
-* `type`: The name of the mobile UI primitive (e.g., `image_hero`, `stat_grid`, `title`, `key_value_list`).
-* `props`: A JSON object binding data keys to component properties (e.g., `{"title": "data.name", "imageUrl": "data.portrait_url"}`).
+**Bindings.** Props are literals, except:
+* `"data.<path>"` — the screen's record on detail screens; on home and list screens, `{ game, heroes, maps, modes, items, patches }` (e.g. `data.patches.0.title`).
+* `"item.<path>"` — each entry of a list block (`featured_carousel`, `record_grid`, `item_list`): a record of its `source` (default: the screen's), or an entry of the list field bound to its `items` prop (e.g. `items: "data.abilities"`, `itemTitle: "item.name"`).
 
-**How the Mobile App Handles It:**
-1. **The Registry:** The React Native app must maintain a registry of Primitive Components (e.g., `<ImageHero />`, `<StatGrid />`).
-2. **The SchemaRenderer:** When asked to render a layout, the app iterates through the layout array. For each block, it looks up the component by `type` in the registry.
-3. **Data Binding:** The app evaluates the `props` mapping against the current entity's data payload, resolving things like `"data.health"` to `200`, and passes those resolved values as props to the Primitive Component.
+A prop bound to an enum field shows the option's name (and fills `<prop>Icon` with the option's icon); one bound to a number field with a unit fills `<prop>Unit`. Asset paths (`/api/assets/...`) become absolute URLs. Hidden blocks, unknown block types and blocks whose required values are missing are skipped, so a config ahead of the app never crashes it.
 
----
+**Actions.** `action: { screen }` opens another screen, passing the tapped record; `action: { url }` opens a link. `filter_chips` filters every list block of the screen's category by an enum or option field.
 
-## 3. Home Screen (Global Layout)
+## 3. Home & Game Switching
 
-The Home Screen is a unique screen that aggregates data from multiple categories rather than displaying a single entity. It acts as the main landing page of the application.
+The Home tab is a pager of every active game's home screen: swiping left or right on Home changes the game, and the tab bar and colors follow it. Home screens bind `"data.<path>"` to the game's data store (e.g. `data.game.name`, `data.heroes`), filled from `/mobile/data` for each folder.
 
-* **API Call:** `NONE` (Configured by App Startup)
-* **Flow:** 
-  1. Extract the `home` layout configuration from the `global_config.layouts` array retrieved during app startup.
-  2. Pass this specific layout to your universal renderer: `<SchemaRenderer layout={homeLayout.detailLayout} data={globalDataStore} />`.
-  3. Because the Home Screen is not bound to a specific entity, its layout configuration uses "global" sections that fetch or extract aggregated data across multiple schemas (e.g., pulling the latest patch from `data_overwatch_patches` or a featured hero from `data_overwatch_heroes`).
-* **MMKV Strategy: `N/A`**
-  * The structure is already stored in MMKV via the App Startup boot payload.
+## 4. List Screens (e.g., Heroes, Modes)
 
----
+* **API Call:** `GET /mobile/data?game={gameId}&entity={folder}` (e.g., `game=overwatch&entity=heroes`). The folder comes from the screen's `source.category`: `hero` → `heroes`, `map` → `maps`, `mode` → `modes`, `patch` → `patches`, `item` → `items`.
+* **Flow:** The endpoint returns every record in that folder. A record's `schema_id` names its schema; records without one use the category's first schema. A `source.schema` narrows a list to one schema.
+* **MMKV Strategy: `STORE FULLY`** under a key like `data_overwatch_heroes`, read instantly offline and refreshed in the background.
 
-## 4. Category List Screen (e.g., "Overwatch Heroes" or "Valorant Maps")
+## 5. Detail Screens
 
-When a user navigates to a specific list of entities, the app needs the actual content.
-
-* **API Call:** `GET /mobile/data?game={gameId}&entity={folder}` (e.g., `game=overwatch&entity=heroes`). The folder comes from the schema's `category`: `hero` → `heroes`, `map` → `maps`, `mode` → `modes`, `patch` → `patches`, `item` → `items`.
-* **Flow:** The endpoint reads the GitHub folder (e.g., `data/overwatch/heroes/*.json`). To circumvent GitHub rate limits and payload sizes, it fetches the raw base64 content of all files in parallel chunks, parses them, and returns an array of all entity records in that folder. A record's `schema_id` names the schema (and so the layout) it follows; records without one use the first schema of that category. The response is heavily cached (1-year TTL) via Cloudflare Workers Cache API.
-* **Rendering:** For each item in the returned array, the app uses the `cardLayout` configuration from MMKV to render the list item.
-* **MMKV Strategy: `STORE FULLY`**
-  * Store the resulting array under a dynamic MMKV key like `data_overwatch_heroes`.
-  * **Why:** To provide an offline-first dossier experience. When the user taps the "Heroes" tab, instantly read the array from MMKV and render the `<FlatList>`. Fetch the API in the background and silently update MMKV (and the list) if new heroes or balance changes were pushed.
-
----
-
-## 5. Entity Detail Screen (Heroes, Maps, Modes, Events, Patches, etc.)
-
-When a user taps an item in **any** list to view its full dossier.
-
-* **API Call:** `NONE` 
-* **Flow:** Because `GET /mobile/data` fetched the full array of entities for that category, the specific record (whether it's Tracer, the King's Row map, a Deathmatch mode, or Patch 2.0) is already downloaded on the device.
-  1. Extract the specific data record from your MMKV store (e.g., from `data_overwatch_maps`).
-  2. Extract the layout configuration for that specific category (e.g., `maps`) from your `global_config` in MMKV.
-  3. Pass both to your universal renderer component: `<SchemaRenderer layout={layoutConfig.detailLayout} data={entityRecord} />`.
-* **MMKV Strategy: `N/A`** 
-  * No new caching is needed here, as the Category List step already cached all the necessary data.
-
-**Crucial Concept:** The React Native app *does not have* a `MapScreen.tsx`, `ModeScreen.tsx`, or `PatchScreen.tsx`. It only has a generic `EntityDetailScreen.tsx` that blindly maps the layout JSON over the data JSON. This is why adding a new category like "Events" requires absolutely zero app code changes!
+Opened from a list (or any block with an action) with the tapped record's id. The record comes from the stored folder data, so no extra request is made; `"data.<field>"` reads it.
 
 ---
 
@@ -102,7 +72,7 @@ Because the Cloudflare Worker holds API payloads indefinitely (up to 1 year) to 
 Inside `functions/api/[[path]].ts` within the `triggerCachePurge()` function:
 
 * **Mobile payloads (`/mobile/init`, `/mobile/data`):** The Workers Cache API only keeps an entry in the data center that stored it, so `cache.delete()` cannot reach other data centers. Instead, both cache keys include a version stored in the `RATE_LIMIT_KV` namespace (`app/lib/mobile-cache-version.ts`), and saving or deleting through the dashboard bumps it:
-  * `data/_meta/games.json` or any file under `/schemas/`, `/enums/`, or `/layouts/` bumps the `/mobile/init` version.
+  * `data/_meta/games.json` or any file under `/schemas/`, `/enums/` or `/screens/`, or `navigation.json`, bumps the `/mobile/init` version.
   * An entity file (`data/<game>/<heroes|maps|modes|patches|items>/<id>.json`) bumps the version for that game and folder in `/mobile/data`.
   * Every data center then misses once and refetches (KV changes can take up to about 60 seconds to reach every location). Commits made outside the dashboard (GitHub web edits, merged PRs, the cron worker) do not bump a version.
 * **Assets (`/api/assets/...`):** When images are uploaded or modified, the corresponding asset cache key is purged (in the current data center only).

@@ -20,7 +20,13 @@ const ENTITY_FILE = /^data\/([^/]+)\/([^/]+)\/[^/]+\.json$/;
 
 // Which mobile payload a saved or deleted repo path feeds, if any.
 export function mobileVersionKeyForPath(path: string): string | null {
-  if (path === "data/_meta/games.json" || path.includes("/schemas/") || path.includes("/enums/") || path.includes("/layouts/")) {
+  if (
+    path === "data/_meta/games.json" ||
+    path.includes("/schemas/") ||
+    path.includes("/enums/") ||
+    path.includes("/screens/") ||
+    /^data\/[^/]+\/navigation\.json$/.test(path)
+  ) {
     return MOBILE_INIT_VERSION_KEY;
   }
   const match = ENTITY_FILE.exec(path);
