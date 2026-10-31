@@ -12,6 +12,7 @@ pages_build_output_dir = "./build/client"
 #   GITHUB_BRANCH
 #   ADMIN_PASSWORD_HASH
 #   SESSION_SECRET
+#   GITHUB_WEBHOOK_SECRET  (the data repo's push webhook: functions/api/webhooks/github.ts)
 #
 # Set these in the Cloudflare Pages dashboard (Settings → Environment variables):
 #   NODE_ENV = production
