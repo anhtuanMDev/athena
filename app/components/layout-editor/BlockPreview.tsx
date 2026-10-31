@@ -108,6 +108,12 @@ function Button({ children, dark }: { children: ReactNode; dark?: boolean }) {
   );
 }
 
+/** Favorites differ per player, so a favorites list previews sample records. */
+function FavoritesNote({ source }: { source: RecordSource | undefined }) {
+  if (!source?.favorites) return null;
+  return <p className="mb-2 text-xs text-ink-muted">Each signed-in player sees their own favorites (hidden when signed out). Sample:</p>;
+}
+
 function stats(block: ScreenBlock, show: (name: string) => ReactNode) {
   return [1, 2, 3, 4].flatMap((n) =>
     block.props[`stat${n}Value`] !== undefined ? [{ label: block.props[`stat${n}Label`], value: show(`stat${n}Value`) }] : [],
@@ -137,29 +143,35 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
       const item = makeReader(block, spec, ctx, records[0]);
       if (raw("variant") === "cards") {
         return (
-          <div className="flex items-center gap-2 overflow-hidden">
-            {records.slice(0, 3).map((record, i) => {
-              const r = makeReader(block, spec, ctx, record);
-              return (
-                <div key={i} className={`relative shrink-0 overflow-hidden rounded-xl border-2 border-ink bg-surface ${i === 1 || records.length === 1 ? "h-48 w-36" : "h-40 w-28 opacity-60"}`}>
-                  <PreviewImage src={assetUrl(r.raw("itemImage"))} className="absolute inset-0 h-full w-full opacity-70" />
-                  <div className="relative space-y-0.5 p-2">
-                    <p className="text-[0.75rem] font-semibold uppercase">{r.show("itemSubtitle")}</p>
-                    <p className="text-base font-black uppercase italic leading-none">{r.show("itemTitle")}</p>
+          <div>
+            <FavoritesNote source={listSource} />
+            <div className="flex items-center gap-2 overflow-hidden">
+              {records.slice(0, 3).map((record, i) => {
+                const r = makeReader(block, spec, ctx, record);
+                return (
+                  <div key={i} className={`relative shrink-0 overflow-hidden rounded-xl border-2 border-ink bg-surface ${i === 1 || records.length === 1 ? "h-48 w-36" : "h-40 w-28 opacity-60"}`}>
+                    <PreviewImage src={assetUrl(r.raw("itemImage"))} className="absolute inset-0 h-full w-full opacity-70" />
+                    <div className="relative space-y-0.5 p-2">
+                      <p className="text-[0.75rem] font-semibold uppercase">{r.show("itemSubtitle")}</p>
+                      <p className="text-base font-black uppercase italic leading-none">{r.show("itemTitle")}</p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         );
       }
       return (
-        <div className="space-y-2 rounded-2xl bg-ink p-4 text-page">
-          {show("eyebrow") && <p className="text-[0.75rem] font-semibold uppercase italic opacity-80">{show("eyebrow")}</p>}
-          <p className="text-2xl font-black uppercase italic leading-none">{item.show("itemTitle")}</p>
-          {item.show("itemSubtitle") && <p className="text-xs font-semibold uppercase">{item.show("itemSubtitle")}</p>}
-          {item.show("itemText") && <p className="line-clamp-2 text-xs opacity-90">{item.show("itemText")}</p>}
-          <p className="text-[0.75rem] tabular-nums opacity-70">1 / {records.length}</p>
+        <div>
+          <FavoritesNote source={listSource} />
+          <div className="space-y-2 rounded-2xl bg-ink p-4 text-page">
+            {show("eyebrow") && <p className="text-[0.75rem] font-semibold uppercase italic opacity-80">{show("eyebrow")}</p>}
+            <p className="text-2xl font-black uppercase italic leading-none">{item.show("itemTitle")}</p>
+            {item.show("itemSubtitle") && <p className="text-xs font-semibold uppercase">{item.show("itemSubtitle")}</p>}
+            {item.show("itemText") && <p className="line-clamp-2 text-xs opacity-90">{item.show("itemText")}</p>}
+            <p className="text-[0.75rem] tabular-nums opacity-70">1 / {records.length}</p>
+          </div>
         </div>
       );
     }
@@ -179,6 +191,28 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
         </div>
       );
     }
+    case "welcome_banner":
+      return (
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <span aria-hidden="true" className="size-10 shrink-0 rounded-full border-2 border-primary bg-surface-raised" />
+            <div>
+              <p className="text-[0.75rem] font-semibold uppercase italic text-primary-ink">{show("greeting")},</p>
+              <p className="text-2xl font-black uppercase italic leading-none">Tanya</p>
+            </div>
+          </div>
+          <p className="text-xs text-ink-muted">
+            {show("signedOutText") ? <>Signed out: “{show("signedOutText")}” with a Sign in button</> : "Hidden for signed-out players"}
+          </p>
+        </div>
+      );
+    case "record_actions":
+      return (
+        <div className="flex gap-2">
+          {raw("showFavorite") !== false && <Button>♥ Favorite</Button>}
+          {raw("showShare") !== false && <Button>Share</Button>}
+        </div>
+      );
     case "promo_card":
       return (
         <div>
@@ -213,6 +247,7 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
             <SectionTitle>{show("title")}</SectionTitle>
             {raw("showCount") === true && <span className="text-[0.75rem] text-ink-muted tabular-nums">{records.length}</span>}
           </div>
+          <FavoritesNote source={listSource} />
           {records.length === 0 ? (
             <p className="text-xs text-ink-muted">No records to show yet</p>
           ) : (

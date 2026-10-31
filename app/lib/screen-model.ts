@@ -23,6 +23,8 @@ export interface RecordSource {
   sort?: string;
   order?: "asc" | "desc";
   limit?: number;
+  /** Only the signed-in player's favorites; nothing for signed-out players. */
+  favorites?: boolean;
 }
 
 export interface ScreenAction {

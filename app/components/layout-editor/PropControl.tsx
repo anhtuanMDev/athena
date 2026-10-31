@@ -210,6 +210,10 @@ function SourceInput({ id, value, onChange, schemas }: { id: string; value: unkn
         </select>
         <input aria-label="Show at most" type="number" min={1} inputMode="numeric" placeholder="All" value={source.limit ?? ""} disabled={!source.category} onChange={(e) => update({ limit: e.target.value ? Number(e.target.value) : undefined })} className={`${inputBaseClass} w-24 tabular-nums`} />
       </div>
+      <select aria-label="Whose records" value={source.favorites ? "favorites" : ""} disabled={!source.category} onChange={(e) => update({ favorites: e.target.value === "favorites" || undefined })} className={`${inputClass} col-span-2`}>
+        <option value="">All records</option>
+        <option value="favorites">Only the player's favorites (hidden when signed out)</option>
+      </select>
     </div>
   );
 }
