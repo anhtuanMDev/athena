@@ -214,6 +214,26 @@ export function PropControl({
           ))}
       </select>
     );
+  } else if (spec.options && spec.options.length > 0) {
+    const current = typeof value === "string" ? value : "";
+    control = (
+      <select
+        id={inputId}
+        value={current}
+        aria-describedby={describedBy}
+        aria-invalid={error ? true : undefined}
+        onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)}
+        className={inputClass}
+      >
+        <option value="">{defaultText ? `${defaultText} (app default)` : "Not set"}</option>
+        {current && !spec.options.includes(current) && <option value={current}>{current} (not offered by the app)</option>}
+        {spec.options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    );
   } else if (spec.type === "boolean") {
     control = (
       <select
@@ -286,7 +306,9 @@ export function PropControl({
       <p id={helpId} className="mt-1 text-xs text-ink-muted">
         {mode === "field"
           ? "Read from each record when the app renders."
-          : [TYPE_LABELS[spec.type] ?? spec.type, defaultText].filter(Boolean).join(" · ")}
+          : [spec.options?.length ? "One of the app's values" : (TYPE_LABELS[spec.type] ?? spec.type), defaultText]
+              .filter(Boolean)
+              .join(" · ")}
       </p>
       {error && (
         <p id={errorId} className="mt-1 text-xs text-danger-ink">

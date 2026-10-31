@@ -26,6 +26,8 @@ export interface PropSpec {
   required?: boolean;
   default?: unknown;
   description?: string;
+  /** Allowed values, when the app's prop type is a union of strings. */
+  options?: string[];
 }
 
 export interface PrimitiveSpec {
