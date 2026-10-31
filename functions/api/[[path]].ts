@@ -1,5 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
+import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
 
 const SESSION_KEY = "__admin_session";
 const MAX_ATTEMPTS = 5;
@@ -391,7 +392,7 @@ async function handleGetFile(context: PagesFunctionContext): Promise<Response> {
     if ("content" in data && "sha" in data) {
       let content: unknown = data.content;
       if (path.endsWith(".json")) {
-        content = JSON.parse(atob(data.content.replace(/\n/g, '')));
+        content = JSON.parse(decodeUtf8Base64(data.content));
       }
       const payload = { sha: data.sha, content };
       return json(payload, 200, {
@@ -438,7 +439,7 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
         body.message ?? (body.sha ? `Update ${body.path}` : `Add ${body.path}`),
       content: body.isBase64
         ? (body.content as string)
-        : btoa(JSON.stringify(body.content, null, 2)),
+        : encodeUtf8Base64(JSON.stringify(body.content, null, 2)),
       sha: body.sha,
       branch,
     });
@@ -575,7 +576,7 @@ async function handleListDirectory(
                 fileData.type === "file" &&
                 "content" in fileData
               ) {
-                const decoded = atob(fileData.content.replace(/\n/g, ''));
+                const decoded = decodeUtf8Base64(fileData.content);
                 const parsed = JSON.parse(decoded);
                 if (keysOnly) {
                   const filtered: Record<string, unknown> = {};
@@ -625,7 +626,7 @@ async function handleListGames(request: Request, env: Env): Promise<Response> {
       },
     });
     if ("content" in data && "sha" in data) {
-      const decoded = atob(data.content.replace(/\n/g, ''));
+      const decoded = decodeUtf8Base64(data.content);
       const parsed = JSON.parse(decoded);
       return json(parsed.games ?? []);
     }
@@ -659,7 +660,7 @@ async function handleDashboardData(context: PagesFunctionContext): Promise<Respo
     });
     let games = [];
     if ("content" in data && "sha" in data) {
-      games = JSON.parse(atob(data.content.replace(/\n/g, ''))).games ?? [];
+      games = JSON.parse(decodeUtf8Base64(data.content)).games ?? [];
     }
 
     const { data: branchData } = await octokit.repos.getBranch({ owner, repo, branch });
@@ -771,7 +772,7 @@ async function handleGetEnum(context: PagesFunctionContext, game: string, enumId
       },
     });
     if ("content" in data && "sha" in data) {
-      const content = JSON.parse(atob(data.content.replace(/\n/g, '')));
+      const content = JSON.parse(decodeUtf8Base64(data.content));
       return json(content, 200, {
         "Cache-Control": "no-store",
       });

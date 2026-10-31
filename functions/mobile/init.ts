@@ -1,4 +1,5 @@
 import { Octokit } from "@octokit/rest";
+import { decodeUtf8Base64 } from "../../app/lib/utf8-base64";
 
 export interface Env {
   GITHUB_TOKEN: string;
@@ -48,7 +49,7 @@ export async function onRequest(context: any): Promise<Response> {
     
     let games: any[] = [];
     if ("content" in (gamesData as any)) {
-      const decoded = atob((gamesData as any).content.replace(/\n/g, ''));
+      const decoded = decodeUtf8Base64((gamesData as any).content);
       const parsed = JSON.parse(decoded);
       games = parsed.games ?? [];
     }
@@ -77,7 +78,7 @@ export async function onRequest(context: any): Promise<Response> {
           const chunkResults = await Promise.all(files.map(async (entry) => {
             const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
             if (!Array.isArray(fileReq.data) && fileReq.data.type === "file" && "content" in fileReq.data) {
-              return JSON.parse(atob(fileReq.data.content.replace(/\n/g, '')));
+              return JSON.parse(decodeUtf8Base64(fileReq.data.content));
             }
             return null;
           }));
@@ -97,7 +98,7 @@ export async function onRequest(context: any): Promise<Response> {
           const chunkResults = await Promise.all(files.map(async (entry) => {
             const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
             if (!Array.isArray(fileReq.data) && fileReq.data.type === "file" && "content" in fileReq.data) {
-              return JSON.parse(atob(fileReq.data.content.replace(/\n/g, '')));
+              return JSON.parse(decodeUtf8Base64(fileReq.data.content));
             }
             return null;
           }));
@@ -117,7 +118,7 @@ export async function onRequest(context: any): Promise<Response> {
           const chunkResults = await Promise.all(files.map(async (entry) => {
             const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
             if (!Array.isArray(fileReq.data) && fileReq.data.type === "file" && "content" in fileReq.data) {
-              return JSON.parse(atob(fileReq.data.content.replace(/\n/g, '')));
+              return JSON.parse(decodeUtf8Base64(fileReq.data.content));
             }
             return null;
           }));

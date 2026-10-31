@@ -1,4 +1,5 @@
 import { Octokit } from "@octokit/rest";
+import { decodeUtf8Base64 } from "../../app/lib/utf8-base64";
 
 export interface Env {
   GITHUB_TOKEN: string;
@@ -58,7 +59,7 @@ export async function onRequest(context: any): Promise<Response> {
         try {
           const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
           if (!Array.isArray(fileReq.data) && fileReq.data.type === "file" && "content" in fileReq.data) {
-            return JSON.parse(atob(fileReq.data.content.replace(/\n/g, '')));
+            return JSON.parse(decodeUtf8Base64(fileReq.data.content));
           }
         } catch (e) {
           // ignore individual file errors
