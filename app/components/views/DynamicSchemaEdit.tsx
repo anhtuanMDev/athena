@@ -935,11 +935,11 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate(`/${game}/layouts/${id}`)}
+              onClick={() => navigate(`/${game}/screens`)}
               className="border-blue-500 text-blue-600 hover:bg-blue-50 w-full sm:w-auto"
             >
               <LayoutTemplate className="w-4 h-4 mr-2" />
-              Edit App Layout
+              App Screens
             </Button>
             <Button
               type="button"

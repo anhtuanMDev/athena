@@ -1,15 +1,24 @@
 import { useEffect, useState } from "react";
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import {
+  CATEGORIES,
   bindingPath,
+  bindingScope,
   fieldsForProp,
   isBinding,
+  sourceFields,
   toBinding,
   type FieldOption,
   type PropSpec,
-} from "~/lib/layout-model";
+  type RecordSource,
+  type ScreenAction,
+  type SchemaInfo,
+} from "~/lib/screen-model";
 
-export const inputClass =
-  "block w-full rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-focus focus:outline-none focus:ring-1 focus:ring-focus aria-invalid:border-danger";
+/** Field styling without a width, for controls sized by their row. */
+export const inputBaseClass =
+  "block rounded-lg border border-border-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-focus focus:outline-none focus:ring-1 focus:ring-focus aria-invalid:border-danger";
+export const inputClass = `${inputBaseClass} w-full`;
 
 const monoInputClass = `${inputClass} font-mono text-xs leading-5`;
 
@@ -134,12 +143,171 @@ function describeDefault(spec: PropSpec): string | null {
   return `Default ${String(spec.default)}`;
 }
 
+const smallButtonClass =
+  "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-40 pointer-coarse:size-11";
+
+export interface PropContext {
+  /** Fields "data.<path>" can use on this screen. */
+  dataFields: FieldOption[];
+  /** Fields "item.<path>" can use; null outside list blocks. */
+  itemFields: FieldOption[] | null;
+  schemas: SchemaInfo[];
+  screenIds: string[];
+  icons: string[];
+}
+
+function FieldOptions({ fields, spec, scope }: { fields: FieldOption[]; spec: PropSpec; scope: "data" | "item" }) {
+  const matching = fieldsForProp(fields, spec);
+  const list = matching.length > 0 ? matching : fields;
+  return (
+    <>
+      {list.map((f) => (
+        <option key={`${scope}:${f.key}`} value={`${scope}:${f.key}`}>
+          {f.label && f.label !== f.key ? `${f.label} (${f.key})` : f.key} · {f.type}
+        </option>
+      ))}
+    </>
+  );
+}
+
+/** Which records a list block shows. */
+function SourceInput({ id, value, onChange, schemas }: { id: string; value: unknown; onChange: (v: unknown) => void; schemas: SchemaInfo[] }) {
+  const source = (value && typeof value === "object" ? value : {}) as Partial<RecordSource>;
+  const categories = CATEGORIES.filter((c) => schemas.some((s) => s.category === c.category));
+  const fields = source.category ? sourceFields(schemas, { category: source.category }) : [];
+  const update = (patch: Partial<RecordSource>) => {
+    const next = { ...source, ...patch };
+    for (const key of Object.keys(next) as (keyof RecordSource)[]) {
+      if (next[key] === undefined || next[key] === "") delete next[key];
+    }
+    onChange(next.category ? next : undefined);
+  };
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <select id={id} aria-label="Category" value={source.category ?? ""} onChange={(e) => update({ category: e.target.value || undefined, schema: undefined, sort: undefined })} className={inputClass}>
+        <option value="">The screen's records</option>
+        {categories.map((c) => (
+          <option key={c.category} value={c.category}>{c.label}</option>
+        ))}
+      </select>
+      <select aria-label="Schema" value={source.schema ?? ""} disabled={!source.category} onChange={(e) => update({ schema: e.target.value || undefined })} className={inputClass}>
+        <option value="">Every schema</option>
+        {schemas.filter((s) => s.category === source.category).map((s) => (
+          <option key={s.id} value={s.id}>{s.name}</option>
+        ))}
+      </select>
+      <select aria-label="Sort by" value={source.sort ?? ""} disabled={!source.category} onChange={(e) => update({ sort: e.target.value || undefined })} className={inputClass}>
+        <option value="">File order</option>
+        {fields.filter((f) => f.type === "string" || f.type === "number" || f.type === "enum").map((f) => (
+          <option key={f.key} value={f.key}>Sort by {f.label ?? f.key}</option>
+        ))}
+      </select>
+      <div className="flex gap-2">
+        <select aria-label="Order" value={source.order ?? "asc"} disabled={!source.sort} onChange={(e) => update({ order: e.target.value === "desc" ? "desc" : undefined })} className={inputClass}>
+          <option value="asc">A → Z</option>
+          <option value="desc">Z → A</option>
+        </select>
+        <input aria-label="Show at most" type="number" min={1} inputMode="numeric" placeholder="All" value={source.limit ?? ""} disabled={!source.category} onChange={(e) => update({ limit: e.target.value ? Number(e.target.value) : undefined })} className={`${inputBaseClass} w-24 tabular-nums`} />
+      </div>
+    </div>
+  );
+}
+
+/** What tapping does: open a screen of this game, or a link. */
+function ActionInput({ id, value, onChange, screenIds, describedBy }: { id: string; value: unknown; onChange: (v: unknown) => void; screenIds: string[]; describedBy?: string }) {
+  const action = (value && typeof value === "object" ? value : {}) as ScreenAction;
+  const mode = action.url !== undefined ? "url" : action.screen ? `screen:${action.screen}` : "";
+  return (
+    <div className="space-y-2">
+      <select
+        id={id}
+        aria-describedby={describedBy}
+        value={mode}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v === "" ? undefined : v === "url" ? { url: "" } : { screen: v.slice("screen:".length) });
+        }}
+        className={inputClass}
+      >
+        <option value="">Nothing</option>
+        {action.screen && !screenIds.includes(action.screen) && <option value={`screen:${action.screen}`}>{action.screen} (missing)</option>}
+        {screenIds.map((s) => (
+          <option key={s} value={`screen:${s}`}>Open screen: {s}</option>
+        ))}
+        <option value="url">Open a link…</option>
+      </select>
+      {mode === "url" && (
+        <input aria-label="Link" type="url" placeholder="https://" value={action.url ?? ""} onChange={(e) => onChange({ url: e.target.value })} className={inputClass} />
+      )}
+    </div>
+  );
+}
+
+interface Shortcut {
+  label: string;
+  icon?: string;
+  screen?: string;
+}
+
+/** Quick-access tiles: label, icon and the screen each opens. */
+function ShortcutsInput({ id, value, onChange, screenIds, icons }: { id: string; value: unknown; onChange: (v: unknown) => void; screenIds: string[]; icons: string[] }) {
+  const items: Shortcut[] = Array.isArray(value) ? (value as Shortcut[]) : [];
+  const set = (next: Shortcut[]) => onChange(next.length > 0 ? next : undefined);
+  const patch = (i: number, p: Partial<Shortcut>) => set(items.map((item, j) => (j === i ? { ...item, ...p } : item)));
+  const move = (i: number, d: -1 | 1) => {
+    const next = [...items];
+    [next[i], next[i + d]] = [next[i + d], next[i]];
+    set(next);
+  };
+  return (
+    <div id={id} className="space-y-2">
+      {items.map((item, i) => (
+        <div key={i} className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-2 sm:flex-nowrap">
+          <input aria-label={`Tile ${i + 1} label`} value={item.label ?? ""} placeholder="Label" onChange={(e) => patch(i, { label: e.target.value })} className={`${inputBaseClass} min-w-0 flex-1`} />
+          <select aria-label={`Tile ${i + 1} icon`} value={item.icon ?? ""} onChange={(e) => patch(i, { icon: e.target.value || undefined })} className={`${inputBaseClass} w-36`}>
+            <option value="">No icon</option>
+            {icons.map((icon) => (
+              <option key={icon} value={icon}>{icon}</option>
+            ))}
+          </select>
+          <select aria-label={`Tile ${i + 1} screen`} value={item.screen ?? ""} onChange={(e) => patch(i, { screen: e.target.value || undefined })} className={`${inputBaseClass} w-40`}>
+            <option value="">Opens nothing</option>
+            {screenIds.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <div className="flex">
+            <button type="button" aria-label={`Move tile ${i + 1} up`} disabled={i === 0} onClick={() => move(i, -1)} className={smallButtonClass}><ArrowUp aria-hidden="true" className="size-4" /></button>
+            <button type="button" aria-label={`Move tile ${i + 1} down`} disabled={i === items.length - 1} onClick={() => move(i, 1)} className={smallButtonClass}><ArrowDown aria-hidden="true" className="size-4" /></button>
+            <button type="button" aria-label={`Remove tile ${i + 1}`} onClick={() => set(items.filter((_, j) => j !== i))} className={smallButtonClass}><Trash2 aria-hidden="true" className="size-4" /></button>
+          </div>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => set([...items, { label: "", icon: icons[0], screen: screenIds[0] }])}
+        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      >
+        <Plus aria-hidden="true" className="size-4" />
+        Add tile
+      </button>
+    </div>
+  );
+}
+
+const SPECIAL_HELP: Record<string, string> = {
+  source: "Which records this block lists. Empty uses the screen's records.",
+  action: "What tapping does.",
+  shortcuts: "Tiles in order, each opening a screen.",
+  field_key: "The field whose values become the chips; they filter this screen's lists.",
+};
+
 export function PropControl({
   idBase,
   name,
   spec,
   value,
-  fields,
+  context,
   error,
   onChange,
   onJsonValidity,
@@ -148,12 +316,15 @@ export function PropControl({
   name: string;
   spec: PropSpec;
   value: unknown;
-  fields: FieldOption[];
+  context: PropContext;
   error?: string;
   onChange: (value: unknown) => void;
   onJsonValidity: (error: string | null) => void;
 }) {
-  const [mode, setMode] = useState<"value" | "field">(isBinding(value) ? "field" : "value");
+  const { dataFields, itemFields } = context;
+  const [mode, setMode] = useState<"value" | "field">(
+    isBinding(value) || (itemFields && value === undefined && /^item[A-Z]/.test(name)) ? "field" : "value",
+  );
   const inputId = `${idBase}-${name}`;
   const helpId = `${inputId}-help`;
   const errorId = `${inputId}-error`;
@@ -164,7 +335,59 @@ export function PropControl({
     return (
       <div>
         <p className="font-mono text-xs font-medium text-ink">{name}</p>
-        <p className="mt-1 text-xs text-ink-muted">React content the app supplies itself; a layout file can't set it.</p>
+        <p className="mt-1 text-xs text-ink-muted">React content the app supplies itself; a screen can't set it.</p>
+      </div>
+    );
+  }
+
+  const special = SPECIAL_HELP[spec.type];
+  const label = (
+    <label htmlFor={inputId} className="flex min-w-0 items-baseline gap-2">
+      <span className="truncate font-mono text-xs font-medium text-ink">{name}</span>
+      {spec.required && <span className="text-xs text-ink-muted">required</span>}
+    </label>
+  );
+  const footer = (
+    <>
+      <p id={helpId} className="mt-1 text-xs text-ink-muted">
+        {special ??
+          (mode === "field"
+            ? "Read from the data when the app renders."
+            : [spec.options?.length ? "One of the app's values" : (TYPE_LABELS[spec.type] ?? spec.type), defaultText]
+                .filter(Boolean)
+                .join(" · "))}
+      </p>
+      {error && (
+        <p id={errorId} className="mt-1 text-xs text-danger-ink">
+          {error}
+        </p>
+      )}
+    </>
+  );
+
+  if (special) {
+    let control: React.ReactNode;
+    if (spec.type === "source") control = <SourceInput id={inputId} value={value} onChange={onChange} schemas={context.schemas} />;
+    else if (spec.type === "action") control = <ActionInput id={inputId} value={value} onChange={onChange} screenIds={context.screenIds} describedBy={describedBy} />;
+    else if (spec.type === "shortcuts") control = <ShortcutsInput id={inputId} value={value} onChange={onChange} screenIds={context.screenIds} icons={context.icons} />;
+    else {
+      const current = typeof value === "string" ? value : "";
+      const choices = dataFields.filter((f) => f.type === "enum" || (f.options && f.options.length > 0));
+      control = (
+        <select id={inputId} value={current} aria-describedby={describedBy} aria-invalid={error ? true : undefined} onChange={(e) => onChange(e.target.value || undefined)} className={inputClass}>
+          <option value="">Choose a field…</option>
+          {current && !choices.some((f) => f.key === current) && <option value={current}>{current} (not an option field)</option>}
+          {choices.map((f) => (
+            <option key={f.key} value={f.key}>{f.label ?? f.key}</option>
+          ))}
+        </select>
+      );
+    }
+    return (
+      <div className="md:col-span-2">
+        <div className="mb-1.5">{label}</div>
+        {control}
+        {footer}
       </div>
     );
   }
@@ -177,144 +400,75 @@ export function PropControl({
 
   let control: React.ReactNode;
   if (mode === "field") {
-    const matching = fieldsForProp(fields, spec);
-    const others = fields.filter((f) => !matching.includes(f));
-    const current = isBinding(value) ? bindingPath(value) : "";
-    const missing = current && !fields.some((f) => f.key === current);
+    const current = isBinding(value) ? `${bindingScope(value)}:${bindingPath(value)}` : "";
+    const known = [...(itemFields ?? []).map((f) => `item:${f.key}`), ...dataFields.map((f) => `data:${f.key}`)];
     control = (
       <select
         id={inputId}
         value={current}
         aria-describedby={describedBy}
         aria-invalid={error ? true : undefined}
-        onChange={(e) => onChange(e.target.value ? toBinding(e.target.value) : undefined)}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (!v) return onChange(undefined);
+          const [scope, ...rest] = v.split(":");
+          onChange(toBinding(scope === "item" ? "item" : "data", rest.join(":")));
+        }}
         className={inputClass}
       >
         <option value="">Choose a field…</option>
-        {missing && <option value={current}>{current} (not in schema)</option>}
-        {matching.map((f) => (
-          <option key={f.key} value={f.key}>
-            {f.key} ({f.type})
-          </option>
-        ))}
-        {others.length > 0 && matching.length > 0 && (
-          <optgroup label="Other fields">
-            {others.map((f) => (
-              <option key={f.key} value={f.key}>
-                {f.key} ({f.type})
-              </option>
-            ))}
+        {current && !known.includes(current) && <option value={current}>{current.replace(":", ".")} (not found)</option>}
+        {itemFields && itemFields.length > 0 && (
+          <optgroup label="Each entry (item.)">
+            <FieldOptions fields={itemFields} spec={spec} scope="item" />
           </optgroup>
         )}
-        {matching.length === 0 &&
-          others.map((f) => (
-            <option key={f.key} value={f.key}>
-              {f.key} ({f.type})
-            </option>
-          ))}
+        {dataFields.length > 0 && (
+          <optgroup label={itemFields ? "Screen data (data.)" : "Fields (data.)"}>
+            <FieldOptions fields={dataFields} spec={spec} scope="data" />
+          </optgroup>
+        )}
       </select>
     );
   } else if (spec.options && spec.options.length > 0) {
     const current = typeof value === "string" ? value : "";
     control = (
-      <select
-        id={inputId}
-        value={current}
-        aria-describedby={describedBy}
-        aria-invalid={error ? true : undefined}
-        onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)}
-        className={inputClass}
-      >
+      <select id={inputId} value={current} aria-describedby={describedBy} aria-invalid={error ? true : undefined} onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)} className={inputClass}>
         <option value="">{defaultText ? `${defaultText} (app default)` : "Not set"}</option>
         {current && !spec.options.includes(current) && <option value={current}>{current} (not offered by the app)</option>}
         {spec.options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
+          <option key={option} value={option}>{option}</option>
         ))}
       </select>
     );
   } else if (spec.type === "boolean") {
     control = (
-      <select
-        id={inputId}
-        value={value === true ? "true" : value === false ? "false" : ""}
-        aria-describedby={describedBy}
-        aria-invalid={error ? true : undefined}
-        onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value === "true")}
-        className={inputClass}
-      >
+      <select id={inputId} value={value === true ? "true" : value === false ? "false" : ""} aria-describedby={describedBy} aria-invalid={error ? true : undefined} onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value === "true")} className={inputClass}>
         <option value="">{defaultText ? `${defaultText} (app default)` : "Not set"}</option>
         <option value="true">true</option>
         <option value="false">false</option>
       </select>
     );
   } else if (spec.type === "array") {
-    control = (
-      <JsonInput
-        id={inputId}
-        value={value}
-        expect="array"
-        describedBy={describedBy}
-        invalid={Boolean(error)}
-        placeholder="[]"
-        onValid={onChange}
-        onValidity={onJsonValidity}
-      />
-    );
+    control = <JsonInput id={inputId} value={value} expect="array" describedBy={describedBy} invalid={Boolean(error)} placeholder="[]" onValid={onChange} onValidity={onJsonValidity} />;
   } else if (spec.type === "number") {
     control = (
-      <input
-        id={inputId}
-        type="number"
-        inputMode="decimal"
-        value={typeof value === "number" ? value : ""}
-        placeholder={spec.default !== undefined ? String(spec.default) : undefined}
-        aria-describedby={describedBy}
-        aria-invalid={error ? true : undefined}
-        onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))}
-        className={`${inputClass} tabular-nums`}
-      />
+      <input id={inputId} type="number" inputMode="decimal" value={typeof value === "number" ? value : ""} placeholder={spec.default !== undefined ? String(spec.default) : undefined} aria-describedby={describedBy} aria-invalid={error ? true : undefined} onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))} className={`${inputClass} tabular-nums`} />
     );
   } else {
     control = (
-      <input
-        id={inputId}
-        type="text"
-        autoComplete="off"
-        spellCheck={false}
-        value={typeof value === "string" ? value : value === undefined || value === null ? "" : JSON.stringify(value)}
-        placeholder={spec.default !== undefined ? String(spec.default) : undefined}
-        aria-describedby={describedBy}
-        aria-invalid={error ? true : undefined}
-        onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)}
-        className={inputClass}
-      />
+      <input id={inputId} type="text" autoComplete="off" spellCheck={false} value={typeof value === "string" ? value : value === undefined || value === null ? "" : JSON.stringify(value)} placeholder={spec.default !== undefined ? String(spec.default) : undefined} aria-describedby={describedBy} aria-invalid={error ? true : undefined} onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)} className={inputClass} />
     );
   }
 
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between gap-3">
-        <label htmlFor={inputId} className="flex min-w-0 items-baseline gap-2">
-          <span className="truncate font-mono text-xs font-medium text-ink">{name}</span>
-          {spec.required && <span className="text-xs text-ink-muted">required</span>}
-        </label>
+        {label}
         <SourceToggle name={name} mode={mode} onChange={switchMode} />
       </div>
       {control}
-      <p id={helpId} className="mt-1 text-xs text-ink-muted">
-        {mode === "field"
-          ? "Read from each record when the app renders."
-          : [spec.options?.length ? "One of the app's values" : (TYPE_LABELS[spec.type] ?? spec.type), defaultText]
-              .filter(Boolean)
-              .join(" · ")}
-      </p>
-      {error && (
-        <p id={errorId} className="mt-1 text-xs text-danger-ink">
-          {error}
-        </p>
-      )}
+      {footer}
     </div>
   );
 }

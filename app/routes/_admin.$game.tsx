@@ -43,9 +43,9 @@ import CronJobEdit from "~/components/views/CronJobEdit";
 import CronJobNew from "~/components/views/CronJobNew";
 import CronJobsList from "~/components/views/CronJobsList";
 
-// Layouts
-import LayoutEdit from "~/components/views/LayoutEdit";
-import LayoutsList from "~/components/views/LayoutsList";
+// App screens
+import ScreenEdit from "~/components/views/ScreenEdit";
+import ScreensList from "~/components/views/ScreensList";
 
 export default function GameDashboardRouter() {
   const params = useParams();
@@ -117,18 +117,18 @@ export default function GameDashboardRouter() {
       </PanelTransition>
     );
 
-  // Route: /:game/layouts/:id
-  if (entity === "layouts") {
+  // Route: /:game/screens/:id
+  if (entity === "screens") {
     if (!idOrAction) {
       return (
         <PanelTransition>
-          <LayoutsList />
+          <ScreensList />
         </PanelTransition>
       );
     }
     return (
       <PanelTransition>
-        <LayoutEdit />
+        <ScreenEdit />
       </PanelTransition>
     );
   }
