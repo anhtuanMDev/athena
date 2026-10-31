@@ -116,8 +116,8 @@ export function validateScreenFile(raw: unknown): string[] {
   return errors;
 }
 
-/** Problems with navigation.json; `screenIds` are the game's screens. */
-export function validateNavigationFile(raw: unknown, screenIds?: string[]): string[] {
+/** Problems with navigation.json; `screenTypes` maps each of the game's screens to its type. */
+export function validateNavigationFile(raw: unknown, screenTypes?: Record<string, unknown>): string[] {
   if (!isObject(raw) || !Array.isArray(raw.tabs)) return ["Navigation needs a list of tabs."];
   const errors: string[] = [];
   if (raw.tabs.length === 0) errors.push("Add at least one tab: the first one is Home.");
@@ -130,7 +130,12 @@ export function validateNavigationFile(raw: unknown, screenIds?: string[]): stri
     }
     const screen = typeof tab.screen === "string" ? tab.screen : "";
     if (!SCREEN_ID.test(screen) && !APP_SCREEN.test(screen)) errors.push(`${where} needs a screen.`);
-    else if (screenIds && !APP_SCREEN.test(screen) && !screenIds.includes(screen)) errors.push(`${where} opens "${screen}", which doesn't exist.`);
+    else if (screenTypes && !APP_SCREEN.test(screen)) {
+      if (!Object.hasOwn(screenTypes, screen)) errors.push(`${where} opens "${screen}", which doesn't exist.`);
+      else if (screenTypes[screen] === "detail") {
+        errors.push(`${where} opens "${screen}", a detail screen: it shows one entry picked from a list, so it can't be a tab.`);
+      }
+    }
     if (i === 0 && APP_SCREEN.test(screen)) errors.push("The first tab is Home: it must open one of the game's screens.");
     if (typeof tab.label !== "string" || !tab.label.trim() || tab.label.length > LIMITS.tabLabel) {
       errors.push(`${where} needs a label of at most ${LIMITS.tabLabel} characters.`);

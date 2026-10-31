@@ -7,7 +7,7 @@ import { Button } from "~/components/ui/button";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { inputBaseClass, inputClass } from "~/components/layout-editor/PropControl";
 import { createFile, deleteFile, getFile, isConflictError, listDirectory, updateFile } from "~/lib/github";
-import { validateNavigationFile } from "~/lib/screen-policy";
+import { LIMITS, validateNavigationFile } from "~/lib/screen-policy";
 import { useData } from "~/lib/use-data";
 import {
   CATEGORIES,
@@ -79,8 +79,9 @@ export default function ScreensList() {
   }, [data]);
 
   const screenIds = useMemo(() => (data?.screens ?? []).map((s) => s.id), [data]);
+  const screenTypes = useMemo(() => Object.fromEntries((data?.screens ?? []).map((s) => [s.id, s.screen.type])), [data]);
   const tabsDirty = JSON.stringify(tabs) !== savedTabs;
-  const tabErrors = useMemo(() => validateNavigationFile({ tabs }, screenIds), [tabs, screenIds]);
+  const tabErrors = useMemo(() => validateNavigationFile({ tabs }, screenTypes), [tabs, screenTypes]);
 
   /** Where a screen is opened from: tabs, and actions or tiles on other screens. */
   const referencesTo = (id: string): string[] => {
@@ -189,7 +190,22 @@ export default function ScreensList() {
       return next;
     });
   const patchTab = (i: number, patch: Partial<NavTab>) => setTabs((prev) => prev.map((t, j) => (j === i ? { ...t, ...patch } : t)));
-  const tabTargets = [...screenIds.map((id) => ({ id, label: id })), ...APP_SCREENS];
+  // A detail screen shows one entry picked from a list, so it can't open from a tab.
+  const tabScreens = data.screens.filter((s) => s.screen.type !== "detail");
+  const tabTargets = [...tabScreens.map((s) => ({ id: s.id, label: s.id })), ...APP_SCREENS];
+  const unlistedTarget = (screen: string) =>
+    !screen ? "Choose a screen…" : `${screen} (${screenTypes[screen] === "detail" ? "detail screen" : "missing"})`;
+  /** A new tab opens the next screen without one, named after it, ahead of a trailing built-in tab such as Settings. */
+  const addTab = () =>
+    setTabs((prev) => {
+      const open = tabScreens.filter((s) => !prev.some((t) => t.screen === s.id));
+      const target = (prev.length === 0 && open.find((s) => s.id === "home")) || open[0];
+      const tab: NavTab = { label: target?.screen.title ?? "", screen: target?.id ?? "" };
+      // Tabs come straight from the file, so a broken one may have no screen.
+      const last = prev.at(-1)?.screen;
+      const at = typeof last === "string" && last.startsWith("app:") ? prev.length - 1 : prev.length;
+      return [...prev.slice(0, at), tab, ...prev.slice(at)];
+    });
 
   return (
     <div className="w-full space-y-10 pb-32 pt-2">
@@ -295,7 +311,7 @@ export default function ScreensList() {
                 ))}
               </select>
               <select aria-label={`Tab ${i + 1} screen`} value={tab.screen} onChange={(e) => patchTab(i, { screen: e.target.value })} className={`${inputBaseClass} w-56`}>
-                {!tabTargets.some((t) => t.id === tab.screen) && <option value={tab.screen}>{tab.screen || "Choose a screen…"} (missing)</option>}
+                {!tabTargets.some((t) => t.id === tab.screen) && <option value={tab.screen}>{unlistedTarget(tab.screen)}</option>}
                 {tabTargets.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.label}
@@ -318,12 +334,14 @@ export default function ScreensList() {
         </ol>
         <button
           type="button"
-          onClick={() => setTabs((prev) => [...prev, { label: "", icon: data.icons[0], screen: screenIds.includes("home") && prev.length === 0 ? "home" : screenIds[0] ?? "" }])}
-          className="mt-2 inline-flex items-center gap-2 rounded-lg border border-dashed border-border-strong px-3 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          onClick={addTab}
+          disabled={tabs.length >= LIMITS.tabs}
+          className="mt-2 inline-flex items-center gap-2 rounded-lg border border-dashed border-border-strong px-3 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-40"
         >
           <Plus aria-hidden="true" className="size-4" />
           Add tab
         </button>
+        {tabs.length >= LIMITS.tabs && <p className="mt-1 text-xs text-ink-muted">The tab bar holds {LIMITS.tabs} tabs at most.</p>}
       </section>
 
       <section aria-labelledby="screens-heading">
