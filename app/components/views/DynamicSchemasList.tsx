@@ -129,10 +129,10 @@ export default function SchemasList() {
                   </Link>
                   <span className="text-gray-300 dark:text-gray-700">•</span>
                   <Link
-                    to={`/${game}/layouts/${schema.id}`}
+                    to={`/${game}/screens`}
                     className="text-sm text-orange-600 hover:text-orange-800 dark:text-orange-400 font-medium flex items-center gap-1"
                   >
-                    Edit App Layout
+                    App Screens
                   </Link>
 
                   <span className="text-gray-300 dark:text-gray-700">•</span>

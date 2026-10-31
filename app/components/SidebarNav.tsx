@@ -158,7 +158,7 @@ function CollapsibleGameSection({
     isActive(`/${game.slug}/patches`) ||
     isActive(`/${game.slug}/items`) ||
     isActive(`/${game.slug}/schemas`) ||
-    isActive(`/${game.slug}/layouts`) ||
+    isActive(`/${game.slug}/screens`) ||
     isActive(`/${game.slug}/enums`) ||
     isActive(`/${game.slug}/cron`);
 
@@ -238,10 +238,10 @@ function CollapsibleGameSection({
           onClick={onClose}
         />
         <NavLink
-          href={`/${game.slug}/layouts`}
-          label="App Layouts"
+          href={`/${game.slug}/screens`}
+          label="App Screens"
           icon={LayoutTemplate}
-          isActive={isActive(`/${game.slug}/layouts`)}
+          isActive={isActive(`/${game.slug}/screens`)}
           onClick={onClose}
         />
         <NavLink

@@ -23,7 +23,8 @@ export async function onRequest(context: any): Promise<Response> {
   const cache = (caches as any).default;
   const internalOrigin = "https://api.internal";
   const version = await readCacheVersion(env.RATE_LIMIT_KV, MOBILE_INIT_VERSION_KEY);
-  const cacheKey = new Request(`${internalOrigin}/mobile/init_v2?v=${encodeURIComponent(version)}`);
+  // init_v4: screens and navigation replace layouts; the new name drops payloads cached in the old shape.
+  const cacheKey = new Request(`${internalOrigin}/mobile/init_v4?v=${encodeURIComponent(version)}`);
 
   const cached = await cache.match(cacheKey);
   if (cached) {
@@ -63,14 +64,16 @@ export async function onRequest(context: any): Promise<Response> {
     
     const schemas: Record<string, any[]> = {};
     const enums: Record<string, any[]> = {};
-    const layouts: Record<string, any[]> = {};
+    const screens: Record<string, any[]> = {};
+    const navigation: Record<string, unknown> = {};
 
-    // 2. Fetch schemas, enums, and layouts for each active game
+    // 2. Fetch schemas, enums, screens and navigation for each active game
     await Promise.all(activeGames.map(async (game) => {
       const gameId = game.slug || game.id;
       schemas[gameId] = [];
       enums[gameId] = [];
-      layouts[gameId] = [];
+      screens[gameId] = [];
+      navigation[gameId] = null;
       
       try {
         // Fetch schemas directory
@@ -113,23 +116,36 @@ export async function onRequest(context: any): Promise<Response> {
       }
 
       try {
-        // Fetch layouts directory
-        const { data: layoutFiles } = await octokit.repos.getContent({
-          owner, repo, path: `data/${gameId}/layouts`, ref: branch,
+        // Fetch screens directory. Screen files are named by their id ("home",
+        // "hero-detail") and don't store it, so the app gets it from the name.
+        const { data: screenFiles } = await octokit.repos.getContent({
+          owner, repo, path: `data/${gameId}/screens`, ref: branch,
         });
-        if (Array.isArray(layoutFiles)) {
-          const files = layoutFiles.filter(entry => entry.type === "file" && entry.name.endsWith(".json"));
+        if (Array.isArray(screenFiles)) {
+          const files = screenFiles.filter(entry => entry.type === "file" && entry.name.endsWith(".json"));
           const chunkResults = await Promise.all(files.map(async (entry) => {
             const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
             if (!Array.isArray(fileReq.data) && fileReq.data.type === "file" && "content" in fileReq.data) {
-              return JSON.parse(decodeUtf8Base64(fileReq.data.content));
+              const content = JSON.parse(decodeUtf8Base64(fileReq.data.content));
+              return { ...content, id: entry.name.replace(/\.json$/, "") };
             }
             return null;
           }));
-          layouts[gameId] = chunkResults.filter(Boolean);
+          screens[gameId] = chunkResults.filter(Boolean);
         }
       } catch (e) {
         // Ignore if directory doesn't exist
+      }
+
+      try {
+        const { data: navFile } = await octokit.repos.getContent({
+          owner, repo, path: `data/${gameId}/navigation.json`, ref: branch,
+        });
+        if (!Array.isArray(navFile) && navFile.type === "file" && "content" in navFile) {
+          navigation[gameId] = JSON.parse(decodeUtf8Base64(navFile.content));
+        }
+      } catch (e) {
+        // No navigation file: the app shows a single Home tab
       }
     }));
 
@@ -137,7 +153,10 @@ export async function onRequest(context: any): Promise<Response> {
       games: activeGames,
       schemas,
       enums,
-      layouts
+      screens,
+      navigation,
+      // App builds from before screens require this key; layouts are no longer served.
+      layouts: {},
     };
 
     const cacheableResponse = json(responseData, 200, {
