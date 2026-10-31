@@ -23,7 +23,8 @@ export async function onRequest(context: any): Promise<Response> {
   const cache = (caches as any).default;
   const internalOrigin = "https://api.internal";
   const version = await readCacheVersion(env.RATE_LIMIT_KV, MOBILE_INIT_VERSION_KEY);
-  const cacheKey = new Request(`${internalOrigin}/mobile/init_v2?v=${encodeURIComponent(version)}`);
+  // init_v3: layouts carry their file name as `id`; the new name drops payloads cached without it.
+  const cacheKey = new Request(`${internalOrigin}/mobile/init_v3?v=${encodeURIComponent(version)}`);
 
   const cached = await cache.match(cacheKey);
   if (cached) {
@@ -122,7 +123,10 @@ export async function onRequest(context: any): Promise<Response> {
           const chunkResults = await Promise.all(files.map(async (entry) => {
             const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
             if (!Array.isArray(fileReq.data) && fileReq.data.type === "file" && "content" in fileReq.data) {
-              return JSON.parse(decodeUtf8Base64(fileReq.data.content));
+              // Layout files are named after their schema id ("home" for the home screen)
+              // and don't store it themselves, so the app needs the name to match them up.
+              const content = JSON.parse(decodeUtf8Base64(fileReq.data.content));
+              return { ...content, id: entry.name.replace(/\.json$/, "") };
             }
             return null;
           }));

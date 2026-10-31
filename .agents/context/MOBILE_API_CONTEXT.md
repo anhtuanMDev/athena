@@ -11,8 +11,8 @@ This document outlines the API calling flow, the offline-first caching strategy,
 
 When the app launches, it needs to know what games exist, what the data structures look like (schemas), how to resolve dropdowns (enums), and exactly how to visually render screens (layouts).
 
-* **API Call:** `GET /mobile/init` (served by `functions/mobile/init.ts`). `init_v2` is only the name of its internal cache key; there is no `/mobile/init_v2` route, and requesting it returns the admin's HTML page with status 200.
-* **Flow:** The app hits the Cloudflare Worker, which first reads `data/_meta/games.json` to identify **active games** (`active !== false`). It then returns a cached configuration payload `{ games, schemas, enums, layouts }`: the entries of `games.json` plus all `.json` files from `data/{game}/schemas`, `data/{game}/enums`, and `data/{game}/layouts` for those active games. Other files in `data/_meta/` (such as `mobile_primitives.json`) are not included.
+* **API Call:** `GET /mobile/init` (served by `functions/mobile/init.ts`). `init_v3` is only the name of its internal cache key; there is no `/mobile/init_v3` route, and requesting it returns the admin's HTML page with status 200.
+* **Flow:** The app hits the Cloudflare Worker, which first reads `data/_meta/games.json` to identify **active games** (`active !== false`). It then returns a cached configuration payload `{ games, schemas, enums, layouts }`: the entries of `games.json` plus all `.json` files from `data/{game}/schemas`, `data/{game}/enums`, and `data/{game}/layouts` for those active games. Each layout gets an `id` taken from its file name: the schema id it belongs to, or `home` for the home screen. Other files in `data/_meta/` (such as `mobile_primitives.json`) are not included.
 * **MMKV Strategy: `STORE FULLY`**
   * Save this entire payload in MMKV (e.g., under the key `global_config`). 
   * **Why:** This data dictates the entire layout and structure of the app. By storing it in MMKV, the app boots *instantly* offline. On boot, the app immediately reads MMKV to populate the UI navigation, and fires off a background request to `/mobile/init`. If the JSON payload differs, it silently updates MMKV and triggers a re-render.
@@ -23,7 +23,7 @@ When the app launches, it needs to know what games exist, what the data structur
 
 The core of the dynamic React Native app is how it interprets the `layouts` received during the App Startup. For any given schema (e.g., `hero`, `map`), the layout JSON defines exactly what UI primitives to render and what data to inject.
 
-A typical layout file (e.g., `data/overwatch/layouts/hero_base.json`) contains two arrays of layout blocks:
+A layout file is named after the schema it belongs to (e.g., `data/overwatch/layouts/hero-hero.json`; the home screen uses `home.json`) and contains two arrays of layout blocks:
 1. `cardLayout`: Defines the UI structure for the list view (e.g., a grid cell or a horizontal row).
 2. `detailLayout`: Defines the UI structure for the full screen detail view.
 
@@ -58,11 +58,11 @@ The Home Screen is a unique screen that aggregates data from multiple categories
 
 When a user navigates to a specific list of entities, the app needs the actual content.
 
-* **API Call:** `GET /mobile/data?game={gameId}&entity={schemaId}` (e.g., `game=overwatch&entity=hero_base`)
-* **Flow:** The endpoint reads the GitHub folder (e.g., `data/overwatch/hero_base/*.json`). To circumvent GitHub rate limits and payload sizes, it fetches the raw base64 content of all files in parallel chunks, parses them, and returns an array of all entity records belonging to that schema. The response is heavily cached (1-year TTL) via Cloudflare Workers Cache API.
+* **API Call:** `GET /mobile/data?game={gameId}&entity={folder}` (e.g., `game=overwatch&entity=heroes`). The folder comes from the schema's `category`: `hero` → `heroes`, `map` → `maps`, `mode` → `modes`, `patch` → `patches`, `item` → `items`.
+* **Flow:** The endpoint reads the GitHub folder (e.g., `data/overwatch/heroes/*.json`). To circumvent GitHub rate limits and payload sizes, it fetches the raw base64 content of all files in parallel chunks, parses them, and returns an array of all entity records in that folder. A record's `schema_id` names the schema (and so the layout) it follows; records without one use the first schema of that category. The response is heavily cached (1-year TTL) via Cloudflare Workers Cache API.
 * **Rendering:** For each item in the returned array, the app uses the `cardLayout` configuration from MMKV to render the list item.
 * **MMKV Strategy: `STORE FULLY`**
-  * Store the resulting array under a dynamic MMKV key like `data_overwatch_hero_base`.
+  * Store the resulting array under a dynamic MMKV key like `data_overwatch_heroes`.
   * **Why:** To provide an offline-first dossier experience. When the user taps the "Heroes" tab, instantly read the array from MMKV and render the `<FlatList>`. Fetch the API in the background and silently update MMKV (and the list) if new heroes or balance changes were pushed.
 
 ---
