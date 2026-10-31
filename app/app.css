@@ -43,8 +43,10 @@
   --ds-info: oklch(54.6% 0.245 262.881); /* blue-600 */
   --ds-danger: oklch(57.7% 0.245 27.325); /* red-600, fills with white text */
   --ds-danger-ink: var(--ds-danger);
+  --ds-on-info: oklch(100% 0 0); /* white on blue-600 */
   --ds-success: oklch(59.6% 0.145 163.225); /* emerald-600 */
   --ds-success-ink: var(--ds-success);
+  --ds-on-success: oklch(13% 0.028 261.692); /* gray-950; white measures 3.7:1 */
   --ds-warning: oklch(76.9% 0.188 70.08); /* amber-500 */
 
   --ds-page: oklch(98.5% 0.002 247.839); /* gray-50 */
@@ -62,6 +64,7 @@
     --ds-primary-tint: oklch(70.5% 0.213 47.604 / 0.1); /* orange-500 at 10% */
     --ds-focus: var(--ds-primary);
     --ds-info: oklch(62.3% 0.214 259.815); /* blue-500 */
+    --ds-on-info: oklch(13% 0.028 261.692); /* gray-950; white measures 3.8:1 */
     --ds-danger-ink: oklch(70.4% 0.191 22.216); /* red-400 */
     --ds-success-ink: oklch(76.5% 0.177 163.223); /* emerald-400 */
 

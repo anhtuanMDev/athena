@@ -161,11 +161,11 @@ A cool gray console with a single orange signal, plus blue, red, green and amber
 - **Orange Wash** (`primary-tint`): background of the selected navigation item in light mode; in dark mode the same role is Signal Orange at 10% opacity.
 
 ### Secondary
-- **Info Blue** (`info` / `info-dark`): links, informational notices and neutral highlights. It never fills a primary button.
+- **Info Blue** (`info` / `info-dark`): links, informational notices and neutral highlights. It never fills a primary button. Text on an Info Blue fill is white in light mode and `page-dark` in dark mode, where white measures 3.8:1.
 
 ### Tertiary
 - **Alarm Red** (`danger` / `danger-dark`): destructive buttons, validation errors and failed states.
-- **Clear Green** (`success` / `success-dark`): saved, synced and healthy states.
+- **Clear Green** (`success` / `success-dark`): saved, synced and healthy states. Text on a Clear Green fill is `page-dark`; white measures 3.7:1.
 - **Caution Amber** (`warning`): pending and attention states.
 
 ### Neutral

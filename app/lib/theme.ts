@@ -12,8 +12,8 @@ const palette: PaletteOptions = {
     contrastText: "var(--ds-on-primary)",
   },
   error: { main: "var(--ds-danger)", contrastText: "#fff" },
-  info: { main: "var(--ds-info)", contrastText: "#fff" },
-  success: { main: "var(--ds-success)", contrastText: "#fff" },
+  info: { main: "var(--ds-info)", contrastText: "var(--ds-on-info)" },
+  success: { main: "var(--ds-success)", contrastText: "var(--ds-on-success)" },
   warning: { main: "var(--ds-warning)", contrastText: "var(--ds-on-primary)" },
   background: {
     default: "var(--ds-page)",
@@ -34,6 +34,16 @@ const focusRing = {
   outline: "2px solid var(--ds-focus)",
   outlineOffset: 2,
 };
+
+// Standard alerts are a 10% wash of their meaning color with ink text, so
+// they read the same on light and dark panels. Amber is too light for an
+// icon on white, so warnings use ink for the icon.
+const alertTone = {
+  error: { wash: "var(--ds-danger)", icon: "var(--ds-danger-ink)" },
+  success: { wash: "var(--ds-success)", icon: "var(--ds-success-ink)" },
+  info: { wash: "var(--ds-info)", icon: "var(--ds-info)" },
+  warning: { wash: "var(--ds-warning)", icon: "var(--ds-ink)" },
+} as const;
 
 export const theme = createTheme({
   cssVariables: { colorSchemeSelector: "media", nativeColor: true },
@@ -72,6 +82,21 @@ export const theme = createTheme({
     MuiIconButton: {
       styleOverrides: {
         root: { "&.Mui-focusVisible": focusRing },
+      },
+    },
+    MuiAlert: {
+      styleOverrides: {
+        root: {
+          alignItems: "center",
+          variants: (Object.keys(alertTone) as (keyof typeof alertTone)[]).map((severity) => ({
+            props: { variant: "standard", severity },
+            style: {
+              backgroundColor: `color-mix(in oklch, ${alertTone[severity].wash} 10%, transparent)`,
+              color: "var(--ds-ink)",
+              "& .MuiAlert-icon": { color: alertTone[severity].icon },
+            },
+          })),
+        },
       },
     },
     MuiOutlinedInput: {
