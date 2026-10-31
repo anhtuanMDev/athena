@@ -25,7 +25,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
-        <ThemeProvider theme={theme} defaultMode="dark">
+        <ThemeProvider theme={theme}>
           <CssBaseline />
           {children}
         </ThemeProvider>
