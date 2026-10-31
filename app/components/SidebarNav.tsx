@@ -28,7 +28,6 @@ interface GameSection {
   slug: string;
   name: string;
   icon?: string;
-  primaryColor?: string;
 }
 
 export function SidebarNav({
@@ -46,25 +45,25 @@ export function SidebarNav({
     location.pathname === href || location.pathname.startsWith(href + "/");
 
   return (
-    <aside className="w-64 h-full bg-white/50 dark:bg-gray-950/50 backdrop-blur-xl border-r border-gray-200/50 dark:border-gray-800/50 flex flex-col relative z-10 transition-all duration-300">
-      <div className="p-6 border-b border-gray-200/50 dark:border-gray-800/50 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-gray-200/50 shrink-0">
+    <aside className="w-64 h-full bg-surface border-r border-border flex flex-col relative z-10">
+      <div className="p-6 border-b border-border flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-border shrink-0">
           <img
             src="/favicon.svg"
-            alt="Athena Logo"
+            alt=""
             className="w-6 h-6 object-contain"
           />
         </div>
         <Link
           to="/dashboard"
-          className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-linear-to-r from-blue-500 to-orange-500"
+          className="text-xl font-bold tracking-tight text-ink rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
         >
           Athena
         </Link>
       </div>
       <nav className="flex-1 overflow-y-auto p-4 space-y-8 scrollbar-hide">
         <div className="space-y-1.5">
-          <p className="px-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3">
+          <p className="px-3 text-xs font-bold text-ink-muted uppercase tracking-widest mb-3">
             General
           </p>
           <NavLink
@@ -98,13 +97,13 @@ export function SidebarNav({
           />
         ))}
       </nav>
-      <div className="p-4 border-t border-gray-200/50 dark:border-gray-800/50">
+      <div className="p-4 border-t border-border">
         <form action="/logout" method="post">
           <button
             type="submit"
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 dark:text-gray-400 dark:hover:text-red-400 dark:hover:bg-red-950/30 transition-all duration-200 group"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-ink-muted hover:text-danger-ink hover:bg-danger/10 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
           >
-            <LogOut className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+            <LogOut className="w-4 h-4" aria-hidden="true" />
             Logout
           </button>
         </form>
@@ -119,40 +118,26 @@ function NavLink({
   icon: Icon,
   isActive,
   onClick,
-  primaryColor,
 }: NavItem & {
   isActive: boolean;
   onClick?: () => void;
-  primaryColor?: string;
 }) {
-  const activeBgStyle =
-    isActive && primaryColor
-      ? { backgroundColor: `${primaryColor}1A`, color: primaryColor }
-      : {};
-  const activeIconStyle =
-    isActive && primaryColor ? { color: primaryColor } : {};
-
   return (
     <Link
       to={href}
       onClick={onClick}
-      style={activeBgStyle}
-      className={`group flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+      aria-current={isActive ? "page" : undefined}
+      className={`group flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
         isActive
-          ? !primaryColor
-            ? "bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400 shadow-sm shadow-orange-500/5"
-            : "shadow-sm"
-          : "text-gray-600 hover:bg-gray-100/50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
+          ? "bg-primary-tint text-primary-ink shadow-sm"
+          : "text-ink-muted hover:bg-surface-raised hover:text-ink"
       }`}
     >
       <div className="flex items-center gap-3">
-        <Icon
-          style={activeIconStyle}
-          className={`w-4 h-4 transition-colors ${isActive ? (!primaryColor ? "text-orange-600 dark:text-orange-400" : "") : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"}`}
-        />
+        <Icon aria-hidden="true" className="w-4 h-4" />
         {label}
       </div>
-      {isActive && <ChevronRight className="w-4 h-4" style={activeIconStyle} />}
+      {isActive && <ChevronRight aria-hidden="true" className="w-4 h-4" />}
     </Link>
   );
 }
@@ -182,43 +167,40 @@ function CollapsibleGameSection({
   return (
     <div className="space-y-1.5 mt-6">
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-3 mb-2 group cursor-pointer"
+        aria-expanded={isOpen}
+        className="w-full flex items-center justify-between px-3 py-1 mb-2 rounded-md group cursor-pointer text-ink-muted hover:text-ink transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
       >
         <div className="flex items-center gap-2">
           {game.icon ? (
             <div className="h-5 min-w-[20px] px-1 bg-white rounded flex items-center justify-center shadow-xs ring-1 ring-black/5 shrink-0">
               <img
                 src={game.icon}
-                alt={game.name}
+                alt=""
                 className="h-3.5 w-auto object-contain"
               />
             </div>
           ) : (
-            <Gamepad2
-              className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors"
-              style={game.primaryColor ? { color: game.primaryColor } : {}}
-            />
+            <Gamepad2 aria-hidden="true" className="w-4 h-4" />
           )}
-          <span className="text-[10px] font-bold uppercase tracking-widest transition-colors text-gray-500">
+          <span className="text-xs font-bold uppercase tracking-widest">
             {game.name}
           </span>
         </div>
         <ChevronDown
-          className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+          aria-hidden="true"
+          className={`w-3 h-3 ${isOpen ? "rotate-180" : ""}`}
         />
       </button>
 
-      <div
-        className={`space-y-1.5 overflow-hidden transition-all duration-300 ${isOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"}`}
-      >
+      <div className={isOpen ? "space-y-1.5" : "hidden"}>
         <NavLink
           href={`/${game.slug}/heroes`}
           label="Heroes"
           icon={Users}
           isActive={isActive(`/${game.slug}/heroes`)}
           onClick={onClose}
-          primaryColor={game.primaryColor}
         />
         <NavLink
           href={`/${game.slug}/maps`}
@@ -226,7 +208,6 @@ function CollapsibleGameSection({
           icon={Map}
           isActive={isActive(`/${game.slug}/maps`)}
           onClick={onClose}
-          primaryColor={game.primaryColor}
         />
         <NavLink
           href={`/${game.slug}/modes`}
@@ -234,7 +215,6 @@ function CollapsibleGameSection({
           icon={Swords}
           isActive={isActive(`/${game.slug}/modes`)}
           onClick={onClose}
-          primaryColor={game.primaryColor}
         />
         <NavLink
           href={`/${game.slug}/patches`}
@@ -242,7 +222,6 @@ function CollapsibleGameSection({
           icon={FileClock}
           isActive={isActive(`/${game.slug}/patches`)}
           onClick={onClose}
-          primaryColor={game.primaryColor}
         />
         <NavLink
           href={`/${game.slug}/items`}
@@ -250,7 +229,6 @@ function CollapsibleGameSection({
           icon={Box}
           isActive={isActive(`/${game.slug}/items`)}
           onClick={onClose}
-          primaryColor={game.primaryColor}
         />
         <NavLink
           href={`/${game.slug}/schemas`}
@@ -258,7 +236,6 @@ function CollapsibleGameSection({
           icon={Database}
           isActive={isActive(`/${game.slug}/schemas`)}
           onClick={onClose}
-          primaryColor={game.primaryColor}
         />
         <NavLink
           href={`/${game.slug}/layouts`}
@@ -266,7 +243,6 @@ function CollapsibleGameSection({
           icon={LayoutTemplate}
           isActive={isActive(`/${game.slug}/layouts`)}
           onClick={onClose}
-          primaryColor={game.primaryColor}
         />
         <NavLink
           href={`/${game.slug}/enums`}
@@ -274,7 +250,6 @@ function CollapsibleGameSection({
           icon={List}
           isActive={isActive(`/${game.slug}/enums`)}
           onClick={onClose}
-          primaryColor={game.primaryColor}
         />
         <NavLink
           href={`/${game.slug}/cron`}
@@ -282,7 +257,6 @@ function CollapsibleGameSection({
           icon={Clock}
           isActive={isActive(`/${game.slug}/cron`)}
           onClick={onClose}
-          primaryColor={game.primaryColor}
         />
       </div>
     </div>

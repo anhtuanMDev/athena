@@ -16,7 +16,7 @@ export default function AdminLayout() {
     const ok = await checkSession();
     if (!ok) throw new Error("unauthorized");
     const allGames = await listGames();
-    return allGames.filter((g) => g.active).map((g) => ({ slug: g.slug, name: g.name, icon: g.icon, primary: g.primary }));
+    return allGames.filter((g) => g.active).map((g) => ({ slug: g.slug, name: g.name, icon: g.icon }));
   }, [], "_admin-13");
 
   useEffect(() => {
@@ -31,38 +31,39 @@ export default function AdminLayout() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-gray-50 dark:bg-[#030712] items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-orange-600/20 flex items-center justify-center animate-pulse">
-            <div className="w-6 h-6 border-2 border-orange-600 dark:border-orange-400 border-t-transparent rounded-full animate-spin" />
+      <div className="flex min-h-screen bg-page items-center justify-center">
+        <div role="status" className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-primary-tint flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-primary-ink border-t-transparent rounded-full animate-spin motion-reduce:animate-none" />
           </div>
-          <p className="text-sm font-medium text-gray-500 dark:text-gray-400 animate-pulse">Initializing Command Center...</p>
+          <p className="text-sm font-medium text-ink-muted">Initializing Command Center…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-[#030712] selection:bg-orange-500/30">
+    <div className="flex h-screen overflow-hidden bg-page">
       <ReauthModal />
-      {/* Background ambient glow */}
-      <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-orange-500/10 rounded-full blur-[100px]" />
-        <div className="absolute top-1/2 left-1/4 w-64 h-64 bg-cyan-500/10 rounded-full blur-[100px]" />
-      </div>
 
       {/* Mobile header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-[#030712]/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50 z-40 flex items-center justify-between px-4">
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-surface border-b border-border z-40 flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-gray-200/50 shrink-0">
-            <img src="/favicon.svg" alt="Athena Logo" className="w-6 h-6 object-contain" />
+          <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-border shrink-0">
+            <img src="/favicon.svg" alt="" className="w-6 h-6 object-contain" />
           </div>
-          <span className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-linear-to-r from-blue-500 to-orange-500">
+          <span className="text-xl font-bold tracking-tight text-ink">
             Athena
           </span>
         </div>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-gray-600 dark:text-gray-300">
-          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        <button
+          type="button"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={isMobileMenuOpen}
+          className="p-2 rounded-lg text-ink-muted hover:text-ink hover:bg-surface-raised transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          {isMobileMenuOpen ? <X aria-hidden="true" className="w-6 h-6" /> : <Menu aria-hidden="true" className="w-6 h-6" />}
         </button>
       </div>
 
@@ -72,14 +73,14 @@ export default function AdminLayout() {
       </div>
 
       {/* Mobile Sidebar (overlay) */}
-      <div className={`lg:hidden fixed inset-0 z-50 transition-opacity duration-300 ${isMobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}>
+      <div className={`lg:hidden fixed inset-0 z-50 transition-[opacity,visibility] duration-300 motion-reduce:transition-none ${isMobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none invisible"}`}>
         {/* Backdrop */}
         <div 
           className="absolute inset-0 bg-black/50" 
           onClick={() => setIsMobileMenuOpen(false)} 
         />
         {/* Sidebar panel */}
-        <div className={`absolute inset-y-0 left-0 transform transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className={`absolute inset-y-0 left-0 transform transition-transform duration-300 ease-out motion-reduce:transition-none ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <SidebarNav games={games ?? []} onClose={() => setIsMobileMenuOpen(false)} />
         </div>
       </div>
