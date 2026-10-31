@@ -116,7 +116,7 @@ export default function RawEditor() {
     }
   }
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) return <div>Loading…</div>;
   if (loadError) {
     const isNotFound = String(loadError).includes("NOT_FOUND") || loadError === "NOT_FOUND";
     if (isNotFound) {
@@ -162,7 +162,7 @@ export default function RawEditor() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handlePreview} className="space-y-4">
-            <textarea
+            <textarea aria-label="JSON content"
               name="content"
               rows={30}
               defaultValue={JSON.stringify(loaderData.content, null, 2)}

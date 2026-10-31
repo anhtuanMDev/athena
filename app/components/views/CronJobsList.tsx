@@ -30,12 +30,12 @@ export default function CronJobsList() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
-          <div className="h-10 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-800 rounded animate-pulse motion-reduce:animate-none" />
+          <div className="h-10 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse motion-reduce:animate-none" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
+            <Card key={i} className="animate-pulse motion-reduce:animate-none">
               <CardHeader>
                 <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded" />
               </CardHeader>
@@ -128,7 +128,7 @@ export default function CronJobsList() {
                     {job._sync.last_error && (
                       <p className="text-red-700 dark:text-red-400 mt-1">
                         <strong>Last Error:</strong> {job._sync.last_error} <br/>
-                        <span className="opacity-75 text-[10px] mt-0.5 inline-block">
+                        <span className="opacity-75 text-xs mt-0.5 inline-block">
                           {new Date(job._sync.last_sync_attempt).toLocaleString()}
                         </span>
                       </p>

@@ -50,7 +50,7 @@ return (
           <p className="text-gray-500 dark:text-gray-400 mt-1">Manage game modes, objectives, and rule sets.</p>
         </div>
         <Link to={`/${game}/modes/new`}>
-          <Button className="gap-2 shadow-lg shadow-orange-500/20 transition-all hover:shadow-orange-500/40">
+          <Button className="gap-2 shadow-lg shadow-orange-500/20 transition-colors hover:shadow-orange-500/40">
             <Plus className="w-4 h-4" />
             New Mode
           </Button>

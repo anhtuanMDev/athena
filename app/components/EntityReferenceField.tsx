@@ -1,4 +1,4 @@
-import React, { forwardRef, useState, useMemo } from "react";
+import React, { forwardRef, useId, useState, useMemo } from "react";
 import { useData } from "~/lib/use-data";
 import { useParams } from "react-router";
 
@@ -80,6 +80,10 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
     const options = (entities as {id: string, name: string}[]) || [];
     
     const [searchQuery, setSearchQuery] = useState("");
+    const generatedId = useId();
+    const fieldId = (props.id as string | undefined) ?? generatedId;
+    const labelId = `${fieldId}-label`;
+    const helpId = `${fieldId}-help`;
     const filteredOptions = useMemo(() => {
       if (!searchQuery.trim()) return options;
       const q = searchQuery.toLowerCase();
@@ -106,7 +110,7 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
             {label} {required && <span className="text-red-500 ml-1">*</span>}
           </label>
           <div className="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:border-gray-600 dark:bg-gray-800">
-            Loading reference data...
+            Loading reference data…
           </div>
         </div>
       );
@@ -125,17 +129,18 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
 
     return (
       <div>
-        <label className={`block text-sm font-medium ${error ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}`}>
+        <label id={labelId} htmlFor={multiple ? undefined : fieldId} className={`block text-sm font-medium ${error ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}`}>
           {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+          {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
         </label>
         
         {multiple ? (
-          <div className="mt-2 space-y-2">
+          <div role="group" aria-labelledby={labelId} className="mt-2 space-y-2">
             {options.length > 5 && (
               <input
                 type="search"
-                placeholder={`Search ${options.length} options...`}
+                aria-label={`Search ${label}`}
+                placeholder={`Search ${options.length} options…`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="mb-2 block w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
@@ -168,16 +173,19 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
             className={`mt-1 block w-full rounded-md border ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'} bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 dark:bg-gray-800 dark:text-gray-100 ${error ? 'dark:border-red-500' : 'dark:border-gray-600'}`}
             ref={ref as React.LegacyRef<HTMLSelectElement>}
             {...(props as Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'size' | 'value'>)}
+            id={fieldId}
+            aria-invalid={error || undefined}
+            aria-describedby={error && helperText ? helpId : undefined}
             value={(props.value || currentValue) as string || ""}
           >
-            <option value="" disabled>Select option...</option>
+            <option value="" disabled>Select option…</option>
             {options.map((opt: { id: string; name: string }) => (
               <option key={opt.id} value={opt.id}>{opt.name}</option>
             ))}
           </select>
         )}
         {error && helperText && (
-          <p className="mt-1 text-xs text-red-500">{helperText}</p>
+          <p id={helpId} className="mt-1 text-xs text-red-500">{helperText}</p>
         )}
       </div>
     );

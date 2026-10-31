@@ -1,5 +1,6 @@
 import { Pencil, X } from "lucide-react";
 import { useState } from "react";
+import Drawer from "@mui/material/Drawer";
 import { FormField } from "~/components/FormField";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
@@ -252,12 +253,12 @@ export default function GamesList() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div className="h-8 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
-          <div className="h-10 w-24 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+          <div className="h-8 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse motion-reduce:animate-none" />
+          <div className="h-10 w-24 bg-gray-200 dark:bg-gray-800 rounded animate-pulse motion-reduce:animate-none" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <Card key={i} className="animate-pulse">
+            <Card key={i} className="animate-pulse motion-reduce:animate-none">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -350,24 +351,31 @@ export default function GamesList() {
         ))}
       </div>
 
-      {modalMode && (
-        <div className="fixed inset-0 z-50 overflow-hidden">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setModalMode(null)}
-          />
-          <div className="fixed inset-y-0 right-0 flex max-w-full pl-10 animate-in slide-in-from-right duration-300">
-            <div className="w-screen max-w-md">
-              <div className="flex h-full flex-col bg-white dark:bg-[#030712] shadow-2xl border-l border-gray-200 dark:border-gray-800">
-                <div className="px-6 py-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+      <Drawer
+        open={modalMode !== null}
+        anchor="right"
+        onClose={() => setModalMode(null)}
+        slotProps={{
+          paper: {
+            role: "dialog",
+            "aria-modal": true,
+            "aria-labelledby": "game-drawer-title",
+            sx: { width: "100%", maxWidth: 448, backgroundColor: "var(--ds-surface)", borderLeft: "1px solid var(--ds-border)" },
+          },
+        }}
+      >
+              <div className="flex h-full flex-col">
+                <div className="px-6 py-6 border-b border-border flex items-center justify-between">
+                  <h2 id="game-drawer-title" className="text-xl font-bold text-ink">
                     {modalMode === "edit" ? "Edit Game" : "Add Game"}
-                  </h1>
+                  </h2>
                   <button
+                    type="button"
                     onClick={() => setModalMode(null)}
-                    className="text-gray-400 hover:text-gray-500 transition-colors"
+                    aria-label="Close"
+                    className="rounded-lg p-1 text-ink-muted hover:text-ink hover:bg-surface-raised transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                   >
-                    <X className="w-5 h-5" />
+                    <X aria-hidden="true" className="w-5 h-5" />
                   </button>
                 </div>
                 <div className="flex-1 overflow-y-auto px-6 py-6 scrollbar-hide">
@@ -527,7 +535,7 @@ export default function GamesList() {
                         ).map(({ key, label, value, set, fallback }) => (
                           <div key={key} className="flex gap-4 items-center">
                             <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0 border border-gray-200 dark:border-gray-800 shadow-sm">
-                              <input
+                              <input aria-label={`${label} color`}
                                 type="color"
                                 className="absolute -inset-2 w-14 h-14 cursor-pointer"
                                 value={/^#[0-9A-F]{6}$/i.test(value) ? value : fallback}
@@ -584,7 +592,7 @@ export default function GamesList() {
                         disabled={submitting || !isValid || !isDirty}
                       >
                         {submitting
-                          ? "Saving..."
+                          ? "Saving…"
                           : modalMode === "edit"
                             ? "Save Changes"
                             : "Create Game"}
@@ -593,10 +601,7 @@ export default function GamesList() {
                   </form>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+      </Drawer>
     </div>
   );
 }

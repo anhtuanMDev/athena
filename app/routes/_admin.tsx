@@ -1,6 +1,7 @@
 import { Outlet, useNavigate } from "react-router";
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
+import Drawer from "@mui/material/Drawer";
 import { checkSession } from "~/lib/auth";
 import { listGames } from "~/lib/github";
 import { SidebarNav } from "~/components/SidebarNav";
@@ -72,18 +73,15 @@ export default function AdminLayout() {
         <SidebarNav games={games ?? []} />
       </div>
 
-      {/* Mobile Sidebar (overlay) */}
-      <div className={`lg:hidden fixed inset-0 z-50 transition-[opacity,visibility] duration-300 motion-reduce:transition-none ${isMobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none invisible"}`}>
-        {/* Backdrop */}
-        <div 
-          className="absolute inset-0 bg-black/50" 
-          onClick={() => setIsMobileMenuOpen(false)} 
-        />
-        {/* Sidebar panel */}
-        <div className={`absolute inset-y-0 left-0 transform transition-transform duration-300 ease-out motion-reduce:transition-none ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}>
-          <SidebarNav games={games ?? []} onClose={() => setIsMobileMenuOpen(false)} />
-        </div>
-      </div>
+      {/* Mobile Sidebar (drawer) */}
+      <Drawer
+        open={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
+        sx={{ display: { lg: "none" } }}
+        slotProps={{ paper: { role: "dialog", "aria-modal": true, "aria-label": "Navigation" } }}
+      >
+        <SidebarNav games={games ?? []} onClose={() => setIsMobileMenuOpen(false)} />
+      </Drawer>
       
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative z-10 pt-16 lg:pt-0">
         <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:px-12 xl:px-16 pb-24 scrollbar-hide">

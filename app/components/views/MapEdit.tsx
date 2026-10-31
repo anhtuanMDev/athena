@@ -131,7 +131,7 @@ export default function EditMap() {
 
   if (loading) {
     return (
-      <div className="w-full space-y-6 animate-pulse">
+      <div className="w-full space-y-6 animate-pulse motion-reduce:animate-none">
         <div className="h-10 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
         <div className="space-y-4 bg-white/50 dark:bg-gray-900/30 p-6 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
           <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>

@@ -44,7 +44,7 @@ export default function EditItem() {
 
   if (itemResult.loading || heroesResult.loading || modesResult.loading) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6 animate-pulse">
+      <div className="max-w-2xl mx-auto space-y-6 animate-pulse motion-reduce:animate-none">
         <div className="h-10 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
         <div className="space-y-4 bg-white/50 dark:bg-gray-900/30 p-6 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
           <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
@@ -316,7 +316,7 @@ export default function EditItem() {
               <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                 Effects (JSON array)
               </label>
-              <textarea
+              <textarea aria-label="Effects (JSON array)"
                 name="effects_raw"
                 rows={8}
                 defaultValue={JSON.stringify(item.effects, null, 2)}

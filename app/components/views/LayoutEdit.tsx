@@ -187,7 +187,7 @@ export default function LayoutEdit() {
 
   if (loading) {
     return (
-      <div className="w-full py-8 space-y-6 animate-pulse">
+      <div className="w-full py-8 space-y-6 animate-pulse motion-reduce:animate-none">
         <div className="h-10 w-64 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
         <div className="h-64 bg-gray-200 dark:bg-gray-800 rounded-xl"></div>
       </div>
@@ -242,7 +242,7 @@ export default function LayoutEdit() {
               </button>
             </div>
             {/* Mobile Canvas */}
-            <div className={`w-[393px] bg-gray-50 dark:bg-[#0B1324] border-12 border-gray-900 overflow-y-auto shadow-2xl shrink-0 flex flex-col relative custom-scrollbar transition-all duration-300 ${activeTab === 'detail' ? 'h-[852px] rounded-[3rem]' : 'h-[350px] rounded-3xl'}`}>
+            <div className={`w-[393px] bg-gray-50 dark:bg-[#0B1324] border-12 border-gray-900 overflow-y-auto shadow-2xl shrink-0 flex flex-col relative custom-scrollbar transition-colors duration-300 ${activeTab === 'detail' ? 'h-[852px] rounded-[3rem]' : 'h-[350px] rounded-3xl'}`}>
             {/* Phone Notch */}
             <div className="sticky top-0 inset-x-0 h-7 bg-gray-900 rounded-b-3xl mx-auto w-40 z-10 mb-2"></div>
             
@@ -259,13 +259,13 @@ export default function LayoutEdit() {
                       <span className="text-xs font-bold font-mono text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">
                         {idx + 1}. {section.type}
                       </span>
-                      <button type="button" onClick={() => removeSection(section.id)} className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Trash2 className="w-3.5 h-3.5" />
+                      <button type="button" onClick={() => removeSection(section.id)} aria-label={`Remove ${section.type} block`} className="rounded text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus transition-opacity">
+                        <Trash2 aria-hidden="true" className="w-3.5 h-3.5" />
                       </button>
                     </div>
                     <div>
-                      <textarea 
-                        className="w-full font-mono text-[11px] p-2 rounded border bg-gray-50 dark:bg-gray-950 dark:border-gray-800 text-gray-800 dark:text-gray-300 focus:ring-1 focus:ring-blue-500 outline-none"
+                      <textarea aria-label="Props (JSON)" 
+                        className="w-full font-mono text-xs p-2 rounded border bg-gray-50 dark:bg-gray-950 dark:border-gray-800 text-gray-800 dark:text-gray-300 focus:ring-1 focus:ring-blue-500 outline-none"
                         rows={3}
                         defaultValue={JSON.stringify(section.props, null, 2)}
                         onChange={(e) => updateSectionProps(section.id, e.target.value)}

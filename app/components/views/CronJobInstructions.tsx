@@ -170,7 +170,7 @@ function InstructionCard({ section }: { section: InstructionSection }) {
   const c = colorMap[section.color];
 
   return (
-    <div className={`rounded-xl border ${c.border} ${c.bg} overflow-hidden transition-all`}>
+    <div className={`rounded-xl border ${c.border} ${c.bg} overflow-hidden transition-colors`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -194,7 +194,7 @@ function InstructionCard({ section }: { section: InstructionSection }) {
           <div className="space-y-3 pt-4">
             {section.rules.map((rule) => (
               <div key={rule.label} className="flex gap-3">
-                <span className={`mt-0.5 shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${c.badge}`}>
+                <span className={`mt-0.5 shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${c.badge}`}>
                   Rule
                 </span>
                 <div>
@@ -208,7 +208,7 @@ function InstructionCard({ section }: { section: InstructionSection }) {
           {/* Examples */}
           {section.examples && section.examples.length > 0 && (
             <div className={`rounded-lg border ${c.example.split(" ").slice(2).join(" ")} bg-transparent p-3 space-y-1.5`}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Examples</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Examples</p>
               {section.examples.map((ex, i) => (
                 <p key={i} className={`text-xs font-mono ${c.example.split(" ").slice(2).join(" ")}`}>
                   {ex}

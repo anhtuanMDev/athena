@@ -95,7 +95,7 @@ export default function NewHero() {
 
   if (loading) {
     return (
-      <div className="w-full space-y-6 animate-pulse">
+      <div className="w-full space-y-6 animate-pulse motion-reduce:animate-none">
         <div className="h-10 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
         <div className="space-y-4 bg-white/50 dark:bg-gray-900/30 p-6 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
           <div className="grid grid-cols-2 gap-4">
@@ -672,7 +672,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
             <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300">
               Hero Schema Profile
             </label>
-            <select
+            <select aria-label="Hero Schema Profile"
               className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
               value={selectedSchemaId}
               onChange={(e) => {

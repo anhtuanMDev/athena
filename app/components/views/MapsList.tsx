@@ -43,7 +43,7 @@ return (
           <p className="text-gray-500 dark:text-gray-400 mt-1">Manage locations, control points, and payloads.</p>
         </div>
         <Link to={`/${game}/maps/new`}>
-          <Button className="gap-2 shadow-lg shadow-orange-500/20 transition-all hover:shadow-orange-500/40">
+          <Button className="gap-2 shadow-lg shadow-orange-500/20 transition-colors hover:shadow-orange-500/40">
             <Plus className="w-4 h-4" />
             New Map
           </Button>

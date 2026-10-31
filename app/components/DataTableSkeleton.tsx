@@ -1,6 +1,6 @@
 export function DataTableSkeleton({ columns = 4, rows = 5 }: { columns?: number, rows?: number }) {
   return (
-    <div className="overflow-x-auto rounded-md border border-gray-200/50 dark:border-gray-800/50 bg-white/30 dark:bg-gray-900/30 backdrop-blur-sm animate-pulse">
+    <div className="overflow-x-auto rounded-md border border-gray-200/50 dark:border-gray-800/50 bg-white/30 dark:bg-gray-900/30 backdrop-blur-sm animate-pulse motion-reduce:animate-none">
       <table className="min-w-full divide-y divide-gray-200/50 dark:divide-gray-800/50">
         <thead className="bg-gray-50/50 dark:bg-gray-800/50">
           <tr>

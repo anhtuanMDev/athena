@@ -70,14 +70,14 @@ export function DataTable<T extends object>({
                   <div className="flex items-center justify-end gap-2 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                     <Link
                       to={`${baseUrl}/${id}`}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:text-orange-300 dark:hover:bg-orange-500/10 transition-all"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:text-orange-300 dark:hover:bg-orange-500/10 transition-colors"
                     >
                       <Edit2 className="w-4 h-4" />
                       <span>Edit</span>
                     </Link>
                     <Link
                       to={`${baseUrl}/${id}/delete`}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-500/10 transition-all"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-500/10 transition-colors"
                     >
                       <span>Delete</span>
                     </Link>

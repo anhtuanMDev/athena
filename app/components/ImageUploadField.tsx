@@ -43,22 +43,24 @@ export function ImageUploadField({ label, onFileSelect, defaultPreview, classNam
       <div className="flex items-center gap-4">
         {preview ? (
           <div className="relative w-20 h-20 rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700 group">
-            <img src={preview} alt="Preview" className="w-full h-full object-cover" />
+            <img src={preview} alt={`${label} preview`} className="w-full h-full object-cover" />
             <button
               type="button"
               onClick={handleClear}
-              className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white"
+              aria-label={`Remove ${label} image`}
+              className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus flex items-center justify-center transition-opacity text-white"
             >
-              <X className="w-6 h-6" />
+              <X aria-hidden="true" className="w-6 h-6" />
             </button>
           </div>
         ) : (
           <button
             type="button"
             onClick={() => fileInput.current?.click()}
-            className="flex items-center justify-center w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-orange-500 hover:bg-orange-50 dark:hover:border-orange-400 dark:hover:bg-orange-500/10 transition-all text-gray-400 hover:text-orange-500"
+            aria-label={`Upload ${label} image`}
+            className="flex items-center justify-center w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-orange-500 hover:bg-orange-50 dark:hover:border-orange-400 dark:hover:bg-orange-500/10 transition-colors text-gray-400 hover:text-orange-500"
           >
-            <Upload className="w-6 h-6" />
+            <Upload aria-hidden="true" className="w-6 h-6" />
           </button>
         )}
         <div className="flex-1">

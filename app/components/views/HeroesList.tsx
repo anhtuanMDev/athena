@@ -36,7 +36,7 @@ const baseColumns: Column<any>[] = [
                 alt={`${h.name} ${key}`}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-black/60 items-center justify-center text-[10px] font-medium text-white opacity-0 group-hover:opacity-100 hidden group-hover:flex transition-opacity uppercase tracking-wider">
+              <div className="absolute inset-0 bg-black/60 items-center justify-center text-xs font-medium text-white opacity-0 group-hover:opacity-100 hidden group-hover:flex transition-opacity uppercase tracking-wider">
                 {key}
               </div>
             </div>
@@ -162,7 +162,7 @@ export default function HeroesIndex() {
             Copy JSON
           </Button>
           <Link to={`/${game}/heroes/new`}>
-            <Button className="gap-2 shadow-lg shadow-orange-500/20 transition-all hover:shadow-orange-500/40">
+            <Button className="gap-2 shadow-lg shadow-orange-500/20 transition-colors hover:shadow-orange-500/40">
               <Plus className="w-4 h-4" />
               New Hero
             </Button>

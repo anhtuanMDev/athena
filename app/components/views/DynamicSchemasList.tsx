@@ -49,12 +49,12 @@ export default function SchemasList() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
-          <div className="h-10 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-800 rounded animate-pulse motion-reduce:animate-none" />
+          <div className="h-10 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse motion-reduce:animate-none" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
+            <Card key={i} className="animate-pulse motion-reduce:animate-none">
               <CardHeader>
                 <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded" />
               </CardHeader>
@@ -151,7 +151,7 @@ export default function SchemasList() {
                   <button
                     type="button"
                     onClick={() => exportCopy(schema)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                   >
                     {copiedId === schema.id
                       ? <Check className="w-3.5 h-3.5" />
@@ -161,7 +161,7 @@ export default function SchemasList() {
                   <button
                     type="button"
                     onClick={() => exportDownload(schema)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Download .json

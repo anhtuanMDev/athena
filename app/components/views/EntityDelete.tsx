@@ -131,7 +131,7 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
 
   if (loading) {
     return (
-      <div className="max-w-md mx-auto py-12 animate-pulse">
+      <div className="max-w-md mx-auto py-12 animate-pulse motion-reduce:animate-none">
         <div className="h-64 bg-gray-200 dark:bg-gray-800 rounded-xl"></div>
       </div>
     );

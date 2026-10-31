@@ -9,5 +9,5 @@ export default function Logout() {
     authLogout().then(() => navigate("/login"));
   }, [navigate]);
 
-  return <div>Logging out...</div>;
+  return <div>Logging out…</div>;
 }

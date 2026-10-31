@@ -102,7 +102,7 @@ export default function NewPatch() {
 
   if (loading) {
     return (
-      <div className="w-full space-y-6 animate-pulse">
+      <div className="w-full space-y-6 animate-pulse motion-reduce:animate-none">
         <div className="h-10 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
         <div className="space-y-4 bg-white/50 dark:bg-gray-900/30 p-6 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
           <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
@@ -182,7 +182,7 @@ export default function NewPatch() {
                       {f.label}
                     </label>
                     {f.type === "enum" ? (
-                      <select
+                      <select aria-label={f.label}
                         name={f.key}
                         required={f.required}
                         className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
@@ -195,7 +195,7 @@ export default function NewPatch() {
                         ))}
                       </select>
                     ) : (
-                      <input
+                      <input aria-label={f.label}
                         name={f.key}
                         placeholder={`${f.label} (comma-separated)`}
                         required={f.required}
@@ -225,7 +225,7 @@ export default function NewPatch() {
               <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                 Changes (JSON array)
               </label>
-              <textarea
+              <textarea aria-label="Changes (JSON array)"
                 name="_changes"
                 rows={5}
                 defaultValue={JSON.stringify(

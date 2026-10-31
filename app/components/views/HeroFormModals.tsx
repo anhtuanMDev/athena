@@ -51,7 +51,7 @@ export function AIPromptModalWrapper({ aiPromptMarkdown }: { aiPromptMarkdown: s
                 <p className="text-sm text-gray-500 mb-4">
                   Use the following prompt to instruct an AI (like ChatGPT or Claude) to generate data for you. You can copy the text or download it as a file.
                 </p>
-                <textarea
+                <textarea aria-label="AI prompt"
                   readOnly
                   value={aiPromptMarkdown}
                   className="w-full h-64 rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 text-xs font-mono text-gray-700 dark:text-gray-300 focus:outline-none resize-none"
@@ -199,7 +199,7 @@ export function ImportDataModalWrapper({
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Option 2: Paste JSON Directly</label>
-                  <textarea value={pastedJson} onChange={(e) => { setPastedJson(e.target.value); if (importError) setImportError(null); }} placeholder="Paste your JSON data here..." rows={6} className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-gray-200 transition-colors" />
+                  <textarea aria-label="Option 2: Paste JSON Directly" value={pastedJson} onChange={(e) => { setPastedJson(e.target.value); if (importError) setImportError(null); }} placeholder="Paste your JSON data here..." rows={6} className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-gray-200 transition-colors" />
                 </div>
               </div>
               <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 bg-gray-50 dark:bg-gray-900/50">

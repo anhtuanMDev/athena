@@ -135,7 +135,7 @@ export default function CronJobEdit() {
 
   if (loading) {
     return (
-      <div className="w-full py-8 space-y-6 animate-pulse">
+      <div className="w-full py-8 space-y-6 animate-pulse motion-reduce:animate-none">
         <div className="h-10 w-64 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
         <div className="h-32 bg-gray-200 dark:bg-gray-800 rounded-xl"></div>
         <div className="h-64 bg-gray-200 dark:bg-gray-800 rounded-xl"></div>
@@ -227,13 +227,13 @@ export default function CronJobEdit() {
                 <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
                   Target Schema
                 </label>
-                <select 
+                <select aria-label="Target Schema" 
                   value={schemaId} 
                   onChange={(e) => setSchemaId(e.target.value)}
                   className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                   required
                 >
-                  <option value="" disabled>Select a schema...</option>
+                  <option value="" disabled>Select a schema…</option>
                   {loaderData.schemas.map(s => (
                     <option key={s.id} value={s.id}>{s.name} ({s.category})</option>
                   ))}
@@ -243,7 +243,7 @@ export default function CronJobEdit() {
                 <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
                   Schedule
                 </label>
-                <select 
+                <select aria-label="Schedule" 
                   value={schedule} 
                   onChange={(e) => setSchedule(e.target.value)}
                   className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
@@ -261,7 +261,7 @@ export default function CronJobEdit() {
                 <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
                   API Endpoint URL
                 </label>
-                <input 
+                <input aria-label="API Endpoint URL" 
                   value={apiEndpoint} 
                   onChange={(e) => setApiEndpoint(e.target.value)}
                   placeholder="https://api.example.com/data" 
@@ -305,7 +305,7 @@ export default function CronJobEdit() {
                     <span className="text-xs text-gray-500 font-mono mt-1">{field.key} ({field.type})</span>
                   </div>
                   <div>
-                    <input 
+                    <input aria-label={`Source path for ${field.label}`} 
                       value={fieldMappings[field.key] || ""} 
                       onChange={(e) => handleMappingChange(field.key, e.target.value)}
                       placeholder={`e.g. data.attributes.${field.key}`} 

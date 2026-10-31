@@ -92,14 +92,14 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
           size="small"
           variant="outline"
           onClick={() => append({ id: "", label: "", value: "", suffix: "", type: "string" })}
-          className="h-8 text-[11px] px-3"
+          className="h-8 text-xs px-3"
         >
           <Plus className="w-3 h-3 mr-1" /> Add Param
         </Button>
       </div>
 
       {fields.length === 0 && (
-        <div className="text-[11px] text-gray-500 italic bg-gray-50/50 dark:bg-gray-900/30 p-4 rounded-lg border border-dashed border-gray-200 dark:border-gray-800 text-center">
+        <div className="text-xs text-gray-500 italic bg-gray-50/50 dark:bg-gray-900/30 p-4 rounded-lg border border-dashed border-gray-200 dark:border-gray-800 text-center">
           No custom parameters defined for this option.
         </div>
       )}
@@ -115,13 +115,13 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                     name={`options.${optionIndex}.params.${index}.id` as const}
                     render={({ field: idField }) => (
                       <div>
-                        <input
+                        <input aria-label="ID"
                           {...idField}
                           placeholder="ID (e.g. damage_multiplier)"
                           className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
                         />
                         {errors.options?.[optionIndex]?.params?.[index]?.id && (
-                          <span className="text-[10px] text-red-500 block mt-1">{errors.options[optionIndex]?.params?.[index]?.id?.message}</span>
+                          <span className="text-xs text-red-500 block mt-1">{errors.options[optionIndex]?.params?.[index]?.id?.message}</span>
                         )}
                       </div>
                     )}
@@ -131,7 +131,7 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                     name={`options.${optionIndex}.params.${index}.label` as const}
                     render={({ field: labelField }) => (
                       <div>
-                        <input
+                        <input aria-label="Label"
                           {...labelField}
                           placeholder="Label (e.g. Damage Multiplier)"
                           onChange={(e) => {
@@ -145,7 +145,7 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                           className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
                         />
                         {errors.options?.[optionIndex]?.params?.[index]?.label && (
-                          <span className="text-[10px] text-red-500 block mt-1">{errors.options[optionIndex]?.params?.[index]?.label?.message}</span>
+                          <span className="text-xs text-red-500 block mt-1">{errors.options[optionIndex]?.params?.[index]?.label?.message}</span>
                         )}
                       </div>
                     )}
@@ -159,7 +159,7 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                       return (
                         <>
                           <div>
-                            <select
+                            <select aria-label="Type"
                               {...typeField}
                               className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
                             >
@@ -181,7 +181,7 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                                 </label>
                               </div>
                             ) : (
-                              <input
+                              <input aria-label="Value"
                                 type={paramType === "number" ? "number" : "text"}
                                 step={paramType === "number" ? "any" : undefined}
                                 placeholder="Value"
@@ -197,7 +197,7 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                     }}
                   />
                   <div>
-                    <input
+                    <input aria-label="Suffix"
                       placeholder="Suffix (e.g. %)"
                       {...register(`options.${optionIndex}.params.${index}.suffix`)}
                       className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
@@ -208,9 +208,10 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                   type="button"
                   variant="ghost"
                   onClick={() => remove(index)}
+                  aria-label="Remove parameter"
                   className="text-gray-400 hover:text-red-500 p-2 h-auto"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 aria-hidden="true" className="w-4 h-4" />
                 </Button>
               </div>
             );
@@ -480,9 +481,10 @@ export default function EnumNew() {
                       type="button"
                       variant="ghost"
                       onClick={() => remove(index)}
+                  aria-label="Remove option"
                       className="mt-6 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 aria-hidden="true" className="w-4 h-4" />
                     </Button>
                   </div>
                 ))}

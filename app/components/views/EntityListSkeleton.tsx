@@ -7,7 +7,7 @@ interface EntityListSkeletonProps {
 
 export function EntityListSkeleton({ columns, rows }: EntityListSkeletonProps) {
   return (
-    <div className="space-y-8 animate-pulse">
+    <div className="space-y-8 animate-pulse motion-reduce:animate-none">
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <div className="h-8 w-48 bg-gray-200 dark:bg-gray-800 rounded" />
