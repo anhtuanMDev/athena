@@ -98,19 +98,29 @@ describe("navigation", () => {
 
   it("accepts tabs that open existing screens", () => {
     assert.deepEqual(
-      validateNavigationFile(tabs([{ screen: "home", label: "Home" }, { screen: "app:settings", label: "Profile" }]), ["home"]),
+      validateNavigationFile(tabs([{ screen: "home", label: "Home" }, { screen: "app:settings", label: "Profile" }]), { home: "home" }),
       [],
     );
   });
 
   it("rejects missing screens, an app screen first, too many tabs and bad labels", () => {
-    assert.ok(validateNavigationFile(tabs([{ screen: "gone", label: "X" }]), ["home"])[0].includes("doesn't exist"));
+    assert.ok(validateNavigationFile(tabs([{ screen: "gone", label: "X" }]), { home: "home" })[0].includes("doesn't exist"));
+    // Inherited object keys aren't screens.
+    assert.ok(validateNavigationFile(tabs([{ screen: "constructor", label: "X" }]), { home: "home" })[0].includes("doesn't exist"));
     assert.ok(validateNavigationFile(tabs([{ screen: "app:settings", label: "P" }])).some((e) => e.startsWith("The first tab")));
     const six = Array.from({ length: LIMITS.tabs + 1 }, () => ({ screen: "home", label: "H" }));
     assert.ok(validateNavigationFile(tabs(six)).some((e) => e.includes("at most")));
     assert.ok(validateNavigationFile(tabs([{ screen: "home", label: " " }])).some((e) => e.includes("label")));
     assert.ok(validateNavigationFile(tabs([])).some((e) => e.includes("at least one")));
     assert.deepEqual(validateNavigationFile("x"), ["Navigation needs a list of tabs."]);
+  });
+
+  it("rejects detail screens, which need an entry picked from a list", () => {
+    const types = { home: "home", maps: "list", "hero-detail": "detail" };
+    const errors = validateNavigationFile(tabs([{ screen: "home", label: "Home" }, { screen: "hero-detail", label: "Setting" }]), types);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /^Tab 2 opens "hero-detail", a detail screen/);
+    assert.deepEqual(validateNavigationFile(tabs([{ screen: "home", label: "Home" }, { screen: "maps", label: "Maps" }]), types), []);
   });
 });
 
