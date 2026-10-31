@@ -1,4 +1,4 @@
-import React, { forwardRef } from "react";
+import React, { forwardRef, useId } from "react";
 
 interface DynamicSelectFieldProps extends Omit<React.InputHTMLAttributes<HTMLSelectElement | HTMLInputElement>, 'size' | 'value'> {
   name: string;
@@ -18,12 +18,16 @@ export const DynamicSelectField = forwardRef<HTMLInputElement & HTMLSelectElemen
     const actualValue = value !== undefined ? value : currentValue;
     const valArray = Array.isArray(actualValue) ? actualValue : (actualValue ? [actualValue] : []);
     const hasInvalidOldData = valArray.some(v => v && !options.includes(String(v)));
+    const generatedId = useId();
+    const fieldId = (props.id as string | undefined) ?? generatedId;
+    const labelId = `${fieldId}-label`;
+    const helpId = `${fieldId}-help`;
     
     return (
       <div>
-        <label className={`block text-sm font-medium ${error ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}`}>
+        <label id={labelId} htmlFor={multiple ? undefined : fieldId} className={`block text-sm font-medium ${error ? 'text-red-500' : 'text-ink'}`}>
           {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+          {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
         </label>
         {hasInvalidOldData && (
           <p className="text-xs text-orange-500 dark:text-orange-400 mt-1 mb-1">
@@ -31,7 +35,7 @@ export const DynamicSelectField = forwardRef<HTMLInputElement & HTMLSelectElemen
           </p>
         )}
         {multiple ? (
-          <div className="mt-2 space-y-2">
+          <div role="group" aria-labelledby={labelId} className="mt-2 space-y-2">
             {options.map((opt) => (
               <label key={opt} className="inline-flex items-center mr-4">
                 <input
@@ -55,7 +59,7 @@ export const DynamicSelectField = forwardRef<HTMLInputElement & HTMLSelectElemen
                     }
                   }}
                 />
-                <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">{opt}</span>
+                <span className="ml-2 text-sm text-ink">{opt}</span>
               </label>
             ))}
           </div>
@@ -63,9 +67,12 @@ export const DynamicSelectField = forwardRef<HTMLInputElement & HTMLSelectElemen
             <select
             name={name}
             required={required}
-            className={`mt-1 block w-full rounded-md border ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'} bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 dark:bg-gray-800 dark:text-gray-100 ${error ? 'dark:border-red-500' : 'dark:border-gray-600'}`}
+            className={`mt-1 block w-full rounded-md border ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border-strong focus:border-blue-500 focus:ring-blue-500'} bg-surface px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 dark:text-gray-100 ${error ? 'dark:border-red-500' : ''}`}
             ref={ref as React.Ref<HTMLSelectElement>}
             {...(props as React.SelectHTMLAttributes<HTMLSelectElement>)}
+            id={fieldId}
+            aria-invalid={error || undefined}
+            aria-describedby={error && helperText ? helpId : undefined}
             value={actualValue as string | number | readonly string[] | undefined || ""}
           >
             <option value="" disabled>Select an option</option>
@@ -75,7 +82,7 @@ export const DynamicSelectField = forwardRef<HTMLInputElement & HTMLSelectElemen
           </select>
         )}
         {error && helperText && (
-          <p className="mt-1 text-xs text-red-500">{helperText}</p>
+          <p id={helpId} className="mt-1 text-xs text-red-500">{helperText}</p>
         )}
       </div>
     );

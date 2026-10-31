@@ -30,13 +30,13 @@ export default function EditPatch() {
 
   if (result.loading) {
     return (
-      <div className="max-w-lg mx-auto space-y-6 animate-pulse">
-        <div className="h-10 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-        <div className="space-y-4 bg-white/50 dark:bg-gray-900/30 p-6 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
-          <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-          <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-          <div className="h-32 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-          <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded-lg w-32 mt-8"></div>
+      <div className="max-w-lg mx-auto space-y-6 animate-pulse motion-reduce:animate-none">
+        <div className="h-10 w-48 bg-border rounded-lg"></div>
+        <div className="space-y-4 bg-surface p-6 rounded-xl border border-border">
+          <div className="h-12 bg-border rounded-lg"></div>
+          <div className="h-12 bg-border rounded-lg"></div>
+          <div className="h-32 bg-border rounded-lg"></div>
+          <div className="h-10 bg-border rounded-lg w-32 mt-8"></div>
         </div>
       </div>
     );
@@ -149,44 +149,44 @@ export default function EditPatch() {
     <div className="max-w-lg mx-auto">
       <Card>
         <CardHeader>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">Edit Patch: {p.patch}</h1>
+          <h1 className="text-2xl font-bold text-ink capitalize tracking-tight">Edit Patch: {p.patch}</h1>
         </CardHeader>
         <CardContent>
           {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800/50 mb-4">{error}</p>}
           <form onSubmit={handleUpdate} className="space-y-5">
             {/* Top Actions */}
-            <div className="flex justify-between items-center border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+            <div className="flex justify-between items-center border-b border-border pb-4 mb-4">
               <Button type="button" variant="ghost" onClick={() => window.history.back()}>Cancel</Button>
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
+              <Button type="submit" disabled={submitting} className="shadow-lg">
                 {submitting ? "Saving..." : "Save Changes"}
               </Button>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-500 dark:text-gray-400">Patch ID</label>
-              <p className="mt-1 text-sm font-bold text-gray-900 dark:text-gray-100">{p.patch}</p>
+              <label className="block text-sm font-medium text-ink-muted">Patch ID</label>
+              <p className="mt-1 text-sm font-bold text-ink">{p.patch}</p>
             </div>
             <FormField name="date" label="Date" defaultValue={p.date} type="date" error={!!errors?.date} helperText={errors?.date?.[0]} />
             <FormField name="summary" label="Summary" defaultValue={p.summary ?? ""} required={false} error={!!errors?.summary} helperText={errors?.summary?.[0]} />
             <div className="space-y-2 pt-2">
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Changes (JSON array)</label>
-              <textarea
+              <label className="block text-sm font-bold text-ink uppercase tracking-wider">Changes (JSON array)</label>
+              <textarea aria-label="Changes (JSON array)"
                 name="_changes"
                 rows={8}
                 defaultValue={JSON.stringify(p.changes, null, 2)}
-                className="block w-full rounded-xl border border-gray-300/50 bg-white/50 px-4 py-3 text-sm font-mono shadow-inner focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600/50 dark:bg-gray-900/50 dark:text-gray-100 transition-colors"
+                className="block w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm font-mono shadow-inner focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:text-gray-100 transition-colors"
               />
             </div>
             
             <div className="pt-4">
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20 w-full sm:w-auto">
+              <Button type="submit" disabled={submitting} className="shadow-lg w-full sm:w-auto">
                 {submitting ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           </form>
 
-          <form onSubmit={handleDelete} className="mt-8 pt-6 border-t border-gray-200/50 dark:border-gray-800/50">
-            <Button type="submit" variant="destructive" disabled={submitting} className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/20">
+          <form onSubmit={handleDelete} className="mt-8 pt-6 border-t border-border">
+            <Button type="submit" variant="destructive" disabled={submitting} className="w-full sm:w-auto bg-red-600 hover:bg-red-700 shadow-lg">
               Delete Patch
             </Button>
           </form>

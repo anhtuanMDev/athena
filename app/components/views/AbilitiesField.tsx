@@ -40,8 +40,8 @@ export function AbilitiesField({
   });
 
   return (
-    <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
-      <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 tracking-wider uppercase">
+    <div className="pt-6 border-t border-border">
+      <h3 className="text-sm font-bold text-ink mb-4 tracking-wider uppercase">
         {label || "Kit Abilities"}
       </h3>
 
@@ -61,10 +61,10 @@ export function AbilitiesField({
           return (
             <div
               key={field.id}
-              className="p-4 border border-gray-200/50 dark:border-gray-700/50 rounded-xl bg-gray-50/50 dark:bg-gray-800/30"
+              className="p-4 border border-border rounded-xl bg-surface-raised"
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                <span className="text-xs font-bold text-ink-muted uppercase tracking-wider">
                   Ability {i + 1}
                 </span>
                 <button
@@ -139,27 +139,27 @@ export function AbilitiesField({
                   />
 
                   {subFields && subFields.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-200/50 dark:border-gray-700/50">
-                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
+                    <div className="mt-4 pt-4 border-t border-border">
+                      <h4 className="text-xs font-bold text-ink-muted uppercase tracking-wider mb-3">
                         Custom Parameters
                       </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 bg-white/50 dark:bg-black/20 p-3 rounded-lg border border-gray-200/50 dark:border-gray-700/50">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 bg-white/50 dark:bg-black/20 p-3 rounded-lg border border-border">
                         {subFields.map((sf) => {
                           if (sf.type === "boolean") {
                             return (
                               <div
                                 key={sf.key}
-                                className="flex items-center gap-3 h-[40px] px-3 border border-gray-200/50 dark:border-gray-700/50 rounded-lg"
+                                className="flex items-center gap-3 h-[40px] px-3 border border-border rounded-lg"
                               >
                                 <input
                                   type="checkbox"
                                   id={`${name}-${i}-params-${sf.key}`}
-                                  className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-800 cursor-pointer"
+                                  className="w-4 h-4 rounded border-border-strong text-blue-600 focus:ring-blue-500 bg-surface cursor-pointer"
                                   {...register(`${name}.${i}.params.${sf.key}`)}
                                 />
                                 <label
                                   htmlFor={`${name}-${i}-params-${sf.key}`}
-                                  className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none"
+                                  className="text-sm font-medium text-ink cursor-pointer select-none"
                                 >
                                   {sf.label}
                                 </label>

@@ -131,12 +131,12 @@ export default function EditMap() {
 
   if (loading) {
     return (
-      <div className="w-full space-y-6 animate-pulse">
-        <div className="h-10 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-        <div className="space-y-4 bg-white/50 dark:bg-gray-900/30 p-6 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
-          <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-          <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-          <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
+      <div className="w-full space-y-6 animate-pulse motion-reduce:animate-none">
+        <div className="h-10 w-48 bg-border rounded-lg"></div>
+        <div className="space-y-4 bg-surface p-6 rounded-xl border border-border">
+          <div className="h-12 bg-border rounded-lg"></div>
+          <div className="h-12 bg-border rounded-lg"></div>
+          <div className="h-12 bg-border rounded-lg"></div>
         </div>
       </div>
     );
@@ -166,7 +166,7 @@ export default function EditMap() {
     <div className="w-full py-8">
       <Card>
         <CardHeader>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">Edit Map: {m.name}</h1>
+          <h1 className="text-2xl font-bold text-ink capitalize tracking-tight">Edit Map: {m.name}</h1>
         </CardHeader>
         <CardContent>
           {submitError && (
@@ -174,9 +174,9 @@ export default function EditMap() {
           )}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {/* Top Actions */}
-            <div className="flex justify-between items-center border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+            <div className="flex justify-between items-center border-b border-border pb-4 mb-4">
               <Button type="button" variant="ghost" onClick={() => window.history.back()}>Cancel</Button>
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
+              <Button type="submit" disabled={submitting} className="shadow-lg">
                 {submitting ? "Saving..." : "Save Changes"}
               </Button>
             </div>
@@ -231,19 +231,19 @@ export default function EditMap() {
             
             <div className="pt-4 flex items-center justify-between">
               <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/maps`)}>Cancel</Button>
-              <Button type="submit" disabled={submitting || !isValid} className="shadow-lg shadow-orange-500/20 w-full sm:w-auto">
+              <Button type="submit" disabled={submitting || !isValid} className="shadow-lg w-full sm:w-auto">
                 {submitting ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-gray-200/50 dark:border-gray-800/50">
+          <div className="mt-8 pt-6 border-t border-border">
             <Button 
               type="button" 
               onClick={handleDelete}
               variant="destructive" 
               disabled={submitting} 
-              className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/20"
+              className="w-full sm:w-auto bg-red-600 hover:bg-red-700 shadow-lg"
             >
               Delete Map
             </Button>

@@ -44,19 +44,19 @@ export default function EditItem() {
 
   if (itemResult.loading || heroesResult.loading || modesResult.loading) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6 animate-pulse">
-        <div className="h-10 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-        <div className="space-y-4 bg-white/50 dark:bg-gray-900/30 p-6 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
-          <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
+      <div className="max-w-2xl mx-auto space-y-6 animate-pulse motion-reduce:animate-none">
+        <div className="h-10 w-48 bg-border rounded-lg"></div>
+        <div className="space-y-4 bg-surface p-6 rounded-xl border border-border">
+          <div className="h-12 bg-border rounded-lg"></div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-            <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
+            <div className="h-12 bg-border rounded-lg"></div>
+            <div className="h-12 bg-border rounded-lg"></div>
           </div>
-          <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-          <div className="h-32 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
+          <div className="h-12 bg-border rounded-lg"></div>
+          <div className="h-32 bg-border rounded-lg"></div>
           <div className="flex gap-2 mt-8">
-            <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded-lg w-32"></div>
-            <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded-lg w-24"></div>
+            <div className="h-10 bg-border rounded-lg w-32"></div>
+            <div className="h-10 bg-border rounded-lg w-24"></div>
           </div>
         </div>
       </div>
@@ -239,7 +239,7 @@ export default function EditItem() {
     <div className="max-w-2xl mx-auto">
       <Card>
         <CardHeader>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">
+          <h1 className="text-2xl font-bold text-ink capitalize tracking-tight">
             Edit Item: {item.name}
           </h1>
         </CardHeader>
@@ -251,9 +251,9 @@ export default function EditItem() {
           )}
           <form onSubmit={handleUpdate} className="space-y-5">
             {/* Top Actions */}
-            <div className="flex justify-between items-center border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+            <div className="flex justify-between items-center border-b border-border pb-4 mb-4">
               <Button type="button" variant="ghost" onClick={() => window.history.back()}>Cancel</Button>
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
+              <Button type="submit" disabled={submitting} className="shadow-lg">
                 {submitting ? "Saving..." : "Save Changes"}
               </Button>
             </div>
@@ -264,7 +264,7 @@ export default function EditItem() {
               <div>
                 <label
                   htmlFor="hero"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  className="block text-sm font-medium text-ink"
                 >
                   Hero (optional)
                 </label>
@@ -272,7 +272,7 @@ export default function EditItem() {
                   id="hero"
                   name="hero"
                   defaultValue={item.hero ?? ""}
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  className="mt-1 block w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:text-gray-100"
                 >
                   <option value="">- Any -</option>
                   {heroIds.map((h) => (
@@ -285,7 +285,7 @@ export default function EditItem() {
               <div>
                 <label
                   htmlFor="mode"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  className="block text-sm font-medium text-ink"
                 >
                   Mode (optional)
                 </label>
@@ -293,7 +293,7 @@ export default function EditItem() {
                   id="mode"
                   name="mode"
                   defaultValue={item.mode ?? ""}
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  className="mt-1 block w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:text-gray-100"
                 >
                   <option value="">- Any -</option>
                   {modeIds.map((m) => (
@@ -313,16 +313,16 @@ export default function EditItem() {
             />
 
             <div className="space-y-2 pt-2">
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+              <label className="block text-sm font-bold text-ink uppercase tracking-wider">
                 Effects (JSON array)
               </label>
-              <textarea
+              <textarea aria-label="Effects (JSON array)"
                 name="effects_raw"
                 rows={8}
                 defaultValue={JSON.stringify(item.effects, null, 2)}
-                className="block w-full rounded-xl border border-gray-300/50 bg-white/50 px-4 py-3 text-sm font-mono shadow-inner focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600/50 dark:bg-gray-900/50 dark:text-gray-100 transition-colors"
+                className="block w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm font-mono shadow-inner focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:text-gray-100 transition-colors"
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-ink-muted">
                 Each effect can override name, type, description, and params for
                 an ability. <strong className="text-orange-600 dark:text-orange-400">Please fill in the ability_id or delete the template object.</strong>
               </p>
@@ -332,7 +332,7 @@ export default function EditItem() {
               <Button
                 type="submit"
                 disabled={submitting}
-                className="shadow-lg shadow-orange-500/20 w-1/2 sm:w-auto"
+                className="shadow-lg w-1/2 sm:w-auto"
               >
                 {submitting ? "Saving..." : "Save Changes"}
               </Button>
@@ -340,7 +340,7 @@ export default function EditItem() {
                 type="button"
                 variant="secondary"
                 onClick={() => navigate(`/${game}/items`)}
-                className="w-1/2 sm:w-auto bg-gray-100 dark:bg-gray-800"
+                className="w-1/2 sm:w-auto bg-surface-raised"
               >
                 Cancel
               </Button>
@@ -349,13 +349,13 @@ export default function EditItem() {
 
           <form
             onSubmit={handleDelete}
-            className="mt-8 pt-6 border-t border-gray-200/50 dark:border-gray-800/50"
+            className="mt-8 pt-6 border-t border-border"
           >
             <Button
               type="submit"
               variant="destructive"
               disabled={submitting}
-              className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/20"
+              className="w-full sm:w-auto bg-red-600 hover:bg-red-700 shadow-lg"
             >
               Delete Item
             </Button>

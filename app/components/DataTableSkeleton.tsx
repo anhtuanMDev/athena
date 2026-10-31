@@ -1,7 +1,7 @@
 export function DataTableSkeleton({ columns = 4, rows = 5 }: { columns?: number, rows?: number }) {
   return (
-    <div className="overflow-x-auto rounded-md border border-gray-200/50 dark:border-gray-800/50 bg-white/30 dark:bg-gray-900/30 backdrop-blur-sm animate-pulse">
-      <table className="min-w-full divide-y divide-gray-200/50 dark:divide-gray-800/50">
+    <div className="overflow-x-auto rounded-md border border-border bg-surface backdrop-blur-sm animate-pulse motion-reduce:animate-none">
+      <table className="min-w-full divide-y divide-border">
         <thead className="bg-gray-50/50 dark:bg-gray-800/50">
           <tr>
             {Array.from({ length: columns }).map((_, i) => (
@@ -11,7 +11,7 @@ export function DataTableSkeleton({ columns = 4, rows = 5 }: { columns?: number,
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200/50 dark:divide-gray-800/50">
+        <tbody className="divide-y divide-border">
           {Array.from({ length: rows }).map((_, rowIndex) => (
             <tr key={rowIndex}>
               {Array.from({ length: columns }).map((_, colIndex) => (

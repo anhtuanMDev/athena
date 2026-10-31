@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router";
 import { useState } from "react";
-import { Button } from "~/components/ui/button";
+import { ButtonLink } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { listDirectory } from "~/lib/github";
 import { useData } from "~/lib/use-data";
@@ -49,18 +49,18 @@ export default function SchemasList() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
-          <div className="h-10 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+          <div className="h-8 w-48 bg-border rounded animate-pulse motion-reduce:animate-none" />
+          <div className="h-10 w-32 bg-border rounded animate-pulse motion-reduce:animate-none" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
+            <Card key={i} className="animate-pulse motion-reduce:animate-none">
               <CardHeader>
-                <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded" />
+                <div className="h-6 w-32 bg-border rounded" />
               </CardHeader>
               <CardContent>
-                <div className="h-4 w-24 bg-gray-200 dark:bg-gray-800 rounded mb-2" />
-                <div className="h-4 w-48 bg-gray-200 dark:bg-gray-800 rounded" />
+                <div className="h-4 w-24 bg-border rounded mb-2" />
+                <div className="h-4 w-48 bg-border rounded" />
               </CardContent>
             </Card>
           ))}
@@ -79,12 +79,10 @@ export default function SchemasList() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize">
+        <h1 className="text-2xl font-bold text-ink capitalize">
           Schemas - {game}
         </h1>
-        <Link to={`/${game}/schemas/new`}>
-          <Button>Create Schema</Button>
-        </Link>
+        <ButtonLink to={`/${game}/schemas/new`}>Create Schema</ButtonLink>
       </div>
 
       {!data || data.length === 0 ? (
@@ -92,12 +90,10 @@ export default function SchemasList() {
           title="No Schemas Found"
           description="Create your first schema to define data structures for heroes, modes, or patches."
           action={
-            <Link to={`/${game}/schemas/new`}>
-              <Button className="shadow-lg shadow-orange-500/20">
-                <Plus className="w-4 h-4 mr-2" />
+            <ButtonLink to={`/${game}/schemas/new`}>
+                <Plus aria-hidden="true" className="w-4 h-4" />
                 Create Schema
-              </Button>
-            </Link>
+              </ButtonLink>
           }
         />
       ) : (
@@ -106,7 +102,7 @@ export default function SchemasList() {
             <Card key={schema.id}>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  <h2 className="text-lg font-semibold text-ink">
                     {schema.name}
                   </h2>
                   <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
@@ -115,13 +111,13 @@ export default function SchemasList() {
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-gray-500 mb-4">
+                <p className="text-sm text-ink-muted mb-4">
                   ID:{" "}
-                  <code className="text-gray-700 dark:text-gray-300">
+                  <code className="text-ink">
                     {schema.id}
                   </code>
                 </p>
-                <p className="text-sm text-gray-500 mb-4">
+                <p className="text-sm text-ink-muted mb-4">
                   {schema.fields?.length || 0} fields configured
                 </p>
                 <div className="flex items-center gap-3">
@@ -147,11 +143,11 @@ export default function SchemasList() {
                     Delete
                   </Link>
                 </div>
-                <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <div className="flex gap-2 mt-3 pt-3 border-t border-border">
                   <button
                     type="button"
                     onClick={() => exportCopy(schema)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                   >
                     {copiedId === schema.id
                       ? <Check className="w-3.5 h-3.5" />
@@ -161,7 +157,7 @@ export default function SchemasList() {
                   <button
                     type="button"
                     onClick={() => exportDownload(schema)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Download .json

@@ -135,10 +135,10 @@ export default function CronJobEdit() {
 
   if (loading) {
     return (
-      <div className="w-full py-8 space-y-6 animate-pulse">
-        <div className="h-10 w-64 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-        <div className="h-32 bg-gray-200 dark:bg-gray-800 rounded-xl"></div>
-        <div className="h-64 bg-gray-200 dark:bg-gray-800 rounded-xl"></div>
+      <div className="w-full py-8 space-y-6 animate-pulse motion-reduce:animate-none">
+        <div className="h-10 w-64 bg-border rounded-lg"></div>
+        <div className="h-32 bg-border rounded-xl"></div>
+        <div className="h-64 bg-border rounded-xl"></div>
       </div>
     );
   }
@@ -158,9 +158,9 @@ export default function CronJobEdit() {
     <div className="w-full py-8 pb-32">
       <form onSubmit={handleCommit} className="space-y-8">
             {/* Top Actions */}
-            <div className="flex justify-between items-center border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+            <div className="flex justify-between items-center border-b border-border pb-4 mb-4">
               <Button type="button" variant="ghost" onClick={() => window.history.back()}>Cancel</Button>
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
+              <Button type="submit" disabled={submitting} className="shadow-lg">
                 {submitting ? "Saving..." : "Save Cron Job"}
               </Button>
             </div>
@@ -172,11 +172,11 @@ export default function CronJobEdit() {
             <button 
               type="button"
               onClick={() => navigate(`/${game}/cron`)}
-              className="flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors mb-2"
+              className="flex items-center text-sm font-medium text-ink-muted hover:text-ink transition-colors mb-2"
             >
               <ArrowLeft className="w-4 h-4 mr-1" /> Back to Cron Jobs
             </button>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-ink tracking-tight flex items-center gap-3">
               <Clock className="w-8 h-8 text-orange-500" />
               Edit Cron Job: {loaderData.cron.name}
             </h1>
@@ -186,7 +186,7 @@ export default function CronJobEdit() {
             <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/cron`)}>
               Discard Changes
             </Button>
-            <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20 px-8">
+            <Button type="submit" disabled={submitting} className="shadow-lg px-8">
               {submitting ? "Saving..." : "Save Cron Job"}
             </Button>
           </div>
@@ -199,8 +199,8 @@ export default function CronJobEdit() {
         )}
 
         {loaderData.sync && (
-          <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 p-4 rounded-xl flex flex-col gap-2">
-            <h3 className="font-bold text-gray-900 dark:text-white text-sm">Latest Worker Sync Status</h3>
+          <div className="bg-surface-raised border border-border p-4 rounded-xl flex flex-col gap-2">
+            <h3 className="font-bold text-ink text-sm">Latest Worker Sync Status</h3>
             {loaderData.sync.last_sync && (
               <p className="text-sm text-green-700 dark:text-green-400">
                 <strong>Successful Sync:</strong> {new Date(loaderData.sync.last_sync).toLocaleString()}
@@ -224,29 +224,29 @@ export default function CronJobEdit() {
           <CardContent className="p-6 md:p-8 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                <label className="block text-sm font-bold text-ink mb-2">
                   Target Schema
                 </label>
-                <select 
+                <select aria-label="Target Schema" 
                   value={schemaId} 
                   onChange={(e) => setSchemaId(e.target.value)}
-                  className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                  className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                   required
                 >
-                  <option value="" disabled>Select a schema...</option>
+                  <option value="" disabled>Select a schema…</option>
                   {loaderData.schemas.map(s => (
                     <option key={s.id} value={s.id}>{s.name} ({s.category})</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                <label className="block text-sm font-bold text-ink mb-2">
                   Schedule
                 </label>
-                <select 
+                <select aria-label="Schedule" 
                   value={schedule} 
                   onChange={(e) => setSchedule(e.target.value)}
-                  className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                  className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                 >
                   <option value="manual">Manual Trigger Only</option>
                   <option value="hourly">Hourly</option>
@@ -258,14 +258,14 @@ export default function CronJobEdit() {
 
             <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
               <div>
-                <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                <label className="block text-sm font-bold text-ink mb-2">
                   API Endpoint URL
                 </label>
-                <input 
+                <input aria-label="API Endpoint URL" 
                   value={apiEndpoint} 
                   onChange={(e) => setApiEndpoint(e.target.value)}
                   placeholder="https://api.example.com/data" 
-                  className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors" 
+                  className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors" 
                   type="url"
                   required
                 />
@@ -278,9 +278,9 @@ export default function CronJobEdit() {
                 id="active"
                 checked={active}
                 onChange={(e) => setActive(e.target.checked)}
-                className="w-5 h-5 rounded border-gray-300 dark:border-gray-700 text-orange-600 focus:ring-orange-500"
+                className="w-5 h-5 rounded border-border-strong text-orange-600 focus:ring-orange-500"
               />
-              <label htmlFor="active" className="text-sm font-bold text-gray-900 dark:text-gray-100 cursor-pointer">
+              <label htmlFor="active" className="text-sm font-bold text-ink cursor-pointer">
                 Job is Active
               </label>
             </div>
@@ -290,26 +290,26 @@ export default function CronJobEdit() {
         {/* Schema Field Mappings Section */}
         {selectedSchema && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">API Data Mapping</h2>
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <h2 className="text-xl font-bold text-ink tracking-tight">API Data Mapping</h2>
             </div>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-ink-muted">
               Define the JSON path from the API response that maps to each field in the <strong>{selectedSchema.name}</strong> schema.
             </p>
 
             <div className="space-y-4">
               {selectedSchema.fields.map((field) => (
-                <div key={field.key} className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                <div key={field.key} className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-surface rounded-xl border border-border shadow-sm">
                   <div className="flex flex-col justify-center">
-                    <span className="font-bold text-gray-900 dark:text-gray-100">{field.label}</span>
-                    <span className="text-xs text-gray-500 font-mono mt-1">{field.key} ({field.type})</span>
+                    <span className="font-bold text-ink">{field.label}</span>
+                    <span className="text-xs text-ink-muted font-mono mt-1">{field.key} ({field.type})</span>
                   </div>
                   <div>
-                    <input 
+                    <input aria-label={`Source path for ${field.label}`} 
                       value={fieldMappings[field.key] || ""} 
                       onChange={(e) => handleMappingChange(field.key, e.target.value)}
                       placeholder={`e.g. data.attributes.${field.key}`} 
-                      className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors" 
+                      className="block w-full rounded-lg border-border-strong bg-surface-raised px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors" 
                     />
                   </div>
                 </div>

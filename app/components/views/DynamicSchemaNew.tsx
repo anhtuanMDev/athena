@@ -501,11 +501,11 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
             <button
               type="button"
               onClick={() => navigate(`/${game}/schemas`)}
-              className="flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors mb-2"
+              className="flex items-center text-sm font-medium text-ink-muted hover:text-ink transition-colors mb-2"
             >
               <ArrowLeft className="w-4 h-4 mr-1" /> Back to Schemas
             </button>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-ink tracking-tight flex items-center gap-3">
               <Settings2 className="w-8 h-8 text-orange-500" />
               New Schema - <span className="capitalize">{game}</span>
             </h1>
@@ -522,7 +522,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
             <Button
               type="submit"
               disabled={submitting}
-              className="shadow-lg shadow-orange-500/20 px-8"
+              className="shadow-lg px-8"
             >
               {submitting ? "Creating..." : "Create Schema"}
             </Button>
@@ -530,8 +530,8 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
         </div>
 
         {/* Schema Tools */}
-        <div className="flex flex-wrap gap-2 items-center p-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-xl">
-          <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider pr-2 border-r border-gray-200 dark:border-gray-700 mr-1">
+        <div className="flex flex-wrap gap-2 items-center p-3 bg-surface-raised border border-border rounded-xl">
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted uppercase tracking-wider pr-2 border-r border-border mr-1">
             <Sparkles className="w-3.5 h-3.5" /> AI
           </span>
           <Button
@@ -552,7 +552,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
           >
             <Download className="w-4 h-4 mr-1.5" /> Import AI Schema
           </Button>
-          <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-2 border-l border-gray-200 dark:border-gray-700 ml-1">
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted uppercase tracking-wider px-2 border-l border-border ml-1">
             <FileJson className="w-3.5 h-3.5" /> Export
           </span>
           <Button
@@ -601,25 +601,25 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
           <CardContent className="p-6 md:p-8 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                <label className="block text-sm font-bold text-ink mb-2">
                   Schema Name
                 </label>
-                <input
+                <input aria-label="Schema Name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Base Hero Attributes"
-                  className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                  className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                <label className="block text-sm font-bold text-ink mb-2">
                   Category
                 </label>
-                <select
+                <select aria-label="Category"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                  className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                 >
                   <option value="hero">Hero</option>
                   <option value="map">Map</option>
@@ -637,22 +637,22 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
         {/* Conditionally Render Fields or Cron Config */}
         {category === "cron_job" ? (
           <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <h2 className="text-xl font-bold text-ink tracking-tight">
                 Cron Job Configuration
               </h2>
             </div>
             <Card className="border-orange-500/20 shadow-sm">
               <CardContent className="p-6 md:p-8 space-y-6">
                 <div>
-                  <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                  <label className="block text-sm font-bold text-ink mb-2">
                     API Response Definition
                   </label>
-                  <p className="text-xs text-gray-500 mb-2">
+                  <p className="text-xs text-ink-muted mb-2">
                     Define how the API responds (e.g. JSON structure, expected
                     fields).
                   </p>
-                  <textarea
+                  <textarea aria-label="API Response Definition"
                     value={cronConfig.apiResponseDefinition}
                     onChange={(e) =>
                       setCronConfig({
@@ -661,18 +661,18 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                       })
                     }
                     rows={4}
-                    className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                    className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                  <label className="block text-sm font-bold text-ink mb-2">
                     API Params / Payload
                   </label>
-                  <p className="text-xs text-gray-500 mb-2">
+                  <p className="text-xs text-ink-muted mb-2">
                     Define parameters or payload (enum, current/custom time,
                     required params, or call another API with params).
                   </p>
-                  <textarea
+                  <textarea aria-label="API Params / Payload"
                     value={cronConfig.apiPayloadDefinition}
                     onChange={(e) =>
                       setCronConfig({
@@ -681,18 +681,18 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                       })
                     }
                     rows={4}
-                    className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                    className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                  <label className="block text-sm font-bold text-ink mb-2">
                     Data Handling
                   </label>
-                  <p className="text-xs text-gray-500 mb-2">
+                  <p className="text-xs text-ink-muted mb-2">
                     How we handle the API response (convert, add, extract,
                     filter, mapping).
                   </p>
-                  <textarea
+                  <textarea aria-label="Data Handling"
                     value={cronConfig.dataHandling}
                     onChange={(e) =>
                       setCronConfig({
@@ -701,18 +701,18 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                       })
                     }
                     rows={4}
-                    className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                    className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                  <label className="block text-sm font-bold text-ink mb-2">
                     Final Result Destination
                   </label>
-                  <p className="text-xs text-gray-500 mb-2">
+                  <p className="text-xs text-ink-muted mb-2">
                     Select other schema to know the structure to insert new data
                     or calling another cron job.
                   </p>
-                  <textarea
+                  <textarea aria-label="Final Result Destination"
                     value={cronConfig.finalResultDestination}
                     onChange={(e) =>
                       setCronConfig({
@@ -721,7 +721,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                       })
                     }
                     rows={4}
-                    className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                    className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                   />
                 </div>
               </CardContent>
@@ -729,17 +729,17 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
           </div>
         ) : (
           <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <h2 className="text-xl font-bold text-ink tracking-tight">
                 Fields Configuration
               </h2>
               <div className="flex gap-2">
                 {loadedData?.schemas && loadedData.schemas.length > 0 && (
                   <div className="flex items-center gap-2 mr-4">
-                    <select
+                    <select aria-label="Import fields from schema"
                       value={importSchemaId}
                       onChange={(e) => setImportSchemaId(e.target.value)}
-                      className="block w-48 rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                      className="block w-48 rounded-lg border-border-strong bg-surface px-3 py-1.5 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                     >
                       <option value="">Import Schema</option>
                       {loadedData.schemas
@@ -765,7 +765,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                   type="button"
                   onClick={handleAddField}
                   size="small"
-                  className="bg-gray-900 hover:bg-gray-800 text-white dark:bg-white dark:hover:bg-gray-200 dark:text-gray-900 shadow-sm flex items-center gap-2"
+                  className="bg-gray-900 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-200 dark:text-gray-900 shadow-sm flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4" /> Add New Field
                 </Button>
@@ -773,11 +773,11 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
             </div>
 
             {fields.length === 0 ? (
-              <div className="text-center py-16 text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl bg-gray-50/50 dark:bg-gray-900/20">
-                <div className="mx-auto w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-                  <Settings2 className="w-8 h-8 text-gray-400" />
+              <div className="text-center py-16 text-ink-muted border-2 border-dashed border-border rounded-2xl bg-surface-raised">
+                <div className="mx-auto w-16 h-16 bg-surface-raised rounded-full flex items-center justify-center mb-4">
+                  <Settings2 className="w-8 h-8 text-ink-muted" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">
+                <h3 className="text-lg font-medium text-ink mb-1">
                   No fields defined
                 </h3>
                 <p className="mb-6">
@@ -797,34 +797,34 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                 {fields.map((field, index) => (
                   <div
                     key={index}
-                    className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start p-6 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm relative group hover:border-blue-400/40 hover:shadow-[0_0_15px_rgba(74,158,255,0.15)] transition-all"
+                    className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start p-6 bg-surface rounded-2xl border border-border shadow-sm relative group hover:border-blue-400/40 hover:shadow-[0_0_15px_rgba(74,158,255,0.15)] transition-colors"
                   >
                     {/* Left Column: Identifiers */}
                     <div className="lg:col-span-4 space-y-4">
                       <div>
-                        <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">
                           Display Label
                         </label>
-                        <input
+                        <input aria-label="Display Label"
                           value={field.label}
                           onChange={(e) =>
                             handleChangeField(index, "label", e.target.value)
                           }
                           placeholder="e.g. Max Health"
-                          className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                          className="block w-full rounded-lg border-border-strong bg-surface-raised px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">
                           Field Key (Internal)
                         </label>
-                        <input
+                        <input aria-label="Field Key (Internal)"
                           value={field.key}
                           onChange={(e) =>
                             handleChangeField(index, "key", e.target.value)
                           }
                           placeholder="e.g. max_health"
-                          className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                          className="block w-full rounded-lg border-border-strong bg-surface-raised px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                         />
                       </div>
                     </div>
@@ -832,37 +832,37 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                     {/* Middle Column: Type & Unit */}
                     <div className="lg:col-span-3 space-y-4">
                       <div>
-                        <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">
                           Data Type
                         </label>
                         <div className="relative">
                           {field.type === "string" && (
-                            <Type className="w-4 h-4 text-gray-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <Type className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                           )}
                           {field.type === "number" && (
-                            <Hash className="w-4 h-4 text-gray-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <Hash className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                           )}
                           {field.type === "boolean" && (
-                            <ToggleLeft className="w-4 h-4 text-gray-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <ToggleLeft className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                           )}
                           {field.type === "list" && (
-                            <List className="w-4 h-4 text-gray-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <List className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                           )}
                           {field.type === "enum" && (
-                            <ListOrdered className="w-4 h-4 text-gray-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <ListOrdered className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                           )}
                           {field.type === "abilities" && (
-                            <Box className="w-4 h-4 text-gray-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <Box className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                           )}
                           {field.type === "weapon" && (
-                            <Box className="w-4 h-4 text-gray-400 dark:text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <Box className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                           )}
-                          <select
+                          <select aria-label="Field type"
                             value={field.type}
                             onChange={(e) =>
                               handleChangeField(index, "type", e.target.value)
                             }
-                            className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 pl-9 pr-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors appearance-none"
+                            className="block w-full rounded-lg border-border-strong bg-surface-raised pl-9 pr-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors appearance-none"
                           >
                             <option value="string">Text (String)</option>
                             <option value="number">Number</option>
@@ -884,16 +884,16 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                        <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">
                           Unit / Suffix (Optional)
                         </label>
-                        <input
+                        <input aria-label="Unit / Suffix (Optional)"
                           value={field.unit || ""}
                           onChange={(e) =>
                             handleChangeField(index, "unit", e.target.value)
                           }
                           placeholder="e.g. %, HP, m/s"
-                          className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                          className="block w-full rounded-lg border-border-strong bg-surface-raised px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                         />
                       </div>
                     </div>
@@ -907,10 +907,10 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                         <div className="flex-1">
                           {(field.type === "enum" || field.type === "list") && (
                             <div className="mb-3">
-                              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                              <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">
                                 Global Enum Reference (Optional)
                               </label>
-                              <select
+                              <select aria-label="Global Enum Reference (Optional)"
                                 value={field.globalEnumId || ""}
                                 onChange={(e) => {
                                   handleChangeField(
@@ -925,7 +925,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                       undefined,
                                     );
                                 }}
-                                className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                                className="block w-full rounded-lg border-border-strong bg-surface px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                               >
                                 <option value="">
                                   -- No Global Enum (Use Custom Options) --
@@ -942,13 +942,13 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                           {((field.type !== "enum" && field.type !== "list") ||
                             !field.globalEnumId) && (
                             <>
-                              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                              <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">
                                 {field.type === "abilities" ||
                                 field.type === "weapon"
                                   ? `${field.type === "weapon" ? "Weapon" : "Ability"} Types (Optional, one per line)`
                                   : "Custom Options (One per line)"}
                               </label>
-                              <textarea
+                              <textarea aria-label="Options (one per line)"
                                 value={field.options?.join("\n") || ""}
                                 onChange={(e) =>
                                   handleChangeField(
@@ -965,7 +965,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                       : "Tank\nDamage\nSupport"
                                 }
                                 rows={4}
-                                className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white resize-none transition-colors"
+                                className="block w-full rounded-lg border-border-strong bg-surface-raised px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white resize-none transition-colors"
                               />
                             </>
                           )}
@@ -974,11 +974,11 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                         field.type === "reference_list" ? (
                         <div className="flex-1 space-y-3">
                           <div>
-                            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                            <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">
                               API Endpoint
                             </label>
                             <div className="flex gap-2">
-                              <select
+                              <select aria-label="API Endpoint"
                                 value={field.referenceApiEndpoint || ""}
                                 onChange={(e) =>
                                   handleChangeField(
@@ -987,7 +987,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                     e.target.value,
                                   )
                                 }
-                                className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                                className="block w-full rounded-lg border-border-strong bg-surface-raised px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                               >
                                 <option value="" disabled>
                                   Select API Endpoint
@@ -1008,10 +1008,10 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                           </div>
                           <div className="flex gap-2">
                             <div className="flex-1">
-                              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                              <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">
                                 Value Key
                               </label>
-                              <input
+                              <input aria-label="Value Key"
                                 list={`value-keys-${index}`}
                                 value={field.referenceValueKey || ""}
                                 onChange={(e) =>
@@ -1022,14 +1022,14 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                   )
                                 }
                                 placeholder="id"
-                                className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                                className="block w-full rounded-lg border-border-strong bg-surface-raised px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                               />
                             </div>
                             <div className="flex-1">
-                              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                              <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">
                                 Label Template
                               </label>
-                              <input
+                              <input aria-label="Label Template"
                                 list={`label-keys-${index}`}
                                 value={field.referenceLabelKey || ""}
                                 onChange={(e) =>
@@ -1040,18 +1040,18 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                   )
                                 }
                                 placeholder="name"
-                                className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                                className="block w-full rounded-lg border-border-strong bg-surface-raised px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                               />
                             </div>
                           </div>
                         </div>
                       ) : field.type === "object_array" ? (
-                        <div className="flex-1 flex flex-col items-center justify-center p-4 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl text-gray-500 dark:text-gray-400 text-xs text-center bg-gray-50/50 dark:bg-gray-900/30">
+                        <div className="flex-1 flex flex-col items-center justify-center p-4 border border-dashed border-border rounded-xl text-ink-muted text-xs text-center bg-surface-raised">
                           {(field.subFields || []).length} custom sub-fields
                           configured
                         </div>
                       ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center p-4 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl text-gray-400 dark:text-gray-500 text-xs text-center bg-gray-50/50 dark:bg-gray-900/30">
+                        <div className="flex-1 flex flex-col items-center justify-center p-4 border border-dashed border-border rounded-xl text-ink-muted text-xs text-center bg-surface-raised">
                           No additional configuration needed for this data type.
                         </div>
                       )}
@@ -1059,7 +1059,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
 
                     {/* Actions Column */}
                     <div className="lg:col-span-1 flex flex-row lg:flex-col items-center justify-start h-full pt-2 lg:pt-0 mt-4 lg:mt-0 pl-0 lg:pl-4">
-                      <div className="flex flex-row lg:flex-col items-center gap-3 p-2 bg-gray-50 dark:bg-gray-800/30 rounded-xl border border-gray-200 dark:border-gray-800/60 shadow-sm mt-7">
+                      <div className="flex flex-row lg:flex-col items-center gap-3 p-2 bg-surface-raised rounded-xl border border-gray-200 dark:border-gray-800/60 shadow-sm mt-7">
                         <label
                           className="flex flex-col items-center gap-1.5 cursor-pointer group/req"
                           title="Required Field"
@@ -1074,9 +1074,9 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                 e.target.checked,
                               )
                             }
-                            className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            className="w-4 h-4 rounded border-border-strong bg-white dark:bg-gray-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
                           />
-                          <span className="text-[9px] font-bold text-gray-400 group-hover/req:text-gray-600 dark:group-hover/req:text-gray-300 uppercase transition-colors">
+                          <span className="text-xs font-bold text-ink-muted group-hover/req:text-gray-600 dark:group-hover/req:text-gray-300 uppercase transition-colors">
                             Req
                           </span>
                         </label>
@@ -1086,7 +1086,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                         <button
                           type="button"
                           onClick={() => handleRemoveField(index)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                          className="p-1.5 text-ink-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                           title="Delete field"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1097,65 +1097,65 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                     {/* BOTTOM ROW for ABILITIES or OBJECT ARRAY */}
                     {(field.type === "abilities" ||
                       field.type === "object_array") && (
-                      <div className="col-span-1 lg:col-span-12 border-t border-gray-200 dark:border-gray-800 pt-6 mt-2">
-                        <div className="flex flex-col p-5 border border-gray-200 dark:border-gray-800 rounded-xl bg-gray-50/50 dark:bg-gray-800/20 text-left">
+                      <div className="col-span-1 lg:col-span-12 border-t border-border pt-6 mt-2">
+                        <div className="flex flex-col p-5 border border-border rounded-xl bg-gray-50/50 dark:bg-gray-800/20 text-left">
                           {/* Abilities Standard Definition (Parent) */}
                           {field.type === "abilities" && (
                             <div className="mb-5">
-                              <strong className="font-bold flex items-center gap-2 mb-2 text-gray-900 dark:text-gray-100 text-sm">
-                                <Box className="w-4 h-4 text-gray-400" />{" "}
+                              <strong className="font-bold flex items-center gap-2 mb-2 text-ink text-sm">
+                                <Box className="w-4 h-4 text-ink-muted" />{" "}
                                 Complex Field Template
                               </strong>
-                              <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                              <p className="mb-3 text-xs text-ink-muted">
                                 Automatically embeds a managed Abilities list
                                 containing standard properties:
                               </p>
                               <ul className="list-disc pl-5 space-y-1.5 text-xs">
                                 <li>
-                                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                                  <span className="font-medium text-ink">
                                     Icon Upload
                                   </span>{" "}
-                                  <span className="text-gray-400 dark:text-gray-500">
+                                  <span className="text-ink-muted">
                                     (Multi-image capabilities)
                                   </span>
                                 </li>
                                 <li>
-                                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                                  <span className="font-medium text-ink">
                                     ID
                                   </span>{" "}
-                                  <span className="text-gray-400 dark:text-gray-500">
+                                  <span className="text-ink-muted">
                                     (Internal key generation)
                                   </span>
                                 </li>
                                 <li>
-                                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                                  <span className="font-medium text-ink">
                                     Name
                                   </span>{" "}
-                                  <span className="text-gray-400 dark:text-gray-500">
+                                  <span className="text-ink-muted">
                                     (Display label)
                                   </span>
                                 </li>
                                 <li>
-                                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                                  <span className="font-medium text-ink">
                                     Type
                                   </span>{" "}
-                                  <span className="text-gray-400 dark:text-gray-500">
+                                  <span className="text-ink-muted">
                                     (Classification)
                                   </span>
                                 </li>
                                 <li>
-                                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                                  <span className="font-medium text-ink">
                                     Description
                                   </span>{" "}
-                                  <span className="text-gray-400 dark:text-gray-500">
+                                  <span className="text-ink-muted">
                                     (Optional markdown)
                                   </span>
                                 </li>
                                 <li>
-                                  <span className="font-medium text-gray-800 dark:text-gray-200">
+                                  <span className="font-medium text-ink">
                                     Params
                                   </span>{" "}
-                                  <span className="text-gray-400 dark:text-gray-500">
+                                  <span className="text-ink-muted">
                                     (Dynamic key-value parameters defined below)
                                   </span>
                                 </li>
@@ -1167,18 +1167,18 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                           <div
                             className={
                               field.type === "abilities"
-                                ? "ml-0 md:ml-4 bg-white dark:bg-gray-900/60 p-5 rounded-xl border border-gray-200 dark:border-gray-700/60 shadow-sm border-l-2 border-l-blue-500/50"
+                                ? "ml-0 md:ml-4 bg-surface-raised p-5 rounded-xl border border-border"
                                 : "bg-white dark:bg-gray-900/60 p-5 rounded-xl border border-gray-200 dark:border-gray-700/60 shadow-sm"
                             }
                           >
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
                               <div>
-                                <span className="block font-bold text-sm text-gray-900 dark:text-gray-100">
+                                <span className="block font-bold text-sm text-ink">
                                   {field.type === "abilities"
                                     ? "Custom Params Sub-Fields"
                                     : "Nested Group Sub-Fields"}
                                 </span>
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                <span className="text-xs text-ink-muted">
                                   {field.type === "abilities"
                                     ? "Configure explicit parameters appended to each ability (e.g., Cooldown, Damage)"
                                     : "Define the explicit fields that each object in this list will contain."}
@@ -1187,7 +1187,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                               <button
                                 type="button"
                                 onClick={() => handleAddSubField(index)}
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white rounded-full font-medium flex items-center gap-1.5 transition-colors text-sm whitespace-nowrap shadow-sm"
+                                className="px-4 py-2 bg-surface-raised hover:bg-border text-ink border border-border-strong rounded-lg font-medium flex items-center gap-1.5 transition-colors whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus text-sm"
                               >
                                 <Plus className="w-4 h-4" /> Add Sub-Field
                               </button>
@@ -1198,11 +1198,11 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                 {field.subFields!.map((subField, sIndex) => (
                                   <div
                                     key={sIndex}
-                                    className="flex flex-col gap-3 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm transition-colors hover:border-gray-300 dark:hover:border-gray-600"
+                                    className="flex flex-col gap-3 bg-surface-raised p-3 rounded-lg border border-border shadow-sm transition-colors hover:border-border-strong"
                                   >
                                     <div className="flex flex-col sm:flex-row gap-3 items-center w-full">
-                                      <input
-                                        className="w-full sm:w-1/3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
+                                      <input aria-label="Label"
+                                        className="w-full sm:w-1/3 rounded-md border border-border-strong bg-surface px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
                                         placeholder="Label"
                                         value={subField.label}
                                         onChange={(e) =>
@@ -1214,8 +1214,8 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                           )
                                         }
                                       />
-                                      <input
-                                        className="w-full sm:w-1/3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-mono focus:ring-1 focus:ring-blue-500 transition-colors"
+                                      <input aria-label="Key"
+                                        className="w-full sm:w-1/3 rounded-md border border-border-strong bg-surface px-3 py-2 text-sm font-mono focus:ring-1 focus:ring-blue-500 transition-colors"
                                         placeholder="key_internal"
                                         value={subField.key}
                                         onChange={(e) =>
@@ -1227,8 +1227,8 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                           )
                                         }
                                       />
-                                      <select
-                                        className="w-full sm:w-1/4 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
+                                      <select aria-label="Type"
+                                        className="w-full sm:w-1/4 rounded-md border border-border-strong bg-surface px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
                                         value={subField.type}
                                         onChange={(e) =>
                                           handleChangeSubField(
@@ -1254,7 +1254,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                         onClick={() =>
                                           handleRemoveSubField(index, sIndex)
                                         }
-                                        className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ml-auto"
+                                        className="text-ink-muted hover:text-red-500 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ml-auto"
                                         title="Remove sub-field"
                                       >
                                         <Trash2 className="w-4 h-4" />
@@ -1265,10 +1265,10 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                       subField.type === "list") && (
                                       <div className="w-full mt-1 space-y-3">
                                         <div>
-                                          <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                                          <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">
                                             Global Enum Reference (Optional)
                                           </label>
-                                          <select
+                                          <select aria-label="Global Enum Reference (Optional)"
                                             value={subField.globalEnumId || ""}
                                             onChange={(e) => {
                                               handleChangeSubField(
@@ -1285,7 +1285,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                                   undefined,
                                                 );
                                             }}
-                                            className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
+                                            className="block w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors"
                                           >
                                             <option value="">
                                               -- No Global Enum (Use Custom
@@ -1302,10 +1302,10 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                         </div>
                                         {!subField.globalEnumId && (
                                           <div>
-                                            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                                            <label className="block text-xs font-bold text-ink-muted mb-1.5 uppercase tracking-wider">
                                               Custom Options (One per line)
                                             </label>
-                                            <textarea
+                                            <textarea aria-label="Custom Options (One per line)"
                                               value={
                                                 subField.options?.join("\n") ||
                                                 ""
@@ -1320,7 +1320,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                               }
                                               placeholder="Option 1\nOption 2\nOption 3"
                                               rows={3}
-                                              className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors resize-y"
+                                              className="block w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500 transition-colors resize-y"
                                             />
                                           </div>
                                         )}
@@ -1330,8 +1330,8 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                 ))}
                               </div>
                             ) : (
-                              <div className="py-8 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-xl bg-gray-50/30 dark:bg-gray-800/10">
-                                <p className="text-sm font-medium text-gray-500 dark:text-gray-500 opacity-80">
+                              <div className="py-8 text-center border-2 border-dashed border-border rounded-xl bg-gray-50/30 dark:bg-gray-800/10">
+                                <p className="text-sm font-medium text-ink-muted opacity-80">
                                   No custom sub-fields defined.
                                 </p>
                                 <p className="text-xs text-gray-400 dark:text-gray-600 mt-1 opacity-70">
@@ -1354,7 +1354,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                   type="button"
                   onClick={handleAddField}
                   variant="outline"
-                  className="border-dashed border-2 rounded-xl shadow-sm bg-white dark:bg-gray-900 px-12"
+                  className="border-dashed border-2 rounded-xl shadow-sm bg-surface px-12"
                 >
                   <Plus className="w-4 h-4 mr-2" /> Add Another Field
                 </Button>
@@ -1362,7 +1362,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                   type="submit"
                   variant="default"
                   disabled={submitting || fields?.length === 0}
-                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                  
                 >
                   {submitting ? "Saving..." : "Save Schema"}
                 </Button>
@@ -1377,23 +1377,23 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
         typeof document !== "undefined" &&
         createPortal(
           <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
-              <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="bg-surface rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+              <div className="p-6 border-b border-border flex justify-between items-center">
+                <h3 className="text-lg font-bold text-ink flex items-center gap-2">
                   <Trash2 className="w-5 h-5 text-red-500" /> Clear All Fields
                 </h3>
                 <button
                   type="button"
                   onClick={() => setShowClearModal(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                  className="text-ink-muted hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
                 >
                   ✕
                 </button>
               </div>
               <div className="p-6 space-y-4">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-ink-muted">
                   This will remove all{" "}
-                  <span className="font-semibold text-gray-900 dark:text-white">
+                  <span className="font-semibold text-ink">
                     {fields.length} fields
                   </span>{" "}
                   from the schema. This action cannot be undone.
@@ -1410,7 +1410,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                   <Button
                     type="button"
                     size="small"
-                    className="bg-red-600 hover:bg-red-700 text-white border-0"
+                    className="bg-red-600 hover:bg-red-700 border-0"
                     onClick={() => {
                       setFields([]);
                       setShowClearModal(false);
@@ -1430,26 +1430,26 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
         typeof document !== "undefined" &&
         createPortal(
           <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="bg-surface rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-border flex justify-between items-center">
+                <h3 className="text-lg font-bold text-ink flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-blue-500" /> AI Prompt
                   Instructions
                 </h3>
               </div>
               <div className="p-6 overflow-y-auto max-h-[60vh]">
-                <p className="text-sm text-gray-500 mb-4">
+                <p className="text-sm text-ink-muted mb-4">
                   Use the following prompt to instruct an AI (like ChatGPT or
                   Claude) to generate a schema for you. You can copy the text or
                   download it as a file.
                 </p>
-                <textarea
+                <textarea aria-label="AI prompt"
                   readOnly
                   value={aiPromptMarkdown}
-                  className="w-full h-64 rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 text-xs font-mono text-gray-700 dark:text-gray-300 focus:outline-none resize-none"
+                  className="w-full h-64 rounded-lg border-border-strong bg-surface-raised p-4 text-xs font-mono text-ink focus:outline-none resize-none"
                 />
               </div>
-              <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 bg-gray-50 dark:bg-gray-900/50">
+              <div className="p-6 border-t border-border flex justify-end gap-3 bg-surface-raised">
                 <Button
                   type="button"
                   variant="ghost"
@@ -1468,7 +1468,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                 <Button
                   type="button"
                   onClick={handleCopyPrompt}
-                  className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                  className="flex items-center gap-2"
                 >
                   <ClipboardPaste className="w-4 h-4" /> Copy to Clipboard
                 </Button>
@@ -1483,18 +1483,18 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
         typeof document !== "undefined" &&
         createPortal(
           <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-gray-200 dark:border-gray-800">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="bg-surface rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-border">
+                <h3 className="text-lg font-bold text-ink flex items-center gap-2">
                   <Upload className="w-5 h-5 text-blue-500" /> Import Schema
                 </h3>
               </div>
               <div className="p-6 overflow-y-auto max-h-[60vh] space-y-6">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-bold text-ink mb-2">
                     Option 1: Upload JSON File
                   </label>
-                  <div className="relative border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-8 text-center hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                  <div className="relative border-2 border-dashed border-border-strong rounded-xl p-8 text-center hover:bg-surface-raised transition-colors">
                     <input
                       type="file"
                       accept=".json"
@@ -1504,35 +1504,35 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                       }}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
-                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <Upload className="w-8 h-8 text-ink-muted mx-auto mb-2" />
+                    <p className="text-sm text-ink-muted">
                       Click or drag and drop your generated JSON file here
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <div className="flex-1 h-px bg-gray-200 dark:bg-gray-800"></div>
-                  <span className="text-xs font-medium text-gray-500 uppercase">
+                  <div className="flex-1 h-px bg-border"></div>
+                  <span className="text-xs font-medium text-ink-muted uppercase">
                     OR
                   </span>
-                  <div className="flex-1 h-px bg-gray-200 dark:bg-gray-800"></div>
+                  <div className="flex-1 h-px bg-border"></div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-bold text-ink mb-2">
                     Option 2: Paste JSON Directly
                   </label>
-                  <textarea
+                  <textarea aria-label="Option 2: Paste JSON Directly"
                     value={pastedJson}
                     onChange={(e) => setPastedJson(e.target.value)}
                     placeholder="Paste your JSON schema here..."
                     rows={6}
-                    className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-gray-200 transition-colors"
+                    className="w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-gray-200 transition-colors"
                   />
                 </div>
               </div>
-              <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 bg-gray-50 dark:bg-gray-900/50">
+              <div className="p-6 border-t border-border flex justify-end gap-3 bg-surface-raised">
                 <Button
                   type="button"
                   variant="ghost"
@@ -1545,7 +1545,6 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                   onClick={() => {
                     handleImportPastedJson();
                   }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
                   disabled={!pastedJson.trim()}
                 >
                   Import Pasted Schema

@@ -30,36 +30,36 @@ export function DataTable<T extends object>({
   }
 
   return (
-    <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] scrollbar-none rounded-xl border border-gray-200/50 dark:border-gray-800/50 bg-white/30 dark:bg-gray-900/30 backdrop-blur-sm shadow-sm">
-      <table className="min-w-full divide-y divide-gray-200/50 dark:divide-gray-800/50">
+    <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] scrollbar-none rounded-xl border border-border bg-surface backdrop-blur-sm shadow-sm">
+      <table className="min-w-full divide-y divide-border">
         <thead className="bg-gray-50/50 dark:bg-gray-800/50">
           <tr>
             {columns.map((col) => (
               <th
                 key={col.key}
-                className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-widest dark:text-gray-400"
+                className="px-6 py-4 text-left text-xs font-bold text-ink-muted uppercase tracking-widest"
               >
                 {col.header}
               </th>
             ))}
-            <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-widest dark:text-gray-400">
+            <th className="px-6 py-4 text-right text-xs font-bold text-ink-muted uppercase tracking-widest">
               Actions
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
+        <tbody className="divide-y divide-border bg-surface">
           {data.map((item) => {
             const typedItem = item as Record<string, unknown>;
             const id = typedItem[idKey] as string;
             return (
               <tr
                 key={id}
-                className="group hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                className="group hover:bg-surface-raised"
               >
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className="whitespace-normal wrap-break-word px-6 py-4 text-sm text-gray-900 dark:text-gray-100 max-w-[200px] sm:max-w-[300px] md:max-w-md"
+                    className="whitespace-normal wrap-break-word px-6 py-4 text-sm text-ink max-w-[200px] sm:max-w-[300px] md:max-w-md"
                   >
                     {col.render
                       ? col.render(item)
@@ -70,14 +70,14 @@ export function DataTable<T extends object>({
                   <div className="flex items-center justify-end gap-2 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                     <Link
                       to={`${baseUrl}/${id}`}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:text-orange-300 dark:hover:bg-orange-500/10 transition-all"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:text-orange-300 dark:hover:bg-orange-500/10 transition-colors"
                     >
                       <Edit2 className="w-4 h-4" />
                       <span>Edit</span>
                     </Link>
                     <Link
                       to={`${baseUrl}/${id}/delete`}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-500/10 transition-all"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-500/10 transition-colors"
                     >
                       <span>Delete</span>
                     </Link>

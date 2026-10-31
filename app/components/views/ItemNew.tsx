@@ -153,17 +153,17 @@ export default function NewItem() {
 
   if (loading) {
     return (
-      <div className="w-full space-y-6 animate-pulse">
-        <div className="h-10 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-        <div className="space-y-4 bg-white/50 dark:bg-gray-900/30 p-6 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
-          <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-          <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
+      <div className="w-full space-y-6 animate-pulse motion-reduce:animate-none">
+        <div className="h-10 w-48 bg-border rounded-lg"></div>
+        <div className="space-y-4 bg-surface p-6 rounded-xl border border-border">
+          <div className="h-12 bg-border rounded-lg"></div>
+          <div className="h-12 bg-border rounded-lg"></div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-            <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
+            <div className="h-12 bg-border rounded-lg"></div>
+            <div className="h-12 bg-border rounded-lg"></div>
           </div>
-          <div className="h-32 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-          <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded-lg w-32 mt-8"></div>
+          <div className="h-32 bg-border rounded-lg"></div>
+          <div className="h-10 bg-border rounded-lg w-32 mt-8"></div>
         </div>
       </div>
     );
@@ -184,10 +184,10 @@ export default function NewItem() {
       <div className="w-full py-8">
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <h3 className="text-lg font-semibold text-ink">
               No Schema Configured
             </h3>
-            <p className="text-sm text-gray-500 mt-2 mb-4">
+            <p className="text-sm text-ink-muted mt-2 mb-4">
               You must create a schema for Items before adding entries.
             </p>
             <Button onClick={() => navigate(`/${data.game}/schemas/new`)}>
@@ -203,7 +203,7 @@ export default function NewItem() {
     <div className="w-full py-8">
       <Card>
         <CardHeader>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">
+          <h1 className="text-2xl font-bold text-ink capitalize tracking-tight">
             New Item - {data.game}
           </h1>
         </CardHeader>
@@ -215,9 +215,9 @@ export default function NewItem() {
           )}
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Top Actions */}
-            <div className="flex justify-between items-center border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+            <div className="flex justify-between items-center border-b border-border pb-4 mb-4">
               <Button type="button" variant="ghost" onClick={() => window.history.back()}>Cancel</Button>
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
+              <Button type="submit" disabled={submitting} className="shadow-lg">
                 {submitting ? "Creating..." : "Create Item"}
               </Button>
             </div>
@@ -241,14 +241,14 @@ export default function NewItem() {
               <div>
                 <label
                   htmlFor="hero"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  className="block text-sm font-medium text-ink"
                 >
                   Hero (optional)
                 </label>
                 <select
                   id="hero"
                   name="hero"
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  className="mt-1 block w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:text-gray-100"
                 >
                   <option value="">- Any -</option>
                   {data.heroes.map((h) => (
@@ -261,14 +261,14 @@ export default function NewItem() {
               <div>
                 <label
                   htmlFor="mode"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  className="block text-sm font-medium text-ink"
                 >
                   Mode (optional)
                 </label>
                 <select
                   id="mode"
                   name="mode"
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                  className="mt-1 block w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:text-gray-100"
                 >
                   <option value="">- Any -</option>
                   {data.modes.map((m) => (
@@ -295,14 +295,14 @@ export default function NewItem() {
               if (f.type === "enum" || f.type === "list") {
                 return (
                   <div key={f.key}>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 capitalize mb-1">
+                    <label className="block text-sm font-medium text-ink capitalize mb-1">
                       {f.label}
                     </label>
                     {f.type === "enum" ? (
-                      <select
+                      <select aria-label={f.label}
                         name={f.key}
                         required={f.required}
-                        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                        className="mt-1 block w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:text-gray-100"
                       >
                         <option value="">- Select {f.label} -</option>
                         {f.options?.map((opt) => (
@@ -312,11 +312,11 @@ export default function NewItem() {
                         ))}
                       </select>
                     ) : (
-                      <input
+                      <input aria-label={f.label}
                         name={f.key}
                         placeholder={`${f.label} (comma-separated)`}
                         required={f.required}
-                        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                        className="mt-1 block w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:text-gray-100"
                       />
                     )}
                   </div>
@@ -336,10 +336,10 @@ export default function NewItem() {
             })}
 
             <div className="space-y-2 pt-2">
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+              <label className="block text-sm font-bold text-ink uppercase tracking-wider">
                 Effects (JSON array)
               </label>
-              <textarea
+              <textarea aria-label="Effects (JSON array)"
                 name="effects_raw"
                 rows={8}
                 defaultValue={JSON.stringify(
@@ -355,9 +355,9 @@ export default function NewItem() {
                   null,
                   2,
                 )}
-                className="block w-full rounded-xl border border-gray-300/50 bg-white/50 px-4 py-3 text-sm font-mono shadow-inner focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:border-gray-600/50 dark:bg-gray-900/50 dark:text-gray-100 transition-colors"
+                className="block w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm font-mono shadow-inner focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:text-gray-100 transition-colors"
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-ink-muted">
                 Each effect can override name, type, description, and params for
                 an ability. <strong className="text-orange-600 dark:text-orange-400">Please fill in the ability_id or delete the template object.</strong>
               </p>
@@ -374,7 +374,7 @@ export default function NewItem() {
               <Button
                 type="submit"
                 disabled={submitting}
-                className="shadow-lg shadow-orange-500/20"
+                className="shadow-lg"
               >
                 {submitting ? "Creating..." : "Create Item"}
               </Button>

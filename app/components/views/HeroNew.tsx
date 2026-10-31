@@ -95,15 +95,15 @@ export default function NewHero() {
 
   if (loading) {
     return (
-      <div className="w-full space-y-6 animate-pulse">
-        <div className="h-10 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-        <div className="space-y-4 bg-white/50 dark:bg-gray-900/30 p-6 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
+      <div className="w-full space-y-6 animate-pulse motion-reduce:animate-none">
+        <div className="h-10 w-48 bg-border rounded-lg"></div>
+        <div className="space-y-4 bg-surface p-6 rounded-xl border border-border">
           <div className="grid grid-cols-2 gap-4">
-            <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-            <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
+            <div className="h-12 bg-border rounded-lg"></div>
+            <div className="h-12 bg-border rounded-lg"></div>
           </div>
-          <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-          <div className="h-40 bg-gray-200 dark:bg-gray-800 rounded-lg mt-8"></div>
+          <div className="h-12 bg-border rounded-lg"></div>
+          <div className="h-40 bg-border rounded-lg mt-8"></div>
         </div>
       </div>
     );
@@ -123,10 +123,10 @@ export default function NewHero() {
       <div className="w-full py-8">
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <h3 className="text-lg font-semibold text-ink">
               No Schema Configured
             </h3>
-            <p className="text-sm text-gray-500 mt-2 mb-4">
+            <p className="text-sm text-ink-muted mt-2 mb-4">
               You must create a schema for Heroes before adding entries.
             </p>
             <Button onClick={() => navigate(`/${data.game}/schemas/new`)}>
@@ -142,7 +142,7 @@ export default function NewHero() {
     <div className="w-full py-8">
       <Card>
         <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">
+          <h1 className="text-2xl font-bold text-ink capitalize tracking-tight">
             New Hero - {data.game}
           </h1>
           <Button
@@ -635,7 +635,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
         )}
 
         {/* Top Actions */}
-        <div className="flex justify-between items-center border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+        <div className="flex justify-between items-center border-b border-border pb-4 mb-4">
           <Button
             type="button"
             variant="ghost"
@@ -646,7 +646,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
           <Button
             type="submit"
             disabled={submitting}
-            className="shadow-lg shadow-orange-500/20 w-40"
+            className="shadow-lg w-40"
           >
             {submitting ? "Creating..." : "Create Hero"}
           </Button>
@@ -668,12 +668,12 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
         </div>
 
         {schemas.length > 1 && (
-          <div className="mb-8 p-4 bg-gray-50 dark:bg-gray-800/30 border border-gray-200 dark:border-gray-800 rounded-xl">
-            <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-gray-300">
+          <div className="mb-8 p-4 bg-surface-raised border border-border rounded-xl">
+            <label className="block text-sm font-bold mb-2 text-ink">
               Hero Schema Profile
             </label>
-            <select
-              className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
+            <select aria-label="Hero Schema Profile"
+              className="w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm focus:ring-1 focus:ring-blue-500"
               value={selectedSchemaId}
               onChange={(e) => {
                 setSelectedSchemaId(e.target.value);
@@ -686,7 +686,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                 </option>
               ))}
             </select>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-ink-muted mt-2">
               Changing the schema will update the available fields below.
             </p>
           </div>
@@ -717,7 +717,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
           />
         </div>
 
-        <div className="border border-gray-200 dark:border-gray-800 p-4 rounded-xl bg-gray-50/50 dark:bg-gray-800/30">
+        <div className="border border-border p-4 rounded-xl bg-surface-raised">
           <MultiImageUploadField
             label="Portraits"
             entries={portraits}
@@ -791,7 +791,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
               <Button
                 type="submit"
                 disabled={submitting}
-                className="shadow-lg shadow-orange-500/20 w-40"
+                className="shadow-lg w-40"
               >
                 {submitting ? "Creating..." : "Create Hero"}
               </Button>

@@ -79,27 +79,27 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
   });
 
   return (
-    <div className="space-y-3 mt-4 border-t border-gray-100 dark:border-gray-800 pt-4">
+    <div className="space-y-3 mt-4 border-t border-border pt-4">
       <div className="flex items-center justify-between">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label className="block text-sm font-medium text-ink">
             Sub-Field Params
           </label>
-          <p className="text-xs text-gray-500">Add predefined parameters for this enum option.</p>
+          <p className="text-xs text-ink-muted">Add predefined parameters for this enum option.</p>
         </div>
         <Button
           type="button"
           size="small"
           variant="outline"
           onClick={() => append({ id: "", label: "", value: "", suffix: "", type: "string" })}
-          className="h-8 text-[11px] px-3"
+          className="h-8 text-xs px-3"
         >
           <Plus className="w-3 h-3 mr-1" /> Add Param
         </Button>
       </div>
 
       {fields.length === 0 && (
-        <div className="text-[11px] text-gray-500 italic bg-gray-50/50 dark:bg-gray-900/30 p-4 rounded-lg border border-dashed border-gray-200 dark:border-gray-800 text-center">
+        <div className="text-xs text-ink-muted italic bg-surface-raised p-4 rounded-lg border border-dashed border-border text-center">
           No custom parameters defined for this option.
         </div>
       )}
@@ -108,20 +108,20 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
         <div className="space-y-2">
           {fields.map((field, index) => {
             return (
-              <div key={field.id} className="flex gap-3 items-start bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div key={field.id} className="flex gap-3 items-start bg-surface-raised p-3 rounded-lg border border-border">
                 <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
                   <Controller
                     control={control}
                     name={`options.${optionIndex}.params.${index}.id` as const}
                     render={({ field: idField }) => (
                       <div>
-                        <input
+                        <input aria-label="ID"
                           {...idField}
                           placeholder="ID (e.g. damage_multiplier)"
-                          className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
+                          className="block w-full rounded-md border border-border-strong bg-surface px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
                         />
                         {errors.options?.[optionIndex]?.params?.[index]?.id && (
-                          <span className="text-[10px] text-red-500 block mt-1">{errors.options[optionIndex]?.params?.[index]?.id?.message}</span>
+                          <span className="text-xs text-red-500 block mt-1">{errors.options[optionIndex]?.params?.[index]?.id?.message}</span>
                         )}
                       </div>
                     )}
@@ -131,7 +131,7 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                     name={`options.${optionIndex}.params.${index}.label` as const}
                     render={({ field: labelField }) => (
                       <div>
-                        <input
+                        <input aria-label="Label"
                           {...labelField}
                           placeholder="Label (e.g. Damage Multiplier)"
                           onChange={(e) => {
@@ -142,10 +142,10 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                               setValue(`options.${optionIndex}.params.${index}.id`, label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/(^_|_$)/g, ""), { shouldValidate: true, shouldDirty: true });
                             }
                           }}
-                          className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
+                          className="block w-full rounded-md border border-border-strong bg-surface px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
                         />
                         {errors.options?.[optionIndex]?.params?.[index]?.label && (
-                          <span className="text-[10px] text-red-500 block mt-1">{errors.options[optionIndex]?.params?.[index]?.label?.message}</span>
+                          <span className="text-xs text-red-500 block mt-1">{errors.options[optionIndex]?.params?.[index]?.label?.message}</span>
                         )}
                       </div>
                     )}
@@ -159,9 +159,9 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                       return (
                         <>
                           <div>
-                            <select
+                            <select aria-label="Type"
                               {...typeField}
-                              className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
+                              className="block w-full rounded-md border border-border-strong bg-surface px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
                             >
                               <option value="string">Text</option>
                               <option value="number">Number</option>
@@ -171,24 +171,24 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                           <div>
                             {paramType === "boolean" ? (
                               <div className="flex items-center h-full px-1 pt-1">
-                                <label className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+                                <label className="flex items-center gap-2 text-xs text-ink cursor-pointer">
                                   <input
                                     type="checkbox"
                                     {...register(`options.${optionIndex}.params.${index}.value` as const)}
-                                    className="rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 w-4 h-4 text-orange-600 focus:ring-orange-500"
+                                    className="rounded border-border-strong bg-surface w-4 h-4 text-orange-600 focus:ring-orange-500"
                                   />
                                   True / False
                                 </label>
                               </div>
                             ) : (
-                              <input
+                              <input aria-label="Value"
                                 type={paramType === "number" ? "number" : "text"}
                                 step={paramType === "number" ? "any" : undefined}
                                 placeholder="Value"
                                 {...register(`options.${optionIndex}.params.${index}.value` as const, {
                                   setValueAs: (v: unknown) => paramType === "number" ? (v === "" ? "" : Number(v)) : v
                                 })}
-                                className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
+                                className="block w-full rounded-md border border-border-strong bg-surface px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
                               />
                             )}
                           </div>
@@ -197,10 +197,10 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                     }}
                   />
                   <div>
-                    <input
+                    <input aria-label="Suffix"
                       placeholder="Suffix (e.g. %)"
                       {...register(`options.${optionIndex}.params.${index}.suffix`)}
-                      className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
+                      className="block w-full rounded-md border border-border-strong bg-surface px-3 py-1.5 text-xs focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white"
                     />
                   </div>
                 </div>
@@ -208,9 +208,10 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                   type="button"
                   variant="ghost"
                   onClick={() => remove(index)}
-                  className="text-gray-400 hover:text-red-500 p-2 h-auto"
+                  aria-label="Remove parameter"
+                  className="text-ink-muted hover:text-red-500 p-2 h-auto"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 aria-hidden="true" className="w-4 h-4" />
                 </Button>
               </div>
             );
@@ -326,7 +327,7 @@ export default function EnumNew() {
     <div className="w-full py-8">
       <Card>
         <CardHeader>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize">
+          <h1 className="text-2xl font-bold text-ink capitalize">
             New Global Enum
           </h1>
         </CardHeader>
@@ -342,7 +343,7 @@ export default function EnumNew() {
             )}
 
             {/* Top Actions */}
-            <div className="flex justify-end border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+            <div className="flex justify-end border-b border-border pb-4 mb-4">
               <Button type="submit" variant="default" disabled={submitting}>
                 {submitting ? "Creating..." : "Create Enum"}
               </Button>
@@ -377,13 +378,13 @@ export default function EnumNew() {
               </div>
             </div>
 
-            <div className="border border-gray-200 dark:border-gray-800 rounded-xl p-4 bg-gray-50 dark:bg-gray-800/30">
+            <div className="border border-border rounded-xl p-4 bg-surface-raised">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                  <h3 className="text-sm font-bold text-ink">
                     Options
                   </h3>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-ink-muted">
                     The values that will be selectable in the schema.
                   </p>
                 </div>
@@ -407,7 +408,7 @@ export default function EnumNew() {
                 {fields.map((field, index) => (
                   <div
                     key={field.id}
-                    className="flex gap-3 items-start p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg"
+                    className="flex gap-3 items-start p-3 bg-surface border border-border rounded-lg"
                   >
                     <AutoGenerateOptionId index={index} />
                     <div className="flex-1 grid grid-cols-1 gap-3">
@@ -480,21 +481,22 @@ export default function EnumNew() {
                       type="button"
                       variant="ghost"
                       onClick={() => remove(index)}
-                      className="mt-6 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  aria-label="Remove option"
+                      className="mt-6 text-ink-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 aria-hidden="true" className="w-4 h-4" />
                     </Button>
                   </div>
                 ))}
                 {fields.length === 0 && (
-                  <div className="text-center py-6 text-sm text-gray-500 italic border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
+                  <div className="text-center py-6 text-sm text-ink-muted italic border-2 border-dashed border-border rounded-lg">
                     No options added. Click "Add Option" to begin.
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="flex justify-end pt-6 border-t border-gray-200/50 dark:border-gray-800/50">
+            <div className="flex justify-end pt-6 border-t border-border">
               <Button type="submit" variant="default" disabled={submitting}>
                 {submitting ? "Creating..." : "Create Enum"}
               </Button>

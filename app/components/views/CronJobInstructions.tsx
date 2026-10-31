@@ -170,7 +170,7 @@ function InstructionCard({ section }: { section: InstructionSection }) {
   const c = colorMap[section.color];
 
   return (
-    <div className={`rounded-xl border ${c.border} ${c.bg} overflow-hidden transition-all`}>
+    <div className={`rounded-xl border ${c.border} ${c.bg} overflow-hidden transition-colors`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -179,8 +179,8 @@ function InstructionCard({ section }: { section: InstructionSection }) {
         <div className="flex items-center gap-3">
           <span className={`${c.icon} shrink-0`}>{section.icon}</span>
           <div>
-            <span className="text-sm font-bold text-gray-900 dark:text-white">{section.title}</span>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">{section.subtitle}</p>
+            <span className="text-sm font-bold text-ink">{section.title}</span>
+            <p className="text-xs text-ink-muted mt-0.5 leading-snug">{section.subtitle}</p>
           </div>
         </div>
         <span className={`${c.icon} shrink-0 ml-4`}>
@@ -194,12 +194,12 @@ function InstructionCard({ section }: { section: InstructionSection }) {
           <div className="space-y-3 pt-4">
             {section.rules.map((rule) => (
               <div key={rule.label} className="flex gap-3">
-                <span className={`mt-0.5 shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${c.badge}`}>
+                <span className={`mt-0.5 shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${c.badge}`}>
                   Rule
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{rule.label}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">{rule.description}</p>
+                  <p className="text-sm font-semibold text-ink">{rule.label}</p>
+                  <p className="text-xs text-ink-muted mt-0.5 leading-relaxed">{rule.description}</p>
                 </div>
               </div>
             ))}
@@ -208,7 +208,7 @@ function InstructionCard({ section }: { section: InstructionSection }) {
           {/* Examples */}
           {section.examples && section.examples.length > 0 && (
             <div className={`rounded-lg border ${c.example.split(" ").slice(2).join(" ")} bg-transparent p-3 space-y-1.5`}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Examples</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-ink-muted mb-2">Examples</p>
               {section.examples.map((ex, i) => (
                 <p key={i} className={`text-xs font-mono ${c.example.split(" ").slice(2).join(" ")}`}>
                   {ex}
@@ -224,14 +224,14 @@ function InstructionCard({ section }: { section: InstructionSection }) {
 
 export function CronJobInstructions() {
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+    <div className="rounded-xl border border-border bg-surface shadow-sm overflow-hidden">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
         <BookOpen className="w-5 h-5 text-orange-500 shrink-0" />
         <div>
-          <span className="text-sm font-bold text-gray-900 dark:text-white">
+          <span className="text-sm font-bold text-ink">
             Configuration Guide
           </span>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          <p className="text-xs text-ink-muted mt-0.5">
             Rules and examples for API response, params, data handling, and destination. Click a section to expand.
           </p>
         </div>

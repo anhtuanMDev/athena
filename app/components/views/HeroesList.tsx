@@ -2,7 +2,7 @@ import { Link, useParams } from "react-router";
 import { useEntityList } from "~/lib/use-entity-list";
 import { DataTable, type Column } from "~/components/DataTable";
 import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus, Copy } from "lucide-react";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
@@ -28,7 +28,7 @@ const baseColumns: Column<any>[] = [
           Object.entries(h.portrait).map(([key, url]) => (
             <div
               key={key}
-              className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shrink-0 relative group"
+              className="w-10 h-10 rounded-full overflow-hidden bg-surface-raised border border-border shrink-0 relative group"
               title={key}
             >
               <img
@@ -36,13 +36,13 @@ const baseColumns: Column<any>[] = [
                 alt={`${h.name} ${key}`}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-black/60 items-center justify-center text-[10px] font-medium text-white opacity-0 group-hover:opacity-100 hidden group-hover:flex transition-opacity uppercase tracking-wider">
+              <div className="absolute inset-0 bg-black/60 items-center justify-center text-xs font-medium text-white opacity-0 group-hover:opacity-100 hidden group-hover:flex transition-opacity uppercase tracking-wider">
                 {key}
               </div>
             </div>
           ))
         ) : h.portrait && typeof h.portrait === "string" ? (
-          <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shrink-0">
+          <div className="w-10 h-10 rounded-full overflow-hidden bg-surface-raised border border-border shrink-0">
             <img
               src={h.portrait}
               alt={h.name}
@@ -50,7 +50,7 @@ const baseColumns: Column<any>[] = [
             />
           </div>
         ) : (
-          <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shrink-0 flex items-center justify-center text-gray-400 font-bold text-xs">
+          <div className="w-10 h-10 rounded-full overflow-hidden bg-surface-raised border border-border shrink-0 flex items-center justify-center text-ink-muted font-bold text-xs">
             ?
           </div>
         )}
@@ -140,10 +140,10 @@ export default function HeroesIndex() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">
+          <h1 className="text-3xl font-bold text-ink capitalize tracking-tight">
             {game} Heroes
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-ink-muted mt-1">
             Manage the hero roster, stats, and abilities.
           </p>
         </div>
@@ -161,12 +161,10 @@ export default function HeroesIndex() {
             <Copy className="w-4 h-4" />
             Copy JSON
           </Button>
-          <Link to={`/${game}/heroes/new`}>
-            <Button className="gap-2 shadow-lg shadow-orange-500/20 transition-all hover:shadow-orange-500/40">
-              <Plus className="w-4 h-4" />
+          <ButtonLink to={`/${game}/heroes/new`}>
+              <Plus aria-hidden="true" className="w-4 h-4" />
               New Hero
-            </Button>
-          </Link>
+            </ButtonLink>
         </div>
       </div>
 

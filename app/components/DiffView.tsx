@@ -6,13 +6,13 @@ interface DiffViewProps {
 
 export function DiffView({ diffs }: DiffViewProps) {
   if (diffs.length === 0) {
-    return <p className="text-sm text-gray-500">No changes detected.</p>;
+    return <p className="text-sm text-ink-muted">No changes detected.</p>;
   }
 
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Changes ({diffs.length})</h3>
-      <div className="rounded-md border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
+      <h3 className="text-sm font-semibold text-ink">Changes ({diffs.length})</h3>
+      <div className="rounded-md border border-border divide-y divide-gray-200 dark:divide-gray-700">
         {diffs.map((diff, i) => (
           <div key={i} className="px-4 py-3 text-sm">
             <div className="flex items-center gap-2 mb-1">
@@ -23,16 +23,16 @@ export function DiffView({ diffs }: DiffViewProps) {
               }`}>
                 {diff.type}
               </span>
-              <code className="text-gray-600 dark:text-gray-400">{diff.path}</code>
+              <code className="text-ink-muted">{diff.path}</code>
             </div>
             {diff.type === "changed" && (
               <div className="ml-2 space-y-1">
                 <div className="text-red-600 dark:text-red-400">
-                  <span className="text-xs text-gray-400">from:</span>{" "}
+                  <span className="text-xs text-ink-muted">from:</span>{" "}
                   <code className="text-xs">{JSON.stringify(diff.from)}</code>
                 </div>
                 <div className="text-green-600 dark:text-green-400">
-                  <span className="text-xs text-gray-400">to:</span>{" "}
+                  <span className="text-xs text-ink-muted">to:</span>{" "}
                   <code className="text-xs">{JSON.stringify(diff.to)}</code>
                 </div>
               </div>
