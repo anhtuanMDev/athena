@@ -14,6 +14,7 @@ import {
   type ScreenAction,
   type SchemaInfo,
 } from "~/lib/screen-model";
+import { LINK_HOSTS, isAllowedLink } from "~/lib/screen-policy";
 
 /** Field styling without a width, for controls sized by their row. */
 export const inputBaseClass =
@@ -237,7 +238,20 @@ function ActionInput({ id, value, onChange, screenIds, describedBy }: { id: stri
         <option value="url">Open a link…</option>
       </select>
       {mode === "url" && (
-        <input aria-label="Link" type="url" placeholder="https://" value={action.url ?? ""} onChange={(e) => onChange({ url: e.target.value })} className={inputClass} />
+        <>
+          <input
+            aria-label="Link"
+            type="url"
+            placeholder="https://"
+            value={action.url ?? ""}
+            aria-invalid={action.url && !isAllowedLink(action.url) ? true : undefined}
+            onChange={(e) => onChange({ url: e.target.value })}
+            className={inputClass}
+          />
+          <p className={`text-xs ${action.url && !isAllowedLink(action.url) ? "text-danger-ink" : "text-ink-muted"}`}>
+            The app only opens https links on {LINK_HOSTS.join(", ")} (and their subdomains), after asking the player.
+          </p>
+        </>
       )}
     </div>
   );
@@ -295,11 +309,77 @@ function ShortcutsInput({ id, value, onChange, screenIds, icons }: { id: string;
   );
 }
 
+interface InfoRow {
+  label: string;
+  value?: string;
+  icon?: string;
+}
+
+/** Info rows: label, icon, and a field (or fixed text) for the value. */
+function InfoRowsInput({ id, value, onChange, dataFields, icons }: { id: string; value: unknown; onChange: (v: unknown) => void; dataFields: FieldOption[]; icons: string[] }) {
+  const rows: InfoRow[] = Array.isArray(value) ? (value as InfoRow[]) : [];
+  const set = (next: InfoRow[]) => onChange(next.length > 0 ? next : undefined);
+  const patch = (i: number, p: Partial<InfoRow>) => set(rows.map((row, j) => (j === i ? { ...row, ...p } : row)));
+  const move = (i: number, d: -1 | 1) => {
+    const next = [...rows];
+    [next[i], next[i + d]] = [next[i + d], next[i]];
+    set(next);
+  };
+  const scalarFields = fieldsForProp(dataFields, { type: "string" });
+  return (
+    <div id={id} className="space-y-2">
+      {rows.map((row, i) => {
+        const bound = isBinding(row.value);
+        return (
+          <div key={i} className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-2">
+            <input aria-label={`Row ${i + 1} label`} value={row.label ?? ""} placeholder="Label" onChange={(e) => patch(i, { label: e.target.value })} className={`${inputBaseClass} min-w-0 flex-1`} />
+            <select aria-label={`Row ${i + 1} icon`} value={row.icon ?? ""} onChange={(e) => patch(i, { icon: e.target.value || undefined })} className={`${inputBaseClass} w-32`}>
+              <option value="">No icon</option>
+              {icons.map((icon) => (
+                <option key={icon} value={icon}>{icon}</option>
+              ))}
+            </select>
+            <select
+              aria-label={`Row ${i + 1} value from`}
+              value={bound ? row.value : ""}
+              onChange={(e) => patch(i, { value: e.target.value || "" })}
+              className={`${inputBaseClass} w-48`}
+            >
+              <option value="">Fixed text</option>
+              {bound && !scalarFields.some((f) => `data.${f.key}` === row.value) && <option value={row.value}>{row.value} (not found)</option>}
+              {scalarFields.map((f) => (
+                <option key={f.key} value={`data.${f.key}`}>Field: {f.label ?? f.key}</option>
+              ))}
+            </select>
+            {!bound && (
+              <input aria-label={`Row ${i + 1} text`} value={row.value ?? ""} placeholder="Value" onChange={(e) => patch(i, { value: e.target.value })} className={`${inputBaseClass} w-36`} />
+            )}
+            <div className="flex">
+              <button type="button" aria-label={`Move row ${i + 1} up`} disabled={i === 0} onClick={() => move(i, -1)} className={smallButtonClass}><ArrowUp aria-hidden="true" className="size-4" /></button>
+              <button type="button" aria-label={`Move row ${i + 1} down`} disabled={i === rows.length - 1} onClick={() => move(i, 1)} className={smallButtonClass}><ArrowDown aria-hidden="true" className="size-4" /></button>
+              <button type="button" aria-label={`Remove row ${i + 1}`} onClick={() => set(rows.filter((_, j) => j !== i))} className={smallButtonClass}><Trash2 aria-hidden="true" className="size-4" /></button>
+            </div>
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        onClick={() => set([...rows, { label: "", icon: icons[0], value: scalarFields[0] ? `data.${scalarFields[0].key}` : "" }])}
+        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      >
+        <Plus aria-hidden="true" className="size-4" />
+        Add row
+      </button>
+    </div>
+  );
+}
+
 const SPECIAL_HELP: Record<string, string> = {
   source: "Which records this block lists. Empty uses the screen's records.",
   action: "What tapping does.",
   shortcuts: "Tiles in order, each opening a screen.",
   field_key: "The field whose values become the chips; they filter this screen's lists.",
+  info_rows: "Rows in order: a label, an icon, and the field (or fixed text) shown as the value.",
 };
 
 export function PropControl({
@@ -370,6 +450,7 @@ export function PropControl({
     if (spec.type === "source") control = <SourceInput id={inputId} value={value} onChange={onChange} schemas={context.schemas} />;
     else if (spec.type === "action") control = <ActionInput id={inputId} value={value} onChange={onChange} screenIds={context.screenIds} describedBy={describedBy} />;
     else if (spec.type === "shortcuts") control = <ShortcutsInput id={inputId} value={value} onChange={onChange} screenIds={context.screenIds} icons={context.icons} />;
+    else if (spec.type === "info_rows") control = <InfoRowsInput id={inputId} value={value} onChange={onChange} dataFields={dataFields} icons={context.icons} />;
     else {
       const current = typeof value === "string" ? value : "";
       const choices = dataFields.filter((f) => f.type === "enum" || (f.options && f.options.length > 0));

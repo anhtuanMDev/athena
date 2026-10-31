@@ -135,6 +135,24 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
       const records = ctx.recordsFor(listSource);
       if (records.length === 0) return <p className="text-xs text-ink-muted">Carousel: no records to show yet</p>;
       const item = makeReader(block, spec, ctx, records[0]);
+      if (raw("variant") === "cards") {
+        return (
+          <div className="flex items-center gap-2 overflow-hidden">
+            {records.slice(0, 3).map((record, i) => {
+              const r = makeReader(block, spec, ctx, record);
+              return (
+                <div key={i} className={`relative shrink-0 overflow-hidden rounded-xl border-2 border-ink bg-surface ${i === 1 || records.length === 1 ? "h-48 w-36" : "h-40 w-28 opacity-60"}`}>
+                  <PreviewImage src={assetUrl(r.raw("itemImage"))} className="absolute inset-0 h-full w-full opacity-70" />
+                  <div className="relative space-y-0.5 p-2">
+                    <p className="text-[0.75rem] font-semibold uppercase">{r.show("itemSubtitle")}</p>
+                    <p className="text-base font-black uppercase italic leading-none">{r.show("itemTitle")}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
       return (
         <div className="space-y-2 rounded-2xl bg-ink p-4 text-page">
           {show("eyebrow") && <p className="text-[0.75rem] font-semibold uppercase italic opacity-80">{show("eyebrow")}</p>}
@@ -213,15 +231,89 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
         </div>
       );
     }
-    case "detail_header":
+    case "detail_header": {
+      const background = raw("imageMode") === "background" ? assetUrl(raw("image")) : null;
       return (
-        <div className="-mx-4 -mt-4 space-y-2 overflow-hidden bg-surface-raised p-4 pt-8">
+        <div className="relative -mx-4 -mt-4 space-y-2 overflow-hidden bg-surface-raised p-4 pt-8">
+          {background && (
+            <>
+              <img src={background} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <div className="absolute inset-0 bg-linear-to-b from-transparent to-page" />
+            </>
+          )}
+          <div className="relative space-y-2">
           {show("eyebrow") && <p className="text-xs font-semibold uppercase">{show("eyebrow")}</p>}
           <p className="text-4xl font-black uppercase italic leading-none">{show("title") ?? "Title"}</p>
           {show("quote") && <p className="line-clamp-3 text-sm">“{show("quote")}”</p>}
           {show("buttonLabel") && <Button>{show("buttonLabel")}</Button>}
+          </div>
         </div>
       );
+    }
+    case "info_list": {
+      const rows = Array.isArray(block.props.rows) ? (block.props.rows as { label?: string; value?: unknown; icon?: string }[]) : [];
+      return (
+        <div className="space-y-2">
+          <SectionTitle>{show("title")}</SectionTitle>
+          {rows.map((row, i) => {
+            const value = isBinding(row.value) ? resolvePath(ctx.data, bindingPath(row.value)) : row.value;
+            return (
+              <div key={i} className="flex items-center gap-2">
+                <span className="flex size-7 items-center justify-center rounded-full border border-border font-mono text-[0.75rem] text-ink-muted">{row.icon ? row.icon.slice(0, 2) : "·"}</span>
+                <div>
+                  <p className="text-xs font-bold uppercase">{row.label || "Label"}</p>
+                  <p className="text-xs font-semibold uppercase text-ink-muted">
+                    {value !== undefined && value !== "" ? String(value) : isBinding(row.value) ? <MissingValue path={row.value} /> : "—"}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    case "route_timeline":
+    case "gallery":
+    case "tips_card": {
+      const items = raw("items");
+      const entries = Array.isArray(items) ? items : [];
+      const itemProp = block.type === "route_timeline" ? "itemLabel" : block.type === "gallery" ? "itemImage" : "itemText";
+      const title = show("title") ?? (block.type === "tips_card" ? "Tips" : null);
+      if (entries.length === 0) {
+        return (
+          <div>
+            <SectionTitle>{title}</SectionTitle>
+            <p className="text-xs text-ink-muted">{isBinding(block.props.items) ? <MissingValue path={String(block.props.items)} /> : "No items"}</p>
+          </div>
+        );
+      }
+      return (
+        <div className={block.type === "gallery" ? "" : "rounded-xl border border-border bg-surface p-3"}>
+          <SectionTitle>{title}</SectionTitle>
+          {block.type === "route_timeline" && (
+            <div className="flex justify-between gap-1 border-t-2 border-border pt-2">
+              {entries.slice(0, 5).map((entry, i) => (
+                <span key={i} className="min-w-0 truncate text-center text-[0.75rem] font-bold uppercase">{makeReader(block, spec, ctx, entry).show(itemProp)}</span>
+              ))}
+            </div>
+          )}
+          {block.type === "gallery" && (
+            <div className="flex gap-2 overflow-hidden">
+              {entries.slice(0, 3).map((entry, i) => (
+                <PreviewImage key={i} src={assetUrl(makeReader(block, spec, ctx, entry).raw(itemProp))} className="h-16 w-24 shrink-0 rounded-md" />
+              ))}
+            </div>
+          )}
+          {block.type === "tips_card" && (
+            <ul className="list-disc space-y-1 pl-4 text-xs text-ink-muted">
+              {entries.slice(0, 4).map((entry, i) => (
+                <li key={i}>{typeof entry === "string" ? entry : makeReader(block, spec, ctx, entry).show(itemProp)}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      );
+    }
     case "tab_bar":
       return (
         <div className="flex gap-4">

@@ -8,7 +8,8 @@
     "wrangler": "npx wrangler pages dev --port 8788 --ip 0.0.0.0",
     "typecheck": "react-router typegen && tsc",
     "pages:dev": "npm run build && npx wrangler pages dev",
-    "pages:deploy": "npm run build && npx wrangler pages deploy"
+    "pages:deploy": "npm run build && npx wrangler pages deploy",
+    "test": "node --import ./tests/resolve-ts.mjs --test tests/*.test.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
