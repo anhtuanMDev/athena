@@ -1,7 +1,10 @@
 import { Octokit } from "@octokit/rest";
+import type { KVNamespace } from "@cloudflare/workers-types";
 import { decodeUtf8Base64 } from "../../app/lib/utf8-base64";
+import { MOBILE_INIT_VERSION_KEY, readCacheVersion } from "../../app/lib/mobile-cache-version";
 
 export interface Env {
+  RATE_LIMIT_KV?: KVNamespace;
   GITHUB_TOKEN: string;
   GITHUB_OWNER: string;
   GITHUB_REPO: string;
@@ -19,7 +22,8 @@ export async function onRequest(context: any): Promise<Response> {
   const { env, request } = context;
   const cache = (caches as any).default;
   const internalOrigin = "https://api.internal";
-  const cacheKey = new Request(`${internalOrigin}/mobile/init_v2`);
+  const version = await readCacheVersion(env.RATE_LIMIT_KV, MOBILE_INIT_VERSION_KEY);
+  const cacheKey = new Request(`${internalOrigin}/mobile/init_v2?v=${encodeURIComponent(version)}`);
 
   const cached = await cache.match(cacheKey);
   if (cached) {

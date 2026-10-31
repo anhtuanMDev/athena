@@ -101,9 +101,12 @@ Because the Cloudflare Worker holds API payloads indefinitely (up to 1 year) to 
 
 Inside `functions/api/[[path]].ts` within the `triggerCachePurge()` function:
 
-* **Global Configuration (`/mobile/init_v2`):** Whenever an Admin modifies `data/_meta/games.json` or edits/creates any file under the `/schemas/`, `/enums/`, or `/layouts/` paths via the dashboard, the API intercepts the change and executes a purge on the internal cache key for `/mobile/init_v2`.
-* **Assets (`/api/assets/...`):** When images are uploaded or modified, the corresponding asset cache key is purged.
+* **Mobile payloads (`/mobile/init_v2`, `/mobile/data`):** The Workers Cache API only keeps an entry in the data center that stored it, so `cache.delete()` cannot reach other data centers. Instead, both cache keys include a version stored in the `RATE_LIMIT_KV` namespace (`app/lib/mobile-cache-version.ts`), and saving or deleting through the dashboard bumps it:
+  * `data/_meta/games.json` or any file under `/schemas/`, `/enums/`, or `/layouts/` bumps the `/mobile/init_v2` version.
+  * An entity file (`data/<game>/<heroes|maps|modes|patches|items>/<id>.json`) bumps the version for that game and folder in `/mobile/data`.
+  * Every data center then misses once and refetches (KV changes can take up to about 60 seconds to reach every location). Commits made outside the dashboard (GitHub web edits, merged PRs, the cron worker) do not bump a version.
+* **Assets (`/api/assets/...`):** When images are uploaded or modified, the corresponding asset cache key is purged (in the current data center only).
 * **Individual Entity Files (`/api/data/file`):** When an entity (like a hero or map) is edited, the cache for fetching that specific file in the web admin is purged.
-* **⚠️ Mobile Data Endpoint (`/mobile/data`):** Currently, editing an entity file *does not* automatically trigger a cache purge for the aggregate `/mobile/data` endpoint in `triggerCachePurge()`. This requires either explicit manual purging or an upcoming feature to intercept entity folder updates.
+* **`/mobile/data` parameters:** `game` must be a game slug and `entity` one of `heroes`, `maps`, `modes`, `patches`, `items`; anything else returns 400, so internal folders such as `cron_jobs` are not served.
 
 This architecture ensures the mobile app always receives the latest structural blueprints the next time it boots up, while optimizing GitHub API consumption.

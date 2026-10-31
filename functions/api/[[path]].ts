@@ -1,6 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
 import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
+import { bumpCacheVersion, mobileVersionKeyForPath } from "../../app/lib/mobile-cache-version";
 
 const SESSION_KEY = "__admin_session";
 const MAX_ATTEMPTS = 5;
@@ -240,14 +241,14 @@ function triggerCachePurge(context: PagesFunctionContext, path: string) {
 
   urlsToPurge.push(`${internalOrigin}/api/data/file?path=${encodeURIComponent(path)}`);
 
-  // Invalidate mobile cache when global data changes
-  if (path === "data/_meta/games.json" || path.includes("/schemas/") || path.includes("/enums/") || path.includes("/layouts/")) {
-    urlsToPurge.push(`${internalOrigin}/mobile/init_v2`);
-  }
+  // Mobile payloads are cached in every data center, so they are invalidated by
+  // bumping the version in their cache key rather than by cache.delete().
+  const versionKey = mobileVersionKeyForPath(path);
 
-  const promise = Promise.all(
-    urlsToPurge.map(u => cache.delete(u))
-  ).catch(err => console.error("Cache purge failed:", err));
+  const promise = Promise.all([
+    ...urlsToPurge.map(u => cache.delete(u)),
+    ...(versionKey ? [bumpCacheVersion(context.env.RATE_LIMIT_KV, versionKey)] : []),
+  ]).catch(err => console.error("Cache purge failed:", err));
 
   if (context.waitUntil) {
     context.waitUntil(promise);
