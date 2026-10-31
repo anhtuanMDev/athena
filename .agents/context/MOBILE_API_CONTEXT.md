@@ -11,11 +11,11 @@ This document outlines the API calling flow, the offline-first caching strategy,
 
 When the app launches, it needs to know what games exist, what the data structures look like (schemas), how to resolve dropdowns (enums), and exactly how to visually render screens (layouts).
 
-* **API Call:** `GET /mobile/init_v2`
-* **Flow:** The app hits the Cloudflare Worker, which first reads `data/_meta/games.json` to identify **active games** (`active !== false`). It then instantly returns a 1-year cached configuration payload containing all `.json` files from `data/_meta/`, `data/{game}/schemas`, `data/{game}/enums`, and `data/{game}/layouts` for those active games.
+* **API Call:** `GET /mobile/init` (served by `functions/mobile/init.ts`). `init_v2` is only the name of its internal cache key; there is no `/mobile/init_v2` route, and requesting it returns the admin's HTML page with status 200.
+* **Flow:** The app hits the Cloudflare Worker, which first reads `data/_meta/games.json` to identify **active games** (`active !== false`). It then returns a cached configuration payload `{ games, schemas, enums, layouts }`: the entries of `games.json` plus all `.json` files from `data/{game}/schemas`, `data/{game}/enums`, and `data/{game}/layouts` for those active games. Other files in `data/_meta/` (such as `mobile_primitives.json`) are not included.
 * **MMKV Strategy: `STORE FULLY`**
   * Save this entire payload in MMKV (e.g., under the key `global_config`). 
-  * **Why:** This data dictates the entire layout and structure of the app. By storing it in MMKV, the app boots *instantly* offline. On boot, the app immediately reads MMKV to populate the UI navigation, and fires off a background request to `/mobile/init_v2`. If the JSON payload differs, it silently updates MMKV and triggers a re-render.
+  * **Why:** This data dictates the entire layout and structure of the app. By storing it in MMKV, the app boots *instantly* offline. On boot, the app immediately reads MMKV to populate the UI navigation, and fires off a background request to `/mobile/init`. If the JSON payload differs, it silently updates MMKV and triggers a re-render.
 
 ---
 
@@ -101,8 +101,8 @@ Because the Cloudflare Worker holds API payloads indefinitely (up to 1 year) to 
 
 Inside `functions/api/[[path]].ts` within the `triggerCachePurge()` function:
 
-* **Mobile payloads (`/mobile/init_v2`, `/mobile/data`):** The Workers Cache API only keeps an entry in the data center that stored it, so `cache.delete()` cannot reach other data centers. Instead, both cache keys include a version stored in the `RATE_LIMIT_KV` namespace (`app/lib/mobile-cache-version.ts`), and saving or deleting through the dashboard bumps it:
-  * `data/_meta/games.json` or any file under `/schemas/`, `/enums/`, or `/layouts/` bumps the `/mobile/init_v2` version.
+* **Mobile payloads (`/mobile/init`, `/mobile/data`):** The Workers Cache API only keeps an entry in the data center that stored it, so `cache.delete()` cannot reach other data centers. Instead, both cache keys include a version stored in the `RATE_LIMIT_KV` namespace (`app/lib/mobile-cache-version.ts`), and saving or deleting through the dashboard bumps it:
+  * `data/_meta/games.json` or any file under `/schemas/`, `/enums/`, or `/layouts/` bumps the `/mobile/init` version.
   * An entity file (`data/<game>/<heroes|maps|modes|patches|items>/<id>.json`) bumps the version for that game and folder in `/mobile/data`.
   * Every data center then misses once and refetches (KV changes can take up to about 60 seconds to reach every location). Commits made outside the dashboard (GitHub web edits, merged PRs, the cron worker) do not bump a version.
 * **Assets (`/api/assets/...`):** When images are uploaded or modified, the corresponding asset cache key is purged (in the current data center only).
