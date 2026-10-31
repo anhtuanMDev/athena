@@ -166,7 +166,7 @@ export default function RawEditor() {
               name="content"
               rows={30}
               defaultValue={JSON.stringify(loaderData.content, null, 2)}
-              className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-mono shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+              className="block w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm font-mono shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-gray-100"
             />
             {error && <p className="text-sm text-red-500">{error}</p>}
             <Button type="submit">Preview Changes</Button>

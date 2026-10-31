@@ -188,8 +188,8 @@ export default function LayoutEdit() {
   if (loading) {
     return (
       <div className="w-full py-8 space-y-6 animate-pulse motion-reduce:animate-none">
-        <div className="h-10 w-64 bg-gray-200 dark:bg-gray-800 rounded-lg"></div>
-        <div className="h-64 bg-gray-200 dark:bg-gray-800 rounded-xl"></div>
+        <div className="h-10 w-64 bg-border rounded-lg"></div>
+        <div className="h-64 bg-border rounded-xl"></div>
       </div>
     );
   }
@@ -205,17 +205,17 @@ export default function LayoutEdit() {
       <form onSubmit={handleCommit} className="space-y-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <button type="button" onClick={() => navigate(`/${game}/schemas`)} className="flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors mb-2">
+            <button type="button" onClick={() => navigate(`/${game}/schemas`)} className="flex items-center text-sm font-medium text-ink-muted hover:text-gray-900 transition-colors mb-2">
               <ArrowLeft className="w-4 h-4 mr-1" /> Back to Schemas
             </button>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-ink tracking-tight flex items-center gap-3">
               <LayoutTemplate className="w-8 h-8 text-blue-500" />
               Layout Builder: {loaderData.schema.name}
             </h1>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <Button type="submit" disabled={submitting} className="shadow-lg bg-blue-600 hover:bg-blue-700 text-white">
+            <Button type="submit" disabled={submitting} className="shadow-lg">
               <Save className="w-4 h-4 mr-2" />
               {submitting ? "Saving..." : "Save Layout"}
             </Button>
@@ -225,18 +225,18 @@ export default function LayoutEdit() {
         <div className="flex gap-8 items-start justify-center">
           <div className="flex flex-col items-center">
             {/* Tabs */}
-            <div className="flex bg-gray-200 dark:bg-gray-800 p-1 rounded-lg mb-4">
+            <div className="flex bg-border p-1 rounded-lg mb-4">
               <button
                 type="button"
                 onClick={() => setActiveTab('detail')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'detail' ? 'bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'detail' ? 'bg-white dark:bg-gray-950 text-ink shadow-sm' : 'text-ink-muted hover:text-ink'}`}
               >
                 Full Screen
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('card')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'card' ? 'bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === 'card' ? 'bg-white dark:bg-gray-950 text-ink shadow-sm' : 'text-ink-muted hover:text-ink'}`}
               >
                 List Item Card
               </button>
@@ -248,13 +248,13 @@ export default function LayoutEdit() {
             
             <div className="p-4 space-y-4 flex-1 pb-12">
               {sections.length === 0 ? (
-                 <div className="text-center py-32 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl mx-4">
+                 <div className="text-center py-32 text-ink-muted border-2 border-dashed border-border rounded-2xl mx-4">
                    <LayoutTemplate className="w-10 h-10 text-gray-300 dark:text-gray-700 mx-auto mb-4" />
                    <p className="text-sm">Add layout blocks</p>
                  </div>
               ) : (
                 sections.map((section, idx) => (
-                  <div key={section.id} className="p-3 border rounded-xl bg-white dark:bg-gray-900/50 shadow-sm border-gray-200 dark:border-gray-800 relative group">
+                  <div key={section.id} className="p-3 border rounded-xl bg-surface shadow-sm border-border relative group">
                     <div className="flex justify-between items-center mb-2 pb-2">
                       <span className="text-xs font-bold font-mono text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">
                         {idx + 1}. {section.type}
@@ -285,8 +285,8 @@ export default function LayoutEdit() {
 
           {/* Sidebar Tools */}
           <div className="w-64 shrink-0 space-y-4">
-            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
-              <h3 className="font-bold mb-3 flex items-center gap-2 text-gray-900 dark:text-white">
+            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-border">
+              <h3 className="font-bold mb-3 flex items-center gap-2 text-ink">
                 <Plus className="w-4 h-4" /> Add Block
               </h3>
               <div className="space-y-2">
@@ -295,7 +295,7 @@ export default function LayoutEdit() {
                     key={type} 
                     type="button"
                     onClick={() => addSection(type)} 
-                    className="w-full text-left px-3 py-2 text-sm font-mono bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded hover:border-blue-500 dark:hover:border-blue-500 transition-colors"
+                    className="w-full text-left px-3 py-2 text-sm font-mono bg-white dark:bg-gray-950 border border-border rounded hover:border-blue-500 dark:hover:border-blue-500 transition-colors"
                   >
                     + {type}
                   </button>
@@ -303,13 +303,13 @@ export default function LayoutEdit() {
               </div>
             </div>
 
-            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800">
-              <h3 className="font-bold mb-3 text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-border">
+              <h3 className="font-bold mb-3 text-ink flex items-center gap-2">
                  <Server className="w-4 h-4" /> Available Fields
               </h3>
               <div className="max-h-64 overflow-y-auto space-y-1">
                 {(loaderData.schema.fields || []).map((f: { key: string; type: string }) => (
-                  <div key={f.key} className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate">
+                  <div key={f.key} className="text-xs font-mono text-ink-muted truncate">
                     {f.key} <span className="text-gray-400 dark:text-gray-600">({f.type})</span>
                   </div>
                 ))}

@@ -253,8 +253,8 @@ export default function GamesList() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div className="h-8 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse motion-reduce:animate-none" />
-          <div className="h-10 w-24 bg-gray-200 dark:bg-gray-800 rounded animate-pulse motion-reduce:animate-none" />
+          <div className="h-8 w-32 bg-border rounded animate-pulse motion-reduce:animate-none" />
+          <div className="h-10 w-24 bg-border rounded animate-pulse motion-reduce:animate-none" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map((i) => (
@@ -262,16 +262,16 @@ export default function GamesList() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="h-6 w-6 bg-gray-200 dark:bg-gray-800 rounded-md" />
-                    <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded" />
+                    <div className="h-6 w-6 bg-border rounded-md" />
+                    <div className="h-6 w-32 bg-border rounded" />
                   </div>
-                  <div className="h-5 w-16 bg-gray-200 dark:bg-gray-800 rounded-full" />
+                  <div className="h-5 w-16 bg-border rounded-full" />
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="h-4 w-48 bg-gray-200 dark:bg-gray-800 rounded mb-2" />
-                <div className="h-4 w-32 bg-gray-200 dark:bg-gray-800 rounded" />
-                <div className="mt-3 h-4 w-12 bg-gray-200 dark:bg-gray-800 rounded" />
+                <div className="h-4 w-48 bg-border rounded mb-2" />
+                <div className="h-4 w-32 bg-border rounded" />
+                <div className="mt-3 h-4 w-12 bg-border rounded" />
               </CardContent>
             </Card>
           ))}
@@ -290,7 +290,7 @@ export default function GamesList() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+        <h1 className="text-2xl font-bold text-ink">
           Games
         </h1>
         <Button onClick={openCreate}>Add Game</Button>
@@ -311,13 +311,13 @@ export default function GamesList() {
                     </div>
                   ) : (
                     <div
-                      className="w-6 h-6 rounded-md border border-gray-200 dark:border-gray-800"
+                      className="w-6 h-6 rounded-md border border-border"
                       style={{
                         backgroundColor: game.primary || "#6366F1",
                       }}
                     />
                   )}
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  <h2 className="text-lg font-semibold text-ink">
                     {game.name}
                   </h2>
                 </div>
@@ -329,14 +329,14 @@ export default function GamesList() {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-500 mb-2">
+              <p className="text-sm text-ink-muted mb-2">
                 Slug:{" "}
-                <code className="text-gray-700 dark:text-gray-300">
+                <code className="text-ink">
                   {game.slug}
                 </code>
               </p>
               {game.developer && (
-                <p className="text-sm text-gray-500">{game.developer}</p>
+                <p className="text-sm text-ink-muted">{game.developer}</p>
               )}
               <div className="mt-3 flex gap-3">
                 <button
@@ -388,10 +388,10 @@ export default function GamesList() {
                     {/* General Info */}
                     <div className="flex flex-col gap-6">
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        <h3 className="text-sm font-semibold text-ink">
                           General Information
                         </h3>
-                        <p className="text-xs text-gray-500 mb-4">
+                        <p className="text-xs text-ink-muted mb-4">
                           Core details about the game.
                         </p>
                       </div>
@@ -428,12 +428,12 @@ export default function GamesList() {
                     </div>
 
                     {/* Branding */}
-                    <div className="flex flex-col gap-6 pt-6 border-t border-gray-200 dark:border-gray-800">
+                    <div className="flex flex-col gap-6 pt-6 border-t border-border">
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        <h3 className="text-sm font-semibold text-ink">
                           Branding & Media
                         </h3>
-                        <p className="text-xs text-gray-500 mb-4">
+                        <p className="text-xs text-ink-muted mb-4">
                           Customize how the game appears in the dashboard.
                         </p>
                       </div>
@@ -453,13 +453,13 @@ export default function GamesList() {
                               }}
                             />
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-gray-500 uppercase font-medium">
+                              <span className="text-xs text-ink-muted uppercase font-medium">
                                 Or
                               </span>
                               <input
                                 type="file"
                                 accept="image/*"
-                                className="text-xs text-gray-500 file:cursor-pointer file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:font-medium file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 dark:file:bg-gray-800 dark:file:text-gray-300 cursor-pointer"
+                                className="text-xs text-ink-muted file:cursor-pointer file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:font-medium file:bg-surface-raised file:text-ink hover:file:bg-gray-200 cursor-pointer"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
                                   if (file) {
@@ -477,7 +477,7 @@ export default function GamesList() {
                             </div>
                           </div>
                           {icon ? (
-                            <div className="w-12 h-12 rounded-md border border-gray-200 dark:border-gray-800 shrink-0 overflow-hidden bg-gray-100 dark:bg-gray-900 flex items-center justify-center shadow-sm">
+                            <div className="w-12 h-12 rounded-md border border-border shrink-0 overflow-hidden bg-gray-100 dark:bg-gray-900 flex items-center justify-center shadow-sm">
                               <img
                                 src={icon}
                                 alt="Preview"
@@ -488,7 +488,7 @@ export default function GamesList() {
                               />
                             </div>
                           ) : (
-                            <div className="w-12 h-12 rounded-md border border-dashed border-gray-300 dark:border-gray-700 shrink-0 flex items-center justify-center text-gray-400 bg-gray-50 dark:bg-gray-900/50">
+                            <div className="w-12 h-12 rounded-md border border-dashed border-border-strong shrink-0 flex items-center justify-center text-ink-muted bg-surface-raised">
                               <svg
                                 xmlns="http://www.w3.org/2000/svg"
                                 width="20"
@@ -534,7 +534,7 @@ export default function GamesList() {
                          ] as Array<{ key: string; label: string; value: string; set: (v: string) => void; fallback: string }>
                         ).map(({ key, label, value, set, fallback }) => (
                           <div key={key} className="flex gap-4 items-center">
-                            <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0 border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0 border border-border shadow-sm">
                               <input aria-label={`${label} color`}
                                 type="color"
                                 className="absolute -inset-2 w-14 h-14 cursor-pointer"
@@ -557,21 +557,21 @@ export default function GamesList() {
                       </div>
                     </div>
 
-                    <div className="pt-6 border-t border-gray-200 dark:border-gray-800">
-                      <label className="flex items-center gap-3 p-3 -mx-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900/50 cursor-pointer transition-colors border border-transparent dark:hover:border-gray-800">
+                    <div className="pt-6 border-t border-border">
+                      <label className="flex items-center gap-3 p-3 -mx-3 rounded-lg hover:bg-surface-raised cursor-pointer transition-colors border border-transparent dark:hover:border-gray-800">
                         <input
                           type="checkbox"
                           name="active"
                           value="true"
                           checked={active}
                           onChange={(e) => setActive(e.target.checked)}
-                          className="rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 w-5 h-5 text-orange-600 focus:ring-orange-500"
+                          className="rounded border-border-strong bg-surface w-5 h-5 text-orange-600 focus:ring-orange-500"
                         />
                         <div>
-                          <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                          <span className="block text-sm font-medium text-ink">
                             Active Status
                           </span>
-                          <span className="block text-xs text-gray-500">
+                          <span className="block text-xs text-ink-muted">
                             Determine if this game is visible across the
                             platform.
                           </span>
@@ -579,7 +579,7 @@ export default function GamesList() {
                       </label>
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-6 mt-8 border-t border-gray-200 dark:border-gray-800">
+                    <div className="flex justify-end gap-3 pt-6 mt-8 border-t border-border">
                       <Button
                         type="button"
                         variant="ghost"

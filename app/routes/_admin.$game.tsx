@@ -174,7 +174,7 @@ export default function GameDashboardRouter() {
 
       default:
         return (
-          <div className="flex flex-col items-center justify-center py-24 text-gray-500 dark:text-gray-400">
+          <div className="flex flex-col items-center justify-center py-24 text-ink-muted">
             <p>Select a category from the sidebar to manage {params.game}.</p>
           </div>
         );

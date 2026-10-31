@@ -1,6 +1,6 @@
 import { Link, useParams, useNavigate } from "react-router";
 import { useState } from "react";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { listDirectory } from "~/lib/github";
 import { useData } from "~/lib/use-data";
@@ -35,18 +35,18 @@ export default function LayoutsList() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-800 rounded animate-pulse motion-reduce:animate-none" />
-          <div className="h-10 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse motion-reduce:animate-none" />
+          <div className="h-8 w-48 bg-border rounded animate-pulse motion-reduce:animate-none" />
+          <div className="h-10 w-32 bg-border rounded animate-pulse motion-reduce:animate-none" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="animate-pulse motion-reduce:animate-none">
               <CardHeader>
-                <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded" />
+                <div className="h-6 w-32 bg-border rounded" />
               </CardHeader>
               <CardContent>
-                <div className="h-4 w-24 bg-gray-200 dark:bg-gray-800 rounded mb-2" />
-                <div className="h-4 w-48 bg-gray-200 dark:bg-gray-800 rounded" />
+                <div className="h-4 w-24 bg-border rounded mb-2" />
+                <div className="h-4 w-48 bg-border rounded" />
               </CardContent>
             </Card>
           ))}
@@ -65,7 +65,7 @@ export default function LayoutsList() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-ink capitalize flex items-center gap-2">
           <Smartphone className="w-6 h-6 text-orange-500" /> App Layouts - {game}
         </h1>
       </div>
@@ -84,21 +84,17 @@ export default function LayoutsList() {
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-500 mb-4">
-              ID: <code className="text-gray-700 dark:text-gray-300">home</code>
+            <p className="text-sm text-ink-muted mb-4">
+              ID: <code className="text-ink">home</code>
             </p>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-ink-muted mb-4">
               The main landing screen of the mobile app.
             </p>
             <div className="flex gap-2 mt-4">
-              <Button
-                type="button"
-                onClick={() => navigate(`/${game}/layouts/home`)}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <LayoutTemplate className="w-4 h-4 mr-2" />
+              <ButtonLink to={`/${game}/layouts/home`} className="w-full">
+                <LayoutTemplate aria-hidden="true" className="w-4 h-4" />
                 Edit Home Screen
-              </Button>
+              </ButtonLink>
             </div>
           </CardContent>
         </Card>
@@ -109,12 +105,10 @@ export default function LayoutsList() {
               title="No Entity Layouts Available"
               description="You need to create schemas first before you can design their app layouts."
               action={
-                <Link to={`/${game}/schemas/new`}>
-                  <Button className="shadow-lg shadow-orange-500/20">
-                    <Plus className="w-4 h-4 mr-2" />
+                <ButtonLink to={`/${game}/schemas/new`}>
+                    <Plus aria-hidden="true" className="w-4 h-4" />
                     Create Schema
-                  </Button>
-                </Link>
+                  </ButtonLink>
               }
             />
           </div>
@@ -123,7 +117,7 @@ export default function LayoutsList() {
             <Card key={schema.id}>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  <h2 className="text-lg font-semibold text-ink">
                     {schema.name}
                   </h2>
                   <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
@@ -132,13 +126,13 @@ export default function LayoutsList() {
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-gray-500 mb-4">
+                <p className="text-sm text-ink-muted mb-4">
                   ID:{" "}
-                  <code className="text-gray-700 dark:text-gray-300">
+                  <code className="text-ink">
                     {schema.id}
                   </code>
                 </p>
-                <p className="text-sm text-gray-500 mb-4">
+                <p className="text-sm text-ink-muted mb-4">
                   {schema.fields?.length || 0} fields configured
                 </p>
                 <div className="flex gap-2 mt-4">

@@ -144,9 +144,9 @@ export default function CronJobNew() {
     <div className="w-full py-8 pb-32">
       <form onSubmit={handleCommit} className="space-y-8">
             {/* Top Actions */}
-            <div className="flex justify-between items-center border-b border-gray-200/50 dark:border-gray-800/50 pb-4 mb-4">
+            <div className="flex justify-between items-center border-b border-border pb-4 mb-4">
               <Button type="button" variant="ghost" onClick={() => window.history.back()}>Cancel</Button>
-              <Button type="submit" disabled={submitting} className="shadow-lg shadow-orange-500/20">
+              <Button type="submit" disabled={submitting} className="shadow-lg">
                 {submitting ? "Creating..." : "Create Cron Job"}
               </Button>
             </div>
@@ -157,11 +157,11 @@ export default function CronJobNew() {
             <button
               type="button"
               onClick={() => navigate(`/${game}/cron`)}
-              className="flex items-center text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors mb-2"
+              className="flex items-center text-sm font-medium text-ink-muted hover:text-ink transition-colors mb-2"
             >
               <ArrowLeft className="w-4 h-4 mr-1" /> Back to Cron Jobs
             </button>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-ink tracking-tight flex items-center gap-3">
               <Clock className="w-8 h-8 text-orange-500" />
               New Cron Job - <span className="capitalize">{game}</span>
             </h1>
@@ -178,7 +178,7 @@ export default function CronJobNew() {
             <Button
               type="submit"
               disabled={submitting}
-              className="shadow-lg shadow-orange-500/20 px-8"
+              className="shadow-lg px-8"
             >
               {submitting ? "Creating..." : "Create Cron Job"}
             </Button>
@@ -199,25 +199,25 @@ export default function CronJobNew() {
           <CardContent className="p-6 md:p-8 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                <label className="block text-sm font-bold text-ink mb-2">
                   Cron Job Name
                 </label>
                 <input aria-label="Cron Job Name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Sync Heroes Daily"
-                  className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                  className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                <label className="block text-sm font-bold text-ink mb-2">
                   Target Schema
                 </label>
                 <select aria-label="Target Schema"
                   value={schemaId}
                   onChange={(e) => setSchemaId(e.target.value)}
-                  className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                  className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                   required
                 >
                   <option value="" disabled>
@@ -234,26 +234,26 @@ export default function CronJobNew() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                <label className="block text-sm font-bold text-ink mb-2">
                   API Endpoint URL
                 </label>
                 <input aria-label="API Endpoint URL"
                   value={apiEndpoint}
                   onChange={(e) => setApiEndpoint(e.target.value)}
                   placeholder="https://api.example.com/data"
-                  className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                  className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                   type="url"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
+                <label className="block text-sm font-bold text-ink mb-2">
                   Schedule
                 </label>
                 <select aria-label="Schedule"
                   value={schedule}
                   onChange={(e) => setSchedule(e.target.value)}
-                  className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                  className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                 >
                   <option value="manual">Manual Trigger Only</option>
                   <option value="hourly">Hourly</option>
@@ -269,11 +269,11 @@ export default function CronJobNew() {
                 id="active"
                 checked={active}
                 onChange={(e) => setActive(e.target.checked)}
-                className="w-5 h-5 rounded border-gray-300 dark:border-gray-700 text-orange-600 focus:ring-orange-500"
+                className="w-5 h-5 rounded border-border-strong text-orange-600 focus:ring-orange-500"
               />
               <label
                 htmlFor="active"
-                className="text-sm font-bold text-gray-900 dark:text-gray-100 cursor-pointer"
+                className="text-sm font-bold text-ink cursor-pointer"
               >
                 Job is Active
               </label>
@@ -284,12 +284,12 @@ export default function CronJobNew() {
         {/* Schema Field Mappings Section */}
         {selectedSchema && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-4">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <h2 className="text-xl font-bold text-ink tracking-tight">
                 API Data Mapping
               </h2>
             </div>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-ink-muted">
               Define the JSON path from the API response that maps to each field
               in the <strong>{selectedSchema.name}</strong> schema.
             </p>
@@ -298,13 +298,13 @@ export default function CronJobNew() {
               {selectedSchema.fields.map((field) => (
                 <div
                   key={field.key}
-                  className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm"
+                  className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-surface rounded-xl border border-border shadow-sm"
                 >
                   <div className="flex flex-col justify-center">
-                    <span className="font-bold text-gray-900 dark:text-gray-100">
+                    <span className="font-bold text-ink">
                       {field.label}
                     </span>
-                    <span className="text-xs text-gray-500 font-mono mt-1">
+                    <span className="text-xs text-ink-muted font-mono mt-1">
                       {field.key} ({field.type})
                     </span>
                   </div>
@@ -315,7 +315,7 @@ export default function CronJobNew() {
                         handleMappingChange(field.key, e.target.value)
                       }
                       placeholder={`e.g. data.attributes.${field.key}`}
-                      className="block w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
+                      className="block w-full rounded-lg border-border-strong bg-surface-raised px-3 py-2 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                     />
                   </div>
                 </div>

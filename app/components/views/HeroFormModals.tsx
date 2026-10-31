@@ -41,30 +41,30 @@ export function AIPromptModalWrapper({ aiPromptMarkdown }: { aiPromptMarkdown: s
         typeof document !== "undefined" &&
         createPortal(
           <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="bg-surface rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-border flex justify-between items-center">
+                <h3 className="text-lg font-bold text-ink flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-blue-500" /> AI Prompt Instructions
                 </h3>
               </div>
               <div className="p-6 overflow-y-auto max-h-[60vh]">
-                <p className="text-sm text-gray-500 mb-4">
+                <p className="text-sm text-ink-muted mb-4">
                   Use the following prompt to instruct an AI (like ChatGPT or Claude) to generate data for you. You can copy the text or download it as a file.
                 </p>
                 <textarea aria-label="AI prompt"
                   readOnly
                   value={aiPromptMarkdown}
-                  className="w-full h-64 rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 text-xs font-mono text-gray-700 dark:text-gray-300 focus:outline-none resize-none"
+                  className="w-full h-64 rounded-lg border-border-strong bg-surface-raised p-4 text-xs font-mono text-ink focus:outline-none resize-none"
                 />
               </div>
-              <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 bg-gray-50 dark:bg-gray-900/50">
+              <div className="p-6 border-t border-border flex justify-end gap-3 bg-surface-raised">
                 <Button type="button" variant="ghost" onClick={() => setShowPromptModal(false)}>
                   Close
                 </Button>
                 <Button type="button" variant="outline" onClick={handleDownloadPrompt} className="flex items-center gap-2">
                   <Download className="w-4 h-4" /> Download .md
                 </Button>
-                <Button type="button" onClick={handleCopyPrompt} className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2">
+                <Button type="button" onClick={handleCopyPrompt} className="flex items-center gap-2">
                   <ClipboardPaste className="w-4 h-4" /> Copy to Clipboard
                 </Button>
               </div>
@@ -171,9 +171,9 @@ export function ImportDataModalWrapper({
         typeof document !== "undefined" &&
         createPortal(
           <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-gray-200 dark:border-gray-800">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="bg-surface rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-border">
+                <h3 className="text-lg font-bold text-ink flex items-center gap-2">
                   <Upload className="w-5 h-5 text-blue-500" /> Import AI Data
                 </h3>
               </div>
@@ -185,24 +185,24 @@ export function ImportDataModalWrapper({
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Option 1: Upload JSON File</label>
-                  <div className="relative border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-8 text-center hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                  <label className="block text-sm font-bold text-ink mb-2">Option 1: Upload JSON File</label>
+                  <div className="relative border-2 border-dashed border-border-strong rounded-xl p-8 text-center hover:bg-surface-raised transition-colors">
                     <input type="file" accept=".json" onChange={(e) => { setImportError(null); handleFileUpload(e); }} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Click or drag and drop your generated JSON file here</p>
+                    <Upload className="w-8 h-8 text-ink-muted mx-auto mb-2" />
+                    <p className="text-sm text-ink-muted">Click or drag and drop your generated JSON file here</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="flex-1 h-px bg-gray-200 dark:bg-gray-800"></div>
-                  <span className="text-xs font-medium text-gray-500 uppercase">OR</span>
-                  <div className="flex-1 h-px bg-gray-200 dark:bg-gray-800"></div>
+                  <div className="flex-1 h-px bg-border"></div>
+                  <span className="text-xs font-medium text-ink-muted uppercase">OR</span>
+                  <div className="flex-1 h-px bg-border"></div>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Option 2: Paste JSON Directly</label>
-                  <textarea aria-label="Option 2: Paste JSON Directly" value={pastedJson} onChange={(e) => { setPastedJson(e.target.value); if (importError) setImportError(null); }} placeholder="Paste your JSON data here..." rows={6} className="w-full rounded-lg border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-gray-200 transition-colors" />
+                  <label className="block text-sm font-bold text-ink mb-2">Option 2: Paste JSON Directly</label>
+                  <textarea aria-label="Option 2: Paste JSON Directly" value={pastedJson} onChange={(e) => { setPastedJson(e.target.value); if (importError) setImportError(null); }} placeholder="Paste your JSON data here..." rows={6} className="w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-gray-200 transition-colors" />
                 </div>
               </div>
-              <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 bg-gray-50 dark:bg-gray-900/50">
+              <div className="p-6 border-t border-border flex justify-end gap-3 bg-surface-raised">
                 <Button type="button" variant="ghost" onClick={() => { setShowImportModal(false); setImportError(null); }}>Cancel</Button>
                 <Button type="button" variant="default" onClick={handleImportPastedJson}>Import Pasted Data</Button>
               </div>

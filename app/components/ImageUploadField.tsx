@@ -39,10 +39,10 @@ export function ImageUploadField({ label, onFileSelect, defaultPreview, classNam
 
   return (
     <div className={className}>
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 tracking-wide">{label}</label>
+      <label className="block text-sm font-medium text-ink mb-2 tracking-wide">{label}</label>
       <div className="flex items-center gap-4">
         {preview ? (
-          <div className="relative w-20 h-20 rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700 group">
+          <div className="relative w-20 h-20 rounded-xl overflow-hidden shadow-sm border border-border group">
             <img src={preview} alt={`${label} preview`} className="w-full h-full object-cover" />
             <button
               type="button"
@@ -58,7 +58,7 @@ export function ImageUploadField({ label, onFileSelect, defaultPreview, classNam
             type="button"
             onClick={() => fileInput.current?.click()}
             aria-label={`Upload ${label} image`}
-            className="flex items-center justify-center w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-orange-500 hover:bg-orange-50 dark:hover:border-orange-400 dark:hover:bg-orange-500/10 transition-colors text-gray-400 hover:text-orange-500"
+            className="flex items-center justify-center w-20 h-20 rounded-xl border-2 border-dashed border-border-strong hover:border-orange-500 hover:bg-orange-50 dark:hover:border-orange-400 dark:hover:bg-orange-500/10 transition-colors text-ink-muted hover:text-orange-500"
           >
             <Upload aria-hidden="true" className="w-6 h-6" />
           </button>
@@ -71,7 +71,7 @@ export function ImageUploadField({ label, onFileSelect, defaultPreview, classNam
             onChange={handleFileChange}
             className="hidden"
           />
-          {!preview && <p className="text-xs text-gray-500 dark:text-gray-400">PNG, JPG or WEBP (Max 2MB)</p>}
+          {!preview && <p className="text-xs text-ink-muted">PNG, JPG or WEBP (Max 2MB)</p>}
         </div>
       </div>
     </div>

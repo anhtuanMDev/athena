@@ -20,16 +20,16 @@ export default function Activity() {
 
   if (loading) return (
     <div className="space-y-6">
-      <div className="h-8 w-48 bg-gray-200 dark:bg-gray-800 rounded animate-pulse motion-reduce:animate-none" />
+      <div className="h-8 w-48 bg-border rounded animate-pulse motion-reduce:animate-none" />
       <div className="space-y-2">
         {[1, 2, 3, 4, 5].map((i) => (
           <Card key={i} className="animate-pulse motion-reduce:animate-none">
             <CardContent className="flex items-center justify-between py-3">
               <div className="flex-1 space-y-2">
-                <div className="h-4 w-3/4 bg-gray-200 dark:bg-gray-800 rounded" />
-                <div className="h-3 w-1/4 bg-gray-200 dark:bg-gray-800 rounded" />
+                <div className="h-4 w-3/4 bg-border rounded" />
+                <div className="h-3 w-1/4 bg-border rounded" />
               </div>
-              <div className="h-4 w-10 bg-gray-200 dark:bg-gray-800 rounded ml-4" />
+              <div className="h-4 w-10 bg-border rounded ml-4" />
             </CardContent>
           </Card>
         ))}
@@ -47,14 +47,14 @@ export default function Activity() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Activity</h1>
+      <h1 className="text-2xl font-bold text-ink">Activity</h1>
       <div className="space-y-2">
         {data?.commits.map((commit) => (
           <Card key={commit.sha}>
             <CardContent className="flex items-center justify-between py-3">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{commit.message}</p>
-                <p className="text-xs text-gray-500">{new Date(commit.date).toLocaleString()}</p>
+                <p className="text-sm font-medium text-ink truncate">{commit.message}</p>
+                <p className="text-xs text-ink-muted">{new Date(commit.date).toLocaleString()}</p>
               </div>
               <a href={commit.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline shrink-0 ml-4">View</a>
             </CardContent>

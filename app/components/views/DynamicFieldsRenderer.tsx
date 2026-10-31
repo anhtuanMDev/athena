@@ -130,10 +130,10 @@ export function DynamicFieldsRenderer({
             <label className="flex items-center gap-3 pt-8 cursor-pointer" key={f.key}>
               <input
                 type="checkbox"
-                className="h-5 w-5 rounded border-gray-300 text-orange-600 focus:ring-orange-600 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-900"
+                className="h-5 w-5 rounded border-border-strong text-orange-600 focus:ring-orange-600 dark:bg-gray-700 dark:ring-offset-gray-900"
                 {...register(f.key)}
               />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <span className="text-sm font-medium text-ink">
                 {f.label}
               </span>
             </label>

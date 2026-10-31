@@ -13,26 +13,26 @@ export default function Dashboard() {
 
   if (loading) return (
     <div className="space-y-6">
-      <div className="h-8 w-48 bg-gray-200 dark:bg-gray-800 rounded animate-pulse motion-reduce:animate-none" />
+      <div className="h-8 w-48 bg-border rounded animate-pulse motion-reduce:animate-none" />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {[1, 2, 3].map((i) => (
           <Card key={i} className="animate-pulse motion-reduce:animate-none">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded" />
-                <div className="h-5 w-16 bg-gray-200 dark:bg-gray-800 rounded-full" />
+                <div className="h-6 w-32 bg-border rounded" />
+                <div className="h-5 w-16 bg-border rounded-full" />
               </div>
-              <div className="h-4 w-24 bg-gray-200 dark:bg-gray-800 rounded mt-2" />
+              <div className="h-4 w-24 bg-border rounded mt-2" />
             </CardHeader>
             <CardContent>
               <div className="flex gap-4">
-                <div className="h-5 w-16 bg-gray-200 dark:bg-gray-800 rounded" />
-                <div className="h-5 w-16 bg-gray-200 dark:bg-gray-800 rounded" />
+                <div className="h-5 w-16 bg-border rounded" />
+                <div className="h-5 w-16 bg-border rounded" />
               </div>
               <div className="mt-4 flex gap-2">
-                <div className="h-4 w-12 bg-gray-200 dark:bg-gray-800 rounded" />
-                <div className="h-4 w-12 bg-gray-200 dark:bg-gray-800 rounded" />
-                <div className="h-4 w-12 bg-gray-200 dark:bg-gray-800 rounded" />
+                <div className="h-4 w-12 bg-border rounded" />
+                <div className="h-4 w-12 bg-border rounded" />
+                <div className="h-4 w-12 bg-border rounded" />
               </div>
             </CardContent>
           </Card>
@@ -51,28 +51,28 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+      <h1 className="text-2xl font-bold text-ink">Dashboard</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {data.games.map((game) => (
           <Card key={game.slug}>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white" style={game.primary ? { color: game.primary } : {}}>{game.name}</h2>
+                <h2 className="text-lg font-semibold text-ink" style={game.primary ? { color: game.primary } : {}}>{game.name}</h2>
                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${game.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
                   {game.active ? "Active" : "Inactive"}
                 </span>
               </div>
-              {game.developer && <p className="text-sm text-gray-500">{game.developer}</p>}
+              {game.developer && <p className="text-sm text-ink-muted">{game.developer}</p>}
             </CardHeader>
             <CardContent>
               <div className="flex gap-4 text-sm">
                 <div>
-                  <span className="font-semibold text-gray-900 dark:text-white">{game.heroCount}</span>
-                  <span className="text-gray-500 ml-1">heroes</span>
+                  <span className="font-semibold text-ink">{game.heroCount}</span>
+                  <span className="text-ink-muted ml-1">heroes</span>
                 </div>
                 <div>
-                  <span className="font-semibold text-gray-900 dark:text-white">{game.patchCount}</span>
-                  <span className="text-gray-500 ml-1">patches</span>
+                  <span className="font-semibold text-ink">{game.patchCount}</span>
+                  <span className="text-ink-muted ml-1">patches</span>
                 </div>
               </div>
               <div className="mt-4 flex gap-2">

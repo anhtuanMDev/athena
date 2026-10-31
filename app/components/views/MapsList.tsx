@@ -2,7 +2,7 @@ import { Link, useParams } from "react-router";
 import { useEntityList } from "~/lib/use-entity-list";
 import { DataTable, type Column } from "~/components/DataTable";
 import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
-import { Button } from "~/components/ui/button";
+import { ButtonLink } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus } from "lucide-react";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
@@ -39,15 +39,13 @@ return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">{game} Maps</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Manage locations, control points, and payloads.</p>
+          <h1 className="text-3xl font-bold text-ink capitalize tracking-tight">{game} Maps</h1>
+          <p className="text-ink-muted mt-1">Manage locations, control points, and payloads.</p>
         </div>
-        <Link to={`/${game}/maps/new`}>
-          <Button className="gap-2 shadow-lg shadow-orange-500/20 transition-colors hover:shadow-orange-500/40">
-            <Plus className="w-4 h-4" />
+        <ButtonLink to={`/${game}/maps/new`}>
+            <Plus aria-hidden="true" className="w-4 h-4" />
             New Map
-          </Button>
-        </Link>
+          </ButtonLink>
       </div>
 
       {maps ? (

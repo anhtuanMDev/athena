@@ -30,36 +30,36 @@ export function DataTable<T extends object>({
   }
 
   return (
-    <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] scrollbar-none rounded-xl border border-gray-200/50 dark:border-gray-800/50 bg-white/30 dark:bg-gray-900/30 backdrop-blur-sm shadow-sm">
-      <table className="min-w-full divide-y divide-gray-200/50 dark:divide-gray-800/50">
+    <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] scrollbar-none rounded-xl border border-border bg-surface backdrop-blur-sm shadow-sm">
+      <table className="min-w-full divide-y divide-border">
         <thead className="bg-gray-50/50 dark:bg-gray-800/50">
           <tr>
             {columns.map((col) => (
               <th
                 key={col.key}
-                className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-widest dark:text-gray-400"
+                className="px-6 py-4 text-left text-xs font-bold text-ink-muted uppercase tracking-widest"
               >
                 {col.header}
               </th>
             ))}
-            <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-widest dark:text-gray-400">
+            <th className="px-6 py-4 text-right text-xs font-bold text-ink-muted uppercase tracking-widest">
               Actions
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
+        <tbody className="divide-y divide-border bg-surface">
           {data.map((item) => {
             const typedItem = item as Record<string, unknown>;
             const id = typedItem[idKey] as string;
             return (
               <tr
                 key={id}
-                className="group hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                className="group hover:bg-surface-raised"
               >
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className="whitespace-normal wrap-break-word px-6 py-4 text-sm text-gray-900 dark:text-gray-100 max-w-[200px] sm:max-w-[300px] md:max-w-md"
+                    className="whitespace-normal wrap-break-word px-6 py-4 text-sm text-ink max-w-[200px] sm:max-w-[300px] md:max-w-md"
                   >
                     {col.render
                       ? col.render(item)

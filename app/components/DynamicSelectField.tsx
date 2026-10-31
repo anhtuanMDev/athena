@@ -25,7 +25,7 @@ export const DynamicSelectField = forwardRef<HTMLInputElement & HTMLSelectElemen
     
     return (
       <div>
-        <label id={labelId} htmlFor={multiple ? undefined : fieldId} className={`block text-sm font-medium ${error ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}`}>
+        <label id={labelId} htmlFor={multiple ? undefined : fieldId} className={`block text-sm font-medium ${error ? 'text-red-500' : 'text-ink'}`}>
           {label}
           {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
         </label>
@@ -59,7 +59,7 @@ export const DynamicSelectField = forwardRef<HTMLInputElement & HTMLSelectElemen
                     }
                   }}
                 />
-                <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">{opt}</span>
+                <span className="ml-2 text-sm text-ink">{opt}</span>
               </label>
             ))}
           </div>
@@ -67,7 +67,7 @@ export const DynamicSelectField = forwardRef<HTMLInputElement & HTMLSelectElemen
             <select
             name={name}
             required={required}
-            className={`mt-1 block w-full rounded-md border ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'} bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 dark:bg-gray-800 dark:text-gray-100 ${error ? 'dark:border-red-500' : 'dark:border-gray-600'}`}
+            className={`mt-1 block w-full rounded-md border ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-border-strong focus:border-blue-500 focus:ring-blue-500'} bg-surface px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 dark:text-gray-100 ${error ? 'dark:border-red-500' : ''}`}
             ref={ref as React.Ref<HTMLSelectElement>}
             {...(props as React.SelectHTMLAttributes<HTMLSelectElement>)}
             id={fieldId}

@@ -132,7 +132,7 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
   if (loading) {
     return (
       <div className="max-w-md mx-auto py-12 animate-pulse motion-reduce:animate-none">
-        <div className="h-64 bg-gray-200 dark:bg-gray-800 rounded-xl"></div>
+        <div className="h-64 bg-border rounded-xl"></div>
       </div>
     );
   }
@@ -167,7 +167,7 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
           <h1 className="text-xl font-bold text-red-600 dark:text-red-400">Confirm Deletion</h1>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-700 dark:text-gray-300 mb-6">
+          <p className="text-sm text-ink mb-6">
             Are you sure you want to delete the {singularEntity} <strong>{id}</strong>? This action cannot be undone.
           </p>
 
@@ -194,7 +194,7 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
             <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/${entityType}`)} className="flex-1 w-full">
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting || data.dependencies.length > 0} className={`flex-1 w-full shadow-lg ${data.dependencies.length > 0 ? 'bg-gray-400 text-white cursor-not-allowed shadow-none' : 'bg-red-600 hover:bg-red-700 text-white shadow-red-500/20'}`}>
+            <Button type="submit" disabled={submitting || data.dependencies.length > 0} className={`flex-1 w-full shadow-lg ${data.dependencies.length > 0 ? 'bg-gray-400 text-white cursor-not-allowed shadow-none' : 'bg-red-600 hover:bg-red-700 text-white'}`}>
               {submitting ? "Deleting..." : "Delete Permanently"}
             </Button>
           </form>

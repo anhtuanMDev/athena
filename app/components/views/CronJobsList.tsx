@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
+import { ButtonLink } from "~/components/ui/button";
 import { listDirectory } from "~/lib/github";
 import { useData } from "~/lib/use-data";
 import { type CronJob } from "~/schemas/cron";
@@ -30,18 +30,18 @@ export default function CronJobsList() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-800 rounded animate-pulse motion-reduce:animate-none" />
-          <div className="h-10 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse motion-reduce:animate-none" />
+          <div className="h-8 w-48 bg-border rounded animate-pulse motion-reduce:animate-none" />
+          <div className="h-10 w-32 bg-border rounded animate-pulse motion-reduce:animate-none" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="animate-pulse motion-reduce:animate-none">
               <CardHeader>
-                <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded" />
+                <div className="h-6 w-32 bg-border rounded" />
               </CardHeader>
               <CardContent>
-                <div className="h-4 w-24 bg-gray-200 dark:bg-gray-800 rounded mb-2" />
-                <div className="h-4 w-48 bg-gray-200 dark:bg-gray-800 rounded" />
+                <div className="h-4 w-24 bg-border rounded mb-2" />
+                <div className="h-4 w-48 bg-border rounded" />
               </CardContent>
             </Card>
           ))}
@@ -61,31 +61,27 @@ export default function CronJobsList() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-ink capitalize flex items-center gap-2">
           <Clock className="w-6 h-6 text-orange-500" />
           Cron Jobs - {game}
         </h1>
-        <Link to={`/${game}/cron/new`}>
-          <Button>Create Cron Job</Button>
-        </Link>
+        <ButtonLink to={`/${game}/cron/new`}>Create Cron Job</ButtonLink>
       </div>
 
       {!data || data.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="mx-auto w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-              <Clock className="w-8 h-8 text-gray-400" />
+            <div className="mx-auto w-16 h-16 bg-surface-raised rounded-full flex items-center justify-center mb-4">
+              <Clock className="w-8 h-8 text-ink-muted" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <h3 className="text-lg font-semibold text-ink">
               No Cron Jobs Found
             </h3>
-            <p className="text-sm text-gray-500 mt-2 mb-4">
+            <p className="text-sm text-ink-muted mt-2 mb-4">
               Create your first automated task to sync data automatically from
               an API endpoint.
             </p>
-            <Link to={`/${game}/cron/new`}>
-              <Button>Create Cron Job</Button>
-            </Link>
+            <ButtonLink to={`/${game}/cron/new`}>Create Cron Job</ButtonLink>
           </CardContent>
         </Card>
       ) : (
@@ -94,11 +90,11 @@ export default function CronJobsList() {
             <Card key={job.id} className={!job.active ? "opacity-60" : ""}>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  <h2 className="text-lg font-semibold text-ink">
                     {job.name}
                   </h2>
                   <span
-                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${job.active ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"}`}
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${job.active ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-surface-raised text-ink"}`}
                   >
                     {job.active ? "Active" : "Inactive"}
                   </span>
@@ -106,20 +102,20 @@ export default function CronJobsList() {
               </CardHeader>
               <CardContent>
                 <div
-                  className="text-sm text-gray-500 mb-2 truncate"
+                  className="text-sm text-ink-muted mb-2 truncate"
                   title={job.api_endpoint}
                 >
                   <strong>API:</strong> {job.api_endpoint}
                 </div>
-                <p className="text-sm text-gray-500 mb-2">
+                <p className="text-sm text-ink-muted mb-2">
                   <strong>Schema:</strong> {job.schema_id}
                 </p>
-                <p className="text-sm text-gray-500 mb-4 capitalize">
+                <p className="text-sm text-ink-muted mb-4 capitalize">
                   <strong>Schedule:</strong> {job.schedule}
                 </p>
 
                 {job._sync && (
-                  <div className="mb-4 text-xs p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+                  <div className="mb-4 text-xs p-3 rounded-lg bg-surface-raised border border-border">
                     {job._sync.last_sync && (
                       <p className="text-green-700 dark:text-green-400">
                         <strong>Last Sync:</strong> {new Date(job._sync.last_sync).toLocaleString()}

@@ -2,7 +2,7 @@ import { Link, useParams } from "react-router";
 import { useEntityList } from "~/lib/use-entity-list";
 import { DataTable, type Column } from "~/components/DataTable";
 import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
-import { Button } from "~/components/ui/button";
+import { ButtonLink } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus } from "lucide-react";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
@@ -20,7 +20,7 @@ interface ModeRow {
 
 const columns: Column<ModeRow>[] = [
   { key: "name", header: "Name", render: (m) => m.name || m.mode_name || m.id },
-  { key: "status", header: "Status", render: (m) => m.status ? <span className="capitalize px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-md text-xs">{m.status}</span> : '-' },
+  { key: "status", header: "Status", render: (m) => m.status ? <span className="capitalize px-2 py-1 bg-surface-raised rounded-md text-xs">{m.status}</span> : '-' },
   { key: "objective_type", header: "Objective", render: (m) => m.objective_type ? <span className="capitalize">{m.objective_type}</span> : '-' },
   { key: "map_layout_type", header: "Map Layout", render: (m) => m.map_layout_type ? <span className="capitalize">{m.map_layout_type}</span> : '-' },
   { key: "team_size", header: "Team Size", render: (m) => m.team_size ? `${m.team_size}v${m.team_size}` : '-' },
@@ -46,15 +46,13 @@ return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">{game} Modes</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Manage game modes, objectives, and rule sets.</p>
+          <h1 className="text-3xl font-bold text-ink capitalize tracking-tight">{game} Modes</h1>
+          <p className="text-ink-muted mt-1">Manage game modes, objectives, and rule sets.</p>
         </div>
-        <Link to={`/${game}/modes/new`}>
-          <Button className="gap-2 shadow-lg shadow-orange-500/20 transition-colors hover:shadow-orange-500/40">
-            <Plus className="w-4 h-4" />
+        <ButtonLink to={`/${game}/modes/new`}>
+            <Plus aria-hidden="true" className="w-4 h-4" />
             New Mode
-          </Button>
-        </Link>
+          </ButtonLink>
       </div>
 
       {modes ? (
