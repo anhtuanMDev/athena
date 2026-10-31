@@ -7,6 +7,7 @@ import { Button } from "~/components/ui/button";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { inputBaseClass, inputClass } from "~/components/layout-editor/PropControl";
 import { createFile, deleteFile, getFile, isConflictError, listDirectory, updateFile } from "~/lib/github";
+import { validateNavigationFile } from "~/lib/screen-policy";
 import { useData } from "~/lib/use-data";
 import {
   CATEGORIES,
@@ -79,6 +80,20 @@ export default function ScreensList() {
 
   const screenIds = useMemo(() => (data?.screens ?? []).map((s) => s.id), [data]);
   const tabsDirty = JSON.stringify(tabs) !== savedTabs;
+  const tabErrors = useMemo(() => validateNavigationFile({ tabs }, screenIds), [tabs, screenIds]);
+
+  /** Where a screen is opened from: tabs, and actions or tiles on other screens. */
+  const referencesTo = (id: string): string[] => {
+    const refs = tabs.flatMap((t, i) => (t.screen === id ? [`Tab ${i + 1}${t.label ? ` (${t.label})` : ""}${i === 0 ? ", the Home tab" : ""}`] : []));
+    for (const { id: other, screen } of data?.screens ?? []) {
+      if (other === id) continue;
+      for (const block of screen.blocks) {
+        const text = JSON.stringify(block.props);
+        if (text.includes(`"screen":"${id}"`)) refs.push(`${screen.title || other}: ${block.type}`);
+      }
+    }
+    return refs;
+  };
 
   if (loading && !data) {
     return (
@@ -186,7 +201,7 @@ export default function ScreensList() {
             data; nothing appears in the app until a screen uses it.
           </p>
         </div>
-        <Button type="button" onClick={() => setNewScreen({ id: "", type: "list", title: "", category: "" })}>
+        <Button type="button" className="shrink-0 whitespace-nowrap" onClick={() => setNewScreen({ id: "", type: "list", title: "", category: "" })}>
           <Plus aria-hidden="true" className="mr-1.5 size-4" />
           New screen
         </Button>
@@ -253,10 +268,17 @@ export default function ScreensList() {
               “home” screen alone.
             </p>
           </div>
-          <Button type="button" onClick={saveTabs} disabled={savingTabs || !tabsDirty}>
+          <Button type="button" onClick={saveTabs} disabled={savingTabs || !tabsDirty || tabErrors.length > 0}>
             {savingTabs ? "Saving…" : "Save tabs"}
           </Button>
         </div>
+        {tabErrors.length > 0 && (
+          <ul aria-live="polite" className="mt-3 space-y-1 rounded-xl border border-danger/40 bg-danger/5 p-3 text-sm text-danger-ink">
+            {tabErrors.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        )}
         <ol className="mt-4 space-y-2">
           {tabs.map((tab, i) => (
             <li key={i} className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-2 sm:flex-nowrap">
@@ -388,6 +410,16 @@ export default function ScreensList() {
           <p className="mt-1 text-sm text-ink-muted">
             The app stops showing it, and tabs or buttons that open it do nothing. This removes the file from GitHub.
           </p>
+          {deleting && referencesTo(deleting.id).length > 0 && (
+            <div className="mt-3 rounded-lg bg-surface-raised p-3 text-sm text-ink">
+              <p className="font-medium">Still opened from:</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-ink-muted">
+                {referencesTo(deleting.id).map((ref) => (
+                  <li key={ref}>{ref}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="mt-6 flex justify-end gap-2">
             <Button type="button" variant="secondary" autoFocus onClick={() => setDeleting(null)}>
               Keep it

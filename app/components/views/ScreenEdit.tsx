@@ -6,15 +6,15 @@ import { useToast } from "~/components/ToastProvider";
 import { Button } from "~/components/ui/button";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { BlockPreview, type PreviewContext } from "~/components/layout-editor/BlockPreview";
-import { JsonInput, PropControl, inputBaseClass, inputClass, type PropContext } from "~/components/layout-editor/PropControl";
+import { PropControl, inputBaseClass, inputClass, type PropContext } from "~/components/layout-editor/PropControl";
 import { getFile, isConflictError, listDirectory, updateFile } from "~/lib/github";
+import { validateScreenFile } from "~/lib/screen-policy";
 import { useData } from "~/lib/use-data";
 import {
   CATEGORIES,
   SCREEN_TYPES,
   bindingPath,
   createBlock,
-  extraProps,
   folderFor,
   formProps,
   homeFields,
@@ -67,10 +67,11 @@ const PREVIEW_PALETTES: Record<"light" | "dark", CSSProperties> = {
 
 function summarizeProps(block: ScreenBlock): string {
   const parts = Object.entries(block.props)
-    .filter(([, value]) => value !== undefined && (typeof value !== "object" || isBinding(value)))
+    .filter(([, value]) => value !== undefined && (typeof value !== "object" || Array.isArray(value) || isBinding(value)))
     .slice(0, 3)
     .map(([name, value]) => {
       if (isBinding(value)) return `${name} ← ${value}`;
+      if (Array.isArray(value)) return `${name}: ${value.length} ${value.length === 1 ? "entry" : "entries"}`;
       const text = typeof value === "string" ? `"${value}"` : JSON.stringify(value);
       return `${name}: ${text.length > 24 ? `${text.slice(0, 23)}…` : text}`;
     });
@@ -207,7 +208,12 @@ export default function ScreenEdit() {
   );
   const visibleIssues = (list: ScreenIssue[]) => list.filter((i) => attemptedSave || i.kind !== "required");
   const jsonErrorList = Object.entries(jsonErrors);
-  const blockingCount = issues.filter((i) => i.level === "error").length + jsonErrorList.length;
+  // The same structural check the write API runs, so a save never fails there unexpectedly.
+  const fileErrors = useMemo(() => (screen ? validateScreenFile(screen) : []), [screen]);
+  const errorCount = issues.filter((i) => i.level === "error").length;
+  // File errors mostly repeat the editor's own checks: list and count them only when those pass.
+  const listedFileErrors = errorCount > 0 ? [] : fileErrors;
+  const blockingCount = errorCount + jsonErrorList.length + listedFileErrors.length;
 
   const blocker = useBlocker(
     useCallback(
@@ -274,11 +280,11 @@ export default function ScreenEdit() {
       }),
     );
 
-  const replaceExtraProps = (block: ScreenBlock, extra: unknown) => {
-    const spec = manifest?.[block.type];
-    const kept = Object.fromEntries(formProps(spec).flatMap(([name]) => (name in block.props ? [[name, block.props[name]]] : [])));
-    patchBlock(block.id, { props: { ...kept, ...(extra as Record<string, unknown>) } });
-  };
+  /** Drops props the app won't take (styles, callbacks, props the block doesn't have). */
+  const removeProps = (blockId: string, names: string[]) =>
+    setBlocks((current) =>
+      current.map((b) => (b.id === blockId ? { ...b, props: Object.fromEntries(Object.entries(b.props).filter(([n]) => !names.includes(n))) } : b)),
+    );
 
   const duplicateBlock = (index: number) => {
     const original = blocks[index];
@@ -468,6 +474,11 @@ export default function ScreenEdit() {
                 </li>
               );
             })}
+            {listedFileErrors.map((message) => (
+              <li key={message} className="text-danger-ink">
+                {message}
+              </li>
+            ))}
             {jsonErrorList.map(([key, message]) => {
               const [blockId, prop] = key.split(":");
               const block = blocks.find((b) => b.id === blockId);
@@ -627,8 +638,10 @@ export default function ScreenEdit() {
                 const hidden = block.visible === false;
                 const bodyId = `block-${block.id}-body`;
                 const name = nameOf(block);
-                const extra = extraProps(block, spec);
-                const extraIssues = blockIssues.filter((i) => i.prop && i.prop in extra);
+                const formNames = new Set(formProps(spec).map(([n]) => n));
+                // Issues that no prop field shows: block-wide ones, and props outside the form.
+                const blockNotes = blockIssues.filter((i) => !i.prop || !formNames.has(i.prop));
+                const strayProps = Object.keys(block.props).filter((n) => spec && !formNames.has(n));
                 const context: PropContext = {
                   dataFields,
                   itemFields: spec?.list ? itemFieldsFor(block, screen, dataFields, schemas, recordsOf) : null,
@@ -684,12 +697,20 @@ export default function ScreenEdit() {
                     <div id={bodyId} hidden={!expanded} className="space-y-5 border-t border-border px-4 py-4 md:px-5">
                       {expanded && (
                         <>
-                          {warnings.map((w) => (
-                            <p key={w.message} className="flex gap-2 rounded-lg bg-surface-raised px-3 py-2 text-xs text-ink">
+                          {blockNotes.map((note) => (
+                            <p
+                              key={note.message}
+                              className={`flex gap-2 rounded-lg px-3 py-2 text-xs ${note.level === "error" ? "bg-danger/10 text-danger-ink" : "bg-surface-raised text-ink"}`}
+                            >
                               <AlertTriangle aria-hidden="true" className="mt-px size-3.5 shrink-0" />
-                              {w.message}
+                              {note.message}
                             </p>
                           ))}
+                          {strayProps.length > 0 && (
+                            <Button type="button" variant="ghost" size="small" onClick={() => removeProps(block.id, strayProps)}>
+                              Remove {strayProps.join(", ")}
+                            </Button>
+                          )}
                           {spec?.list && (
                             <p className="text-xs text-ink-muted">
                               This block repeats for each{" "}
@@ -732,30 +753,6 @@ export default function ScreenEdit() {
                               ))}
                             </div>
                           )}
-                          <div>
-                            <label htmlFor={`block-${block.id}-extra`} className="font-mono text-xs font-medium text-ink">
-                              {spec ? "Other props (JSON)" : "Props (JSON)"}
-                            </label>
-                            <p id={`block-${block.id}-extra-help`} className="mb-1.5 mt-0.5 text-xs text-ink-muted">
-                              Saved as written; "data.field" and "item.field" strings bind to fields.
-                            </p>
-                            {extraIssues.map((i, n) => (
-                              <p key={i.message} id={`block-${block.id}-extra-issue-${n}`} className="mb-1.5 text-xs text-danger-ink">
-                                {i.message}
-                              </p>
-                            ))}
-                            <JsonInput
-                              id={`block-${block.id}-extra`}
-                              value={extra}
-                              expect="object"
-                              rows={Object.keys(extra).length > 0 ? 4 : 2}
-                              describedBy={[`block-${block.id}-extra-help`, ...extraIssues.map((_, n) => `block-${block.id}-extra-issue-${n}`)].join(" ")}
-                              invalid={extraIssues.length > 0}
-                              placeholder="{}"
-                              onValid={(value) => replaceExtraProps(block, value)}
-                              onValidity={reportJson(`${block.id}:other props`)}
-                            />
-                          </div>
                           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
                             <p className="font-mono text-xs text-ink-muted">
                               {block.type} · id {block.id}

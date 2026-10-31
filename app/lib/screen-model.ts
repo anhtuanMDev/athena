@@ -1,3 +1,5 @@
+import { BLOCKED_PROP, LIMITS, isAllowedLink } from "./screen-policy";
+
 // App screens under data/<game>/screens/<id>.json and the tab list in
 // data/<game>/navigation.json, rendered by the mobile app (zms). Schemas only
 // say which fields records have; screens say what the app shows and where.
@@ -88,7 +90,18 @@ export interface ScreenIssue {
   sectionId: string;
   prop?: string;
   level: "error" | "warning";
-  kind: "duplicate-id" | "unknown-type" | "required" | "unknown-field" | "unknown-screen" | "unknown-category";
+  kind:
+    | "duplicate-id"
+    | "unknown-type"
+    | "required"
+    | "unknown-field"
+    | "unknown-screen"
+    | "unknown-category"
+    | "unsafe-link"
+    | "blocked-prop"
+    | "ignored-prop"
+    | "too-many-blocks"
+    | "empty-screen";
   message: string;
 }
 
@@ -146,11 +159,6 @@ export const FORM_EXCLUDED_PROPS = new Set(["style"]);
 export function formProps(spec: PrimitiveSpec | undefined): [string, PropSpec][] {
   if (!spec) return [];
   return Object.entries(spec.props).filter(([name]) => !FORM_EXCLUDED_PROPS.has(name));
-}
-
-export function extraProps(block: ScreenBlock, spec: PrimitiveSpec | undefined): Record<string, unknown> {
-  const known = new Set(formProps(spec).map(([name]) => name));
-  return Object.fromEntries(Object.entries(block.props).filter(([name]) => !known.has(name)));
 }
 
 export function normalizeManifest(raw: unknown): PrimitiveManifest | null {
@@ -322,6 +330,18 @@ export function validateScreen(
   const seenIds = new Set<string>();
   const categories = new Set(schemas.map((s) => s.category));
 
+  const shown = screen.blocks.filter((b) => b.visible !== false);
+  if (shown.length === 0) {
+    issues.push({ sectionId: "", level: "warning", kind: "empty-screen", message: "No visible blocks: the app shows “Nothing to show here yet”." });
+  }
+  if (screen.blocks.length > LIMITS.blocksPerScreen) {
+    issues.push({
+      sectionId: "",
+      level: "error",
+      kind: "too-many-blocks",
+      message: `A screen can have at most ${LIMITS.blocksPerScreen} blocks; the app ignores the rest.`,
+    });
+  }
   if (screen.source && !categories.has(screen.source.category)) {
     issues.push({
       sectionId: "",
@@ -351,7 +371,13 @@ export function validateScreen(
     }
 
     const itemKnown = spec?.list ? new Set(itemFieldsFor(block, screen, dataFields, schemas, recordsOf).map((f) => f.key)) : null;
+    const ignored: string[] = [];
     for (const [name, value] of Object.entries(block.props)) {
+      if (BLOCKED_PROP.test(name)) {
+        add({ prop: name, kind: "blocked-prop", message: `"${name}" isn't allowed: the app never takes styles or callbacks from a screen.` }, "error");
+        continue;
+      }
+      if (spec && !spec.props[name]) ignored.push(name);
       if (isBinding(value)) {
         const path = bindingPath(value);
         if (bindingScope(value) === "item") {
@@ -364,9 +390,19 @@ export function validateScreen(
           add({ prop: name, kind: "unknown-field", message: `${name} is bound to "${path}", which this screen's data doesn't have.` });
         }
       }
+      if (spec?.props[name]?.type === "info_rows" && Array.isArray(value)) {
+        for (const row of value as { label?: string; value?: unknown }[]) {
+          if (isBinding(row?.value) && dataKnown.size > 0 && !isKnownPath(bindingPath(row.value), dataKnown)) {
+            add({ prop: name, kind: "unknown-field", message: `Row "${row.label ?? ""}" is bound to "${bindingPath(row.value)}", which this screen's data doesn't have.` });
+          }
+        }
+      }
       const action = value && typeof value === "object" ? (value as ScreenAction) : undefined;
       if (spec?.props[name]?.type === "action" && action?.screen && !action.screen.startsWith("app:") && !screenIds.includes(action.screen)) {
         add({ prop: name, kind: "unknown-screen", message: `${name} opens "${action.screen}", which isn't a screen of this game.` });
+      }
+      if (spec?.props[name]?.type === "action" && action?.url !== undefined && !isAllowedLink(action.url)) {
+        add({ prop: name, kind: "unsafe-link", message: `${name} links to a site the app won't open: use https on an allowed site.` }, "error");
       }
       if (spec?.props[name]?.type === "source") {
         const source = normalizeSource(value);
@@ -374,6 +410,9 @@ export function validateScreen(
           add({ prop: name, kind: "unknown-category", message: `${name} lists category "${source.category}", which no schema has.` });
         }
       }
+    }
+    if (ignored.length > 0) {
+      add({ kind: "ignored-prop", message: `The app ignores ${ignored.join(", ")}: these aren't props of this block.` }, "warning");
     }
   }
   return issues;

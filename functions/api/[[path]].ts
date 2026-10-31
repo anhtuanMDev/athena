@@ -2,6 +2,7 @@ import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
 import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
 import { bumpCacheVersion, mobileVersionKeyForPath } from "../../app/lib/mobile-cache-version";
+import { validateDataFile } from "../../app/lib/screen-policy";
 
 const SESSION_KEY = "__admin_session";
 const MAX_ATTEMPTS = 5;
@@ -425,6 +426,12 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
   };
   if (!body.path) return json({ error: "path is required" }, 400);
   assertSafeFilePath(body.path);
+  // Screens and navigation drive the mobile app; reject unsafe or unreadable ones
+  // here too, not only in the editor, so a tampered client can't save them.
+  if (!body.isBase64) {
+    const problems = validateDataFile(body.path, body.content);
+    if (problems.length > 0) return json({ error: `This file can't be saved: ${problems.join(" ")}` }, 400);
+  }
 
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
   const owner = env.GITHUB_OWNER;

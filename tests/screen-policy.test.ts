@@ -1,0 +1,124 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import {
+  LIMITS,
+  httpsHost,
+  isAllowedLink,
+  validateDataFile,
+  validateNavigationFile,
+  validateScreenFile,
+} from "../app/lib/screen-policy";
+
+const block = (props: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
+  id: "b1",
+  type: "promo_card",
+  props,
+  ...extra,
+});
+const screen = (blocks: unknown[], extra: Record<string, unknown> = {}) => ({ type: "page", blocks, ...extra });
+
+describe("links", () => {
+  it("allows https on listed sites and their subdomains", () => {
+    assert.ok(isAllowedLink("https://overwatch.blizzard.com/en-us/news/"));
+    assert.ok(isAllowedLink("https://www.youtube.com/watch?v=1"));
+    assert.ok(isAllowedLink("HTTPS://YouTube.com"));
+    assert.ok(isAllowedLink("https://youtu.be:443/x"));
+  });
+
+  it("rejects other schemes, look-alike hosts and tricks", () => {
+    for (const url of [
+      "http://youtube.com",
+      "javascript:alert(1)",
+      "data:text/html,hi",
+      "https://youtube.com.evil.com",
+      "https://evilyoutube.com",
+      "https://youtube.com@evil.com/",
+      "https://user:pass@youtube.com",
+      "https://youtube.com:8443/",
+      "https://127.0.0.1/",
+      "https://evil.com/?r=https://youtube.com",
+      "https://evil.com#youtube.com",
+      " https://evil.com",
+      "",
+      42,
+      null,
+      `https://youtube.com/${"a".repeat(3000)}`,
+    ]) {
+      assert.equal(isAllowedLink(url), false, String(url).slice(0, 60));
+    }
+  });
+
+  it("reads the host only from https URLs", () => {
+    assert.equal(httpsHost("https://News.Blizzard.com/a"), "news.blizzard.com");
+    assert.equal(httpsHost("ftp://news.blizzard.com"), undefined);
+  });
+});
+
+describe("screen files", () => {
+  it("accepts a well-formed screen", () => {
+    assert.deepEqual(
+      validateScreenFile(screen([block({ title: "Hi", action: { url: "https://youtube.com/x" } })], { title: "Home", appearance: "dark", accent: "#FF8200" })),
+      [],
+    );
+  });
+
+  it("rejects links to other sites anywhere in props", () => {
+    const errors = validateScreenFile(
+      screen([block({ items: [{ label: "Free skins", url: "https://evil.example/login" }] })]),
+    );
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /evil\.example/);
+  });
+
+  it("rejects styles and callbacks", () => {
+    const errors = validateScreenFile(screen([block({ style: { position: "absolute" }, onPress: "x" })]));
+    assert.equal(errors.length, 2);
+  });
+
+  it("rejects malformed structure", () => {
+    assert.deepEqual(validateScreenFile(null), ["A screen must be a JSON object."]);
+    assert.ok(validateScreenFile({ type: "home" }).includes("blocks must be a list."));
+    assert.ok(validateScreenFile(screen([], { type: "admin" })).some((e) => e.startsWith("type must be")));
+    assert.ok(validateScreenFile(screen([], { accent: "red; background:url(x)" })).some((e) => e.startsWith("accent")));
+    assert.ok(validateScreenFile(screen([block({}, { id: "b1" }), block({}, { id: "b1" })])).some((e) => e.includes("repeats")));
+    assert.ok(validateScreenFile(screen(["oops"])).some((e) => e.includes("must be an object")));
+    assert.ok(validateScreenFile(screen([block({}, { props: [] })])).some((e) => e.includes("props as an object")));
+  });
+
+  it("caps blocks and size", () => {
+    const many = Array.from({ length: LIMITS.blocksPerScreen + 1 }, (_, i) => block({}, { id: `b${i}` }));
+    assert.ok(validateScreenFile(screen(many)).some((e) => e.includes("at most")));
+    assert.ok(validateScreenFile(screen([block({ text: "x".repeat(LIMITS.screenSize) })])).includes("The screen file is too large."));
+  });
+});
+
+describe("navigation", () => {
+  const tabs = (list: unknown[]) => ({ tabs: list });
+
+  it("accepts tabs that open existing screens", () => {
+    assert.deepEqual(
+      validateNavigationFile(tabs([{ screen: "home", label: "Home" }, { screen: "app:settings", label: "Profile" }]), ["home"]),
+      [],
+    );
+  });
+
+  it("rejects missing screens, an app screen first, too many tabs and bad labels", () => {
+    assert.ok(validateNavigationFile(tabs([{ screen: "gone", label: "X" }]), ["home"])[0].includes("doesn't exist"));
+    assert.ok(validateNavigationFile(tabs([{ screen: "app:settings", label: "P" }])).some((e) => e.startsWith("The first tab")));
+    const six = Array.from({ length: LIMITS.tabs + 1 }, () => ({ screen: "home", label: "H" }));
+    assert.ok(validateNavigationFile(tabs(six)).some((e) => e.includes("at most")));
+    assert.ok(validateNavigationFile(tabs([{ screen: "home", label: " " }])).some((e) => e.includes("label")));
+    assert.ok(validateNavigationFile(tabs([])).some((e) => e.includes("at least one")));
+    assert.deepEqual(validateNavigationFile("x"), ["Navigation needs a list of tabs."]);
+  });
+});
+
+describe("data files by path", () => {
+  it("checks screens and navigation only", () => {
+    assert.ok(validateDataFile("data/overwatch/screens/home.json", { blocks: "x" }).length > 0);
+    assert.ok(validateDataFile("data/overwatch/navigation.json", {}).length > 0);
+    assert.deepEqual(validateDataFile("data/overwatch/heroes/ana.json", { anything: true }), []);
+    assert.deepEqual(validateDataFile("data/overwatch/screens/nested/x.json", {}), []);
+  });
+});
