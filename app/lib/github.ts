@@ -65,12 +65,15 @@ export async function fileExists(path: string): Promise<boolean> {
   return file !== null;
 }
 
-export async function createFile(path: string, content: unknown, message?: string): Promise<void> {
-  await api("POST", "data/file", { path, content, message });
+// Both resolve to the file's new sha.
+export async function createFile(path: string, content: unknown, message?: string): Promise<string | null> {
+  const res = await api<{ sha?: string | null }>("POST", "data/file", { path, content, message });
+  return res.sha ?? null;
 }
 
-export async function updateFile(path: string, content: unknown, sha: string, message?: string): Promise<void> {
-  await api("POST", "data/file", { path, content, message, sha });
+export async function updateFile(path: string, content: unknown, sha: string, message?: string): Promise<string | null> {
+  const res = await api<{ sha?: string | null }>("POST", "data/file", { path, content, message, sha });
+  return res.sha ?? null;
 }
 
 export async function uploadAsset(path: string, base64Content: string, sha?: string, message?: string): Promise<void> {

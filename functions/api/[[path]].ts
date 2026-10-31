@@ -432,7 +432,7 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
   const branch = env.GITHUB_BRANCH ?? "main";
 
   try {
-    await octokit.repos.createOrUpdateFileContents({
+    const result = await octokit.repos.createOrUpdateFileContents({
       owner,
       repo,
       path: body.path,
@@ -445,7 +445,8 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
       branch,
     });
     triggerCachePurge(context, body.path);
-    return json({ ok: true });
+    // The new sha lets an editor keep saving without reloading the file.
+    return json({ ok: true, sha: result.data.content?.sha ?? null });
   } catch (err: unknown) {
     if (
       err instanceof Error &&
