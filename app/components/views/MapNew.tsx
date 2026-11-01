@@ -8,8 +8,8 @@ import { getFile, createFile, listDirectory } from "~/lib/github";
 import {
   type DynamicSchemaFile,
   type DynamicField,
-  buildDynamicZodSchema
 } from "~/schemas/dynamic-schema";
+import { mapRecordSchema } from "~/lib/record-schema";
 import { useData } from "~/lib/use-data";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -64,7 +64,7 @@ export default function NewMap() {
 
   const dynamicZodSchema = useMemo(() => {
     if (!data) return MapSchema;
-    return buildDynamicZodSchema(data.fields, MapSchema, ["name", "id", "game_modes"]).strict();
+    return mapRecordSchema(data.fields);
   }, [data]);
 
   const {

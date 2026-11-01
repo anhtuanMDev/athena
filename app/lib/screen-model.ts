@@ -1,4 +1,4 @@
-import { BLOCKED_PROP, LIMITS, isAllowedLink } from "./screen-policy";
+import { BLOCKED_PROP, BOUND_LINK, LIMITS, isAllowedLink } from "./screen-policy";
 
 // App screens under data/<game>/screens/<id>.json and the tab list in
 // data/<game>/navigation.json, rendered by the mobile app (zms). Schemas only
@@ -374,6 +374,19 @@ export function validateScreen(
     }
 
     const itemKnown = spec?.list ? new Set(itemFieldsFor(block, screen, dataFields, schemas, recordsOf).map((f) => f.key)) : null;
+    /** Whether `binding` ("data.<path>", "item.<path>") names a field this block can read. */
+    const checkBinding = (name: string, binding: string) => {
+      const path = bindingPath(binding);
+      if (bindingScope(binding) === "item") {
+        if (!itemKnown) {
+          add({ prop: name, kind: "unknown-field", message: `${name} uses "item.", which only list blocks have.` });
+        } else if (itemKnown.size > 0 && !isKnownPath(path, itemKnown)) {
+          add({ prop: name, kind: "unknown-field", message: `${name} is bound to item "${path}", which these records don't have.` });
+        }
+      } else if (dataKnown.size > 0 && !isKnownPath(path, dataKnown)) {
+        add({ prop: name, kind: "unknown-field", message: `${name} is bound to "${path}", which this screen's data doesn't have.` });
+      }
+    };
     const ignored: string[] = [];
     for (const [name, value] of Object.entries(block.props)) {
       if (BLOCKED_PROP.test(name)) {
@@ -381,18 +394,7 @@ export function validateScreen(
         continue;
       }
       if (spec && !spec.props[name]) ignored.push(name);
-      if (isBinding(value)) {
-        const path = bindingPath(value);
-        if (bindingScope(value) === "item") {
-          if (!itemKnown) {
-            add({ prop: name, kind: "unknown-field", message: `${name} uses "item.", which only list blocks have.` });
-          } else if (itemKnown.size > 0 && !isKnownPath(path, itemKnown)) {
-            add({ prop: name, kind: "unknown-field", message: `${name} is bound to item "${path}", which these records don't have.` });
-          }
-        } else if (dataKnown.size > 0 && !isKnownPath(path, dataKnown)) {
-          add({ prop: name, kind: "unknown-field", message: `${name} is bound to "${path}", which this screen's data doesn't have.` });
-        }
-      }
+      if (isBinding(value)) checkBinding(name, value);
       if (spec?.props[name]?.type === "info_rows" && Array.isArray(value)) {
         for (const row of value as { label?: string; value?: unknown }[]) {
           if (isBinding(row?.value) && dataKnown.size > 0 && !isKnownPath(bindingPath(row.value), dataKnown)) {
@@ -404,8 +406,12 @@ export function validateScreen(
       if (spec?.props[name]?.type === "action" && action?.screen && !action.screen.startsWith("app:") && !screenIds.includes(action.screen)) {
         add({ prop: name, kind: "unknown-screen", message: `${name} opens "${action.screen}", which isn't a screen of this game.` });
       }
-      if (spec?.props[name]?.type === "action" && action?.url !== undefined && !isAllowedLink(action.url)) {
-        add({ prop: name, kind: "unsafe-link", message: `${name} links to a site the app won't open: use https on an allowed site.` }, "error");
+      if (spec?.props[name]?.type === "action" && action?.url !== undefined) {
+        // A link read from the record is checked by the app when tapped; here only its field is.
+        if (BOUND_LINK.test(action.url)) checkBinding(name, action.url);
+        else if (!isAllowedLink(action.url)) {
+          add({ prop: name, kind: "unsafe-link", message: `${name} links to a site the app won't open: use https on an allowed site.` }, "error");
+        }
       }
       if (spec?.props[name]?.type === "source") {
         const source = normalizeSource(value);
@@ -450,6 +456,47 @@ export function recordLabel(record: Record<string, unknown>): string {
 
 export const SCREEN_ID = /^[a-z0-9][a-z0-9-]*$/;
 
+// ─── A record's main fields ───────────────────────────────────────────
+
+const IMAGE_KEY = /(^|_)(image|portrait|picture|photo|thumbnail|banner|icon|art)(_|$)/;
+const DATE_KEY = /(^|_)(date|at)$/;
+
+/** The field that names a record: the schema's title or name field, else the "name" every form stores. */
+export function titleField(fields: FieldOption[]): string {
+  const text = fields.filter((f) => f.type === "string");
+  return (
+    text.find((f) => f.key === "title" || f.key === "name") ??
+    text.find((f) => /_(title|name)$/.test(f.key))
+  )?.key ?? "name";
+}
+
+/** The record's picture, if its fields have one (a hero's portrait, a map's background_image…). */
+export function imageField(fields: FieldOption[]): string | undefined {
+  return fields.find((f) => f.type === "string" && IMAGE_KEY.test(f.key))?.key;
+}
+
+/** The date a record is ordered by, newest first (a patch's release_date, an article's published_at). */
+export function dateField(fields: FieldOption[]): string | undefined {
+  return fields.find((f) => f.type === "string" && DATE_KEY.test(f.key))?.key;
+}
+
+/** A short text about the record (a description, bio or summary). */
+export function summaryField(fields: FieldOption[]): string | undefined {
+  return fields.find((f) => f.type === "string" && /description|bio|summary|lore/.test(f.key))?.key;
+}
+
+/** Records for a list: newest first by their date field (undated last), else by title. */
+export function recordListOrder<T extends Record<string, unknown>>(records: T[], fields: FieldOption[]): T[] {
+  const date = dateField(fields);
+  const title = titleField(fields);
+  const text = (record: T, key: string | undefined) => (key && typeof record[key] === "string" ? (record[key] as string) : "");
+  return [...records].sort(
+    (a, b) =>
+      text(b, date).localeCompare(text(a, date)) ||
+      (text(a, title) || String(a.id)).localeCompare(text(b, title) || String(b.id), undefined, { numeric: true }),
+  );
+}
+
 /**
  * Starter screens for a category: a list (picture grid, role chips when the
  * schema has an enum) and a detail screen with the schema's main fields.
@@ -459,10 +506,13 @@ export function starterScreens(schema: SchemaInfo): { id: string; file: ScreenFi
   const folder = folderFor(schema.category) ?? `${schema.category}s`;
   const label = CATEGORIES.find((c) => c.category === schema.category)?.label ?? schema.name;
   const detailId = `${schema.category}-detail`;
+  const fields = sourceFields([schema], { category: schema.category, schema: schema.id });
+  const title = titleField(schema.fields);
+  const image = imageField(fields);
   const enumField = schema.fields.find((f) => f.type === "enum");
   const numbers = schema.fields.filter((f) => f.type === "number").slice(0, 4);
   const lists = schema.fields.filter((f) => isListField(f)).slice(0, 3);
-  const text = schema.fields.find((f) => f.type === "string" && /description|bio|summary|lore/.test(f.key));
+  const text = summaryField(schema.fields);
   const block = (type: string, props: Record<string, unknown>, extra: Partial<ScreenBlock> = {}): ScreenBlock => ({
     ...createBlock(type),
     ...extra,
@@ -473,13 +523,13 @@ export function starterScreens(schema: SchemaInfo): { id: string; file: ScreenFi
     type: "list",
     title: label,
     appearance: "light",
-    source: { category: schema.category, sort: "name" },
+    source: { category: schema.category, sort: title },
     blocks: [
       block("screen_header", { showLogo: true, title: label }),
       ...(enumField ? [block("filter_chips", { field: enumField.key, allLabel: "All" })] : []),
       block("record_grid", {
-        itemLabel: "item.name",
-        itemImage: "item.portrait",
+        itemLabel: `item.${title}`,
+        ...(image ? { itemImage: `item.${image}` } : {}),
         ...(enumField ? { itemBadge: `item.${enumField.key}` } : {}),
         action: { screen: detailId },
       }),
@@ -499,10 +549,10 @@ export function starterScreens(schema: SchemaInfo): { id: string; file: ScreenFi
     source: { category: schema.category },
     blocks: [
       block("detail_header", {
-        title: "data.name",
+        title: `data.${title}`,
         ...(enumField ? { eyebrow: `data.${enumField.key}` } : {}),
-        ...(text ? { quote: `data.${text.key}` } : {}),
-        image: "data.portrait",
+        ...(text ? { quote: `data.${text}` } : {}),
+        ...(image ? { image: `data.${image}` } : {}),
       }),
       ...(numbers.length > 0 ? [block("stat_row", stats)] : []),
       ...lists.map((f) =>

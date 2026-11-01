@@ -1,0 +1,201 @@
+{
+  "id": "patch-2026-10-06",
+  "title": "Overwatch Retail Patch Notes – October 6, 2026",
+  "version_label": "patch-2026-10-06",
+  "release_date": "2026-10-06",
+  "patch_type": "Balance Update",
+  "status": "Live",
+  "affected_modes": [
+    "Quick Play",
+    "Competitive Play"
+  ],
+  "general_changes": [
+    {
+      "description": "Added new Option (Custom Restricted Words) to Social -> Text Chat."
+    },
+    {
+      "description": "Added information regarding Custom Restricted Words to Text Profanity Filters info dialog and Report dialog."
+    },
+    {
+      "description": "Player-sent chat messages containing a restricted word(s) will be hidden with a \"Possible Bad Message (Custom)\" warning, with the option to reveal the message."
+    },
+    {
+      "description": "While Streamer Mode is enabled, players will need to confirm before being able to view and manage their Custom Restricted Words list."
+    },
+    {
+      "description": "From the Home Screen, navigate to Battle Passes > Legacy Pass to see the full list of available Passes."
+    },
+    {
+      "description": "Previously purchased Battle Passes can be activated and progressed. Any progress that was made when the Battle Pass was initially run is carried over when the Pass becomes unvaulted. 2026: Season 4 Battle Pass will not be available to activate at launch and will be made available in the midseason. Certain rewards such as Mythic Skins, Mythic Prisms, Overwatch Coins, XP Boosts, and Player Titles are no longer obtainable in unvaulted passes."
+    },
+    {
+      "description": "2026: Season 4 Battle Pass will not be available to activate at launch and will be made available in the midseason."
+    },
+    {
+      "description": "Certain rewards such as Mythic Skins, Mythic Prisms, Overwatch Coins, XP Boosts, and Player Titles are no longer obtainable in unvaulted passes."
+    },
+    {
+      "description": "Legacy Seasons 1-15 Battle Passes are available to purchase in the shop under the new Unvaulted Battle Pass Tab. Locked Unvaulted Passes will arrive in later seasons."
+    },
+    {
+      "description": "Locked Unvaulted Passes will arrive in later seasons."
+    },
+    {
+      "description": "In order to earn Battle Pass XP towards an Unvaulted Pass, you must own it and then activate it from the Legacy Pass Menu. Only 1 Unvaulted Pass can be active at a time to progress alongside the current season's Battle Pass."
+    },
+    {
+      "description": "Only 1 Unvaulted Pass can be active at a time to progress alongside the current season's Battle Pass."
+    },
+    {
+      "description": "Top 500 Challenger Leaderboard sorting default changed to Rank (from Challenger Score)."
+    },
+    {
+      "description": "End of Season title rewards are now referencing Rank instead of Challenger Score."
+    },
+    {
+      "description": "Removed Heat Bonus."
+    },
+    {
+      "description": "Global “large” hitscan projectile size reduced from 0.07 to 0.04 meters."
+    },
+    {
+      "description": "Global “small” hitscan projectile size reduced from 0.04 to 0.02 meters."
+    },
+    {
+      "description": "Projectile Speed and Projectile Size have been added to all relevant weapons and abilities."
+    },
+    {
+      "description": "The Precise keyword has been added describe attacks that have a \"size\" of 0."
+    },
+    {
+      "description": "Various new keywords and line items have been added to describe more complex hero ability mechanics in more detail."
+    },
+    {
+      "description": "Many small bug fixes and modifications have been made based on community feedback."
+    },
+    {
+      "description": "Tanks with Damage Reduction and Overhealth abilities are now more likely to get Protects when they're using these abilities and being targeted instead of nearby allies."
+    },
+    {
+      "description": "Increased the cooldown and lowered the damage mitigation threshold for Protects with the intent of giving a wider variety of tanks a chance to earn Protects more often."
+    },
+    {
+      "description": "Removed the text in the chat box that was added in Season 4 when pinging enemy heroes, since this often filled the chat box very quickly."
+    },
+    {
+      "description": "The 3 Tank maximum has been restored."
+    },
+    {
+      "description": "It will now be impossible to be offered your last 2 maps played within a 2 hour period."
+    },
+    {
+      "description": "Escort and Hybrid will now be treated as the same mode for the purposes of offering at least two different game modes in Map Voting. This means that if two of the three visible maps are Escort and Hybrid, the third must be another mode. The random map does not follow these new rules and can still be any mode."
+    },
+    {
+      "description": "Quick Play is now Open Queue but with role limits of 1 Tank, 2 Damage, and 3 Supports. 1 Tank is required."
+    },
+    {
+      "description": "Passive Health from Currency has been reduced by 50%."
+    },
+    {
+      "description": "Healing reduction now applies on all Weapon Damage."
+    },
+    {
+      "description": "Healing reduction increased to 40% (Up from 35%)."
+    },
+    {
+      "description": "Healing reduction duration reduced to 2s (Down from 3s)."
+    },
+    {
+      "description": "Healing reduction increased to 40% (Up from 35%)."
+    },
+    {
+      "description": "New"
+    },
+    {
+      "description": "25 Health"
+    },
+    {
+      "description": "5% Attack Speed"
+    },
+    {
+      "description": "5% Cooldown Reduction"
+    },
+    {
+      "description": "After spending your Ultimate Charge, for 3s your damage applies 100% Healing Reduction for 5s."
+    },
+    {
+      "description": "9000 Cost"
+    },
+    {
+      "description": "Removed."
+    },
+    {
+      "description": "Shields increased to 75 (Up from 50)."
+    },
+    {
+      "description": "Health increased to 75 (Up from 50)."
+    },
+    {
+      "description": "Overhealth reduction increased to 40% (Up from 35%)."
+    },
+    {
+      "description": "Healing reduction increased to 40% (Up from 35%)."
+    },
+    {
+      "description": "Several more minor bug fixes to the ping system since the refactor in Season 4. Please let us know if you see any remaining bugs after this patch!"
+    },
+    {
+      "description": "Fixed a bug where Moira's Made My Night skin would say hello very enthusiastically."
+    },
+    {
+      "description": "Fixed a bug where you could sometimes end up with three tanks in Mystery Heroes."
+    },
+    {
+      "description": "Fixed a bug where the environmental death icon was sometimes missing."
+    },
+    {
+      "description": "Fixed an issue causing Dancing Blaze to not trigger some challenges related to healing."
+    },
+    {
+      "description": "Fixed reload speed reductions stacking twice on Synthetic Burse Rifle."
+    },
+    {
+      "description": "Fixed reload speed reductions not applying to Revdraw Crossbow."
+    },
+    {
+      "description": "Fixed an issue causing Dragonstrike to be counted as weapon damage for the purposes of challenges."
+    },
+    {
+      "description": "Fixed an issue causing Storm Arrows to no track its damage dealt correctly for the purposes of challenges."
+    },
+    {
+      "description": "Fixed reload speed reductions stacking twice on Frag Launcher."
+    },
+    {
+      "description": "Fixed reload speed reductions not applying to Void Accelerator."
+    },
+    {
+      "description": "Fixed reload speed reductions stacking twice on Scrap Gun."
+    },
+    {
+      "description": "Fixed reload speed reductions stacking twice on Kira Pistols."
+    },
+    {
+      "description": "Fixed an issue causing Soaring Slice to not properly track its damage dealt for the purposes of challenges."
+    },
+    {
+      "description": "Fixed reload speed reductions not applying to Widow's Kiss."
+    },
+    {
+      "description": "Fixed reload speed reductions not applying to Particle Cannon."
+    },
+    {
+      "description": "Fixed a bug where Stadium Combined Leaderboards did not show any placements."
+    },
+    {
+      "description": "Fixed a bug where Stadium Quick Play games did not grant the appropriate amount of match XP."
+    }
+  ],
+  "patch_notes_url": "https://overwatch.blizzard.com/en-us/news/patch-notes/"
+}

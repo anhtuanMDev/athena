@@ -1,0 +1,37 @@
+{
+  "id": "news-news-article",
+  "name": "News Article",
+  "category": "news",
+  "fields": [
+    {
+      "key": "title",
+      "label": "Title",
+      "type": "string",
+      "required": true
+    },
+    {
+      "key": "published_at",
+      "label": "Published",
+      "type": "string",
+      "required": true
+    },
+    {
+      "key": "summary",
+      "label": "Summary",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "image",
+      "label": "Cover Image",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "url",
+      "label": "Article URL",
+      "type": "string",
+      "required": false
+    }
+  ]
+}

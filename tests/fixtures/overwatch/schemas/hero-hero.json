@@ -1,0 +1,882 @@
+{
+  "id": "hero-hero",
+  "name": "Hero",
+  "category": "hero",
+  "fields": [
+    {
+      "key": "hero_name",
+      "label": "Hero Name",
+      "type": "string",
+      "required": true
+    },
+    {
+      "key": "real_name",
+      "label": "Real Name",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "aliases",
+      "label": "Aliases",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "alias",
+          "label": "Alias",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "status",
+      "label": "Status",
+      "type": "enum",
+      "required": false,
+      "options": [
+        "Active",
+        "Inactive",
+        "Deceased",
+        "Unknown"
+      ]
+    },
+    {
+      "key": "birth_date",
+      "label": "Birth Date",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "ages",
+      "label": "Age",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "context",
+          "label": "Context",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "age",
+          "label": "Age",
+          "type": "number",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "role",
+      "label": "Role",
+      "type": "enum",
+      "unit": "",
+      "required": true,
+      "globalEnumId": "role"
+    },
+    {
+      "key": "sub_role",
+      "label": "Sub Role",
+      "type": "enum",
+      "required": false,
+      "globalEnumId": "sub-role"
+    },
+    {
+      "key": "health",
+      "label": "Base Health",
+      "type": "number",
+      "unit": "HP",
+      "required": true
+    },
+    {
+      "key": "armor",
+      "label": "Armor",
+      "type": "number",
+      "unit": "HP",
+      "required": false
+    },
+    {
+      "key": "shields",
+      "label": "Shields",
+      "type": "number",
+      "unit": "HP",
+      "required": false
+    },
+    {
+      "key": "overhealth",
+      "label": "Overhealth",
+      "type": "number",
+      "unit": "HP",
+      "required": false
+    },
+    {
+      "key": "ultimate_cost",
+      "label": "Ultimate Cost",
+      "type": "number",
+      "required": false
+    },
+    {
+      "key": "difficulty",
+      "label": "Difficulty",
+      "type": "enum",
+      "required": false,
+      "options": [
+        "Easy",
+        "Medium",
+        "Hard"
+      ]
+    },
+    {
+      "key": "description",
+      "label": "Hero Description",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "nationality",
+      "label": "Nationality",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "occupation",
+      "label": "Occupation",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "base_location",
+      "label": "Base Location",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "affiliations",
+      "label": "Affiliations",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "affiliation",
+          "label": "Affiliation",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "former",
+          "label": "Former",
+          "type": "boolean",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "relations",
+      "label": "Relations",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "name",
+          "label": "Related Hero/Person",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "relationship_type",
+          "label": "Relationship Type",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "release_date",
+      "label": "Release Date",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "hero_number",
+      "label": "Hero Number",
+      "type": "number",
+      "required": false
+    },
+    {
+      "key": "voice_actors",
+      "label": "Voice Actors",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "actor_name",
+          "label": "Actor Name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "language",
+          "label": "Language",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "perk_level_xp",
+      "label": "Perk Level Up XP",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "perk_type",
+          "label": "Perk Type",
+          "type": "enum",
+          "required": true,
+          "options": [
+            "Minor",
+            "Major"
+          ]
+        },
+        {
+          "key": "xp_required",
+          "label": "XP Required",
+          "type": "number",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "abilities",
+      "label": "Abilities",
+      "type": "abilities",
+      "required": true,
+      "options": [
+        "Ultimate",
+        "Ability",
+        "Weapon",
+        "Melee"
+      ],
+      "subFields": [
+        {
+          "key": "cooldown",
+          "label": "Cooldown",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "damage",
+          "label": "Damage",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "healing",
+          "label": "Healing",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "duration",
+          "label": "Duration",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "radius",
+          "label": "Radius",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "max_range",
+          "label": "Maximum Range",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "cast_time",
+          "label": "Cast Time",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "projectile_speed",
+          "label": "Projectile Speed",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "projectile_radius",
+          "label": "Projectile Radius",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "damage_amplification",
+          "label": "Damage Amplification",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "damage_reduction",
+          "label": "Damage Reduction",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "healing_amplification",
+          "label": "Healing Amplification",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "healing_reduction",
+          "label": "Healing Reduction",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "movement_speed_modifier",
+          "label": "Movement Speed Modifier",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "sleep_duration",
+          "label": "Sleep Duration",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "tank_duration",
+          "label": "Tank Duration",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "keybind",
+          "label": "Keybind",
+          "type": "string",
+          "required": false
+        },
+        {
+          "key": "keywords",
+          "label": "Keywords",
+          "type": "list",
+          "required": false,
+          "subFields": [
+            {
+              "key": "keyword",
+              "label": "Keyword",
+              "type": "string",
+              "required": true
+            }
+          ],
+          "globalEnumId": "skill-tag"
+        },
+        {
+          "key": "is_removed",
+          "label": "Removed From Game",
+          "type": "boolean",
+          "required": false
+        },
+        {
+          "key": "removed_patch_date",
+          "label": "Removed In Patch",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "minor_perks",
+      "label": "Minor Perks",
+      "type": "abilities",
+      "required": false,
+      "subFields": [
+        {
+          "key": "unlock_level",
+          "label": "Unlock Level",
+          "type": "number",
+          "required": false
+        },
+        {
+          "key": "damage",
+          "label": "Damage",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "duration",
+          "label": "Duration",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "movement_speed_modifier",
+          "label": "Movement Speed Modifier",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "movement_slow",
+          "label": "Movement Slow",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "is_removed",
+          "label": "Removed From Game",
+          "type": "boolean",
+          "required": false
+        },
+        {
+          "key": "removed_patch_date",
+          "label": "Removed In Patch",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "major_perks",
+      "label": "Major Perks",
+      "type": "abilities",
+      "required": false,
+      "subFields": [
+        {
+          "key": "unlock_level",
+          "label": "Unlock Level",
+          "type": "number",
+          "required": false
+        },
+        {
+          "key": "damage",
+          "label": "Damage",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "healing",
+          "label": "Healing",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "critical_multiplier",
+          "label": "Critical Multiplier",
+          "type": "number",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "secondary_trigger",
+          "label": "Secondary Trigger",
+          "type": "string",
+          "unit": "",
+          "hasCustomSuffix": true,
+          "required": false
+        },
+        {
+          "key": "is_removed",
+          "label": "Removed From Game",
+          "type": "boolean",
+          "required": false
+        },
+        {
+          "key": "removed_patch_date",
+          "label": "Removed In Patch",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "hero_settings",
+      "label": "Hero Specific Settings",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "setting_name",
+          "label": "Setting Name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "setting_type",
+          "label": "Setting Type",
+          "type": "enum",
+          "required": true,
+          "options": [
+            "Toggle",
+            "Slider",
+            "Selection"
+          ]
+        },
+        {
+          "key": "default_value",
+          "label": "Default Value",
+          "type": "string",
+          "required": false
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "object_array",
+          "required": false,
+          "subFields": [
+            {
+              "key": "value",
+              "label": "Value",
+              "type": "string",
+              "required": true
+            },
+            {
+              "key": "description",
+              "label": "Description",
+              "type": "string",
+              "required": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "strategy_general",
+      "label": "General Strategies",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "tip",
+          "label": "Tip",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "strategy_weapons_abilities",
+      "label": "Weapons & Abilities Strategy",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "related_ability",
+          "label": "Related Weapon/Ability",
+          "type": "string",
+          "required": false
+        },
+        {
+          "key": "tip",
+          "label": "Tip",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "match_ups",
+      "label": "Match-Ups and Team Synergy",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "hero_name",
+          "label": "Hero",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "role",
+          "label": "Role",
+          "type": "enum",
+          "required": false,
+          "globalEnumId": "role"
+        },
+        {
+          "key": "match_up_notes",
+          "label": "Match-Up Notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "key": "team_synergy_notes",
+          "label": "Team Synergy Notes",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "map_strategies",
+      "label": "Map Strategies",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "map_mode",
+          "label": "Map Mode",
+          "type": "enum",
+          "required": true,
+          "globalEnumId": "map-types"
+        },
+        {
+          "key": "notes",
+          "label": "Notes",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "trivia",
+      "label": "Trivia",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "fact",
+          "label": "Fact",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "misc_character_info",
+      "label": "Misc. Character Information",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "fact",
+          "label": "Fact",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "development_history",
+      "label": "Development History",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "balance_change_log",
+      "label": "Balance Change Log",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "patch_date",
+          "label": "Patch Date",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "game_mode",
+          "label": "Game Mode",
+          "type": "enum",
+          "required": false,
+          "options": [
+            "Overwatch PvP",
+            "Overwatch PvE",
+            "Overwatch 6v6",
+            "Overwatch 5v5",
+            "Overwatch 2",
+            "Overwatch"
+          ]
+        },
+        {
+          "key": "developer_comment",
+          "label": "Developer Comment",
+          "type": "string",
+          "required": false
+        },
+        {
+          "key": "changes",
+          "label": "Changes",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "media_portraits",
+      "label": "Portraits",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "portrait_type",
+          "label": "Type",
+          "type": "enum",
+          "required": true,
+          "options": [
+            "2D",
+            "3D",
+            "Former",
+            "Fullbody",
+            "Model"
+          ]
+        },
+        {
+          "key": "image_url",
+          "label": "Image URL",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "media_concept_art",
+      "label": "Concept Art",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "artist",
+          "label": "Artist",
+          "type": "string",
+          "required": false
+        },
+        {
+          "key": "image_url",
+          "label": "Image URL",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "media_videos",
+      "label": "Videos",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "external_links",
+      "label": "External Links",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "label",
+          "label": "Label",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "passive",
+      "label": "Passive",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "sub_field_1",
+          "label": "New Sub-Field",
+          "type": "object_array",
+          "required": false,
+          "subFields": [
+            {
+              "key": "sub_sub_field_1",
+              "label": "New Sub-Field",
+              "type": "string",
+              "required": false
+            },
+            {
+              "key": "sub_sub_field_2",
+              "label": "New Sub-Field",
+              "type": "string",
+              "required": false
+            },
+            {
+              "key": "sub_sub_field_3",
+              "label": "New Sub-Field",
+              "type": "string",
+              "required": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

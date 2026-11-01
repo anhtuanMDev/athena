@@ -26,13 +26,15 @@ import { Card, CardContent } from "~/components/ui/card";
 import { createFile, getFile, listDirectory } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { clearDataCache, useData } from "~/lib/use-data";
+import { CATEGORIES } from "~/lib/screen-model";
 import {
   DynamicSchemaFileSchema,
-  SchemaCategorySchema,
-  getCategoryDirectory,
   type DynamicField,
   type DynamicSchemaFile,
 } from "~/schemas/dynamic-schema";
+
+/** Categories a new schema can have: those the app shows (older files may also say "event" or "cron_job"). */
+const isOfferedCategory = (category: unknown) => CATEGORIES.some((c) => c.category === category);
 
 export default function DynamicSchemaNew() {
   const { game } = useParams();
@@ -43,12 +45,6 @@ export default function DynamicSchemaNew() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("hero");
   const [fields, setFields] = useState<DynamicField[]>([]);
-  const [cronConfig, setCronConfig] = useState({
-    apiResponseDefinition: "",
-    apiPayloadDefinition: "",
-    dataHandling: "",
-    finalResultDestination: "",
-  });
 
   const [submitting, setSubmitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
@@ -145,9 +141,7 @@ export default function DynamicSchemaNew() {
                 ? "News Article"
                 : category === "item"
                 ? "Item"
-                : category === "event"
-                  ? "Event"
-                  : "Entity";
+                : "Entity";
 
     let categoryHint = "";
     if (category === "hero")
@@ -168,11 +162,8 @@ export default function DynamicSchemaNew() {
     else if (category === "item")
       categoryHint =
         "Think about cost, tier, effects, stat bonuses, and descriptions.";
-    else if (category === "event")
-      categoryHint =
-        "Think about start/end dates, event type, rewards, and related game modes.";
 
-    const apiOptionsString = SchemaCategorySchema.options.map((c) => `"/api/{game}/${getCategoryDirectory(c)}"`).join(", ");
+    const apiOptionsString = CATEGORIES.map((c) => `"/api/{game}/${c.folder}"`).join(", ");
 
     return `# Athena Schema Generation Guidelines
 You are an AI Architect. You are tasked with creating the structural blueprint (a JSON schema definition) for a **${entityName}** in the Athena platform.
@@ -182,7 +173,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
 \`\`\`json
 {
   "name": "${name || `Base ${entityName} Attributes`}",
-  "category": "${category}", // enum: "hero", "map", "mode", "patch", "news", "event", "item"
+  "category": "${category}", // enum: ${CATEGORIES.map((c) => `"${c.category}"`).join(", ")}
   "fields": [
     {
       "key": "example_basic_field",
@@ -246,6 +237,11 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
     reader.onload = (event) => {
       try {
         const json = JSON.parse(event.target?.result as string);
+        if (json.category && !isOfferedCategory(json.category)) {
+          toastError(`"${json.category}" isn't a category the app shows: use one of ${CATEGORIES.map((c) => c.category).join(", ")}.`);
+          e.target.value = "";
+          return;
+        }
         if (json.name) setName(json.name);
         if (json.category) setCategory(json.category);
         if (json.fields && Array.isArray(json.fields)) {
@@ -277,6 +273,10 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
   const handleImportPastedJson = () => {
     try {
       const json = JSON.parse(pastedJson);
+      if (json.category && !isOfferedCategory(json.category)) {
+        toastError(`"${json.category}" isn't a category the app shows: use one of ${CATEGORIES.map((c) => c.category).join(", ")}.`);
+        return;
+      }
       if (json.name) setName(json.name);
       if (json.category) setCategory(json.category);
       if (json.fields && Array.isArray(json.fields)) {
@@ -455,8 +455,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
       id: generatedId,
       name: name.trim(),
       category: category,
-      fields: category === "cron_job" ? [] : cleanedFields,
-      ...(category === "cron_job" ? { cronConfig } : {}),
+      fields: cleanedFields,
     };
 
     const parsed = DynamicSchemaFileSchema.safeParse(newSchema);
@@ -626,114 +625,17 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                   onChange={(e) => setCategory(e.target.value)}
                   className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                 >
-                  <option value="hero">Hero</option>
-                  <option value="map">Map</option>
-                  <option value="mode">Mode</option>
-                  <option value="patch">Patch</option>
-                  <option value="news">News</option>
-                  <option value="event">Event</option>
-                  <option value="item">Item</option>
-                  <option value="cron_job">Cron Job</option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c.category} value={c.category}>
+                      {c.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Conditionally Render Fields or Cron Config */}
-        {category === "cron_job" ? (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-border pb-4">
-              <h2 className="text-xl font-bold text-ink tracking-tight">
-                Cron Job Configuration
-              </h2>
-            </div>
-            <Card className="border-orange-500/20 shadow-sm">
-              <CardContent className="p-6 md:p-8 space-y-6">
-                <div>
-                  <label className="block text-sm font-bold text-ink mb-2">
-                    API Response Definition
-                  </label>
-                  <p className="text-xs text-ink-muted mb-2">
-                    Define how the API responds (e.g. JSON structure, expected
-                    fields).
-                  </p>
-                  <textarea aria-label="API Response Definition"
-                    value={cronConfig.apiResponseDefinition}
-                    onChange={(e) =>
-                      setCronConfig({
-                        ...cronConfig,
-                        apiResponseDefinition: e.target.value,
-                      })
-                    }
-                    rows={4}
-                    className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-ink mb-2">
-                    API Params / Payload
-                  </label>
-                  <p className="text-xs text-ink-muted mb-2">
-                    Define parameters or payload (enum, current/custom time,
-                    required params, or call another API with params).
-                  </p>
-                  <textarea aria-label="API Params / Payload"
-                    value={cronConfig.apiPayloadDefinition}
-                    onChange={(e) =>
-                      setCronConfig({
-                        ...cronConfig,
-                        apiPayloadDefinition: e.target.value,
-                      })
-                    }
-                    rows={4}
-                    className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-ink mb-2">
-                    Data Handling
-                  </label>
-                  <p className="text-xs text-ink-muted mb-2">
-                    How we handle the API response (convert, add, extract,
-                    filter, mapping).
-                  </p>
-                  <textarea aria-label="Data Handling"
-                    value={cronConfig.dataHandling}
-                    onChange={(e) =>
-                      setCronConfig({
-                        ...cronConfig,
-                        dataHandling: e.target.value,
-                      })
-                    }
-                    rows={4}
-                    className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-ink mb-2">
-                    Final Result Destination
-                  </label>
-                  <p className="text-xs text-ink-muted mb-2">
-                    Select other schema to know the structure to insert new data
-                    or calling another cron job.
-                  </p>
-                  <textarea aria-label="Final Result Destination"
-                    value={cronConfig.finalResultDestination}
-                    onChange={(e) =>
-                      setCronConfig({
-                        ...cronConfig,
-                        finalResultDestination: e.target.value,
-                      })
-                    }
-                    rows={4}
-                    className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        ) : (
           <div className="space-y-6">
             <div className="flex items-center justify-between border-b border-border pb-4">
               <h2 className="text-xl font-bold text-ink tracking-tight">
@@ -998,14 +900,14 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                 <option value="" disabled>
                                   Select API Endpoint
                                 </option>
-                                {SchemaCategorySchema.options.map(
-                                  (category) => (
+                                {CATEGORIES.map(
+                                  ({ category, folder }) => (
                                     <option
                                       key={category}
-                                      value={`/api/{game}/${getCategoryDirectory(category)}`}
+                                      value={`/api/{game}/${folder}`}
                                     >
                                       /api/{game}/
-                                      {getCategoryDirectory(category)}
+                                      {folder}
                                     </option>
                                   ),
                                 )}
@@ -1375,7 +1277,6 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
               </div>
             )}
           </div>
-        )}
       </form>
 
       {/* Clear All Fields Confirm Modal */}

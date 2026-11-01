@@ -1,0 +1,331 @@
+{
+  "id": "patch-base-patch-attributes",
+  "name": "Base Patch Attributes",
+  "category": "patch",
+  "fields": [
+    {
+      "key": "title",
+      "label": "Title",
+      "type": "string",
+      "required": true
+    },
+    {
+      "key": "version_label",
+      "label": "Version / Date Label",
+      "type": "string",
+      "required": true
+    },
+    {
+      "key": "release_date",
+      "label": "Release Date",
+      "type": "string",
+      "required": true
+    },
+    {
+      "key": "patch_type",
+      "label": "Patch Type",
+      "type": "enum",
+      "required": true,
+      "options": [
+        "Full Patch",
+        "Hotfix",
+        "Balance Update",
+        "Season Launch",
+        "Event Update"
+      ]
+    },
+    {
+      "key": "status",
+      "label": "Status",
+      "type": "enum",
+      "required": true,
+      "options": [
+        "Live",
+        "PTR",
+        "Archived"
+      ]
+    },
+    {
+      "key": "affected_modes",
+      "label": "Affected Modes",
+      "type": "list",
+      "required": true,
+      "options": [
+        "Quick Play",
+        "Competitive Play",
+        "Arcade",
+        "Custom Games",
+        "Stadium"
+      ]
+    },
+    {
+      "key": "season_reference",
+      "label": "Season",
+      "type": "reference",
+      "required": false,
+      "referenceApiEndpoint": "/api/seasons",
+      "referenceValueKey": "id",
+      "referenceLabelKey": "name"
+    },
+    {
+      "key": "previous_patch",
+      "label": "Previous Patch",
+      "type": "reference",
+      "required": false,
+      "referenceApiEndpoint": "/api/patches",
+      "referenceValueKey": "id",
+      "referenceLabelKey": "title"
+    },
+    {
+      "key": "summary",
+      "label": "Summary",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "highlights",
+      "label": "Highlights / Features",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "description",
+          "label": "Description",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "start_date",
+          "label": "Start Date",
+          "type": "string",
+          "required": false
+        },
+        {
+          "key": "end_date",
+          "label": "End Date",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "hero_balance_changes",
+      "label": "Hero Balance Changes",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "hero",
+          "label": "Hero",
+          "type": "reference",
+          "required": true,
+          "referenceApiEndpoint": "/api/heroes",
+          "referenceValueKey": "id",
+          "referenceLabelKey": "name"
+        },
+        {
+          "key": "ability_or_system_name",
+          "label": "Ability / System Name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "developer_comment",
+          "label": "Developer Comment",
+          "type": "string",
+          "required": false
+        },
+        {
+          "key": "changes",
+          "label": "Changes",
+          "type": "object_array",
+          "required": true,
+          "subFields": [
+            {
+              "key": "attribute",
+              "label": "Attribute",
+              "type": "string",
+              "required": true
+            },
+            {
+              "key": "previous_value",
+              "label": "Previous Value",
+              "type": "string",
+              "required": false
+            },
+            {
+              "key": "new_value",
+              "label": "New Value",
+              "type": "string",
+              "required": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "item_changes",
+      "label": "Item / Perk Changes",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "item_name",
+          "label": "Item Name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "item_type",
+          "label": "Item Type",
+          "type": "enum",
+          "required": false,
+          "options": [
+            "Weapon",
+            "Ability",
+            "Survival",
+            "Power",
+            "Gadget"
+          ]
+        },
+        {
+          "key": "associated_hero",
+          "label": "Associated Hero",
+          "type": "reference",
+          "required": false,
+          "referenceApiEndpoint": "/api/heroes",
+          "referenceValueKey": "id",
+          "referenceLabelKey": "name"
+        },
+        {
+          "key": "developer_comment",
+          "label": "Developer Comment",
+          "type": "string",
+          "required": false
+        },
+        {
+          "key": "changes",
+          "label": "Changes",
+          "type": "object_array",
+          "required": true,
+          "subFields": [
+            {
+              "key": "attribute",
+              "label": "Attribute",
+              "type": "string",
+              "required": true
+            },
+            {
+              "key": "previous_value",
+              "label": "Previous Value",
+              "type": "string",
+              "required": false
+            },
+            {
+              "key": "new_value",
+              "label": "New Value",
+              "type": "string",
+              "required": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "general_changes",
+      "label": "General / System Changes",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "description",
+          "label": "Description",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "developer_comment",
+          "label": "Developer Comment",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "custom_game_updates",
+      "label": "Custom Game Updates",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "description",
+          "label": "Description",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "bug_fixes",
+      "label": "Bug Fixes",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "category",
+          "label": "Category",
+          "type": "enum",
+          "required": true,
+          "options": [
+            "General",
+            "Stadium",
+            "UI",
+            "Performance",
+            "Audio"
+          ]
+        },
+        {
+          "key": "description",
+          "label": "Description",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "related_hero",
+          "label": "Related Hero",
+          "type": "reference",
+          "required": false,
+          "referenceApiEndpoint": "/api/heroes",
+          "referenceValueKey": "id",
+          "referenceLabelKey": "name"
+        }
+      ]
+    },
+    {
+      "key": "known_issues",
+      "label": "Known Issues",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "description",
+          "label": "Description",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "patch_notes_url",
+      "label": "Patch Notes URL",
+      "type": "string",
+      "required": false
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "patch-2026-10-20",
+  "title": "Overwatch Retail Patch Notes – October 20, 2026",
+  "version_label": "patch-2026-10-20",
+  "release_date": "2026-10-20",
+  "patch_type": "Full Patch",
+  "status": "Live",
+  "affected_modes": [
+    "Competitive Play",
+    "Quick Play",
+    "Custom Games",
+    "Arcade"
+  ],
+  "summary": "This is a bug fix update. Replay codes have been wiped.",
+  "general_changes": [
+    {
+      "description": "Fixed an issue preventing the challenge \"Not so Thankless\" from being completed by thanking Sombra."
+    },
+    {
+      "description": "Fixed a bug where DualSense controllers were not working properly on PC."
+    }
+  ],
+  "patch_notes_url": "https://overwatch.blizzard.com/en-us/news/patch-notes/"
+}

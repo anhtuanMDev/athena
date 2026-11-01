@@ -14,7 +14,7 @@ import {
   type ScreenAction,
   type SchemaInfo,
 } from "~/lib/screen-model";
-import { LINK_HOSTS, isAllowedLink } from "~/lib/screen-policy";
+import { BOUND_LINK, LINK_HOSTS, isAllowedLink } from "~/lib/screen-policy";
 
 /** Field styling without a width, for controls sized by their row. */
 export const inputBaseClass =
@@ -218,10 +218,26 @@ function SourceInput({ id, value, onChange, schemas }: { id: string; value: unkn
   );
 }
 
-/** What tapping does: open a screen of this game, or a link. */
-function ActionInput({ id, value, onChange, screenIds, describedBy }: { id: string; value: unknown; onChange: (v: unknown) => void; screenIds: string[]; describedBy?: string }) {
+/** What tapping does: open a screen of this game, a link, or a link read from the record. */
+function ActionInput({
+  id,
+  value,
+  onChange,
+  screenIds,
+  linkFields,
+  describedBy,
+}: {
+  id: string;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  screenIds: string[];
+  /** Text fields a link can be read from: "item.<key>" in list blocks, "data.<key>" for the screen's record. */
+  linkFields: string[];
+  describedBy?: string;
+}) {
   const action = (value && typeof value === "object" ? value : {}) as ScreenAction;
-  const mode = action.url !== undefined ? "url" : action.screen ? `screen:${action.screen}` : "";
+  const boundUrl = action.url !== undefined && BOUND_LINK.test(action.url) ? action.url : undefined;
+  const mode = boundUrl ? "field" : action.url !== undefined ? "url" : action.screen ? `screen:${action.screen}` : "";
   return (
     <div className="space-y-2">
       <select
@@ -230,7 +246,7 @@ function ActionInput({ id, value, onChange, screenIds, describedBy }: { id: stri
         value={mode}
         onChange={(e) => {
           const v = e.target.value;
-          onChange(v === "" ? undefined : v === "url" ? { url: "" } : { screen: v.slice("screen:".length) });
+          onChange(v === "" ? undefined : v === "url" ? { url: "" } : v === "field" ? { url: linkFields[0] } : { screen: v.slice("screen:".length) });
         }}
         className={inputClass}
       >
@@ -240,7 +256,21 @@ function ActionInput({ id, value, onChange, screenIds, describedBy }: { id: stri
           <option key={s} value={`screen:${s}`}>Open screen: {s}</option>
         ))}
         <option value="url">Open a link…</option>
+        {(boundUrl || linkFields.length > 0) && <option value="field">Open a link from the record…</option>}
       </select>
+      {boundUrl && (
+        <>
+          <select aria-label="Link field" value={boundUrl} onChange={(e) => onChange({ url: e.target.value })} className={inputClass}>
+            {!linkFields.includes(boundUrl) && <option value={boundUrl}>{boundUrl} (not found)</option>}
+            {linkFields.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+          <p className="text-xs text-ink-muted">
+            The app reads the link from this field and opens it only if it is https on {LINK_HOSTS.join(", ")} (or their subdomains).
+          </p>
+        </>
+      )}
       {mode === "url" && (
         <>
           <input
@@ -378,6 +408,12 @@ function InfoRowsInput({ id, value, onChange, dataFields, icons }: { id: string;
   );
 }
 
+/** Text fields an action can read a link from: each entry's in list blocks, then the screen's record. */
+function linkFields({ itemFields, dataFields }: PropContext): string[] {
+  const text = (fields: FieldOption[], scope: "data" | "item") => fields.filter((f) => f.type === "string").map((f) => toBinding(scope, f.key));
+  return [...text(itemFields ?? [], "item"), ...text(dataFields, "data")];
+}
+
 const SPECIAL_HELP: Record<string, string> = {
   source: "Which records this block lists. Empty uses the screen's records.",
   action: "What tapping does.",
@@ -452,7 +488,7 @@ export function PropControl({
   if (special) {
     let control: React.ReactNode;
     if (spec.type === "source") control = <SourceInput id={inputId} value={value} onChange={onChange} schemas={context.schemas} />;
-    else if (spec.type === "action") control = <ActionInput id={inputId} value={value} onChange={onChange} screenIds={context.screenIds} describedBy={describedBy} />;
+    else if (spec.type === "action") control = <ActionInput id={inputId} value={value} onChange={onChange} screenIds={context.screenIds} linkFields={linkFields(context)} describedBy={describedBy} />;
     else if (spec.type === "shortcuts") control = <ShortcutsInput id={inputId} value={value} onChange={onChange} screenIds={context.screenIds} icons={context.icons} />;
     else if (spec.type === "info_rows") control = <InfoRowsInput id={inputId} value={value} onChange={onChange} dataFields={dataFields} icons={context.icons} />;
     else {

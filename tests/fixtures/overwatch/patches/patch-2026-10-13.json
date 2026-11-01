@@ -1,0 +1,16 @@
+{
+  "id": "patch-2026-10-13",
+  "title": "Overwatch Retail Patch Notes – October 13, 2026",
+  "version_label": "patch-2026-10-13",
+  "release_date": "2026-10-13",
+  "patch_type": "Balance Update",
+  "status": "Live",
+  "affected_modes": [
+    "Quick Play",
+    "Competitive Play",
+    "Arcade",
+    "Custom Games"
+  ],
+  "summary": "This is a hotfix update. Replay codes from the October 6 patch are still available.",
+  "patch_notes_url": "https://overwatch.blizzard.com/en-us/news/patch-notes/"
+}

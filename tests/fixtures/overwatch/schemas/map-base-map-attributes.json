@@ -1,0 +1,104 @@
+{
+  "id": "map-base-map-attributes",
+  "name": "Base Map Attributes",
+  "category": "map",
+  "fields": [
+    {
+      "key": "description",
+      "label": "Description",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "map_type",
+      "label": "Map Type",
+      "type": "enum",
+      "required": true,
+      "globalEnumId": "map-types"
+    },
+    {
+      "key": "location",
+      "label": "Location",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "match_time",
+      "label": "Match Time",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "team_size",
+      "label": "Team Size",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "background_image",
+      "label": "Background Image",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "overview",
+      "label": "Overview",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "route",
+      "label": "Route",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "label",
+          "label": "Stage",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "detail",
+          "label": "Detail",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "gallery",
+      "label": "Gallery",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "image_url",
+          "label": "Image URL",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "caption",
+          "label": "Caption",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "tips",
+      "label": "Tips",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "tip",
+          "label": "Tip",
+          "type": "string",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

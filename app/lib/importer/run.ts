@@ -284,9 +284,11 @@ function fieldProblem(field: DynamicField, value: unknown): string | undefined {
 
 /** Everything wrong with `record` as a record of `fields`; empty when it can be published. */
 export function recordProblems(fields: DynamicField[], record: Record<string, unknown>, withId = true): string[] {
-  const allowed = new Set([...(withId ? ["id"] : []), ...fields.map((f) => f.key)]);
+  // A record also names the schema it follows, so the app can tell a category's schemas apart.
+  const allowed = new Set([...(withId ? ["id", "schema_id"] : []), ...fields.map((f) => f.key)]);
   const problems: string[] = [];
   if (withId && (typeof record.id !== "string" || !RECORD_ID.test(record.id))) problems.push("The record id is invalid.");
+  if (withId && record.schema_id !== undefined && typeof record.schema_id !== "string") problems.push("The schema id must be text.");
   for (const key of Object.keys(record)) if (!allowed.has(key)) problems.push(`"${key}" is not a field of this schema.`);
   problems.push(...missingRequired(fields, record));
   for (const field of fields) {
@@ -299,9 +301,9 @@ export function recordProblems(fields: DynamicField[], record: Record<string, un
 }
 
 /**
- * Publishes a reviewed draft as a record, and drops the draft, in one commit.
- * Returns the record's path. Fails if the record breaks the schema or
- * already exists.
+ * Publishes a reviewed draft as a record of the job's schema (its schema_id),
+ * and drops the draft, in one commit. Returns the record's path. Fails if the
+ * record breaks the schema or already exists.
  */
 export async function publishDraft(
   repo: DataRepo,
@@ -318,8 +320,9 @@ export async function publishDraft(
   if (await repo.read(path)) throw new ImportError(`A record with the id "${id}" already exists.`, 409);
   const p = paths(game, jobId);
   const draft = await repo.read(p.draft(id));
+  const published = { ...record, schema_id: schema.id };
   await repo.commit(
-    [{ path, content: record }, ...(draft ? [{ path: p.draft(id), content: null }] : [])],
+    [{ path, content: published }, ...(draft ? [{ path: p.draft(id), content: null }] : [])],
     `Publish ${id} from import ${jobId}`,
   );
   return path;

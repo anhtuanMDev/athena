@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { assetHeaders } from "../app/lib/asset-headers";
+import { encodeUtf8Base64 } from "../app/lib/utf8-base64";
 import {
   LIMITS,
+  dataWriteProblems,
   httpsHost,
   isAllowedLink,
   validateDataFile,
@@ -137,5 +140,43 @@ describe("data files by path", () => {
     assert.ok(validateDataFile("data/overwatch/navigation.json", {}).length > 0);
     assert.deepEqual(validateDataFile("data/overwatch/heroes/ana.json", { anything: true }), []);
     assert.deepEqual(validateDataFile("data/overwatch/screens/nested/x.json", {}), []);
+  });
+});
+
+describe("writes", () => {
+  const unsafe = screen([block({ action: { url: "https://evil.example" } })]);
+  const base64 = (value: unknown) => encodeUtf8Base64(JSON.stringify(value));
+
+  it("check a data file sent as base64 like one sent as JSON", () => {
+    const path = "data/overwatch/screens/home.json";
+    assert.deepEqual(dataWriteProblems(path, base64(unsafe), true), validateDataFile(path, unsafe));
+    assert.equal(dataWriteProblems(path, base64(unsafe), true).length, 1);
+    assert.deepEqual(dataWriteProblems(path, base64(screen([block()])), true), []);
+    assert.deepEqual(dataWriteProblems("data/overwatch/navigation.json", base64({ tabs: [] }), true), ["Add at least one tab: the first one is Home."]);
+  });
+
+  it("refuse a base64 data file that isn't JSON", () => {
+    assert.deepEqual(dataWriteProblems("data/overwatch/heroes/ana.json", encodeUtf8Base64("{ nope"), true), ["The file isn't valid JSON."]);
+    assert.deepEqual(dataWriteProblems("data/overwatch/heroes/ana.json", "%%% not base64", true), ["The file isn't valid JSON."]);
+    assert.deepEqual(dataWriteProblems("data/overwatch/heroes/ana.json", { not: "a string" }, true), ["The file isn't valid JSON."]);
+  });
+
+  it("leave assets alone, and check JSON writes as before", () => {
+    assert.deepEqual(dataWriteProblems("public/assets/overwatch/heroes/ana/portrait.webp", "UklGRg==", true), []);
+    assert.equal(dataWriteProblems("data/overwatch/screens/home.json", unsafe, false).length, 1);
+    assert.deepEqual(dataWriteProblems("data/overwatch/heroes/ana.json", { anything: true }, false), []);
+  });
+});
+
+describe("asset headers", () => {
+  it("type files by their extension and sandbox them", () => {
+    const svg = assetHeaders("assets/overwatch/enums/role/tank.SVG");
+    assert.equal(svg.get("Content-Type"), "image/svg+xml");
+    assert.equal(svg.get("X-Content-Type-Options"), "nosniff");
+    assert.match(svg.get("Content-Security-Policy") ?? "", /default-src 'none'.*sandbox/);
+    assert.equal(assetHeaders("assets/games/overwatch-icon.webp").get("Content-Type"), "image/webp");
+    assert.equal(assetHeaders("assets/games/overwatch-icon.ico").get("Content-Type"), "image/x-icon");
+    assert.equal(assetHeaders("assets/x/page.html").get("Content-Type"), "application/octet-stream");
+    assert.equal(assetHeaders("assets/x/noextension").get("Content-Type"), "application/octet-stream");
   });
 });

@@ -1,0 +1,782 @@
+{
+  "screen_header": {
+    "name": "ScreenHeader",
+    "description": "ScreenHeader block",
+    "props": {
+      "title": {
+        "type": "string",
+        "required": false
+      },
+      "subtitle": {
+        "type": "string",
+        "required": false
+      },
+      "showLogo": {
+        "type": "boolean",
+        "required": false,
+        "default": "true",
+        "description": "Show the game's icon and name above the title."
+      }
+    }
+  },
+  "featured_carousel": {
+    "name": "FeaturedCarousel",
+    "description": "FeaturedCarousel block",
+    "list": true,
+    "props": {
+      "eyebrow": {
+        "type": "string",
+        "required": false,
+        "description": "Small label above each title, e.g. \"Featured hero\"."
+      },
+      "source": {
+        "type": "source",
+        "required": false
+      },
+      "itemTitle": {
+        "type": "string",
+        "required": true
+      },
+      "itemSubtitle": {
+        "type": "string",
+        "required": false
+      },
+      "itemText": {
+        "type": "string",
+        "required": false
+      },
+      "itemImage": {
+        "type": "string",
+        "required": false
+      },
+      "buttonLabel": {
+        "type": "string",
+        "required": false
+      },
+      "action": {
+        "type": "action",
+        "required": false
+      },
+      "variant": {
+        "type": "data_binding",
+        "options": [
+          "banner",
+          "cards"
+        ],
+        "required": false
+      },
+      "imageOverflow": {
+        "type": "boolean",
+        "required": false,
+        "description": "Banner only: let the picture rise above the card (for cut-out art)."
+      }
+    }
+  },
+  "shortcut_grid": {
+    "name": "ShortcutGrid",
+    "description": "ShortcutGrid block",
+    "props": {
+      "title": {
+        "type": "string",
+        "required": false
+      },
+      "items": {
+        "type": "shortcuts",
+        "required": true
+      }
+    }
+  },
+  "promo_card": {
+    "name": "PromoCard",
+    "description": "PromoCard block",
+    "props": {
+      "sectionTitle": {
+        "type": "string",
+        "required": false,
+        "description": "Heading above the card, e.g. \"Latest news\"."
+      },
+      "eyebrow": {
+        "type": "string",
+        "required": false
+      },
+      "title": {
+        "type": "string",
+        "required": true
+      },
+      "text": {
+        "type": "string",
+        "required": false
+      },
+      "image": {
+        "type": "string",
+        "required": false
+      },
+      "buttonLabel": {
+        "type": "string",
+        "required": false
+      },
+      "action": {
+        "type": "action",
+        "required": false
+      }
+    }
+  },
+  "filter_chips": {
+    "name": "FilterChips",
+    "description": "FilterChips block",
+    "props": {
+      "field": {
+        "type": "field_key",
+        "required": true,
+        "description": "Key of the field to filter on, e.g. \"role\"."
+      },
+      "allLabel": {
+        "type": "string",
+        "required": false,
+        "default": "All"
+      }
+    }
+  },
+  "record_grid": {
+    "name": "RecordGrid",
+    "description": "RecordGrid block",
+    "list": true,
+    "props": {
+      "title": {
+        "type": "string",
+        "required": false
+      },
+      "showCount": {
+        "type": "boolean",
+        "required": false,
+        "description": "Show how many records the list has next to the title."
+      },
+      "source": {
+        "type": "source",
+        "required": false
+      },
+      "itemLabel": {
+        "type": "string",
+        "required": true
+      },
+      "itemImage": {
+        "type": "string",
+        "required": false
+      },
+      "itemBadge": {
+        "type": "string",
+        "required": false
+      },
+      "columns": {
+        "type": "number",
+        "required": false,
+        "default": "3"
+      },
+      "action": {
+        "type": "action",
+        "required": false
+      }
+    }
+  },
+  "detail_header": {
+    "name": "DetailHeader",
+    "description": "DetailHeader block",
+    "props": {
+      "eyebrow": {
+        "type": "string",
+        "required": false
+      },
+      "title": {
+        "type": "string",
+        "required": true
+      },
+      "quote": {
+        "type": "string",
+        "required": false
+      },
+      "image": {
+        "type": "string",
+        "required": false
+      },
+      "imageMode": {
+        "type": "data_binding",
+        "options": [
+          "art",
+          "background"
+        ],
+        "required": false,
+        "default": "art"
+      },
+      "buttonLabel": {
+        "type": "string",
+        "required": false
+      },
+      "action": {
+        "type": "action",
+        "required": false
+      }
+    }
+  },
+  "tab_bar": {
+    "name": "TabBar",
+    "description": "TabBarBlock block",
+    "props": {
+      "tabs": {
+        "type": "string",
+        "required": true,
+        "description": "Tab names separated by commas, e.g. \"Overview, Stats, Skins\"."
+      }
+    }
+  },
+  "item_list": {
+    "name": "ItemList",
+    "description": "ItemList block",
+    "list": true,
+    "props": {
+      "title": {
+        "type": "string",
+        "required": false
+      },
+      "items": {
+        "type": "data_binding",
+        "required": true,
+        "description": "A list field of the record, e.g. \"data.abilities\"."
+      },
+      "itemTitle": {
+        "type": "string",
+        "required": true
+      },
+      "itemSubtitle": {
+        "type": "string",
+        "required": false
+      },
+      "itemText": {
+        "type": "string",
+        "required": false
+      },
+      "itemImage": {
+        "type": "string",
+        "required": false
+      }
+    }
+  },
+  "stat_row": {
+    "name": "StatRow",
+    "description": "StatRow block",
+    "props": {
+      "stat1Label": {
+        "type": "string",
+        "required": false
+      },
+      "stat1Value": {
+        "type": "data_binding",
+        "required": false
+      },
+      "stat1Icon": {
+        "type": "data_binding",
+        "options": [
+          "book-open",
+          "chart-column",
+          "chevron-left",
+          "chevron-right",
+          "clock",
+          "crosshair",
+          "flag",
+          "gamepad-2",
+          "globe",
+          "heart",
+          "house",
+          "images",
+          "info",
+          "lightbulb",
+          "map",
+          "map-pin",
+          "newspaper",
+          "play",
+          "quote",
+          "search",
+          "settings",
+          "shield",
+          "sparkles",
+          "star",
+          "swords",
+          "target",
+          "timer",
+          "trophy",
+          "truck",
+          "user",
+          "users",
+          "zap"
+        ],
+        "required": false
+      },
+      "stat2Label": {
+        "type": "string",
+        "required": false
+      },
+      "stat2Value": {
+        "type": "data_binding",
+        "required": false
+      },
+      "stat2Icon": {
+        "type": "data_binding",
+        "options": [
+          "book-open",
+          "chart-column",
+          "chevron-left",
+          "chevron-right",
+          "clock",
+          "crosshair",
+          "flag",
+          "gamepad-2",
+          "globe",
+          "heart",
+          "house",
+          "images",
+          "info",
+          "lightbulb",
+          "map",
+          "map-pin",
+          "newspaper",
+          "play",
+          "quote",
+          "search",
+          "settings",
+          "shield",
+          "sparkles",
+          "star",
+          "swords",
+          "target",
+          "timer",
+          "trophy",
+          "truck",
+          "user",
+          "users",
+          "zap"
+        ],
+        "required": false
+      },
+      "stat3Label": {
+        "type": "string",
+        "required": false
+      },
+      "stat3Value": {
+        "type": "data_binding",
+        "required": false
+      },
+      "stat3Icon": {
+        "type": "data_binding",
+        "options": [
+          "book-open",
+          "chart-column",
+          "chevron-left",
+          "chevron-right",
+          "clock",
+          "crosshair",
+          "flag",
+          "gamepad-2",
+          "globe",
+          "heart",
+          "house",
+          "images",
+          "info",
+          "lightbulb",
+          "map",
+          "map-pin",
+          "newspaper",
+          "play",
+          "quote",
+          "search",
+          "settings",
+          "shield",
+          "sparkles",
+          "star",
+          "swords",
+          "target",
+          "timer",
+          "trophy",
+          "truck",
+          "user",
+          "users",
+          "zap"
+        ],
+        "required": false
+      },
+      "stat4Label": {
+        "type": "string",
+        "required": false
+      },
+      "stat4Value": {
+        "type": "data_binding",
+        "required": false
+      },
+      "stat4Icon": {
+        "type": "data_binding",
+        "options": [
+          "book-open",
+          "chart-column",
+          "chevron-left",
+          "chevron-right",
+          "clock",
+          "crosshair",
+          "flag",
+          "gamepad-2",
+          "globe",
+          "heart",
+          "house",
+          "images",
+          "info",
+          "lightbulb",
+          "map",
+          "map-pin",
+          "newspaper",
+          "play",
+          "quote",
+          "search",
+          "settings",
+          "shield",
+          "sparkles",
+          "star",
+          "swords",
+          "target",
+          "timer",
+          "trophy",
+          "truck",
+          "user",
+          "users",
+          "zap"
+        ],
+        "required": false
+      }
+    }
+  },
+  "info_list": {
+    "name": "InfoList",
+    "description": "InfoList block",
+    "props": {
+      "title": {
+        "type": "string",
+        "required": false
+      },
+      "rows": {
+        "type": "info_rows",
+        "required": true
+      }
+    }
+  },
+  "route_timeline": {
+    "name": "RouteTimeline",
+    "description": "RouteTimeline block",
+    "list": true,
+    "props": {
+      "title": {
+        "type": "string",
+        "required": false
+      },
+      "text": {
+        "type": "string",
+        "required": false
+      },
+      "items": {
+        "type": "data_binding",
+        "required": true,
+        "description": "A list field of the record, e.g. \"data.route\"."
+      },
+      "itemLabel": {
+        "type": "string",
+        "required": true
+      },
+      "itemDetail": {
+        "type": "string",
+        "required": false
+      }
+    }
+  },
+  "gallery": {
+    "name": "Gallery",
+    "description": "Gallery block",
+    "list": true,
+    "props": {
+      "title": {
+        "type": "string",
+        "required": false
+      },
+      "items": {
+        "type": "data_binding",
+        "required": true,
+        "description": "A list field of the record, e.g. \"data.gallery\"."
+      },
+      "itemImage": {
+        "type": "string",
+        "required": true
+      },
+      "itemCaption": {
+        "type": "string",
+        "required": false
+      }
+    }
+  },
+  "tips_card": {
+    "name": "TipsCard",
+    "description": "TipsCard block",
+    "list": true,
+    "props": {
+      "title": {
+        "type": "string",
+        "required": false,
+        "default": "Tips"
+      },
+      "items": {
+        "type": "data_binding",
+        "required": true,
+        "description": "A list field of the record, e.g. \"data.tips\"."
+      },
+      "itemText": {
+        "type": "string",
+        "required": true
+      },
+      "image": {
+        "type": "string",
+        "required": false
+      }
+    }
+  },
+  "text": {
+    "name": "Text",
+    "description": "TextBlock block",
+    "props": {
+      "text": {
+        "type": "string",
+        "required": true
+      },
+      "variant": {
+        "type": "data_binding",
+        "options": [
+          "display",
+          "h1",
+          "h2",
+          "h3",
+          "body",
+          "bodySmall",
+          "caption",
+          "label",
+          "overline"
+        ],
+        "required": false,
+        "default": "body"
+      },
+      "color": {
+        "type": "string",
+        "required": false
+      },
+      "align": {
+        "type": "data_binding",
+        "options": [
+          "left",
+          "center",
+          "right"
+        ],
+        "required": false
+      },
+      "weight": {
+        "type": "data_binding",
+        "options": [
+          "400",
+          "500",
+          "600",
+          "700",
+          "800"
+        ],
+        "required": false
+      }
+    }
+  },
+  "field_section": {
+    "name": "FieldSection",
+    "description": "FieldSection block",
+    "props": {
+      "field": {
+        "type": "data_binding",
+        "required": true
+      },
+      "title": {
+        "type": "string",
+        "required": false
+      }
+    }
+  },
+  "badge": {
+    "name": "Badge",
+    "description": "Badge block",
+    "props": {
+      "label": {
+        "type": "string",
+        "required": true
+      },
+      "color": {
+        "type": "string",
+        "required": false
+      },
+      "textColor": {
+        "type": "string",
+        "required": false
+      },
+      "size": {
+        "type": "data_binding",
+        "options": [
+          "sm",
+          "md"
+        ],
+        "required": false,
+        "default": "md"
+      },
+      "style": {
+        "type": "data_binding",
+        "required": false
+      }
+    }
+  },
+  "cover_entity_header": {
+    "name": "CoverEntityHeader",
+    "description": "CoverEntityHeader block",
+    "props": {
+      "title": {
+        "type": "string",
+        "required": true
+      },
+      "subtitle": {
+        "type": "string",
+        "required": false
+      },
+      "backgroundImage": {
+        "type": "string",
+        "required": false
+      },
+      "quote": {
+        "type": "string",
+        "required": false
+      },
+      "alignment": {
+        "type": "data_binding",
+        "options": [
+          "left",
+          "center"
+        ],
+        "required": false,
+        "default": "left"
+      },
+      "style": {
+        "type": "data_binding",
+        "required": false
+      }
+    }
+  },
+  "feature_row_card": {
+    "name": "FeatureRowCard",
+    "description": "FeatureRowCard block",
+    "props": {
+      "title": {
+        "type": "string",
+        "required": true
+      },
+      "subtitle": {
+        "type": "string",
+        "required": false
+      },
+      "description": {
+        "type": "string",
+        "required": true
+      },
+      "image": {
+        "type": "string",
+        "required": true
+      },
+      "imagePosition": {
+        "type": "data_binding",
+        "options": [
+          "left",
+          "right"
+        ],
+        "required": false
+      },
+      "style": {
+        "type": "data_binding",
+        "required": false
+      }
+    }
+  },
+  "gradient_card": {
+    "name": "GradientCard",
+    "description": "GradientCard block",
+    "props": {
+      "title": {
+        "type": "string",
+        "required": true
+      },
+      "description": {
+        "type": "string",
+        "required": true
+      },
+      "footerText": {
+        "type": "string",
+        "required": false
+      },
+      "icon": {
+        "type": "node",
+        "required": false
+      },
+      "gradientColors": {
+        "type": "array",
+        "required": false
+      },
+      "style": {
+        "type": "data_binding",
+        "required": false
+      }
+    }
+  },
+  "horizontal_metric_row": {
+    "name": "HorizontalMetricRow",
+    "description": "HorizontalMetricRow block",
+    "props": {
+      "items": {
+        "type": "array",
+        "required": true
+      },
+      "style": {
+        "type": "data_binding",
+        "required": false
+      }
+    }
+  },
+  "linear_progress_card": {
+    "name": "LinearProgressCard",
+    "description": "LinearProgressCard block",
+    "props": {
+      "title": {
+        "type": "string",
+        "required": true
+      },
+      "level": {
+        "type": "data_binding",
+        "required": false
+      },
+      "currentXp": {
+        "type": "number",
+        "required": true
+      },
+      "maxXp": {
+        "type": "number",
+        "required": true
+      },
+      "badgeImage": {
+        "type": "string",
+        "required": false
+      },
+      "style": {
+        "type": "data_binding",
+        "required": false
+      }
+    }
+  }
+}

@@ -1,0 +1,554 @@
+{
+  "id": "baptiste",
+  "schema_id": "hero-hero",
+  "game": "overwatch",
+  "name": "Baptiste",
+  "real_name": "Jean-Baptiste Augustin",
+  "difficulty": "Medium",
+  "health": 250,
+  "portrait": {
+    "2d": "/api/assets/overwatch/heroes/baptiste/portrait_2d.webp",
+    "3d": "/api/assets/overwatch/heroes/baptiste/portrait_3d.webp"
+  },
+  "kit": [],
+  "hero_name": "Baptiste",
+  "aliases": [],
+  "status": "Active",
+  "birth_date": "March 12th",
+  "ages": [
+    {
+      "context": "Overwatch 2",
+      "age": 38
+    },
+    {
+      "context": "Overwatch",
+      "age": 36
+    }
+  ],
+  "role": "Support",
+  "sub_role": "Tactician",
+  "armor": 0,
+  "shields": 0,
+  "overhealth": 0,
+  "ultimate_cost": 2550,
+  "description": "Baptiste wields an assortment of experimental devices and weaponry to keep allies alive and eliminate threats under fierce conditions. A battle-hardened combat medic, he is just as capable of saving lives as he is taking out the enemy.",
+  "nationality": "Haitian",
+  "occupation": "Combat medic",
+  "base_location": "Tortuga, Haiti (formerly); Watchpoint: Gibraltar",
+  "affiliations": [
+    {
+      "affiliation": "Caribbean Coalition",
+      "former": true
+    },
+    {
+      "affiliation": "Talon",
+      "former": true
+    },
+    {
+      "affiliation": "Overwatch",
+      "former": false
+    }
+  ],
+  "relations": [
+    {
+      "name": "Several cousins",
+      "relationship_type": "Family"
+    }
+  ],
+  "release_date": "19 March 2019",
+  "hero_number": 30,
+  "voice_actors": [
+    {
+      "actor_name": "Benz Antoine",
+      "language": "English"
+    },
+    {
+      "actor_name": "Jean-Baptiste Anoumon",
+      "language": "French"
+    }
+  ],
+  "perk_level_xp": [
+    {
+      "perk_type": "Minor",
+      "xp_required": 2400
+    },
+    {
+      "perk_type": "Major",
+      "xp_required": 5830
+    }
+  ],
+  "abilities": [
+    {
+      "id": "regenerative-burst",
+      "name": "Regenerative Burst",
+      "type": "Ability",
+      "description": "Baptiste activates an intense regenerative burst that heals himself and nearby allies over time. Activate to heal yourself and nearby allies instantly, with additional healing over time. Instant heal is doubled for targets less than half health.",
+      "params": {
+        "cooldown": 12,
+        "effect_type": true,
+        "damage": 0,
+        "healing": 50,
+        "duration": 4,
+        "radius": 12,
+        "max_range": 0,
+        "cast_time": 0.32,
+        "projectile_speed": 0,
+        "projectile_radius": 0,
+        "damage_amplification": 0,
+        "damage_reduction": 0,
+        "healing_amplification": 0,
+        "healing_reduction": 0,
+        "movement_speed_modifier": 0,
+        "sleep_duration": 0,
+        "tank_duration": 0,
+        "cleansable": false,
+        "area_of_effect": true,
+        "keybind": "LSHIFT",
+        "keywords": [
+          {
+            "keyword": "Area of Effect"
+          }
+        ],
+        "is_removed": false,
+        "removed_patch_date": ""
+      }
+    },
+    {
+      "id": "immortality-field",
+      "name": "Immortality Field",
+      "type": "Ability",
+      "description": "Baptiste uses a device to create a field that prevents allies from dying. The generator can be destroyed. Toss a device that prevents allies from dying.",
+      "params": {
+        "cooldown": 22,
+        "effect_type": "Area",
+        "damage": 0,
+        "healing": 0,
+        "duration": 5.5,
+        "radius": 6,
+        "max_range": 0,
+        "cast_time": 0.8,
+        "projectile_speed": 60,
+        "projectile_radius": 0,
+        "damage_amplification": 0,
+        "damage_reduction": 0,
+        "healing_amplification": 0,
+        "healing_reduction": 0,
+        "movement_speed_modifier": 0,
+        "sleep_duration": 0,
+        "tank_duration": 0,
+        "cleansable": false,
+        "area_of_effect": true,
+        "keybind": "E",
+        "keywords": [
+          {
+            "keyword": "Area of Effect"
+          },
+          {
+            "keyword": "Deployable"
+          },
+          {
+            "keyword": "Ignore Barrier"
+          }
+        ],
+        "is_removed": false,
+        "removed_patch_date": ""
+      }
+    }
+  ],
+  "ultimate_ability": [
+    {
+      "id": "amplification-matrix",
+      "name": "Amplification Matrix",
+      "type": "Ultimate Ability",
+      "description": "Baptiste creates a matrix that doubles the damage and healing effects of friendly projectiles that pass through it.",
+      "params": {
+        "ultimate_cost": 2550,
+        "healing": 0,
+        "damage_amplification": 100,
+        "damage_reduction": 0,
+        "duration": 10,
+        "max_range": 35,
+        "cast_time": 0.24,
+        "keybind": "Q",
+        "keywords": [
+          true,
+          "negate-projectile",
+          "energy",
+          "movement",
+          "flight"
+        ]
+      }
+    }
+  ],
+  "minor_perks": [
+    {
+      "id": "assault-burst",
+      "name": "Assault Burst",
+      "type": "Minor Perk",
+      "description": "Regenerative Burst now provides Baptiste with 20% increased attack speed for 3 seconds.",
+      "params": {
+        "unlock_level": 2,
+        "damage": 0,
+        "duration": 3,
+        "movement_speed_modifier": 0,
+        "movement_slow": 0,
+        "is_removed": false,
+        "removed_patch_date": ""
+      }
+    },
+    {
+      "id": "expanded-field",
+      "name": "Expanded Field",
+      "type": "Minor Perk",
+      "description": "Immortality Field radius increased by 30% (5 to 6.5 meters).",
+      "params": {
+        "unlock_level": 2,
+        "damage": 0,
+        "duration": 0,
+        "movement_speed_modifier": 0,
+        "movement_slow": 0,
+        "is_removed": false,
+        "removed_patch_date": ""
+      }
+    }
+  ],
+  "major_perks": [
+    {
+      "id": "automated-healing",
+      "name": "Automated Healing",
+      "type": "Major Perk",
+      "description": "Using any ability triggers Baptiste's Shoulder Turret, periodically firing up to 3 shots at allies, each restoring 40 health.",
+      "params": {
+        "unlock_level": 3,
+        "damage": 0,
+        "healing": 40,
+        "critical_multiplier": 0,
+        "secondary_trigger": "Using any ability triggers Baptiste's Shoulder Turret",
+        "is_removed": false,
+        "removed_patch_date": ""
+      }
+    },
+    {
+      "id": "rocket-boots",
+      "name": "Rocket Boots",
+      "type": "Major Perk",
+      "description": "While airborne from Exo Boots, use (SPACE) to dash horizontally.",
+      "params": {
+        "unlock_level": 3,
+        "damage": 0,
+        "healing": 0,
+        "critical_multiplier": 0,
+        "secondary_trigger": "While airborne from Exo Boots, use SPACE to dash horizontally",
+        "is_removed": false,
+        "removed_patch_date": ""
+      }
+    }
+  ],
+  "hero_settings": [
+    {
+      "setting_name": "Recoil recovery aim compensation",
+      "setting_type": "Toggle",
+      "default_value": "On",
+      "options": [
+        {
+          "value": "On",
+          "description": "Stops the recoil's downward pulling return motion, if the player applies enough vertical crosshair movement after the shot."
+        },
+        {
+          "value": "Off",
+          "description": "Recoil's return motion is unaffected by player input, always pulling the crosshair back downwards the same amount as the recoil raised it."
+        }
+      ]
+    },
+    {
+      "setting_name": "Amplification Matrix confirmation input",
+      "setting_type": "Selection",
+      "default_value": "Primary Fire",
+      "options": [
+        {
+          "value": "Primary Fire",
+          "description": "Amplification Matrix is activated by pressing Ultimate Ability then Primary Fire. Secondary Fire to cancel. Ultimate Ability to rotate."
+        },
+        {
+          "value": "Secondary Fire",
+          "description": "Amplification Matrix is activated by pressing Ultimate Ability then Secondary Fire. Primary Fire to cancel. Ultimate Ability to rotate."
+        },
+        {
+          "value": "Ability 3 press",
+          "description": "Amplification Matrix is activated by pressing Ultimate Ability twice. Secondary Fire to cancel. Primary Fire to rotate."
+        },
+        {
+          "value": "Ability 3 release",
+          "description": "Amplification Matrix is activated by pressing and releasing Ultimate Ability. Secondary Fire to cancel. Primary Fire to rotate."
+        }
+      ]
+    },
+    {
+      "setting_name": "Automatic reload",
+      "setting_type": "Toggle",
+      "default_value": "On",
+      "options": [
+        {
+          "value": "On",
+          "description": "Biotic Launcher automatically reloads when either fire mode is out of ammo."
+        },
+        {
+          "value": "Off",
+          "description": "Biotic Launcher only reloads automatically if both fire modes are out of ammo."
+        }
+      ]
+    }
+  ],
+  "strategy_general": [
+    {
+      "tip": "You can alternate between his primary and secondary fire without much delay."
+    },
+    {
+      "tip": "The secondary fire can be shot perfectly upwards so that they land on the same spot later."
+    },
+    {
+      "tip": "While engaging the enemy, try to attack them while crouching (charging Exo Boots). When the enemy gets too close, you can simply jump out of the way."
+    },
+    {
+      "tip": "Use Exo Boots to get out of danger, to confuse the enemy, or to attack the enemy from a high location."
+    },
+    {
+      "tip": "Amplification Matrix can allow you to penetrate the healing from Zenyatta's Transcendence if you manage to land perfect headshots."
+    }
+  ],
+  "strategy_weapons_abilities": [
+    {
+      "related_ability": "Regenerative Burst",
+      "tip": "Other than Health Packs, Regenerative Burst is Baptiste's only means of healing himself. Try not to get too close to your enemies while the ability is on cooldown."
+    },
+    {
+      "related_ability": "Regenerative Burst",
+      "tip": "Using Regenerative Burst at the start of an engagement can help your team's tank sustain damage long enough to win the fight."
+    },
+    {
+      "related_ability": "Immortality Field",
+      "tip": "The trajectory of the Immortality Field generator is the same as the secondary fire, so you can shoot a Biotic Grenade first to ensure you throw the Immortality Field where you want. However, Immortality Field interacts with the sky hitbox and may fail to reach its intended location if thrown too high."
+    },
+    {
+      "related_ability": "Immortality Field",
+      "tip": "You can use the Immortality Field to body block a door or a spawn room door. Throw the generator in a corner where it cannot be destroyed, then use Baptiste's body to prevent the enemy from coming through."
+    },
+    {
+      "related_ability": "Immortality Field",
+      "tip": "As Immortality Field is unable to be hacked before it hits the ground, it is possible to throw it out as an enemy Sombra is using EMP, and have it land after the ultimate's cast is over, leaving it unaffected."
+    }
+  ],
+  "match_ups": [],
+  "map_strategies": [],
+  "trivia": [
+    {
+      "fact": "Baptiste is the only hero in the game who has different ammo for his weapon's two modes of fire."
+    },
+    {
+      "fact": "Baptiste is the first hero in the Overwatch franchise to be trilingual (before Kiriko, Illari, Vendetta, Domina, and Emre), speaking English, Haitian Creole, and briefly implying being able to speak French."
+    },
+    {
+      "fact": "Baptiste's medic armor bears similarities to that of medic armor in StarCraft, most specifically the Tiger's Claw variant."
+    },
+    {
+      "fact": "Jean-Baptiste Augustin is a French name derived from two saints, Saint John the Baptist and Saint Augustine of Hippo. He also shares his name with a French painter."
+    },
+    {
+      "fact": "\"Jean-Baptiste\" is a relatively common French-language name with equivalents in Spanish (\"Juan Bautista\") and Italian (\"Giovanni Battista\"). Baptiste's French voice actor shares the same name, Jean-Baptiste Anoumon."
+    },
+    {
+      "fact": "Jean Baptiste was also the name of a French noble during the 18th century who later became the king of Sweden under the name Karl XIV Johan."
+    }
+  ],
+  "misc_character_info": [
+    {
+      "fact": "Baptiste is bisexual."
+    },
+    {
+      "fact": "Baptiste appears to be attracted to Cassidy, as he refers to him as the \"second most handsome man on the [Overwatch] team.\""
+    },
+    {
+      "fact": "Baptiste's stance on killing is explored in What You Left Behind. It is stated that he has never killed anyone in cold blood, but it is later implied that he executed his former Talon squad mates."
+    },
+    {
+      "fact": "In a gameplay trailer, Baptiste was part of an Overwatch team which engaged against Talon at Petra. With the aid of Venture, Overwatch successfully repelled Talon."
+    }
+  ],
+  "development_history": "Baptiste was designed by Michael Chu. As of February 2019, it was intended that his connections with Talon be fleshed out in tie-in media. Haiti was a cornerstone of Baptiste's backstory; Chu noted the intent to introduce lesser-known countries through Overwatch and that Haiti's history of fighting for independence informed casting and voice recording. Gameplay-wise, he was designed to be similar to Soldier: 76, albeit in a support role, including an immunity ability. During PTR testing, his Immortality Field could deploy in out-of-bounds areas, allowing travel out-of-bounds in Custom Games. Before going live, the visuals for Immortality Field and Amplification Matrix were changed, Immortality Field got an audio indicator and was added to the killfeed, the linger time after the drone was destroyed was shortened, his ultimate voice line was switched to English, Amplification Matrix's ally color changed from blue to green, and an option to disable Automatic Reload was added.",
+  "balance_change_log": [
+    {
+      "patch_date": "12 May 2026",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "Reducing the cooldown and increasing its healing output allows Baptiste to more reliably support himself and his team during engagements.",
+      "changes": "Regenerative Burst: instant healing increased from 40 to 50; healing over time increased from 40 to 50; cooldown reduced from 14 to 12 seconds."
+    },
+    {
+      "patch_date": "10 Feb 2026",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "",
+      "changes": "Assault Burst (Minor Perk) moved from Major to Minor, attack speed reduced from 25% to 20%. Biotic Reloader (Minor Perk) removed. Expanded Field (Minor Perk): Immortality Field radius increased by 30%. Automated Healing (Major Perk) moved from Minor to Major, healing per shot increased from 25 to 40."
+    },
+    {
+      "patch_date": "9 Dec 2025",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "While Immortality Field remains one of the stronger abilities in the game, its extremely long cooldown can feel difficult to use effectively for such a reactive tool. Reducing the cooldown gives Baptiste more flexibility without increasing its overall effectiveness.",
+      "changes": "Immortality Field: cooldown reduced from 25 to 22 seconds."
+    },
+    {
+      "patch_date": "14 Oct 2025",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "",
+      "changes": "Assault Burst (Major Perk): no longer removes healing from Regenerative Burst; attack speed bonus reduced from 30% to 25%."
+    },
+    {
+      "patch_date": "26 Aug 2025",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "",
+      "changes": "Field Medicine (Minor Perk) removed. Biotic Reloader (Minor Perk) added: hitting an entire three-round burst reloads a healing projectile; healing projectile direct hits reload 3 primary fire ammo. Automated Healing (Minor Perk) changed to trigger Shoulder Turret on any ability use, firing up to 3 shots at allies, each restoring 25 health."
+    },
+    {
+      "patch_date": "22 Apr 2025",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "",
+      "changes": "Biotic Launcher: healing explosion increased from 50 to 60; direct impact healing increased from 20 to 30; maximum ammo reduced from 13 to 10. Assault Burst will now do instant healing but cannot critically heal low health targets."
+    },
+    {
+      "patch_date": "18 Mar 2025",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "Increasing Assault Burst's attack speed to balance its loss of instant healing. Also, boosted Automated Healing as its current effectiveness is low for an ultimate perk.",
+      "changes": "Automated Healing: healing per shot increased from 25 to 30. Assault Burst: attack speed increased from 20% to 25%."
+    },
+    {
+      "patch_date": "18 Feb 2025",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "",
+      "changes": "Hero Perks added: Field Medicine (Immortality Field restores 80 health to nearby allies and 40 health to Baptiste when destroyed), Automated Healing (after placing Amplification Matrix, Shoulder Turret periodically fires up to 12 shots at allies, each restoring 25 health), Assault Burst (Regenerative Burst grants Baptiste 20% attack speed for 4 seconds but no longer instantly heals), Rocket Boots (while airborne from Exo Boots, use Jump to dash horizontally)."
+    },
+    {
+      "patch_date": "10 Dec 2024",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "Adjusting the values of Regenerative Burst will increase Baptiste's self-survivability while also providing greater support to his teammates.",
+      "changes": "Global Projectile Size Bonus: hitscan radius large reduced from 0.08 to 0.07 meters. Regenerative Burst: cooldown decreased from 15 to 14 seconds; radius increased from 10 to 12 meters."
+    },
+    {
+      "patch_date": "15 Oct 2024",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "This change is aimed at reducing the fatigue resulting from controlling the recoil over longer periods of play more than trying to add power to Baptiste's primary fire.",
+      "changes": "Biotic Launcher: primary fire recoil reduced by 30%."
+    },
+    {
+      "patch_date": "12 Mar 2024",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "",
+      "changes": "Immortality Field: minimum health threshold decreased from 25% to 20%."
+    },
+    {
+      "patch_date": "13 Feb 2024",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "",
+      "changes": "General update: global projectile size bonus added to most damage-dealing projectiles; hero combined HP (base health/armor/shields) increased by 15-25%; all ultimate ability costs increased by 10%; all heroes now regenerate 20 health per second after 5 seconds of not taking damage; Support Role Passive reduces the regeneration delay by half; Damage Role Passive changed (reload speed bonus on elimination removed, new passive reduces enemy healing received by 20% for 2 seconds after dealing damage); Quick Melee damage increased from 30 to 40; Baptiste health increased from 200 to 250."
+    },
+    {
+      "patch_date": "5 Dec 2023",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "We would prefer to keep his long cooldown abilities feeling impactful so we're going to be pulling back on some of his damage potential here.",
+      "changes": "Biotic Launcher: primary fire ammo reduced from 45 to 36."
+    },
+    {
+      "patch_date": "31 Oct 2023",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "",
+      "changes": "Immortality Field: health decreased from 150 to 125; cooldown increased from 23 to 25 seconds."
+    },
+    {
+      "patch_date": "7 Sep 2023",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "Regenerative Burst's overall healing output has been too effective after gaining the bonus instant heal for low-health allies, so we are reducing its total healing slightly. Immortality Field provides powerful utility, but its long cooldown means Baptiste often has to wait for the perfect opportunity to use it; decreasing its cooldown slightly promotes more flexibility in usage.",
+      "changes": "Regenerative Burst: instant healing decreased from 50 to 40; heal over time decreased from 50 over 5 seconds to 40 over 4 seconds."
+    },
+    {
+      "patch_date": "9 May 2023",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "",
+      "changes": "Immortality Field: cooldown decreased from 25 to 23 seconds."
+    },
+    {
+      "patch_date": "7 Mar 2023",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "Baptiste is capable of potent damage and healing output but often slightly underperforms across many skill levels. This change to the Immortality Field's minimum health threshold will strengthen his utility and enable him to more reliably assist his allies after its effect ends.",
+      "changes": "Immortality Field: minimum health threshold increased from 10 to 25%."
+    },
+    {
+      "patch_date": "4 Oct 2022",
+      "game_mode": "Overwatch 2",
+      "developer_comment": "This change helps reinforce Baptiste as a Support hero that can save allies in clutch moments. This new functionality is intended to synergize with Immortality Field, allowing for faster recovery after saving his allies (or himself!) from imminent danger.",
+      "changes": "Biotic Launcher: primary fire damage increased from 24 to 25; primary fire minimum falloff range increased from 20 to 25 meters."
+    },
+    {
+      "patch_date": "12 May 2022",
+      "game_mode": "Overwatch 1",
+      "developer_comment": "",
+      "changes": "Regenerative Burst (beta): now heals for 50 instantly and 50 over time, instead of 100 over time; instant heal portion doubled on targets at 50% or lower health; no longer heals Baptiste for double."
+    },
+    {
+      "patch_date": "5 May 2022",
+      "game_mode": "Overwatch 1",
+      "developer_comment": "Baptiste is under-performing because teams aren't playing as grouped up right now. Increasing his healing ammo will let him heal more targets who aren't necessarily grouped up.",
+      "changes": "Biotic Launcher Alt Fire (beta): healing ammo increased from 10 to 13."
+    },
+    {
+      "patch_date": "26 Apr 2022",
+      "game_mode": "Overwatch 1",
+      "developer_comment": "",
+      "changes": "Biotic Launcher (beta): primary fire minimum falloff range reduced from 25 to 20 meters. Regenerative Burst (beta): total healing increased from 75 to 100 health."
+    }
+  ],
+  "media_portraits": [
+    {
+      "portrait_type": "3D",
+      "image_url": ""
+    },
+    {
+      "portrait_type": "2D",
+      "image_url": ""
+    },
+    {
+      "portrait_type": "Former",
+      "image_url": ""
+    }
+  ],
+  "media_concept_art": [
+    {
+      "title": "Funky Skin Concept Art",
+      "artist": "Armando Gonzalez-Dorta",
+      "image_url": ""
+    },
+    {
+      "title": "Funky Skin Graphics Concept Art",
+      "artist": "Armando Gonzalez-Dorta",
+      "image_url": ""
+    },
+    {
+      "title": "Buccaneer Skin Weapon Concept Art",
+      "artist": "Anh Dang",
+      "image_url": ""
+    },
+    {
+      "title": "Baptiste Bounty Hunter Skin Concept Art",
+      "artist": "",
+      "image_url": ""
+    }
+  ],
+  "media_videos": [
+    {
+      "title": "[NOW PLAYABLE] Baptiste | Overwatch",
+      "url": ""
+    }
+  ],
+  "external_links": [
+    {
+      "label": "Overwatch Wiki - Baptiste",
+      "url": "https://overwatch.fandom.com/wiki/Baptiste"
+    }
+  ]
+}

@@ -1,0 +1,304 @@
+{
+  "id": "mode-base-game-mode-attributes",
+  "name": "Base Game Mode Attributes",
+  "category": "mode",
+  "fields": [
+    {
+      "key": "description",
+      "label": "Description",
+      "type": "string",
+      "required": true
+    },
+    {
+      "key": "objective_type",
+      "label": "Objective Type",
+      "type": "enum",
+      "required": true,
+      "globalEnumId": "map-types"
+    },
+    {
+      "key": "team_count",
+      "label": "Team Count",
+      "type": "number",
+      "required": true
+    },
+    {
+      "key": "team_size",
+      "label": "Team Size",
+      "type": "number",
+      "unit": "players",
+      "required": true
+    },
+    {
+      "key": "is_symmetric",
+      "label": "Symmetric Objective",
+      "type": "boolean",
+      "required": true
+    },
+    {
+      "key": "shared_contested_object",
+      "label": "Shared Contested Object",
+      "type": "boolean",
+      "required": true
+    },
+    {
+      "key": "controlled_objects",
+      "label": "Controlled Objects",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "object_name",
+          "label": "Object Name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "uncontrolled_speed",
+          "label": "Uncontrolled Speed",
+          "type": "number",
+          "unit": "m/s",
+          "required": false
+        },
+        {
+          "key": "controlled_speed",
+          "label": "Controlled Speed",
+          "type": "number",
+          "unit": "m/s",
+          "required": false
+        },
+        {
+          "key": "speed_affected_by_hero_count",
+          "label": "Speed Affected By Hero Count",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "key": "requires_contest_free_zone",
+          "label": "Halts If Contested By Both Teams",
+          "type": "boolean",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "checkpoints",
+      "label": "Checkpoints",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "checkpoint_label",
+          "label": "Checkpoint Label",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "distance_from_start",
+          "label": "Distance From Start",
+          "type": "number",
+          "unit": "m",
+          "required": false
+        },
+        {
+          "key": "pause_duration",
+          "label": "Pause Duration",
+          "type": "number",
+          "unit": "s",
+          "required": false
+        },
+        {
+          "key": "triggers_defender_respawn",
+          "label": "Triggers Defender Respawn",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "key": "activates_forward_spawn",
+          "label": "Activates Forward Spawn",
+          "type": "boolean",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "respawn_mechanics",
+      "label": "Respawn Mechanics",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "base_respawn_time",
+          "label": "Base Respawn Time",
+          "type": "number",
+          "unit": "s",
+          "required": false
+        },
+        {
+          "key": "forward_spawn_enabled",
+          "label": "Forward Spawn Enabled",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "key": "forward_spawn_time_penalty",
+          "label": "Forward Spawn Time Penalty",
+          "type": "number",
+          "unit": "s",
+          "required": false
+        },
+        {
+          "key": "forward_spawn_revert_condition",
+          "label": "Forward Spawn Revert Condition",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "time_limit_standard",
+      "label": "Time Limit (Standard Play)",
+      "type": "number",
+      "unit": "s",
+      "required": false
+    },
+    {
+      "key": "time_limit_competitive",
+      "label": "Time Limit (Competitive Play)",
+      "type": "number",
+      "unit": "s",
+      "required": false
+    },
+    {
+      "key": "primary_scoring_unit",
+      "label": "Primary Scoring Unit",
+      "type": "enum",
+      "required": true,
+      "options": [
+        "Distance",
+        "Percentage Captured",
+        "Kills",
+        "Points",
+        "Rounds Won",
+        "Time Held"
+      ]
+    },
+    {
+      "key": "instant_win_conditions",
+      "label": "Instant Win Conditions",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "condition_label",
+          "label": "Condition Label",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "condition_description",
+          "label": "Condition Description",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "overtime_enabled",
+      "label": "Overtime Enabled",
+      "type": "boolean",
+      "required": true
+    },
+    {
+      "key": "overtime_rules",
+      "label": "Overtime Rules",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "trigger_condition",
+          "label": "Trigger Condition",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "resolution_condition",
+          "label": "Resolution Condition",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "max_duration",
+          "label": "Max Duration",
+          "type": "number",
+          "unit": "s",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "draw_possible",
+      "label": "Draw Possible",
+      "type": "boolean",
+      "required": true
+    },
+    {
+      "key": "sudden_death_enabled",
+      "label": "Sudden Death Enabled",
+      "type": "boolean",
+      "required": true
+    },
+    {
+      "key": "supported_playlists",
+      "label": "Supported Playlists",
+      "type": "list",
+      "required": true,
+      "globalEnumId": "game-modes"
+    },
+    {
+      "key": "role_queue_enabled",
+      "label": "Role Queue Enabled",
+      "type": "boolean",
+      "required": true
+    },
+    {
+      "key": "hero_bans_enabled",
+      "label": "Hero Bans Enabled",
+      "type": "boolean",
+      "required": true
+    },
+    {
+      "key": "compatible_maps",
+      "label": "Compatible Maps",
+      "type": "reference_list",
+      "required": false,
+      "referenceApiEndpoint": "/api/{game}/maps",
+      "referenceValueKey": "id",
+      "referenceLabelKey": "name"
+    },
+    {
+      "key": "introduced_patch",
+      "label": "Introduced In Patch",
+      "type": "reference",
+      "required": false,
+      "referenceApiEndpoint": "/api/{game}/patches",
+      "referenceValueKey": "id",
+      "referenceLabelKey": "name"
+    },
+    {
+      "key": "introduced_event",
+      "label": "Introduced In Event",
+      "type": "reference",
+      "required": false,
+      "referenceApiEndpoint": "/api/{game}/events",
+      "referenceValueKey": "id",
+      "referenceLabelKey": "name"
+    },
+    {
+      "key": "trivia",
+      "label": "Trivia",
+      "type": "string",
+      "required": false
+    }
+  ]
+}
