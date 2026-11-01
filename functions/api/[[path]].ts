@@ -4,6 +4,7 @@ import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
 import { bumpCacheVersion, mobileVersionKeyForPath } from "../../app/lib/mobile-cache-version";
 import { dataWriteProblems } from "../../app/lib/screen-policy";
 import { ASSET_VERSION, serveAsset } from "../../app/lib/asset-headers";
+import { checkLoginAttempts, recordLoginAttempt } from "../../app/lib/login-attempts";
 import { SESSION_TTL_SECONDS, createSessionToken, readSessionVersion, revokeSessions, verifySessionToken } from "../../app/lib/session";
 import { SourceError } from "../../app/lib/importer/fetch-source";
 import { githubRepo } from "../../app/lib/importer/repo";
@@ -16,15 +17,6 @@ import {
 } from "../../app/lib/importer/run";
 
 const SESSION_KEY = "__admin_session";
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 15 * 60 * 1000;
-const BASE_DELAY_MS = 1000;
-
-interface RateLimitRecord {
-  count: number;
-  firstAt: number;
-  lastAt: number;
-}
 
 export interface Env {
   RATE_LIMIT_KV?: KVNamespace;
@@ -37,72 +29,6 @@ export interface Env {
   COOKIE_SECURE?: string;
   WORKER_PURGE_URL?: string;
   WORKER_PURGE_SECRET?: string;
-}
-
-async function checkRateLimit(
-  ip: string,
-  env: Env,
-): Promise<{ allowed: boolean; retryAfter?: number }> {
-  const kv = env.RATE_LIMIT_KV;
-  if (!kv) {
-    console.error(
-      "CRITICAL: RATE_LIMIT_KV is not bound. Failing closed to prevent brute force.",
-    );
-    return { allowed: false, retryAfter: 3600 };
-  }
-  const now = Date.now();
-  const raw = await kv.get(`rate_limit:${ip}`);
-  if (!raw) return { allowed: true };
-
-  const record: RateLimitRecord = JSON.parse(raw);
-  if (now - record.lastAt > WINDOW_MS) return { allowed: true };
-
-  if (record.count >= MAX_ATTEMPTS) {
-    const excess = record.count - MAX_ATTEMPTS;
-    const delay = BASE_DELAY_MS * Math.pow(2, excess);
-    const elapsed = now - record.lastAt;
-    if (elapsed < delay) {
-      return {
-        allowed: false,
-        retryAfter: Math.ceil((delay - elapsed) / 1000),
-      };
-    }
-  }
-  return { allowed: true };
-}
-
-async function recordAttempt(
-  ip: string,
-  success: boolean,
-  env: Env,
-): Promise<void> {
-  const kv = env.RATE_LIMIT_KV;
-  if (!kv) {
-    console.warn("RATE_LIMIT_KV is not bound");
-    return;
-  }
-  const now = Date.now();
-
-  if (success) {
-    await kv.delete(`rate_limit:${ip}`);
-    return;
-  }
-
-  const raw = await kv.get(`rate_limit:${ip}`);
-  let record: RateLimitRecord;
-  if (raw) {
-    const existing: RateLimitRecord = JSON.parse(raw);
-    const expired = now - existing.lastAt > WINDOW_MS;
-    record = expired
-      ? { count: 1, firstAt: now, lastAt: now }
-      : { ...existing, count: existing.count + 1, lastAt: now };
-  } else {
-    record = { count: 1, firstAt: now, lastAt: now };
-  }
-
-  await kv.put(`rate_limit:${ip}`, JSON.stringify(record), {
-    expirationTtl: 900,
-  });
 }
 
 function getSessionCookie(request: Request): string | null {
@@ -273,12 +199,17 @@ function getClientIp(request: Request): string {
 
 async function handleLogin(request: Request, env: Env): Promise<Response> {
   const ip = getClientIp(request);
+  // Sessions need KV (their version lives there), so without it nobody signs in.
+  if (!env.RATE_LIMIT_KV) {
+    console.error("CRITICAL: RATE_LIMIT_KV is not bound. Signing in is refused.");
+    return json({ error: "Sessions are unavailable: RATE_LIMIT_KV isn't bound." }, 503);
+  }
 
-  // Note: There is a known TOCTOU (Time-of-Check to Time-of-Use) gap here.
-  // Concurrent requests from the same IP can race past this check before
-  // recordAttempt persists, allowing more than MAX_ATTEMPTS in a burst.
-  // This is an accepted risk given the latency of Cloudflare KV.
-  const { allowed, retryAfter } = await checkRateLimit(ip, env);
+  // Failed attempts are counted in this data center's cache (see
+  // app/lib/login-attempts.ts). Concurrent requests from one IP can race past
+  // this check before the count is stored, allowing a few more in a burst.
+  const attempts = caches.default;
+  const { allowed, retryAfter } = await checkLoginAttempts(attempts, ip);
   if (!allowed) {
     return json({ error: "Too many attempts", retryAfter }, 429);
   }
@@ -297,7 +228,7 @@ async function handleLogin(request: Request, env: Env): Promise<Response> {
   const bcrypt = await import("bcryptjs");
   const valid = bcrypt.compareSync(password, hash);
   if (!valid) {
-    await recordAttempt(ip, false, env);
+    await recordLoginAttempt(attempts, ip, false);
     return json({ error: "Invalid password" }, 401);
   }
 
@@ -314,7 +245,7 @@ async function handleLogin(request: Request, env: Env): Promise<Response> {
     return json({ error: "Sessions are unavailable: RATE_LIMIT_KV can't be read." }, 503);
   }
 
-  await recordAttempt(ip, true, env);
+  await recordLoginAttempt(attempts, ip, true);
   const secure = env.COOKIE_SECURE !== "false";
   const cookie = await createSessionCookie(secret, version, secure);
   return new Response(JSON.stringify({ ok: true }), {
