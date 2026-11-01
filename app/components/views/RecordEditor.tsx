@@ -6,8 +6,9 @@ import { Button, ButtonLink } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { useToast } from "~/components/ToastProvider";
+import { publishedToast, useNotifyPlayers } from "~/components/NotifyPlayers";
 import { RecordFields, compact, useRecordForm } from "~/components/views/SchemaRecordForm";
-import { createFile, getFile, isConflictError, listDirectory, updateFile } from "~/lib/github";
+import { getFile, isConflictError, listDirectory, publishRecord, updateFile } from "~/lib/github";
 import { schemaOf } from "~/lib/record-schema";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useCategories } from "~/lib/categories-context";
@@ -94,7 +95,9 @@ function RecordForm({
   sha?: string;
 }) {
   const navigate = useNavigate();
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess, error: toastError, warning: toastWarning } = useToast();
+  // Only a new record can notify players; saving an existing one never does.
+  const { notify, field: notifyField } = useNotifyPlayers(category);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   // The record keeps the schema it follows, as hero and mode records and imports do.
@@ -110,11 +113,12 @@ function RecordForm({
     try {
       if (id) {
         await updateFile(path, saved, sha!, `Update ${category}: ${saved.id}`);
+        toastSuccess(`${noun} saved.`);
       } else {
         if (await getFile(path)) throw new Error(`A ${noun.toLowerCase()} with the id "${saved.id}" already exists.`);
-        await createFile(path, saved, `Add ${category}: ${saved.id}`);
+        const { push } = await publishRecord(path, saved, `Add ${category}: ${saved.id}`, notify);
+        publishedToast({ success: toastSuccess, warning: toastWarning }, `${noun} published.`, push);
       }
-      toastSuccess(id ? `${noun} saved.` : `${noun} published.`);
       navigate(`/${game}/${folder}`);
     } catch (err) {
       const message = isConflictError(err) ? err.message : (err as Error).message;
@@ -160,6 +164,8 @@ function RecordForm({
               {submitError}
             </div>
           )}
+
+          {!id && notifyField}
 
           {schemas.length > 1 && (
             <label className="block max-w-md text-sm font-medium text-ink">

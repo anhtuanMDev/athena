@@ -13,6 +13,8 @@ pages_build_output_dir = "./build/client"
 #   ADMIN_PASSWORD_HASH
 #   SESSION_SECRET
 #   GITHUB_WEBHOOK_SECRET  (the data repo's push webhook: functions/api/webhooks/github.ts)
+#   FCM_SERVICE_ACCOUNT    (optional: a Firebase service account's JSON key, for
+#                           notifying players when a record is published: app/lib/push.ts)
 #
 # Set these in the Cloudflare Pages dashboard (Settings → Environment variables):
 #   NODE_ENV = production

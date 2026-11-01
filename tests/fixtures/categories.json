@@ -38,7 +38,12 @@
       "label": "Patches",
       "singular": "Patch",
       "icon": "file-clock",
-      "favoritable": true
+      "favoritable": true,
+      "notify": {
+        "enabled": true,
+        "title": "{title}",
+        "body": "{summary}"
+      }
     },
     {
       "category": "news",
@@ -46,7 +51,12 @@
       "label": "News",
       "singular": "Article",
       "icon": "newspaper",
-      "favoritable": false
+      "favoritable": false,
+      "notify": {
+        "enabled": true,
+        "title": "{title}",
+        "body": "{summary}"
+      }
     }
   ]
 }

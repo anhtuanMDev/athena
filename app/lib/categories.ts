@@ -3,6 +3,8 @@
 // (src/content/categories.ts): whatever the file says, a category can never
 // name an internal folder (_meta, cron_jobs, imports, schemas, screens…),
 // leave the game's folder, or move the folders whose editors are built in.
+// A category's push notification (`notify`) is the admin's alone: zms never
+// reads it, and /mobile/init leaves it out (see appCategory).
 
 export const CATEGORIES_PATH = "data/_meta/categories.json";
 
@@ -43,7 +45,24 @@ export interface Category {
   icon: CategoryIcon;
   /** Whether players can save its records as favorites in the app. */
   favoritable: boolean;
+  /** The push sent when a new record is published; without it, publishing never notifies. */
+  notify?: NotifyConfig;
 }
+
+/** Templates with {field} placeholders, rendered from the record on the server (app/lib/notify-template.ts). */
+export interface NotifyConfig {
+  /** Whether "Notify players" starts ticked when a record is published. */
+  enabled: boolean;
+  title: string;
+  /** May be empty: the push then shows its title alone. */
+  body: string;
+}
+
+const MAX_NOTIFY_TITLE = 200;
+const MAX_NOTIFY_BODY = 500;
+/** A {placeholder}: a field key. */
+export const PLACEHOLDER = /\{([^{}]*)\}/g;
+const PLACEHOLDER_NAME = /^[a-z0-9_]{1,64}$/;
 
 /** The categories before the file existed; also used when it's missing or has none that are usable. */
 export const DEFAULT_CATEGORIES: readonly Category[] = [
@@ -118,13 +137,42 @@ export function normalizeCategories(raw: unknown): { categories: Category[]; pro
     if ((CATEGORY_ICONS as readonly unknown[]).includes(entry.icon)) icon = entry.icon as CategoryIcon;
     else if (entry.icon !== undefined) problems.push(`${where}: "${String(entry.icon)}" isn't one of the icons (${CATEGORY_ICONS.join(", ")}).`);
     if (entry.favoritable !== undefined && typeof entry.favoritable !== "boolean") problems.push(`${where}: favoritable must be true or false.`);
-    categories.push({ category, folder, label, singular: singular || label, icon, favoritable: entry.favoritable === true });
+    const notify = entry.notify === undefined ? undefined : normalizeNotify(entry.notify, where, problems);
+    categories.push({ category, folder, label, singular: singular || label, icon, favoritable: entry.favoritable === true, ...(notify && { notify }) });
   });
   if (categories.length === 0) {
     problems.push("No usable category: the built-in ones are used.");
     return { categories: [...DEFAULT_CATEGORIES], problems };
   }
   return { categories, problems };
+}
+
+/**
+ * A category's notify settings, or undefined with a problem when they're
+ * malformed: the category itself is kept either way. Whether the
+ * placeholders name real fields needs the schemas (notify-template.ts).
+ */
+function normalizeNotify(raw: unknown, where: string, problems: string[]): NotifyConfig | undefined {
+  const before = problems.length;
+  if (!isObject(raw)) {
+    problems.push(`${where}: notify must be an object with enabled, title and body.`);
+    return undefined;
+  }
+  const title = text(raw.title);
+  const body = raw.body === undefined ? "" : typeof raw.body === "string" ? raw.body.trim() : null;
+  if (typeof raw.enabled !== "boolean") problems.push(`${where}: notify.enabled must be true or false.`);
+  if (!title || title.length > MAX_NOTIFY_TITLE) problems.push(`${where}: the notification title must be 1 to ${MAX_NOTIFY_TITLE} characters.`);
+  if (body === null || body.length > MAX_NOTIFY_BODY) problems.push(`${where}: the notification body must be text of at most ${MAX_NOTIFY_BODY} characters.`);
+  for (const [, name] of `${title} ${body ?? ""}`.matchAll(PLACEHOLDER)) {
+    if (!PLACEHOLDER_NAME.test(name)) problems.push(`${where}: "{${name}}" isn't a field name; use lowercase letters, digits and _.`);
+  }
+  if (problems.length > before) return undefined;
+  return { enabled: raw.enabled as boolean, title, body: body! };
+}
+
+/** A category as the app gets it in /mobile/init: without the admin's notify settings. */
+export function appCategory({ category, folder, label, singular, icon, favoritable }: Category): Category {
+  return { category, folder, label, singular, icon, favoritable };
 }
 
 /** The categories in categories.json's text: the built-in ones when it's missing or isn't JSON. */

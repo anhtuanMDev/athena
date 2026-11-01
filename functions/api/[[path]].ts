@@ -15,8 +15,10 @@ import {
   publishDraft,
   runImport,
 } from "../../app/lib/importer/run";
-import { DEFAULT_CATEGORIES, needsCategories, readCategories } from "../../app/lib/categories";
-import { githubReader } from "../../app/lib/mobile-payload";
+import { CATEGORIES_PATH, DEFAULT_CATEGORIES, needsCategories, readCategories } from "../../app/lib/categories";
+import { githubReader, readJsonFolder, type RepoReader } from "../../app/lib/mobile-payload";
+import { templateFieldsByCategory } from "../../app/lib/notify-template";
+import { pushAfterWrite, readServiceAccount, type PushEnv } from "../../app/lib/push";
 
 const SESSION_KEY = "__admin_session";
 
@@ -31,6 +33,8 @@ export interface Env {
   COOKIE_SECURE?: string;
   WORKER_PURGE_URL?: string;
   WORKER_PURGE_SECRET?: string;
+  /** A Firebase service account's JSON key; without it, publishing never notifies players. */
+  FCM_SERVICE_ACCOUNT?: string;
 }
 
 function getSessionCookie(request: Request): string | null {
@@ -181,6 +185,8 @@ export async function onRequest(
       return await handleGetAsset(context);
     if (path.startsWith("imports/") && request.method === "POST")
       return await handleImport(context, path.slice("imports/".length));
+    if (path === "push/status" && request.method === "GET")
+      return await handlePushStatus(context);
       
     const enumMatch = path.match(/^([^\/]+)\/enums\/([^\/]+)$/);
     if (enumMatch && request.method === "GET") {
@@ -335,6 +341,7 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
     message?: string;
     sha?: string;
     isBase64?: boolean;
+    notify?: unknown;
   };
   if (!body.path) return json({ error: "path is required" }, 400);
   assertSafeFilePath(body.path);
@@ -345,7 +352,9 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
   // Screens and navigation drive the mobile app; reject unsafe or unreadable ones
   // here too, not only in the editor, so a tampered client can't save them,
   // whether it sends them as JSON or as base64.
-  const problems = dataWriteProblems(body.path, body.content, body.isBase64 === true, categories);
+  // Notification templates may only name fields the categories' schemas have.
+  const templateFields = body.path === CATEGORIES_PATH ? await schemaTemplateFields(dataReader(env)) : undefined;
+  const problems = dataWriteProblems(body.path, body.content, body.isBase64 === true, categories, templateFields);
   if (problems.length > 0) return json({ error: `This file can't be saved: ${problems.join(" ")}` }, 400);
 
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
@@ -367,8 +376,10 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
       branch,
     });
     triggerCachePurge(context, body.path);
+    // Only once the record is saved; a push never fails the save.
+    const push = await pushAfterWrite(body, pushEnv(env));
     // The new sha lets an editor keep saving without reloading the file.
-    return json({ ok: true, sha: result.data.content?.sha ?? null });
+    return json({ ok: true, sha: result.data.content?.sha ?? null, ...(push && { push }) });
   } catch (err: unknown) {
     if (
       err instanceof Error &&
@@ -451,7 +462,8 @@ async function handleImport(context: PagesFunctionContext, action: string): Prom
         const record = body.record && typeof body.record === "object" ? (body.record as Record<string, unknown>) : {};
         const path = await publishDraft(repo, game, jobId, record);
         triggerCachePurge(context, path);
-        return json({ ok: true, path });
+        const push = await pushAfterWrite({ path, content: record, notify: body.notify }, pushEnv(context.env));
+        return json({ ok: true, path, ...(push && { push }) });
       }
       case "dismiss":
         await dismissDraft(repo, game, jobId, String(body.id ?? ""));
@@ -464,6 +476,37 @@ async function handleImport(context: PagesFunctionContext, action: string): Prom
     if (err instanceof SourceError) return json({ error: err.message }, 502);
     throw err;
   }
+}
+
+function dataReader(env: Env): RepoReader {
+  return githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH ?? "main");
+}
+
+function pushEnv(env: Env): PushEnv {
+  const reader = dataReader(env);
+  return { credentials: env.FCM_SERVICE_ACCOUNT, kv: env.RATE_LIMIT_KV, read: (path) => reader.read(path) };
+}
+
+/**
+ * Every game's schema fields by category, for checking categories.json's
+ * templates. A schema that can't be read refuses the save rather than check
+ * against part of them: 1 + games + schemas GitHub reads, on a rare save.
+ */
+async function schemaTemplateFields(reader: RepoReader): Promise<Record<string, string[]>> {
+  const games: { slug?: unknown }[] = JSON.parse(await reader.read("data/_meta/games.json")).games ?? [];
+  const slugs = games.map((g) => g.slug).filter((slug): slug is string => typeof slug === "string" && /^[a-z0-9-]+$/.test(slug));
+  const folders = await Promise.all(slugs.map((slug) => readJsonFolder(reader, `data/${slug}/schemas`)));
+  if (folders.some((f) => f.partial)) {
+    throw json({ error: "Some schemas couldn't be read to check the notification templates. Try again." }, 503);
+  }
+  return templateFieldsByCategory(folders.flatMap((f) => f.files.map((file) => file.content)));
+}
+
+// Whether pushes can be sent: only that, never anything about the credentials.
+async function handlePushStatus(context: PagesFunctionContext): Promise<Response> {
+  await requireAuth(context);
+  const configured = (await readServiceAccount(context.env.FCM_SERVICE_ACCOUNT)) !== null;
+  return json({ configured }, 200, { "Cache-Control": "no-store" });
 }
 
 async function handleListDirectory(

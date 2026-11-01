@@ -6,6 +6,7 @@
 // (zms: src/content/policy.ts) — keep LINK_HOSTS in sync.
 
 import { CATEGORIES_PATH, DEFAULT_CATEGORIES, needsCategories, normalizeCategories, referenceEndpoints, type Category } from "./categories";
+import { notifyTemplateProblems } from "./notify-template";
 import { decodeUtf8Base64 } from "./utf8-base64";
 
 export const LINK_HOSTS = [
@@ -182,13 +183,18 @@ export function validateSchemaFile(raw: unknown, categories: Categories = DEFAUL
 
 /**
  * Validation for a data file about to be written, by path; other files have
- * no rules here. categories.json must pass its normalizer untouched.
+ * no rules here. categories.json must pass its normalizer untouched, and its
+ * notification templates may only use `templateFields` (by category, from
+ * notify-template.ts); without them, only the built-in fields.
  */
-export function validateDataFile(path: string, content: unknown, categories: Categories = DEFAULT_CATEGORIES): string[] {
+export function validateDataFile(path: string, content: unknown, categories: Categories = DEFAULT_CATEGORIES, templateFields: Record<string, string[]> = {}): string[] {
   if (/^data\/[^/]+\/screens\/[^/]+\.json$/.test(path)) return validateScreenFile(content);
   if (/^data\/[^/]+\/navigation\.json$/.test(path)) return validateNavigationFile(content);
   if (needsCategories(path)) return validateSchemaFile(content, categories);
-  if (path === CATEGORIES_PATH) return normalizeCategories(content).problems;
+  if (path === CATEGORIES_PATH) {
+    const normalized = normalizeCategories(content);
+    return [...normalized.problems, ...notifyTemplateProblems(normalized.categories, templateFields)];
+  }
   return [];
 }
 
@@ -197,8 +203,14 @@ export function validateDataFile(path: string, content: unknown, categories: Cat
  * JSON data file sent that way is decoded and checked like one sent as JSON,
  * so the encoding can't be used to skip validateDataFile.
  */
-export function dataWriteProblems(path: string, content: unknown, isBase64: boolean, categories: Categories = DEFAULT_CATEGORIES): string[] {
-  if (!isBase64) return validateDataFile(path, content, categories);
+export function dataWriteProblems(
+  path: string,
+  content: unknown,
+  isBase64: boolean,
+  categories: Categories = DEFAULT_CATEGORIES,
+  templateFields: Record<string, string[]> = {},
+): string[] {
+  if (!isBase64) return validateDataFile(path, content, categories, templateFields);
   if (!/^data\/.+\.json$/.test(path)) return [];
   let parsed: unknown;
   try {
@@ -206,5 +218,5 @@ export function dataWriteProblems(path: string, content: unknown, isBase64: bool
   } catch {
     return ["The file isn't valid JSON."];
   }
-  return validateDataFile(path, parsed, categories);
+  return validateDataFile(path, parsed, categories, templateFields);
 }

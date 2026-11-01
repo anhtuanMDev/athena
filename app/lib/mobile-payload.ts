@@ -1,5 +1,5 @@
 import type { Octokit } from "@octokit/rest";
-import { CATEGORIES_PATH, DEFAULT_CATEGORIES, normalizeCategories, readCategories } from "./categories";
+import { CATEGORIES_PATH, DEFAULT_CATEGORIES, appCategory, normalizeCategories, readCategories } from "./categories";
 import { decodeUtf8Base64 } from "./utf8-base64";
 
 // Reading the data repo for /mobile/init and /mobile/data. Files are edited by
@@ -175,7 +175,8 @@ export async function buildInitPayload(reader: RepoReader): Promise<{ payload: R
   const payload = versionAssets(
     {
       games: activeGames,
-      categories: categories === null ? [...DEFAULT_CATEGORIES] : normalizeCategories(categories).categories,
+      // The app has no use for the admin's notify settings.
+      categories: (categories === null ? [...DEFAULT_CATEGORIES] : normalizeCategories(categories).categories).map(appCategory),
       schemas,
       enums,
       screens,

@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { afterEach, beforeEach, describe, it } from "node:test";
 
 import {
   CATEGORIES_PATH,
   DEFAULT_CATEGORIES,
   MAX_CATEGORIES,
+  appCategory,
   isCategoryFolderFormat,
   normalizeCategories,
   parseCategories,
@@ -16,6 +17,7 @@ import { versionKeysToBump } from "../app/lib/github-webhook";
 import type { DataRepo, FileChange } from "../app/lib/importer/repo";
 import { publishDraft, recordFolder } from "../app/lib/importer/run";
 import { MOBILE_INIT_VERSION_KEY, mobileDataVersionKey, mobileVersionKeyForPath } from "../app/lib/mobile-cache-version";
+import { templateFieldsByCategory } from "../app/lib/notify-template";
 import { buildInitPayload, servedFolders, type RepoReader } from "../app/lib/mobile-payload";
 import { dataWriteProblems, validateDataFile, validateSchemaFile } from "../app/lib/screen-policy";
 import { encodeUtf8Base64 } from "../app/lib/utf8-base64";
@@ -28,7 +30,15 @@ const entry = (change: Partial<Category> & Record<string, unknown>) => ({ ...EVE
 
 describe("categories.json", () => {
   it("as in the data repo: the built-in six, with nothing to fix", () => {
-    assert.deepEqual(normalizeCategories(JSON.parse(REAL_FILE)), { categories: DEFAULT_CATEGORIES, problems: [] });
+    const { categories, problems } = normalizeCategories(JSON.parse(REAL_FILE));
+    assert.deepEqual(problems, []);
+    assert.deepEqual(categories.map(appCategory), DEFAULT_CATEGORIES);
+    // News and patches notify players, from fields their schemas have.
+    assert.deepEqual(categories.filter((c) => c.notify).map((c) => c.category), ["patch", "news"]);
+    const schemas = readdirSync(new URL("./fixtures/overwatch/schemas/", import.meta.url)).map((name) =>
+      JSON.parse(readFileSync(new URL(`./fixtures/overwatch/schemas/${name}`, import.meta.url), "utf8")),
+    );
+    assert.deepEqual(validateDataFile(CATEGORIES_PATH, JSON.parse(REAL_FILE), DEFAULT_CATEGORIES, templateFieldsByCategory(schemas)), []);
   });
 
   it("falls back to the built-in categories when missing, not JSON, or with none usable", () => {
