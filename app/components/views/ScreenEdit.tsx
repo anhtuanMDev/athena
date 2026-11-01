@@ -10,8 +10,8 @@ import { PropControl, inputBaseClass, inputClass, type PropContext } from "~/com
 import { getFile, isConflictError, listDirectory, updateFile } from "~/lib/github";
 import { validateScreenFile } from "~/lib/screen-policy";
 import { useData } from "~/lib/use-data";
+import { useCategories } from "~/lib/categories-context";
 import {
-  CATEGORIES,
   SCREEN_TYPES,
   bindingPath,
   createBlock,
@@ -96,6 +96,8 @@ function sortRecords(records: Record<string, unknown>[], source: RecordSource | 
 
 export default function ScreenEdit() {
   const { game, "*": splat } = useParams();
+  const configured = useCategories();
+  const folders = configured.map((c) => c.folder).join();
   const id = splat?.split("/")[1] ?? "";
   const screenPath = `data/${game}/screens/${id}.json`;
   const { success: toastSuccess, error: toastError } = useToast();
@@ -113,7 +115,7 @@ export default function ScreenEdit() {
       const categories = [...new Set(schemas.map((s) => s.category))];
       const recordLists = await Promise.all(
         categories.map(async (category) => {
-          const folder = folderFor(category);
+          const folder = folderFor(category, configured);
           const records = folder ? await listDirectory<Record<string, unknown>>(game!, folder, true).catch(() => []) : [];
           return [category, Array.isArray(records) ? records : []] as const;
         }),
@@ -128,8 +130,8 @@ export default function ScreenEdit() {
         records: Object.fromEntries(recordLists) as Record<string, Record<string, unknown>[]>,
       };
     },
-    [game, id],
-    `${game}-screen-${id}`,
+    [game, id, folders],
+    `${game}-screen-${id}-${folders}`,
   );
 
   const [screen, setScreen] = useState<ScreenFile | null>(null);
@@ -177,15 +179,15 @@ export default function ScreenEdit() {
   const dataFields: FieldOption[] = useMemo(() => {
     if (!screen) return [];
     if (screen.type === "detail") return sourceFields(schemas, screen.source, detailRecords);
-    const fields = homeFields();
+    const fields = homeFields(configured);
     return screen.source ? [...sourceFields(schemas, screen.source), ...fields] : fields;
-  }, [screen, schemas, detailRecords]);
+  }, [screen, schemas, detailRecords, configured]);
 
   const homeData = useMemo(() => {
     const data: Record<string, unknown> = { game: { name: game } };
-    for (const c of CATEGORIES) data[c.folder] = loaded?.records[c.category] ?? [];
+    for (const c of configured) data[c.folder] = loaded?.records[c.category] ?? [];
     return data;
-  }, [loaded, game]);
+  }, [loaded, game, configured]);
 
   const enumOptions = useCallback(
     (field: FieldOption | undefined) => {
@@ -406,7 +408,7 @@ export default function ScreenEdit() {
   };
   const summaryIssues = visibleIssues(issues).filter((i) => i.level === "error");
   const screenIssues = visibleIssues(issues).filter((i) => !i.sectionId);
-  const categoriesWithSchemas = CATEGORIES.filter((c) => schemas.some((s) => s.category === c.category));
+  const categoriesWithSchemas = configured.filter((c) => schemas.some((s) => s.category === c.category));
 
   return (
     <div className="w-full pb-32 pt-2">
@@ -532,7 +534,7 @@ export default function ScreenEdit() {
                 <span className="block text-sm font-medium text-ink">Screen settings</span>
                 <span className="block text-xs text-ink-muted">
                   {SCREEN_TYPES.find((t) => t.value === screen.type)?.label} · {screen.appearance === "dark" ? "Dark" : "Light"}
-                  {screen.source ? ` · ${CATEGORIES.find((c) => c.category === screen.source?.category)?.label ?? screen.source.category}` : ""}
+                  {screen.source ? ` · ${configured.find((c) => c.category === screen.source?.category)?.label ?? screen.source.category}` : ""}
                 </span>
               </span>
               {screenIssues.length > 0 && (

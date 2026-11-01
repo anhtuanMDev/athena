@@ -5,7 +5,8 @@ import { ButtonLink } from "~/components/ui/button";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { listDirectory } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
-import { CATEGORIES, dateField, recordListOrder, summaryField, titleField } from "~/lib/screen-model";
+import { dateField, recordListOrder, summaryField, titleField } from "~/lib/screen-model";
+import { useCategories } from "~/lib/categories-context";
 import { useData } from "~/lib/use-data";
 import type { DynamicSchemaFile } from "~/schemas/dynamic-schema";
 
@@ -17,7 +18,7 @@ import type { DynamicSchemaFile } from "~/schemas/dynamic-schema";
 export default function RecordList({ category, noun, icon: Icon }: { category: string; noun: string; icon: LucideIcon }) {
   const { game } = useParams();
   assertSafeGameSlug(game!);
-  const { folder, label } = CATEGORIES.find((c) => c.category === category)!;
+  const { folder, label } = useCategories().find((c) => c.category === category)!;
 
   const { data, loading, error } = useData(async () => {
     const [schemas, records] = await Promise.all([

@@ -10,7 +10,6 @@ import { createFile, deleteFile, getFile, isConflictError, listDirectory, update
 import { LIMITS, validateNavigationFile } from "~/lib/screen-policy";
 import { useData } from "~/lib/use-data";
 import {
-  CATEGORIES,
   SCREEN_ID,
   SCREEN_TYPES,
   iconOptions,
@@ -23,6 +22,7 @@ import {
   type ScreenFile,
   type ScreenType,
 } from "~/lib/screen-model";
+import { useCategories } from "~/lib/categories-context";
 
 const APP_SCREENS = [{ id: "app:settings", label: "Settings (built into the app)" }];
 
@@ -31,6 +31,7 @@ const iconButtonClass =
 
 export default function ScreensList() {
   const { game } = useParams();
+  const categories = useCategories();
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
   const navPath = `data/${game}/navigation.json`;
@@ -154,7 +155,7 @@ export default function ScreensList() {
   const createStarters = async () => {
     const schema = data.schemas.find((s) => s.id === starterSchema);
     if (!schema) return;
-    const starters = starterScreens(schema).filter((s) => !screenIds.includes(s.id));
+    const starters = starterScreens(schema, categories).filter((s) => !screenIds.includes(s.id));
     if (starters.length === 0) {
       toastError("Those screens already exist.");
       return;
@@ -253,7 +254,7 @@ export default function ScreensList() {
                 Category
                 <select value={newScreen.category} onChange={(e) => setNewScreen({ ...newScreen, category: e.target.value })} className={`${inputClass} mt-1.5`}>
                   <option value="">Choose a category…</option>
-                  {CATEGORIES.filter((c) => data.schemas.some((s) => s.category === c.category)).map((c) => (
+                  {categories.filter((c) => data.schemas.some((s) => s.category === c.category)).map((c) => (
                     <option key={c.category} value={c.category}>
                       {c.label}
                     </option>
@@ -376,7 +377,7 @@ export default function ScreensList() {
                     <td className="px-4 py-3 text-ink-muted">
                       {SCREEN_TYPES.find((t) => t.value === screen.type)?.label} · {screen.appearance === "dark" ? "dark" : "light"}
                     </td>
-                    <td className="px-4 py-3 text-ink-muted">{screen.source ? CATEGORIES.find((c) => c.category === screen.source?.category)?.label ?? screen.source.category : "—"}</td>
+                    <td className="px-4 py-3 text-ink-muted">{screen.source ? categories.find((c) => c.category === screen.source?.category)?.label ?? screen.source.category : "—"}</td>
                     <td className="px-4 py-3 tabular-nums text-ink-muted">{screen.blocks.length}</td>
                     <td className="px-4 py-3 text-right">
                       <button type="button" aria-label={`Delete ${id}`} onClick={() => setDeleting({ id, sha })} className={iconButtonClass}>

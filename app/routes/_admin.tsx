@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import Drawer from "@mui/material/Drawer";
 import { checkSession } from "~/lib/auth";
-import { listGames } from "~/lib/github";
+import { getFile, listGames } from "~/lib/github";
+import { CATEGORIES_PATH, DEFAULT_CATEGORIES, normalizeCategories } from "~/lib/categories";
+import { CategoriesProvider } from "~/lib/categories-context";
 import { SidebarNav } from "~/components/SidebarNav";
 import { useData } from "~/lib/use-data";
 
@@ -19,6 +21,17 @@ export default function AdminLayout() {
     const allGames = await listGames();
     return allGames.filter((g) => g.active).map((g) => ({ slug: g.slug, name: g.name, icon: g.icon }));
   }, [], "_admin-13");
+
+  const [categoriesVersion, setCategoriesVersion] = useState(0);
+  const { data: categories } = useData(
+    async () => {
+      const file = await getFile(CATEGORIES_PATH).catch(() => null);
+      return file ? normalizeCategories(file.content).categories : [...DEFAULT_CATEGORIES];
+    },
+    [categoriesVersion],
+    `_admin-categories-${categoriesVersion}`,
+  );
+  const categoriesValue = { categories: categories ?? DEFAULT_CATEGORIES, reload: () => setCategoriesVersion((v) => v + 1) };
 
   useEffect(() => {
     if (error instanceof Error && (error.message === "unauthorized" || error.message.includes("Unauthorized"))) {
@@ -44,6 +57,7 @@ export default function AdminLayout() {
   }
 
   return (
+    <CategoriesProvider value={categoriesValue}>
     <div className="flex h-screen overflow-hidden bg-page">
       <ReauthModal />
 
@@ -91,5 +105,6 @@ export default function AdminLayout() {
         </div>
       </main>
     </div>
+    </CategoriesProvider>
   );
 }

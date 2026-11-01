@@ -3,12 +3,6 @@ import {
   LayoutDashboard,
   Activity,
   Gamepad2,
-  Users,
-  Map,
-  Swords,
-  FileClock,
-  Newspaper,
-  Box,
   Database,
   Clock,
   LogOut,
@@ -18,6 +12,8 @@ import {
   LayoutTemplate,
 } from "lucide-react";
 import React, { useState } from "react";
+import { CATEGORY_ICON_COMPONENTS } from "~/components/CategoryIcon";
+import { useCategories } from "~/lib/categories-context";
 
 interface NavItem {
   label: string;
@@ -152,13 +148,9 @@ function CollapsibleGameSection({
   isActive: (href: string) => boolean;
   onClose?: () => void;
 }) {
+  const categories = useCategories();
   const isAnyActive =
-    isActive(`/${game.slug}/heroes`) ||
-    isActive(`/${game.slug}/maps`) ||
-    isActive(`/${game.slug}/modes`) ||
-    isActive(`/${game.slug}/patches`) ||
-    isActive(`/${game.slug}/news`) ||
-    isActive(`/${game.slug}/items`) ||
+    categories.some((c) => isActive(`/${game.slug}/${c.folder}`)) ||
     isActive(`/${game.slug}/schemas`) ||
     isActive(`/${game.slug}/screens`) ||
     isActive(`/${game.slug}/enums`) ||
@@ -197,48 +189,16 @@ function CollapsibleGameSection({
       </button>
 
       <div className={isOpen ? "space-y-1.5" : "hidden"}>
-        <NavLink
-          href={`/${game.slug}/heroes`}
-          label="Heroes"
-          icon={Users}
-          isActive={isActive(`/${game.slug}/heroes`)}
-          onClick={onClose}
-        />
-        <NavLink
-          href={`/${game.slug}/maps`}
-          label="Maps"
-          icon={Map}
-          isActive={isActive(`/${game.slug}/maps`)}
-          onClick={onClose}
-        />
-        <NavLink
-          href={`/${game.slug}/modes`}
-          label="Modes"
-          icon={Swords}
-          isActive={isActive(`/${game.slug}/modes`)}
-          onClick={onClose}
-        />
-        <NavLink
-          href={`/${game.slug}/patches`}
-          label="Patches"
-          icon={FileClock}
-          isActive={isActive(`/${game.slug}/patches`)}
-          onClick={onClose}
-        />
-        <NavLink
-          href={`/${game.slug}/news`}
-          label="News"
-          icon={Newspaper}
-          isActive={isActive(`/${game.slug}/news`)}
-          onClick={onClose}
-        />
-        <NavLink
-          href={`/${game.slug}/items`}
-          label="Items"
-          icon={Box}
-          isActive={isActive(`/${game.slug}/items`)}
-          onClick={onClose}
-        />
+        {categories.map((c) => (
+          <NavLink
+            key={c.folder}
+            href={`/${game.slug}/${c.folder}`}
+            label={c.label}
+            icon={CATEGORY_ICON_COMPONENTS[c.icon]}
+            isActive={isActive(`/${game.slug}/${c.folder}`)}
+            onClick={onClose}
+          />
+        ))}
         <NavLink
           href={`/${game.slug}/schemas`}
           label="Schemas"

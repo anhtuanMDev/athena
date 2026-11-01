@@ -1,6 +1,7 @@
 import { useParams } from "react-router";
-import { Box, FileClock, Newspaper, type LucideIcon } from "lucide-react";
 import { PanelTransition } from "~/components/PanelTransition";
+import { CATEGORY_ICON_COMPONENTS } from "~/components/CategoryIcon";
+import { useCategories } from "~/lib/categories-context";
 
 // Heroes
 import EntityDelete from "~/components/views/EntityDelete";
@@ -35,7 +36,7 @@ import CronJobNew from "~/components/views/CronJobNew";
 import CronJobsList from "~/components/views/CronJobsList";
 import ImportDraftReview from "~/components/views/ImportDraftReview";
 
-// News, patches and items: records edited in their schema's own form
+// Every other category (news, patches, items…): records edited in their schema's own form
 import RecordEditor from "~/components/views/RecordEditor";
 import RecordList from "~/components/views/RecordList";
 
@@ -43,17 +44,12 @@ import RecordList from "~/components/views/RecordList";
 import ScreenEdit from "~/components/views/ScreenEdit";
 import ScreensList from "~/components/views/ScreensList";
 
-const SCHEMA_FORMS: Record<
-  string,
-  { category: string; noun: string; icon: LucideIcon }
-> = {
-  news: { category: "news", noun: "Article", icon: Newspaper },
-  patches: { category: "patch", noun: "Patch", icon: FileClock },
-  items: { category: "item", noun: "Item", icon: Box },
-};
+/** Folders with editors of their own; every other configured category gets RecordList and RecordEditor. */
+const BUILT_IN_EDITORS = ["heroes", "maps", "modes"];
 
 export default function GameDashboardRouter() {
   const params = useParams();
+  const categories = useCategories();
   const splat = params["*"] || "";
   const parts = splat.split("/");
   const entity = parts[0];
@@ -87,10 +83,9 @@ export default function GameDashboardRouter() {
     );
   }
 
-  // Route: /:game/news, /:game/patches, /:game/items
-  const form = Object.hasOwn(SCHEMA_FORMS, entity)
-    ? SCHEMA_FORMS[entity]
-    : undefined;
+  // Route: /:game/<folder> of a configured category (news, patches, items…)
+  const configured = BUILT_IN_EDITORS.includes(entity) ? undefined : categories.find((c) => c.folder === entity);
+  const form = configured && { category: configured.category, noun: configured.singular, icon: CATEGORY_ICON_COMPONENTS[configured.icon] };
   if (form) {
     if (!idOrAction)
       return (
@@ -101,7 +96,7 @@ export default function GameDashboardRouter() {
     if (subAction === "delete")
       return (
         <PanelTransition>
-          <EntityDelete entityType={entity as "news" | "patches" | "items"} />
+          <EntityDelete entityType={entity} />
         </PanelTransition>
       );
     return (

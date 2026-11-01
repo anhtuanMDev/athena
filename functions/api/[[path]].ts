@@ -631,15 +631,13 @@ async function handleDashboardData(context: PagesFunctionContext): Promise<Respo
       recursive: "1",
     });
 
+    // Records per configured category, inactive games included: the Categories
+    // page locks a category's folder while any game has records in it.
+    const categories = await readCategories((path) => githubReader(octokit, owner, repo, branch).read(path));
     const gameStats = games.map((game: any) => {
-      if (!game.active) return { ...game, heroCount: 0, patchCount: 0 };
-      const heroPrefix = `data/${game.slug}/heroes/`;
-      const patchPrefix = `data/${game.slug}/patches/`;
-      
-      const heroCount = treeData.tree.filter((t) => t.type === "blob" && t.path?.startsWith(heroPrefix) && t.path?.endsWith(".json")).length;
-      const patchCount = treeData.tree.filter((t) => t.type === "blob" && t.path?.startsWith(patchPrefix) && t.path?.endsWith(".json")).length;
-
-      return { ...game, heroCount, patchCount };
+      const count = (folder: string) =>
+        treeData.tree.filter((t) => t.type === "blob" && t.path?.startsWith(`data/${game.slug}/${folder}/`) && t.path?.endsWith(".json")).length;
+      return { ...game, counts: Object.fromEntries(categories.map((c) => [c.folder, count(c.folder)])) };
     });
 
     return json({ games: gameStats }, 200, {

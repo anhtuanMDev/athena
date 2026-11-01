@@ -1,6 +1,7 @@
 import React, { forwardRef, useId, useState, useMemo } from "react";
 import { useData } from "~/lib/use-data";
-import { REFERENCE_ENDPOINTS } from "~/lib/screen-policy";
+import { referenceEndpoints } from "~/lib/categories";
+import { useCategories } from "~/lib/categories-context";
 import { useParams } from "react-router";
 
 interface EntityReferenceFieldProps extends Omit<React.InputHTMLAttributes<HTMLSelectElement | HTMLInputElement>, 'size' | 'value'> {
@@ -22,12 +23,13 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
   ({ name, label, game: propGame, referenceApiEndpoint, referenceValueKey = "id", referenceLabelKey = "name", multiple = false, required = false, currentValue, error, helperText, ...props }, ref) => {
     const { game: urlGame } = useParams();
     const game = propGame || urlGame;
+    const endpoints = referenceEndpoints(useCategories());
 
     const { data: entities, loading, error: fetchError } = useData(async () => {
       if (!referenceApiEndpoint) return [];
       // Options come from a category of this game; any other endpoint can't be loaded.
       const isEnum = /^\/api\/\{game\}\/enums\/[^/]+$/.test(referenceApiEndpoint);
-      if (!isEnum && !REFERENCE_ENDPOINTS.includes(referenceApiEndpoint)) {
+      if (!isEnum && !endpoints.includes(referenceApiEndpoint)) {
         throw new Error(`Options come from "${referenceApiEndpoint}", which isn't a category of this game. Fix this field in the schema.`);
       }
 
@@ -81,7 +83,7 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
           name: labelValue,
         };
       });
-    }, [game, referenceApiEndpoint, referenceValueKey, referenceLabelKey], "EntityReferenceField-21");
+    }, [game, referenceApiEndpoint, referenceValueKey, referenceLabelKey, endpoints.join()], "EntityReferenceField-21");
 
     const options = (entities as {id: string, name: string}[]) || [];
     

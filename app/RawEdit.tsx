@@ -6,18 +6,19 @@ import { DiffView } from "~/components/DiffView";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { useData } from "~/lib/use-data";
-import { assertSafeGameSlug, assertSafeEntityId, assertSafeEntityType, ENTITY_TYPES } from "~/lib/safe-path";
+import { assertSafeGameSlug, assertSafeEntityId, assertSafeEntityType } from "~/lib/safe-path";
 import { recordSchemaFor } from "~/lib/record-schema";
-import { CATEGORIES } from "~/lib/screen-model";
+import type { Category } from "~/lib/categories";
+import { useCategories } from "~/lib/categories-context";
 import type { DynamicSchemaFile } from "~/schemas/dynamic-schema";
 import { useToast } from "~/components/ToastProvider";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { EmptyState } from "~/components/ui/EmptyState";
 
 /** Problems with `parsed` as a record of `type`, checked as its category's editor checks it; empty when it can be saved. */
-function recordProblems(type: string, schemas: DynamicSchemaFile[], parsed: unknown): string[] {
+function recordProblems(type: string, schemas: DynamicSchemaFile[], parsed: unknown, categories: readonly Category[]): string[] {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return ["A record must be a JSON object."];
-  const category = CATEGORIES.find((c) => c.folder === type)?.category;
+  const category = categories.find((c) => c.folder === type)?.category;
   const result = recordSchemaFor(type, schemas.filter((s) => s?.category === category), parsed as Record<string, unknown>).safeParse(parsed);
   return result.success ? [] : result.error.issues.map((i) => `${i.path.join(".") || "record"}: ${i.message}`);
 }
@@ -27,6 +28,7 @@ export default function RawEditor() {
   const type = splat?.split("/")[1];
   const id = splat?.split("/")[2];
   const navigate = useNavigate();
+  const categories = useCategories();
   const { success: toastSuccess, error: toastError } = useToast();
   assertSafeGameSlug(game!);
   assertSafeEntityType(type!);
@@ -63,7 +65,7 @@ export default function RawEditor() {
       return;
     }
 
-    const problems = recordProblems(type!, loaderData.schemas, parsed);
+    const problems = recordProblems(type!, loaderData.schemas, parsed, categories);
     if (problems.length > 0) {
       setError(`Validation failed for ${type}: ${problems.join("; ")}`);
       return;
@@ -86,7 +88,7 @@ export default function RawEditor() {
       return;
     }
 
-    const problems = recordProblems(type!, loaderData.schemas, parsed);
+    const problems = recordProblems(type!, loaderData.schemas, parsed, categories);
     if (problems.length > 0) {
       setError(`Validation failed for ${type} on commit: ${problems.join("; ")}`);
       toastError("Validation failed on commit!");

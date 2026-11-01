@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import {
-  CATEGORIES,
   bindingPath,
   bindingScope,
   fieldsForProp,
@@ -14,6 +13,7 @@ import {
   type ScreenAction,
   type SchemaInfo,
 } from "~/lib/screen-model";
+import { useCategories } from "~/lib/categories-context";
 import { BOUND_LINK, LINK_HOSTS, isAllowedLink } from "~/lib/screen-policy";
 
 /** Field styling without a width, for controls sized by their row. */
@@ -174,7 +174,7 @@ function FieldOptions({ fields, spec, scope }: { fields: FieldOption[]; spec: Pr
 /** Which records a list block shows. */
 function SourceInput({ id, value, onChange, schemas }: { id: string; value: unknown; onChange: (v: unknown) => void; schemas: SchemaInfo[] }) {
   const source = (value && typeof value === "object" ? value : {}) as Partial<RecordSource>;
-  const categories = CATEGORIES.filter((c) => schemas.some((s) => s.category === c.category));
+  const categories = useCategories().filter((c) => schemas.some((s) => s.category === c.category));
   const fields = source.category ? sourceFields(schemas, { category: source.category }) : [];
   const update = (patch: Partial<RecordSource>) => {
     const next = { ...source, ...patch };

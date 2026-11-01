@@ -9,6 +9,7 @@ import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
 import { useData, clearDataCache } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
 import { getCategoryDirectory, type SchemaCategory } from "~/schemas/dynamic-schema";
+import { useCategories } from "~/lib/categories-context";
 
 interface EntityBase {
   id: string;
@@ -16,7 +17,9 @@ interface EntityBase {
   schema_id?: string;
 }
 
-export default function EntityDelete({ entityType }: { entityType: "heroes" | "maps" | "modes" | "patches" | "news" | "items" | "schemas" | "cron_jobs" | "enums" }) {
+/** Deletes a record of a category folder, or a schema, job or enum. */
+export default function EntityDelete({ entityType }: { entityType: string }) {
+  const categories = useCategories();
   const { game, "*": splat } = useParams();
   const id = splat?.split("/")[1];
   assertSafeGameSlug(game!);
@@ -38,7 +41,7 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
       if (entityType === "schemas") {
         const schemaCategory = file.content?.category as SchemaCategory;
         if (schemaCategory) {
-          const targetEntity = getCategoryDirectory(schemaCategory);
+          const targetEntity = categories.find((c) => c.category === schemaCategory)?.folder ?? getCategoryDirectory(schemaCategory);
           
           try {
             // Using keysOnly to avoid pulling full JSON payloads into memory for performance
@@ -92,23 +95,14 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
             }
           };
 
-          await Promise.all([
-            checkCategory("patches"),
-            checkCategory("news"),
-            checkCategory("items"),
-            checkCategory("modes"),
-            checkCategory("maps"),
-            checkCategory("heroes"),
-            checkCategory("cron_jobs"),
-            checkCategory("schemas")
-          ]);
+          await Promise.all([...categories.map((c) => c.folder), "cron_jobs", "schemas"].map(checkCategory));
         } catch (e) {
           // Ignore
         }
       }
       return { fileData: file, dependencies };
     },
-    [game, id, entityType], "EntityDelete-28"
+    [game, id, entityType, categories], "EntityDelete-28"
   );
 
   async function handleDelete(e: React.FormEvent) {
@@ -160,7 +154,8 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
     schemas: "schema",
     cron_jobs: "cron job"
   };
-  const singularEntity = entitySingularMap[entityType] || entityType.replace(/s$/, "");
+  const singularEntity =
+    categories.find((c) => c.folder === entityType)?.singular.toLowerCase() ?? entitySingularMap[entityType] ?? entityType.replace(/s$/, "");
 
   return (
     <div className="max-w-md mx-auto py-12">

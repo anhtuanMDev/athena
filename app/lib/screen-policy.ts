@@ -155,9 +155,6 @@ export function validateNavigationFile(raw: unknown, screenTypes?: Record<string
 
 type Categories = readonly Pick<Category, "folder">[];
 
-/** The built-in categories' endpoints, until the admin reads categories.json. */
-export const REFERENCE_ENDPOINTS = referenceEndpoints(DEFAULT_CATEGORIES);
-
 /**
  * Problems with a schema file: reference fields, nested ones included, that
  * point anywhere but a category folder of the record's own game. The editor's

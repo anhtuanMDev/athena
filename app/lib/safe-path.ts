@@ -1,7 +1,4 @@
-import { DEFAULT_CATEGORIES, isCategoryFolderFormat } from "./categories";
-
-/** The built-in category folders, until the admin reads categories.json. */
-export const ENTITY_TYPES = DEFAULT_CATEGORIES.map((c) => c.folder);
+import { isCategoryFolderFormat } from "./categories";
 
 const SAFE_SLUG = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 const SAFE_ENTITY_ID = /^(?!.*\.\.)[a-z0-9][a-z0-9.-]*[a-z0-9]$|^[a-z0-9]$/;
