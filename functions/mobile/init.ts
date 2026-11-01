@@ -48,7 +48,8 @@ export async function onRequest(context: any): Promise<Response> {
   const branch = env.GITHUB_BRANCH ?? "main";
 
   try {
-    const { payload: responseData, partial } = await buildInitPayload(githubReader(octokit, owner, repo, branch));
+    // Every game's folders through GraphQL when the token allows: one GitHub request for them all.
+    const { payload: responseData, partial } = await buildInitPayload(githubReader(octokit, owner, repo, branch, { token: env.GITHUB_TOKEN }));
 
     const cacheableResponse = json(responseData, 200, {
       "Cache-Control": partial ? CACHE_CONTROL.partial : CACHE_CONTROL.complete, // Cache for Workers Cache API

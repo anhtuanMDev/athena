@@ -88,6 +88,11 @@ export async function publishRecord(path: string, content: unknown, message: str
   return { sha: res.sha ?? null, push: res.push };
 }
 
+/** Whether the server's token reads folders through GitHub GraphQL (one request each) rather than file by file. */
+export async function getGithubStatus(): Promise<{ graphql: boolean }> {
+  return api("GET", "github/status");
+}
+
 /** Whether the server holds push credentials (FCM_SERVICE_ACCOUNT). */
 export async function getPushStatus(): Promise<{ configured: boolean }> {
   return api("GET", "push/status");

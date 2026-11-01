@@ -1,6 +1,7 @@
 import type { Octokit } from "@octokit/rest";
 import { CATEGORIES_PATH, DEFAULT_CATEGORIES, appCategory, normalizeCategories, readCategories } from "./categories";
 import { decodeUtf8Base64 } from "./utf8-base64";
+import { GraphqlUnavailable, SYMLINK_MODE, readObjects, usableText, type GraphqlObject } from "./github-graphql";
 
 // Reading the data repo for /mobile/init and /mobile/data. Files are edited by
 // hand as well as by the admin, and GitHub can fail a request now and then, so
@@ -10,6 +11,11 @@ import { decodeUtf8Base64 } from "./utf8-base64";
 // Pictures under public/assets keep their path when they're replaced, so the
 // payloads add each one's content hash to its URL (/api/assets/x.webp?v=…):
 // the app can then keep a picture for good and still get a new one at once.
+//
+// Folders are read through GitHub GraphQL when the token allows it: one
+// request for any number of files (see github-graphql.ts). Through REST, each
+// file is a request of its own, and a Function on the Workers Free plan may
+// make 50.
 
 /** The data repo as the mobile endpoints read it. */
 export interface RepoReader {
@@ -19,6 +25,19 @@ export interface RepoReader {
   read(path: string): Promise<string>;
   /** The git blob hash of every file under public/assets, by its path below that folder. */
   assets(): Promise<Map<string, string>>;
+  /**
+   * The .json files of several folders, and several files, in one request
+   * (GitHub GraphQL): null for one that doesn't exist; a file without text is
+   * one to read with read(). Rejects with GraphqlUnavailable when it can't:
+   * then list() and read() do it all.
+   */
+  readMany?(folders: string[], files: string[]): Promise<{ folders: (FileText[] | null)[]; files: (FileText | null)[] }>;
+}
+
+/** A file and, when it came with it, its text. */
+export interface FileText {
+  path: string;
+  text?: string;
 }
 
 export interface JsonFile {
@@ -38,36 +57,96 @@ const CHUNK_SIZE = 10;
 
 const isNotFound = (err: unknown) => (err as { status?: unknown } | null)?.status === 404;
 
-/**
- * The JSON files of a folder, or none when the folder doesn't exist. A file
- * that can't be fetched or parsed is left out and makes the result partial;
- * failing to list the folder rejects, so no payload claims it is empty.
- */
-export async function readJsonFolder(reader: RepoReader, dir: string): Promise<{ files: JsonFile[]; partial: boolean }> {
-  let paths: string[];
-  try {
-    paths = await reader.list(dir);
-  } catch (err) {
-    if (isNotFound(err)) return { files: [], partial: false };
-    throw err;
-  }
+/** A folder's JSON files; `unread` counts those left out. */
+export interface JsonFolder {
+  files: JsonFile[];
+  partial: boolean;
+  unread: number;
+}
+
+const nameOf = (path: string) => path.slice(path.lastIndexOf("/") + 1).replace(/\.json$/, "");
+
+/** The files of `texts` parsed, in their order; those without text are read, CHUNK_SIZE at once. One that can't be read or parsed is left out. */
+async function parseFiles(reader: RepoReader, texts: FileText[]): Promise<JsonFolder> {
   const files: JsonFile[] = [];
-  let partial = false;
-  for (let i = 0; i < paths.length; i += CHUNK_SIZE) {
+  let unread = 0;
+  for (let i = 0; i < texts.length; i += CHUNK_SIZE) {
     const chunk = await Promise.all(
-      paths.slice(i, i + CHUNK_SIZE).map(async (path) => {
+      texts.slice(i, i + CHUNK_SIZE).map(async ({ path, text }) => {
         try {
-          return { name: path.slice(path.lastIndexOf("/") + 1).replace(/\.json$/, ""), content: JSON.parse(await reader.read(path)) as unknown };
+          return { name: nameOf(path), content: JSON.parse(text ?? (await reader.read(path))) as unknown };
         } catch (err) {
           console.error(`Left out ${path}:`, err);
-          partial = true;
+          unread++;
           return null;
         }
       }),
     );
     files.push(...chunk.filter((file): file is JsonFile => file !== null));
   }
+  return { files, partial: unread > 0, unread };
+}
+
+/** Through REST: list the folder (404: it has no files), then read each file. */
+async function readFolderRest(reader: RepoReader, dir: string): Promise<JsonFolder> {
+  let paths: string[];
+  try {
+    paths = await reader.list(dir);
+  } catch (err) {
+    if (isNotFound(err)) return { files: [], partial: false, unread: 0 };
+    throw err;
+  }
+  return parseFiles(reader, paths.map((path) => ({ path })));
+}
+
+/**
+ * `folders` and `files` read together, in one request when the reader can
+ * (GraphQL), else each through REST. Each result is a promise of its own,
+ * settling as a REST read of it would: a folder that can't be listed rejects.
+ */
+export function readJsonTogether(reader: RepoReader, folders: string[], files: string[]) {
+  const batch =
+    reader.readMany && folders.length + files.length > 0
+      ? reader.readMany(folders, files).catch((err) => {
+          if (err instanceof GraphqlUnavailable) return null;
+          throw err;
+        })
+      : Promise.resolve(null);
+  return {
+    async folder(dir: string): Promise<JsonFolder> {
+      const read = await batch;
+      const texts = read?.folders[folders.indexOf(dir)];
+      if (!read || texts === undefined) return readFolderRest(reader, dir);
+      return texts === null ? { files: [], partial: false, unread: 0 } : parseFiles(reader, texts);
+    },
+    async file(path: string): Promise<{ content: unknown; partial: boolean }> {
+      const read = await batch;
+      const found = read?.files[files.indexOf(path)];
+      if (!read || found === undefined || (found !== null && found.text === undefined)) return readJsonFile(reader, path);
+      if (found === null) return { content: null, partial: false };
+      try {
+        return { content: JSON.parse(found.text!), partial: false };
+      } catch (err) {
+        console.error(`Left out ${path}:`, err);
+        return { content: null, partial: true };
+      }
+    },
+  };
+}
+
+/**
+ * The JSON files of a folder, or none when the folder doesn't exist. A file
+ * that can't be fetched or parsed is left out and makes the result partial;
+ * failing to list the folder rejects, so no payload claims it is empty.
+ */
+export async function readJsonFolder(reader: RepoReader, dir: string): Promise<{ files: JsonFile[]; partial: boolean }> {
+  const { files, partial } = await readJsonFolderCounted(reader, dir);
   return { files, partial };
+}
+
+/** readJsonFolder, with the number of files left out (the admin's X-Incomplete). */
+export function readJsonFolderCounted(reader: RepoReader, dir: string): Promise<JsonFolder> {
+  return readJsonTogether(reader, [dir], []).folder(dir);
 }
 
 /** A JSON file, or null when it doesn't exist; an unparsable file is null and partial. */
@@ -136,8 +215,12 @@ export async function buildInitPayload(reader: RepoReader): Promise<{ payload: R
   // games.json; without it there is nothing to show.
   const games: { slug?: string; id?: string; active?: unknown }[] = JSON.parse(await reader.read("data/_meta/games.json")).games ?? [];
   const activeGames = games.filter((g) => g.active !== false);
+  // Every game's folders and navigation, and the categories, in one request when the reader can.
+  const dirs = (gameId: string) => [`data/${gameId}/schemas`, `data/${gameId}/enums`, `data/${gameId}/screens`];
+  const ids = activeGames.map((game) => String(game.slug || game.id));
+  const together = readJsonTogether(reader, ids.flatMap(dirs), [...ids.map((id) => `data/${id}/navigation.json`), CATEGORIES_PATH]);
   // The app's category list. Missing: the built-in ones; unreadable: those, cached briefly.
-  const categoriesFile = readJsonFile(reader, CATEGORIES_PATH).catch((err) => {
+  const categoriesFile = together.file(CATEGORIES_PATH).catch((err) => {
     console.error(`Left out ${CATEGORIES_PATH}:`, err);
     return { content: null, partial: true };
   });
@@ -153,12 +236,13 @@ export async function buildInitPayload(reader: RepoReader): Promise<{ payload: R
   await Promise.all(
     activeGames.map(async (game) => {
       const gameId = String(game.slug || game.id);
+      const [schemaDir, enumDir, screenDir] = dirs(gameId);
       const [schemaFiles, enumFiles, screenFiles, navFile] = await Promise.all([
-        readJsonFolder(reader, `data/${gameId}/schemas`),
-        readJsonFolder(reader, `data/${gameId}/enums`),
-        readJsonFolder(reader, `data/${gameId}/screens`),
+        together.folder(schemaDir),
+        together.folder(enumDir),
+        together.folder(screenDir),
         // No navigation file: the app shows a single Home tab
-        readJsonFile(reader, `data/${gameId}/navigation.json`),
+        together.file(`data/${gameId}/navigation.json`),
       ]);
       schemas[gameId] = schemaFiles.files.map((f) => f.content);
       enums[gameId] = enumFiles.files.map((f) => f.content);
@@ -216,9 +300,46 @@ export async function buildDataPayload(reader: RepoReader, dir: string): Promise
   return { payload: versionAssets(files.map((f) => f.content), hashes), partial: partial || noHashes };
 }
 
-/** A RepoReader over the GitHub contents API. */
-export function githubReader(octokit: Octokit, owner: string, repo: string, ref: string): RepoReader {
+/**
+ * A RepoReader over the GitHub contents API; with `graphql` (the token), it
+ * reads folders through GraphQL too (readMany). After GraphQL fails once, the
+ * reader uses REST alone, so a token that can't use it costs one request per
+ * reader (one per Function invocation), and one line in the log.
+ */
+export function githubReader(octokit: Octokit, owner: string, repo: string, ref: string, graphql?: { token: string; fetcher?: typeof fetch }): RepoReader {
+  let graphqlDown = false;
+  const readMany = async (folders: string[], files: string[]) => {
+    if (graphqlDown) throw new GraphqlUnavailable("failed earlier");
+    let found: GraphqlObject[];
+    try {
+      found = await readObjects({ token: graphql!.token, owner, repo, fetcher: graphql!.fetcher }, ref, [...folders, ...files]);
+    } catch (err) {
+      if (err instanceof GraphqlUnavailable) {
+        graphqlDown = true;
+        console.warn(`${err.message}, reading through REST`);
+      }
+      throw err;
+    }
+    return {
+      // A folder's .json files, as list() keeps them: no subfolders, no symlinks. A path that is a file lists nothing.
+      folders: folders.map((dir, i): FileText[] | null => {
+        const object = found[i];
+        if (object === null) return null;
+        if (object.kind !== "tree") return [];
+        return object.entries
+          .filter((e) => e.type === "blob" && e.mode !== SYMLINK_MODE && e.name.endsWith(".json"))
+          .map((e) => ({ path: `${dir}/${e.name}`, text: usableText(e.blob) }));
+      }),
+      // A file, with its text when GraphQL gave it whole; anything else is left to read().
+      files: files.map((path, i): FileText | null => {
+        const object = found[folders.length + i];
+        if (object === null) return null;
+        return { path, text: object.kind === "blob" ? usableText(object.blob) : undefined };
+      }),
+    };
+  };
   return {
+    ...(graphql && { readMany }),
     async list(dir) {
       const { data } = await octokit.repos.getContent({ owner, repo, path: dir, ref });
       return Array.isArray(data) ? data.filter((entry) => entry.type === "file" && entry.name.endsWith(".json")).map((entry) => entry.path) : [];

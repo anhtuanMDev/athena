@@ -1,4 +1,4 @@
-import { getDashboardData } from "~/lib/github";
+import { getDashboardData, getGithubStatus } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Link } from "react-router";
 import { useData } from "~/lib/use-data";
@@ -7,6 +7,24 @@ import { useCategories } from "~/lib/categories-context";
 
 async function fetchDashboardData() {
   return await getDashboardData();
+}
+
+/** How the server reads the data repo; null when that couldn't be checked. */
+async function fetchGithubStatus() {
+  return getGithubStatus().catch(() => null);
+}
+
+/** The line that says how folders are read, for checking a deploy's token (see /api/github/status). */
+function GithubReads() {
+  const { data, loading } = useData(fetchGithubStatus, [], "github-status");
+  const text = loading
+    ? "checking…"
+    : data === null
+      ? "unknown"
+      : data.graphql
+        ? "GraphQL, one request per folder"
+        : "REST only: folders of more than about 45 records may come back incomplete (the token can't use GraphQL)";
+  return <p className="text-sm text-ink-muted">GitHub reads: {text}</p>;
 }
 
 export default function Dashboard() {
@@ -53,7 +71,10 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-ink">Dashboard</h1>
+      <div className="space-y-1">
+        <h1 className="text-2xl font-bold text-ink">Dashboard</h1>
+        <GithubReads />
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {data.games.map((game) => (
           <Card key={game.slug}>

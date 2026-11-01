@@ -18,7 +18,8 @@ import {
   runImport,
 } from "../../app/lib/importer/run";
 import { CATEGORIES_PATH, DEFAULT_CATEGORIES, needsCategories, readCategories } from "../../app/lib/categories";
-import { githubReader, readJsonFolder, type RepoReader } from "../../app/lib/mobile-payload";
+import { githubReader, readJsonFolderCounted, readJsonTogether, type RepoReader } from "../../app/lib/mobile-payload";
+import { graphqlStatus } from "../../app/lib/github-graphql";
 import { templateFieldsByCategory } from "../../app/lib/notify-template";
 import { pushAfterWrite, readServiceAccount, type PushEnv } from "../../app/lib/push";
 
@@ -193,6 +194,8 @@ export async function onRequest(
       return await handleImport(context, path.slice("imports/".length));
     if (path === "push/status" && request.method === "GET")
       return await handlePushStatus(context);
+    if (path === "github/status" && request.method === "GET")
+      return await handleGithubStatus(context);
       
     const enumMatch = path.match(/^([^\/]+)\/enums\/([^\/]+)$/);
     if (enumMatch && request.method === "GET") {
@@ -546,8 +549,9 @@ async function handleImport(context: PagesFunctionContext, action: string): Prom
   }
 }
 
+/** The data repo as the API reads it; folders through GraphQL when the token allows (mobile-payload.ts). */
 function dataReader(env: Env): RepoReader {
-  return githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH ?? "main");
+  return githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH ?? "main", { token: env.GITHUB_TOKEN });
 }
 
 function pushEnv(env: Env): PushEnv {
@@ -563,11 +567,22 @@ function pushEnv(env: Env): PushEnv {
 async function schemaTemplateFields(reader: RepoReader): Promise<Record<string, string[]>> {
   const games: { slug?: unknown }[] = JSON.parse(await reader.read("data/_meta/games.json")).games ?? [];
   const slugs = games.map((g) => g.slug).filter((slug): slug is string => typeof slug === "string" && /^[a-z0-9-]+$/.test(slug));
-  const folders = await Promise.all(slugs.map((slug) => readJsonFolder(reader, `data/${slug}/schemas`)));
+  // Every game's schemas in one request when the reader can.
+  const together = readJsonTogether(reader, slugs.map((slug) => `data/${slug}/schemas`), []);
+  const folders = await Promise.all(slugs.map((slug) => together.folder(`data/${slug}/schemas`)));
   if (folders.some((f) => f.partial)) {
     throw json({ error: "Some schemas couldn't be read to check the notification templates. Try again." }, 503);
   }
   return templateFieldsByCategory(folders.flatMap((f) => f.files.map((file) => file.content)));
+}
+
+// Whether the server's token can read folders through GitHub GraphQL (one request
+// each, see github-graphql.ts), for checking a deploy: only that, nothing about the token.
+async function handleGithubStatus(context: PagesFunctionContext): Promise<Response> {
+  await requireAuth(context);
+  const { env } = context;
+  const graphql = await graphqlStatus({ token: env.GITHUB_TOKEN, owner: env.GITHUB_OWNER, repo: env.GITHUB_REPO });
+  return json({ graphql }, 200, { "Cache-Control": "no-store" });
 }
 
 // Whether pushes can be sent: only that, never anything about the credentials.
@@ -589,92 +604,56 @@ async function handleListDirectory(
   if (!game || !subpath)
     return json({ error: "game and subpath are required" }, 400);
 
-  const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
-  const owner = env.GITHUB_OWNER;
-  const repo = env.GITHUB_REPO;
-  const branch = env.GITHUB_BRANCH ?? "main";
-
   assertSafeFilePath(`data/${game}/${subpath}/dummy.json`);
+  const dir = `data/${game}/${subpath}`;
+
+  if (url.searchParams.get("includeContent") === "true") {
+    const keysOnly = url.searchParams.get("keysOnly")?.split(",") ?? null;
+    // Only the keys asked for, which keeps big records out of the page's memory.
+    const shown = (content: unknown) => {
+      if (!keysOnly) return content;
+      if (content === null || content === undefined) return null;
+      const filtered: Record<string, unknown> = {};
+      for (const key of keysOnly) {
+        const value = (content as Record<string, unknown>)[key];
+        if (value !== undefined) filtered[key] = value;
+      }
+      return filtered;
+    };
+    try {
+      // One GitHub request for the whole folder when the token can use GraphQL
+      // (mobile-payload.ts readJsonTogether), else one per file, as before.
+      const { files, unread } = await readJsonFolderCounted(dataReader(env), dir);
+      const payload = files.map((file) => shown(file.content)).filter(Boolean);
+      // Records that couldn't be read are left out; X-Incomplete says how many, so a
+      // check that must see them all (the delete page's) knows it didn't.
+      const left = unread + files.length - payload.length;
+      return json(payload, 200, {
+        "Cache-Control": "no-store",
+        ...(left > 0 && { "X-Incomplete": String(left) }),
+      });
+    } catch (err) {
+      // The folder couldn't be listed: an empty list that isn't the folder's.
+      console.error("handleListDirectory error:", err);
+      return json([], 200, { "X-Incomplete": "all" });
+    }
+  }
 
   try {
-    const { data } = await octokit.repos.getContent({
-      owner,
-      repo,
-      path: `data/${game}/${subpath}`,
-      ref: branch,
+    const { data } = await new Octokit({ auth: env.GITHUB_TOKEN }).repos.getContent({
+      owner: env.GITHUB_OWNER,
+      repo: env.GITHUB_REPO,
+      path: dir,
+      ref: env.GITHUB_BRANCH ?? "main",
       headers: {
         "Cache-Control": "no-cache",
       },
     });
-    if (Array.isArray(data)) {
-      const files = data.filter(
-        (entry) => entry.type === "file" && entry.name.endsWith(".json"),
-      );
-      const includeContent = url.searchParams.get("includeContent") === "true";
-      const keysOnlyStr = url.searchParams.get("keysOnly");
-      const keysOnly = keysOnlyStr ? keysOnlyStr.split(",") : null;
-
-      if (!includeContent) {
-        const payload = files.map((entry) => entry.name.replace(".json", ""));
-        return json(payload, 200, {
-          "Cache-Control": "no-store",
-        });
-      }
-
-      // Fetch the parsed JSON content for all files in parallel, but chunked to respect CF limits (max 50 concurrent) and GitHub limits
-      const items = [];
-      const CHUNK_SIZE = 10;
-
-      for (let i = 0; i < files.length; i += CHUNK_SIZE) {
-        const chunk = files.slice(i, i + CHUNK_SIZE);
-        const chunkResults = await Promise.all(
-          chunk.map(async (entry) => {
-            try {
-              const fileReq = await octokit.repos.getContent({
-                owner,
-                repo,
-                path: entry.path,
-                ref: branch,
-                headers: {
-                  "Cache-Control": "no-cache",
-                },
-              });
-              const fileData = fileReq.data;
-              if (
-                !Array.isArray(fileData) &&
-                fileData.type === "file" &&
-                "content" in fileData
-              ) {
-                const decoded = decodeUtf8Base64(fileData.content);
-                const parsed = JSON.parse(decoded);
-                if (keysOnly) {
-                  const filtered: Record<string, unknown> = {};
-                  for (const key of keysOnly) {
-                    if (parsed[key] !== undefined) filtered[key] = parsed[key];
-                  }
-                  return filtered;
-                }
-                return parsed;
-              }
-            } catch (e) {
-              console.error(`Failed to fetch content for ${entry.path}`, e);
-            }
-            return null;
-          }),
-        );
-        items.push(...chunkResults);
-      }
-
-      const payload = items.filter(Boolean);
-      // Records that couldn't be read are left out; X-Incomplete says how many, so a
-      // check that must see them all (the delete page's) knows it didn't.
-      const unread = files.length - payload.length;
-      return json(payload, 200, {
-        "Cache-Control": "no-store",
-        ...(unread > 0 && { "X-Incomplete": String(unread) }),
-      });
-    }
-    return json([]);
+    if (!Array.isArray(data)) return json([]);
+    const payload = data.filter((entry) => entry.type === "file" && entry.name.endsWith(".json")).map((entry) => entry.name.replace(".json", ""));
+    return json(payload, 200, {
+      "Cache-Control": "no-store",
+    });
   } catch (err) {
     // A folder that doesn't exist is empty; any other failure is an empty list
     // that isn't the folder's, which X-Incomplete says.
