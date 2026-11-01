@@ -133,6 +133,8 @@ function triggerCachePurge(context: PagesFunctionContext, path: string) {
 
   // Mobile payloads are cached in every data center, so they are invalidated by
   // bumping the version in their cache key rather than by cache.delete().
+  // The webhook bumps it again for the same commit (about 40 writes a day),
+  // kept as a safety net for when a delivery fails.
   const versionKey = mobileVersionKeyForPath(path);
 
   const promise = Promise.all([
