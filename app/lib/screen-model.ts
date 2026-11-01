@@ -1,5 +1,5 @@
 import { DEFAULT_CATEGORIES, type Category } from "./categories";
-import { BLOCKED_PROP, BOUND_LINK, LIMITS, isAllowedLink } from "./screen-policy";
+import { APP_POLICY, BLOCKED_PROP, BOUND_LINK, isAllowedLink, isAppScreen, type AppLimits, type AppPolicy } from "./screen-policy";
 
 // App screens under data/<game>/screens/<id>.json and the tab list in
 // data/<game>/navigation.json, rendered by the mobile app (zms). Schemas only
@@ -80,6 +80,8 @@ export interface FieldOption {
   globalEnumId?: string;
   options?: string[];
   subFields?: FieldOption[];
+  /** Each record may give its own unit, in "<key>_suffix" next to the value (see valueWithUnit). */
+  hasCustomSuffix?: boolean;
 }
 
 export interface SchemaInfo {
@@ -104,6 +106,10 @@ export interface ScreenIssue {
     | "blocked-prop"
     | "ignored-prop"
     | "too-many-blocks"
+    | "too-many-entries"
+    | "over-limit"
+    | "not-favoritable"
+    | "long-text"
     | "empty-screen";
   message: string;
 }
@@ -220,9 +226,13 @@ const BASE_FIELDS: Record<string, FieldOption[]> = {
     { key: "difficulty", type: "number", label: "Difficulty (1-5)" },
     { key: "released", type: "string", label: "Released" },
     { key: "tags", type: "list", label: "Tags" },
-    { key: "kit", type: "abilities", label: "Kit" },
   ],
 };
+
+// Keys the hero form still stores (app/schemas/hero.ts) that bindings shouldn't
+// offer: the app has no definition for them, so a field_section on data.kit lists
+// bare names. The schema's abilities field replaced the kit.
+const HIDDEN_FIELDS: Record<string, string[]> = { hero: ["kit"] };
 
 /** Fields of a category's records: id and name, base fields, the chosen schema's (or all) fields, then keys seen in records. */
 export function sourceFields(
@@ -235,12 +245,17 @@ export function sourceFields(
     { key: "id", type: "string", label: "ID" },
     { key: "name", type: "string", label: "Name" },
   ];
-  const seen = new Set(fields.map((f) => f.key));
+  const seen = new Set([...fields.map((f) => f.key), ...(HIDDEN_FIELDS[source.category] ?? [])]);
+  const chosen = schemas.filter((s) => s.category === source.category && (!source.schema || s.id === source.schema));
+  // The app knows a record's fields from its schema alone (zms sourceFields), so a
+  // schema's definition wins over the form's: a hero's difficulty is the schema's enum.
+  const inSchemas = new Set(chosen.flatMap((s) => s.fields.map((f) => f.key)));
   for (const field of BASE_FIELDS[source.category] ?? []) {
+    if (inSchemas.has(field.key)) continue;
     fields.push(field);
     seen.add(field.key);
   }
-  for (const schema of schemas.filter((s) => s.category === source.category && (!source.schema || s.id === source.schema))) {
+  for (const schema of chosen) {
     for (const field of schema.fields) {
       if (!seen.has(field.key)) {
         fields.push(field);
@@ -258,19 +273,54 @@ export function sourceFields(
   return fields;
 }
 
+// The game as the app gets it in /mobile/init (zms src/types/schema.ts gameSchema),
+// less its light palette, an object.
+const GAME_COLORS = [
+  "primary",
+  "secondary",
+  "accent",
+  "background",
+  "surface",
+  "surfaceVariant",
+  "onPrimary",
+  "onSecondary",
+  "onBackground",
+  "onSurface",
+  "error",
+  "warning",
+  "success",
+  "border",
+];
+const GAME_FIELDS: FieldOption[] = [
+  { key: "game.name", type: "string", label: "Game name" },
+  { key: "game.slug", type: "string", label: "Game id" },
+  { key: "game.developer", type: "string", label: "Game developer" },
+  { key: "game.icon", type: "string", label: "Game icon" },
+  { key: "game.banner", type: "string", label: "Game banner" },
+  { key: "game.active", type: "boolean", label: "Game is active" },
+  ...GAME_COLORS.map((color) => ({ key: `game.${color}`, type: "string", label: `Game color: ${color}` })),
+];
+
 /** What "data.<path>" can bind to on home and list screens. */
 export function homeFields(categories: Categories = DEFAULT_CATEGORIES): FieldOption[] {
-  return [
-    { key: "game.name", type: "string", label: "Game name" },
-    ...categories.map((c) => ({ key: c.folder, type: "collection", label: c.label })),
-  ];
+  return [...GAME_FIELDS, ...categories.map((c) => ({ key: c.folder, type: "collection", label: c.label }))];
 }
 
-/** Fields of one entry of a list field: its sub-fields, plus name/type/description/icon for abilities. */
+/**
+ * Fields filter chips can use: an enum or list with options or a global enum.
+ * The app draws the chips from those options and compares each record's value
+ * (or its list's values) with them; it shows nothing for any other field.
+ */
+export function filterFields(fields: FieldOption[]): FieldOption[] {
+  return fields.filter((f) => (f.type === "enum" || f.type === "list") && ((f.options?.length ?? 0) > 0 || Boolean(f.globalEnumId)));
+}
+
+/** Fields of one entry of a list field: its sub-fields, plus name/type/description/icon for abilities and weapons. */
 export function entryFields(field: FieldOption | undefined): FieldOption[] {
   if (!field) return [];
   const sub = field.subFields ?? [];
-  if (field.type !== "abilities") return sub;
+  // Both are lists of kit items, with their sub-fields under params (dynamic-schema.ts).
+  if (field.type !== "abilities" && field.type !== "weapon") return sub;
   return [
     { key: "name", type: "string", label: "Name" },
     { key: "type", type: "string", label: "Type" },
@@ -284,6 +334,72 @@ export function normalizeSource(raw: unknown): RecordSource | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const r = raw as Record<string, unknown>;
   return typeof r.category === "string" && r.category ? (r as unknown as RecordSource) : undefined;
+}
+
+// ─── Records as the app lists them (zms model.ts selectRecords) ─────────
+
+/** A sort value the app treats as absent; forms save a cleared text field as "". */
+const isMissing = (value: unknown) => value === undefined || value === null || value === "";
+
+/** Two present values: numbers by value, anything else as text, numbers inside it by value and case aside. */
+function compareValues(a: unknown, b: unknown): number {
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+}
+
+/**
+ * Records sorted by `key`. Records without it go last in both orders, and equal
+ * values keep file order. The app sorts with this same rule (zms model.ts).
+ */
+export function sortByField<T extends Record<string, unknown>>(records: readonly T[], key: string, order: "asc" | "desc" = "asc"): T[] {
+  const direction = order === "desc" ? -1 : 1;
+  return [...records].sort((x, y) => {
+    const a = x[key];
+    const b = y[key];
+    const aMissing = isMissing(a);
+    const bMissing = isMissing(b);
+    if (aMissing || bMissing) return aMissing === bMissing ? 0 : aMissing ? 1 : -1;
+    return direction * compareValues(a, b);
+  });
+}
+
+/**
+ * The records a source shows in the app: its schema's (a record without a known
+ * schema_id follows the category's first schema), sorted, and at most the app's
+ * list size. `categorySchemas` are the category's schemas, in the app's order.
+ */
+export function previewRecords<T extends Record<string, unknown>>(
+  records: readonly T[],
+  source: RecordSource | undefined,
+  categorySchemas: readonly { id: string }[],
+  limits: AppLimits = APP_POLICY.limits,
+): T[] {
+  if (!source) return [];
+  let result = [...records];
+  if (source.schema && categorySchemas.length > 0) {
+    const schemaOf = (r: T) => categorySchemas.find((s) => s.id === r.schema_id)?.id ?? categorySchemas[0].id;
+    result = result.filter((r) => schemaOf(r) === source.schema);
+  }
+  if (source.sort) result = sortByField(result, source.sort, source.order);
+  const limit = typeof source.limit === "number" && source.limit > 0 ? Math.min(source.limit, limits.listItems) : limits.listItems;
+  return result.slice(0, limit);
+}
+
+/**
+ * A record value as the app shows it: with the record's own suffix when the field
+ * has hasCustomSuffix and "<key>_suffix" (next to the value in `container`) isn't
+ * blank, else with the field's unit for numbers. Enums and other values are left
+ * as they are. The app renders units by the same rule (F3).
+ */
+export function valueWithUnit(field: FieldOption | undefined, value: unknown, container: unknown): unknown {
+  if (!field || field.type === "enum" || field.globalEnumId) return value;
+  if ((typeof value !== "string" && typeof value !== "number") || value === "") return value;
+  const own = field.key.split(".").pop();
+  const raw = field.hasCustomSuffix && container && typeof container === "object" ? (container as Record<string, unknown>)[`${own}_suffix`] : undefined;
+  const suffix = typeof raw === "string" ? raw.trim() : "";
+  if (suffix && (field.type === "number" || field.type === "string")) return `${value} ${suffix}`;
+  const numeric = field.type === "number" && (typeof value === "number" || (value.trim() !== "" && Number.isFinite(Number(value))));
+  return numeric && field.unit ? `${value} ${field.unit}` : value;
 }
 
 /** Fields "item.<path>" can bind to in a list block: entries of its bound list field, else its records. */
@@ -315,6 +431,22 @@ function isEmptyValue(value: unknown): boolean {
   return value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0);
 }
 
+/** What the app allows, for validateScreen: its policy, and which categories players can favorite. */
+export interface AppContext {
+  limits?: AppLimits;
+  appScreens?: AppPolicy["appScreens"];
+  /** Without them, favorites sources aren't checked. */
+  categories?: readonly Pick<Category, "category" | "favoritable">[];
+}
+
+/** Every text value inside `value`, with the path to it. */
+function textsIn(value: unknown, path: string, out: { path: string; text: string }[] = []) {
+  if (typeof value === "string") out.push({ path, text: value });
+  else if (Array.isArray(value)) value.forEach((entry, i) => textsIn(entry, `${path}[${i}]`, out));
+  else if (value && typeof value === "object") for (const [key, nested] of Object.entries(value)) textsIn(nested, `${path}.${key}`, out);
+  return out;
+}
+
 export function validateScreen(
   screen: ScreenFile,
   manifest: PrimitiveManifest | null,
@@ -322,22 +454,39 @@ export function validateScreen(
   schemas: SchemaInfo[],
   screenIds: string[],
   recordsOf?: (category: string) => Record<string, unknown>[],
+  app: AppContext = {},
 ): ScreenIssue[] {
   const issues: ScreenIssue[] = [];
+  const limits = app.limits ?? APP_POLICY.limits;
+  const policy: AppPolicy = { limits, appScreens: app.appScreens ?? APP_POLICY.appScreens };
   const dataKnown = new Set(dataFields.map((f) => f.key));
   const seenIds = new Set<string>();
   const categories = new Set(schemas.map((s) => s.category));
+  /** Why the app can't show `source` as set, if it can't: a limit past its list size, or favorites nobody can save. */
+  const sourceProblems = (source: RecordSource, name: string): Pick<ScreenIssue, "kind" | "message">[] => {
+    const problems: Pick<ScreenIssue, "kind" | "message">[] = [];
+    if (typeof source.limit === "number" && source.limit > limits.listItems) {
+      problems.push({ kind: "over-limit", message: `${name} asks for ${source.limit} records; the app shows at most ${limits.listItems}.` });
+    }
+    const category = app.categories?.find((c) => c.category === source.category);
+    if (source.favorites && category && !category.favoritable) {
+      problems.push({ kind: "not-favoritable", message: `${name} lists the player's favorites of "${source.category}", which players can't favorite: the list would always be empty.` });
+    }
+    return problems;
+  };
+  /** Whether the app has `screen`: one of this game's, or one it provides itself. */
+  const opens = (screen: string) => (screen.startsWith("app:") ? isAppScreen(screen, policy) : screenIds.includes(screen));
 
   const shown = screen.blocks.filter((b) => b.visible !== false);
   if (shown.length === 0) {
     issues.push({ sectionId: "", level: "warning", kind: "empty-screen", message: "No visible blocks: the app shows “Nothing to show here yet”." });
   }
-  if (screen.blocks.length > LIMITS.blocksPerScreen) {
+  if (screen.blocks.length > limits.blocksPerScreen) {
     issues.push({
       sectionId: "",
       level: "error",
       kind: "too-many-blocks",
-      message: `A screen can have at most ${LIMITS.blocksPerScreen} blocks; the app ignores the rest.`,
+      message: `A screen can have at most ${limits.blocksPerScreen} blocks; the app ignores the rest.`,
     });
   }
   if (screen.source && !categories.has(screen.source.category)) {
@@ -346,6 +495,18 @@ export function validateScreen(
       level: "error",
       kind: "unknown-category",
       message: `No schema has category "${screen.source.category}".`,
+    });
+  }
+  if (screen.source) {
+    for (const problem of sourceProblems(screen.source, "The screen")) issues.push({ sectionId: "", level: "error", ...problem });
+  }
+  // The app reads the accent on every screen type: the record on detail screens, the game and lists elsewhere.
+  if (isBinding(screen.accent) && dataKnown.size > 0 && !isKnownPath(bindingPath(screen.accent), dataKnown)) {
+    issues.push({
+      sectionId: "",
+      level: "error",
+      kind: "unknown-field",
+      message: `The accent is read from "${bindingPath(screen.accent)}", which this screen's data doesn't have.`,
     });
   }
 
@@ -382,6 +543,28 @@ export function validateScreen(
         add({ prop: name, kind: "unknown-field", message: `${name} is bound to "${path}", which this screen's data doesn't have.` });
       }
     };
+    /** Where `action` leads, if the app can't follow it: a screen it doesn't have, or a link it won't open. */
+    const checkAction = (name: string, action: ScreenAction, what: string) => {
+      if (action.screen) {
+        if (!opens(action.screen)) {
+          add({
+            prop: name,
+            kind: "unknown-screen",
+            message: action.screen.startsWith("app:")
+              ? `${what} opens "${action.screen}", which the app doesn't have.`
+              : `${what} opens "${action.screen}", which isn't a screen of this game.`,
+          });
+        }
+        return;
+      }
+      if (action.url !== undefined) {
+        // A link read from the record is checked by the app when tapped; here only its field is.
+        if (BOUND_LINK.test(action.url)) checkBinding(name, action.url);
+        else if (!isAllowedLink(action.url)) {
+          add({ prop: name, kind: "unsafe-link", message: `${what} links to a site the app won't open: use https on an allowed site.` }, "error");
+        }
+      }
+    };
     const ignored: string[] = [];
     for (const [name, value] of Object.entries(block.props)) {
       if (BLOCKED_PROP.test(name)) {
@@ -390,6 +573,27 @@ export function validateScreen(
       }
       if (spec && !spec.props[name]) ignored.push(name);
       if (isBinding(value)) checkBinding(name, value);
+      // The app cuts longer text short (zms policy.ts clampText).
+      for (const { path, text } of textsIn(value, name)) {
+        if (text.length > limits.text) {
+          add({ prop: name, kind: "long-text", message: `${path} is ${text.length} characters long; the app cuts it at ${limits.text}.` }, "warning");
+        }
+      }
+      const entries = spec?.props[name]?.type === "shortcuts" || spec?.props[name]?.type === "info_rows" ? (Array.isArray(value) ? value : []) : null;
+      if (entries) {
+        const noun = spec?.props[name]?.type === "shortcuts" ? "tile" : "row";
+        // The app shows the first ones, and leaves out entries without a label (zms sanitize.ts).
+        if (entries.length > limits.smallList) {
+          add({ prop: name, kind: "too-many-entries", message: `${name} has ${entries.length} ${noun}s; the app shows the first ${limits.smallList}.` });
+        }
+        entries.forEach((entry: unknown, i: number) => {
+          const e = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
+          if (typeof e.label !== "string" || !e.label.trim()) {
+            add({ prop: name, kind: "required", message: `${noun === "tile" ? "Tile" : "Row"} ${i + 1} needs a label: the app leaves it out without one.` });
+          }
+          if (noun === "tile") checkAction(name, { screen: typeof e.screen === "string" ? e.screen : undefined, url: typeof e.url === "string" ? e.url : undefined }, `Tile ${i + 1}`);
+        });
+      }
       if (spec?.props[name]?.type === "info_rows" && Array.isArray(value)) {
         for (const row of value as { label?: string; value?: unknown }[]) {
           if (isBinding(row?.value) && dataKnown.size > 0 && !isKnownPath(bindingPath(row.value), dataKnown)) {
@@ -398,21 +602,13 @@ export function validateScreen(
         }
       }
       const action = value && typeof value === "object" ? (value as ScreenAction) : undefined;
-      if (spec?.props[name]?.type === "action" && action?.screen && !action.screen.startsWith("app:") && !screenIds.includes(action.screen)) {
-        add({ prop: name, kind: "unknown-screen", message: `${name} opens "${action.screen}", which isn't a screen of this game.` });
-      }
-      if (spec?.props[name]?.type === "action" && action?.url !== undefined) {
-        // A link read from the record is checked by the app when tapped; here only its field is.
-        if (BOUND_LINK.test(action.url)) checkBinding(name, action.url);
-        else if (!isAllowedLink(action.url)) {
-          add({ prop: name, kind: "unsafe-link", message: `${name} links to a site the app won't open: use https on an allowed site.` }, "error");
-        }
-      }
+      if (spec?.props[name]?.type === "action" && action) checkAction(name, action, name);
       if (spec?.props[name]?.type === "source") {
         const source = normalizeSource(value);
         if (source && !categories.has(source.category)) {
           add({ prop: name, kind: "unknown-category", message: `${name} lists category "${source.category}", which no schema has.` });
         }
+        if (source) for (const problem of sourceProblems(source, name)) add({ prop: name, ...problem });
       }
     }
     if (ignored.length > 0) {
@@ -450,6 +646,11 @@ export function recordLabel(record: Record<string, unknown>): string {
 }
 
 export const SCREEN_ID = /^[a-z0-9][a-z0-9-]*$/;
+
+/** How the editors name a screen the app provides itself. */
+export function appScreenLabel(id: string): string {
+  return id === "app:settings" ? "Settings (built into the app)" : `${id} (built into the app)`;
+}
 
 // ─── A record's main fields ───────────────────────────────────────────
 
@@ -506,7 +707,8 @@ export function starterScreens(schema: SchemaInfo, categories: Categories = DEFA
   const image = imageField(fields);
   const enumField = schema.fields.find((f) => f.type === "enum");
   const numbers = schema.fields.filter((f) => f.type === "number").slice(0, 4);
-  const lists = schema.fields.filter((f) => isListField(f)).slice(0, 3);
+  // References hold ids, which the app shows as they are, so starters leave them out.
+  const lists = schema.fields.filter((f) => isListField(f) && f.type !== "reference_list").slice(0, 3);
   const text = summaryField(schema.fields);
   const block = (type: string, props: Record<string, unknown>, extra: Partial<ScreenBlock> = {}): ScreenBlock => ({
     ...createBlock(type),

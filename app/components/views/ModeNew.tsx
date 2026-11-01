@@ -36,6 +36,7 @@ import {
 import { type GlobalEnum } from "~/schemas/enum";
 import { formatImportedJson, generateAiPromptMarkdown } from "~/lib/schema-utils";
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
+import { slugify } from "~/lib/slug";
 
 function AutoGenerateId() {
   const {
@@ -48,10 +49,7 @@ function AutoGenerateId() {
 
   useEffect(() => {
     if (nameValue && typeof nameValue === "string" && !touchedFields.id) {
-      const generatedId = nameValue
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
+      const generatedId = slugify(nameValue);
       if (idValue !== generatedId) {
         setValue("id", generatedId, {
           shouldValidate: true,

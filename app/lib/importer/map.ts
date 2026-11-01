@@ -21,6 +21,7 @@
 import { parse, type HTMLElement } from "node-html-parser";
 import type { FieldRule } from "../../schemas/cron";
 import type { DynamicField } from "../../schemas/dynamic-schema";
+import { slugify } from "../slug";
 
 export type SourceFormat = "json" | "html";
 
@@ -172,16 +173,8 @@ export function toIsoDate(value: unknown): string | undefined {
   return `${year}-${pad(MONTHS.indexOf(words[month].slice(0, 3)) + 1)}-${pad(day)}`;
 }
 
-/** A record-id-safe slug: lowercase ASCII letters, digits and dashes, at most 80 characters. */
-export function slugify(value: unknown): string {
-  return String(value ?? "")
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .slice(0, 80)
-    .replace(/^-+|-+$/g, "");
-}
+// The importer's slugs are the New editors' too (../slug.ts).
+export { slugify };
 
 function applyTransform(value: unknown, transform: Transform, base?: string): unknown {
   switch (transform) {

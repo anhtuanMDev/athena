@@ -20,6 +20,7 @@ import { ImageUploadField } from "~/components/ImageUploadField";
 import { clearDataCache } from "~/lib/use-data";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { EmptyState } from "~/components/ui/EmptyState";
+import { slugify } from "~/lib/slug";
 
 export default function EnumEdit() {
   const { game, "*": splat } = useParams();
@@ -115,10 +116,7 @@ function AutoGenerateOptionId({ index }: { index: number }) {
       typeof nameValue === "string" &&
       !touchedFields?.options?.[index]?.id
     ) {
-      const generatedId = nameValue
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
+      const generatedId = slugify(nameValue);
       if (idValue !== generatedId) {
         setValue(`options.${index}.id`, generatedId, {
           shouldValidate: true,
@@ -342,10 +340,7 @@ function EditEnumForm({
     try {
       formData.options.forEach((opt) => {
         if (!opt.id)
-          opt.id = opt.name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, "");
+          opt.id = slugify(opt.name);
       });
 
       // Check for duplicate option IDs

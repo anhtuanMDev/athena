@@ -19,14 +19,45 @@ export const LINK_HOSTS = [
   "youtu.be",
 ];
 
+/** Limits of the admin's own: what the app does with longer values doesn't depend on them. */
 export const LIMITS = {
-  blocksPerScreen: 60,
-  tabs: 5,
   tabLabel: 24,
   title: 120,
   /** Bytes of one screen file. */
   screenSize: 200_000,
 };
+
+/** What the app drops or cuts short (zms src/content/policy.ts LIMITS). */
+export interface AppLimits {
+  screensPerGame: number;
+  blocksPerScreen: number;
+  tabs: number;
+  /** Entries a list block shows, and the most a source may ask for. */
+  listItems: number;
+  /** Tiles, info rows and similar small lists inside one block. */
+  smallList: number;
+  /** Characters of one text value. */
+  text: number;
+}
+
+export interface AppPolicy {
+  limits: AppLimits;
+  /** Screens the app provides itself, which tabs and actions may open (zms model.ts APP_SCREENS). */
+  appScreens: string[];
+}
+
+/**
+ * The app's policy as of this admin. The block manifest carries the app's own
+ * under "$policy" (generated from its source by `npm run primitives`), which
+ * replaces these key by key; these stay for a manifest without one.
+ */
+export const APP_POLICY: AppPolicy = {
+  limits: { screensPerGame: 50, blocksPerScreen: 60, tabs: 5, listItems: 100, smallList: 12, text: 2000 },
+  appScreens: ["app:settings"],
+};
+
+/** The block manifest, generated from the app's source. */
+export const MANIFEST_PATH = "data/_meta/mobile_primitives.json";
 
 const SCREEN_TYPES = ["home", "list", "detail", "page"];
 const SCREEN_ID = /^[a-z0-9][a-z0-9-]*$/;
@@ -58,6 +89,46 @@ export function isAllowedLink(url: unknown): boolean {
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/**
+ * The app's policy from a parsed block manifest: its "$policy" limits and app
+ * screens, each malformed value replaced by APP_POLICY's. The manifest's other
+ * policy keys (link and image hosts…) are the app's business and are ignored.
+ */
+export function appPolicy(manifest: unknown): AppPolicy {
+  const raw = isObject(manifest) && isObject(manifest.$policy) ? manifest.$policy : {};
+  const given = isObject(raw.limits) ? raw.limits : {};
+  const limits = { ...APP_POLICY.limits };
+  for (const key of Object.keys(limits) as (keyof AppLimits)[]) {
+    const value = given[key];
+    if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) limits[key] = value;
+  }
+  const appScreens = Array.isArray(raw.appScreens)
+    ? [...new Set(raw.appScreens.filter((s): s is string => typeof s === "string" && APP_SCREEN.test(s)))]
+    : [...APP_POLICY.appScreens];
+  return { limits, appScreens };
+}
+
+/** The app's policy from the data repo's manifest, read with `read`; APP_POLICY when it can't be read. */
+export async function readAppPolicy(read: (path: string) => Promise<string>): Promise<AppPolicy> {
+  try {
+    return appPolicy(JSON.parse(await read(MANIFEST_PATH)));
+  } catch (err) {
+    if ((err as { status?: number } | null)?.status !== 404) console.error("The block manifest couldn't be read; using the built-in app policy:", err);
+    return APP_POLICY;
+  }
+}
+
+const SCREEN_PATH = /^data\/[^/]+\/screens\/[^/]+\.json$/;
+const NAVIGATION_PATH = /^data\/[^/]+\/navigation\.json$/;
+
+/** Whether checking a write to `path` needs the app's policy: screens and navigation. */
+export const needsAppPolicy = (path: string) => SCREEN_PATH.test(path) || NAVIGATION_PATH.test(path);
+
+/** Whether `screen` is one the app provides itself ("app:settings"). */
+export function isAppScreen(screen: string, policy: AppPolicy = APP_POLICY): boolean {
+  return policy.appScreens.includes(screen);
+}
+
 /** A link read from a record: "data.<field>" on the screen's record, "item.<field>" on each entry of a list block. */
 export const BOUND_LINK = /^(data|item)\.[A-Za-z0-9_.]+$/;
 
@@ -74,7 +145,7 @@ function findUrls(value: unknown, path: string, out: { path: string; url: unknow
 }
 
 /** Problems that make a screen file unsafe or unreadable for the app; empty when it can be saved. */
-export function validateScreenFile(raw: unknown): string[] {
+export function validateScreenFile(raw: unknown, policy: AppPolicy = APP_POLICY): string[] {
   if (!isObject(raw)) return ["A screen must be a JSON object."];
   const errors: string[] = [];
   if (JSON.stringify(raw).length > LIMITS.screenSize) errors.push("The screen file is too large.");
@@ -92,7 +163,7 @@ export function validateScreenFile(raw: unknown): string[] {
     errors.push('accent must be a hex color such as #FF8200, or "data.<field>".');
   }
   if (!Array.isArray(raw.blocks)) return [...errors, "blocks must be a list."];
-  if (raw.blocks.length > LIMITS.blocksPerScreen) errors.push(`A screen can have at most ${LIMITS.blocksPerScreen} blocks.`);
+  if (raw.blocks.length > policy.limits.blocksPerScreen) errors.push(`A screen can have at most ${policy.limits.blocksPerScreen} blocks.`);
 
   const ids = new Set<string>();
   raw.blocks.forEach((block, i) => {
@@ -126,11 +197,13 @@ export function validateScreenFile(raw: unknown): string[] {
 }
 
 /** Problems with navigation.json; `screenTypes` maps each of the game's screens to its type. */
-export function validateNavigationFile(raw: unknown, screenTypes?: Record<string, unknown>): string[] {
+export function validateNavigationFile(raw: unknown, screenTypes?: Record<string, unknown>, policy: AppPolicy = APP_POLICY): string[] {
   if (!isObject(raw) || !Array.isArray(raw.tabs)) return ["Navigation needs a list of tabs."];
   const errors: string[] = [];
   if (raw.tabs.length === 0) errors.push("Add at least one tab: the first one is Home.");
-  if (raw.tabs.length > LIMITS.tabs) errors.push(`The tab bar fits at most ${LIMITS.tabs} tabs.`);
+  if (raw.tabs.length > policy.limits.tabs) errors.push(`The tab bar fits at most ${policy.limits.tabs} tabs.`);
+  // The app tells tabs apart by their screen (zms TabBar), so each opens its own.
+  const firstTabOf = new Map<string, number>();
   raw.tabs.forEach((tab, i) => {
     const where = `Tab ${i + 1}`;
     if (!isObject(tab)) {
@@ -138,14 +211,21 @@ export function validateNavigationFile(raw: unknown, screenTypes?: Record<string
       return;
     }
     const screen = typeof tab.screen === "string" ? tab.screen : "";
-    if (!SCREEN_ID.test(screen) && !APP_SCREEN.test(screen)) errors.push(`${where} needs a screen.`);
-    else if (screenTypes && !APP_SCREEN.test(screen)) {
+    const appScreen = screen.startsWith("app:");
+    if (appScreen && !isAppScreen(screen, policy)) {
+      // The app leaves out a tab to a screen it doesn't provide (zms normalizeNavigation).
+      errors.push(`${where} opens "${screen}", which the app doesn't have: use ${policy.appScreens.join(", ") || "one of the game's screens"}.`);
+    } else if (!appScreen && !SCREEN_ID.test(screen)) errors.push(`${where} needs a screen.`);
+    else if (screenTypes && !appScreen) {
       if (!Object.hasOwn(screenTypes, screen)) errors.push(`${where} opens "${screen}", which doesn't exist.`);
       else if (screenTypes[screen] === "detail") {
         errors.push(`${where} opens "${screen}", a detail screen: it shows one entry picked from a list, so it can't be a tab.`);
       }
     }
-    if (i === 0 && APP_SCREEN.test(screen)) errors.push("The first tab is Home: it must open one of the game's screens.");
+    if (screen && firstTabOf.has(screen)) {
+      errors.push(`${where} opens "${screen}", as tab ${firstTabOf.get(screen)! + 1} does: the app keeps one tab per screen.`);
+    } else if (screen) firstTabOf.set(screen, i);
+    if (i === 0 && appScreen) errors.push("The first tab is Home: it must open one of the game's screens.");
     if (typeof tab.label !== "string" || !tab.label.trim() || tab.label.length > LIMITS.tabLabel) {
       errors.push(`${where} needs a label of at most ${LIMITS.tabLabel} characters.`);
     }
@@ -185,11 +265,18 @@ export function validateSchemaFile(raw: unknown, categories: Categories = DEFAUL
  * Validation for a data file about to be written, by path; other files have
  * no rules here. categories.json must pass its normalizer untouched, and its
  * notification templates may only use `templateFields` (by category, from
- * notify-template.ts); without them, only the built-in fields.
+ * notify-template.ts); without them, only the built-in fields. Screens and
+ * navigation follow the app's `policy` (readAppPolicy), as the editors do.
  */
-export function validateDataFile(path: string, content: unknown, categories: Categories = DEFAULT_CATEGORIES, templateFields: Record<string, string[]> = {}): string[] {
-  if (/^data\/[^/]+\/screens\/[^/]+\.json$/.test(path)) return validateScreenFile(content);
-  if (/^data\/[^/]+\/navigation\.json$/.test(path)) return validateNavigationFile(content);
+export function validateDataFile(
+  path: string,
+  content: unknown,
+  categories: Categories = DEFAULT_CATEGORIES,
+  templateFields: Record<string, string[]> = {},
+  policy: AppPolicy = APP_POLICY,
+): string[] {
+  if (SCREEN_PATH.test(path)) return validateScreenFile(content, policy);
+  if (NAVIGATION_PATH.test(path)) return validateNavigationFile(content, undefined, policy);
   if (needsCategories(path)) return validateSchemaFile(content, categories);
   if (path === CATEGORIES_PATH) {
     const normalized = normalizeCategories(content);
@@ -209,8 +296,9 @@ export function dataWriteProblems(
   isBase64: boolean,
   categories: Categories = DEFAULT_CATEGORIES,
   templateFields: Record<string, string[]> = {},
+  policy: AppPolicy = APP_POLICY,
 ): string[] {
-  if (!isBase64) return validateDataFile(path, content, categories, templateFields);
+  if (!isBase64) return validateDataFile(path, content, categories, templateFields, policy);
   if (!/^data\/.+\.json$/.test(path)) return [];
   let parsed: unknown;
   try {
@@ -218,5 +306,5 @@ export function dataWriteProblems(
   } catch {
     return ["The file isn't valid JSON."];
   }
-  return validateDataFile(path, parsed, categories, templateFields);
+  return validateDataFile(path, parsed, categories, templateFields, policy);
 }

@@ -1,5 +1,6 @@
 import { type DynamicField } from "~/schemas/dynamic-schema";
 import { type GlobalEnum } from "~/schemas/enum";
+import { slugify } from "~/lib/slug";
 
 export function generateAiPromptMarkdown({
   entityName,
@@ -98,10 +99,7 @@ export function formatImportedJson(
   if (generateId && !formattedJson.id) {
     const entityName = formattedJson.name;
     if (entityName && typeof entityName === "string") {
-      formattedJson.id = entityName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
+      formattedJson.id = slugify(entityName);
     }
   }
 
@@ -178,10 +176,7 @@ export function formatImportedJson(
               formattedItem.name &&
               typeof formattedItem.name === "string"
             ) {
-              formattedItem.id = formattedItem.name
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, "-")
-                .replace(/^-+|-+$/g, "");
+              formattedItem.id = slugify(formattedItem.name);
             } else {
               formattedItem.id = Math.random().toString(36).substring(7);
             }
@@ -209,4 +204,12 @@ export function formatImportedJson(
     }
   });
   return formattedJson;
+}
+
+/** The values of a list field typed one per line, as the record forms save them: trimmed, blank lines left out. */
+export function linesToList(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }

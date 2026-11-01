@@ -1,4 +1,32 @@
 {
+  "$policy": {
+    "limits": {
+      "screensPerGame": 50,
+      "blocksPerScreen": 60,
+      "tabs": 5,
+      "listItems": 100,
+      "smallList": 12,
+      "routeStops": 6,
+      "text": 2000
+    },
+    "linkHosts": [
+      "playoverwatch.com",
+      "overwatch.blizzard.com",
+      "news.blizzard.com",
+      "blizzard.com",
+      "marvelrivals.com",
+      "youtube.com",
+      "youtu.be"
+    ],
+    "imageHosts": [
+      "blz-contentstack-images.akamaized.net",
+      "bnetcmsus-a.akamaihd.net"
+    ],
+    "appScreens": [
+      "app:settings"
+    ],
+    "blockedProps": "^(style|on[A-Z].*|children|ref|key)$"
+  },
   "screen_header": {
     "name": "ScreenHeader",
     "description": "ScreenHeader block",
@@ -289,6 +317,7 @@
           "images",
           "info",
           "lightbulb",
+          "log-out",
           "map",
           "map-pin",
           "newspaper",
@@ -296,6 +325,7 @@
           "quote",
           "search",
           "settings",
+          "share-2",
           "shield",
           "sparkles",
           "star",
@@ -335,6 +365,7 @@
           "images",
           "info",
           "lightbulb",
+          "log-out",
           "map",
           "map-pin",
           "newspaper",
@@ -342,6 +373,7 @@
           "quote",
           "search",
           "settings",
+          "share-2",
           "shield",
           "sparkles",
           "star",
@@ -381,6 +413,7 @@
           "images",
           "info",
           "lightbulb",
+          "log-out",
           "map",
           "map-pin",
           "newspaper",
@@ -388,6 +421,7 @@
           "quote",
           "search",
           "settings",
+          "share-2",
           "shield",
           "sparkles",
           "star",
@@ -427,6 +461,7 @@
           "images",
           "info",
           "lightbulb",
+          "log-out",
           "map",
           "map-pin",
           "newspaper",
@@ -434,6 +469,7 @@
           "quote",
           "search",
           "settings",
+          "share-2",
           "shield",
           "sparkles",
           "star",
@@ -541,6 +577,46 @@
       }
     }
   },
+  "welcome_banner": {
+    "name": "WelcomeBanner",
+    "description": "WelcomeBanner block",
+    "props": {
+      "greeting": {
+        "type": "string",
+        "required": false,
+        "default": "Welcome back",
+        "description": "Shown above the player's first name, e.g. \"Welcome back\"."
+      },
+      "signedOutText": {
+        "type": "string",
+        "required": false,
+        "description": "For signed-out players, with a sign-in button; leave empty to show them nothing."
+      }
+    }
+  },
+  "record_actions": {
+    "name": "RecordActions",
+    "description": "RecordActions block",
+    "props": {
+      "title": {
+        "type": "string",
+        "required": false,
+        "description": "The record's name in a shared message, e.g. data.name."
+      },
+      "showFavorite": {
+        "type": "boolean",
+        "required": false,
+        "default": "true",
+        "description": "Show the favorite button. On by default."
+      },
+      "showShare": {
+        "type": "boolean",
+        "required": false,
+        "default": "true",
+        "description": "Show the share button. On by default."
+      }
+    }
+  },
   "text": {
     "name": "Text",
     "description": "TextBlock block",
@@ -629,10 +705,6 @@
         ],
         "required": false,
         "default": "md"
-      },
-      "style": {
-        "type": "data_binding",
-        "required": false
       }
     }
   },
@@ -664,10 +736,6 @@
         ],
         "required": false,
         "default": "left"
-      },
-      "style": {
-        "type": "data_binding",
-        "required": false
       }
     }
   },
@@ -698,10 +766,6 @@
           "right"
         ],
         "required": false
-      },
-      "style": {
-        "type": "data_binding",
-        "required": false
       }
     }
   },
@@ -721,16 +785,8 @@
         "type": "string",
         "required": false
       },
-      "icon": {
-        "type": "node",
-        "required": false
-      },
       "gradientColors": {
         "type": "array",
-        "required": false
-      },
-      "style": {
-        "type": "data_binding",
         "required": false
       }
     }
@@ -742,10 +798,6 @@
       "items": {
         "type": "array",
         "required": true
-      },
-      "style": {
-        "type": "data_binding",
-        "required": false
       }
     }
   },
@@ -771,10 +823,6 @@
       },
       "badgeImage": {
         "type": "string",
-        "required": false
-      },
-      "style": {
-        "type": "data_binding",
         "required": false
       }
     }

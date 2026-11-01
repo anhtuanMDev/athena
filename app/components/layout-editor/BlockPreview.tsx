@@ -5,6 +5,7 @@ import {
   bindingScope,
   isBinding,
   normalizeSource,
+  valueWithUnit,
   type FieldOption,
   type PrimitiveSpec,
   type RecordSource,
@@ -23,6 +24,8 @@ export interface PreviewContext {
   /** Enum option names for chips and enum-bound values. */
   enumOptions: (field: FieldOption | undefined) => { id: string; name: string }[];
   dataFields: FieldOption[];
+  /** Fields "item.<path>" reads in a list block, for units and custom suffixes. */
+  itemFieldsFor: (block: ScreenBlock) => FieldOption[];
   screenSource?: RecordSource;
 }
 
@@ -31,6 +34,12 @@ function resolvePath(data: unknown, path: string): unknown {
     (acc, key) => (acc && typeof acc === "object" ? (acc as Record_)[key] : undefined),
     data,
   );
+}
+
+/** A bound value with its unit or the record's custom suffix, as the app shows it (F3). */
+function withUnit(fields: FieldOption[], scopeData: unknown, path: string, value: unknown): unknown {
+  const parent = path.includes(".") ? resolvePath(scopeData, path.slice(0, path.lastIndexOf("."))) : scopeData;
+  return valueWithUnit(fields.find((f) => f.key === path), value, parent);
 }
 
 function MissingValue({ path }: { path: string }) {
@@ -57,12 +66,14 @@ function makeReader(block: ScreenBlock, spec: PrimitiveSpec | undefined, ctx: Pr
     const prop = block.props[name];
     let value: unknown = prop;
     if (isBinding(prop)) {
-      value = resolvePath(bindingScope(prop) === "item" ? item : ctx.data, bindingPath(prop));
+      const scopeData = bindingScope(prop) === "item" ? item : ctx.data;
+      value = resolvePath(scopeData, bindingPath(prop));
       if (typeof value === "string") {
         const field = ctx.dataFields.find((f) => f.key === bindingPath(prop));
         const option = ctx.enumOptions(field).find((o) => o.id === value);
         if (option) value = option.name;
       }
+      value = withUnit(bindingScope(prop) === "item" ? ctx.itemFieldsFor(block) : ctx.dataFields, scopeData, bindingPath(prop), value);
     }
     if (value !== undefined && value !== null && value !== "") return value;
     if (isBinding(prop)) return undefined;
@@ -291,7 +302,7 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
         <div className="space-y-2">
           <SectionTitle>{show("title")}</SectionTitle>
           {rows.map((row, i) => {
-            const value = isBinding(row.value) ? resolvePath(ctx.data, bindingPath(row.value)) : row.value;
+            const value = isBinding(row.value) ? withUnit(ctx.dataFields, ctx.data, bindingPath(row.value), resolvePath(ctx.data, bindingPath(row.value))) : row.value;
             return (
               <div key={i} className="flex items-center gap-2">
                 <span className="flex size-7 items-center justify-center rounded-full border border-border font-mono text-[0.75rem] text-ink-muted">{row.icon ? row.icon.slice(0, 2) : "·"}</span>

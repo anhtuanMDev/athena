@@ -95,6 +95,15 @@ describe("saving an edited record", () => {
     }
   });
 
+  it("keeps a legacy cron_job schema's cronConfig, which the schema editor no longer shows", () => {
+    assert.ok(!("cronConfig" in DynamicSchemaFileSchema.shape));
+    const cronConfig = { apiResponseDefinition: "a", apiPayloadDefinition: "b", dataHandling: "c", finalResultDestination: "d" };
+    const stored = { id: "cron-news", name: "News job", category: "cron_job", fields: [], cronConfig };
+    const saved = keepUnknownKeys(stored, DynamicSchemaFileSchema.parse({ ...stored, name: "Renamed" }) as Record<string, unknown>, DynamicSchemaFileSchema);
+    assert.equal(saved.name, "Renamed");
+    assert.deepEqual(saved.cronConfig, cronConfig);
+  });
+
   it("keeps extra keys of cron jobs, enums and schema files", () => {
     const job = { id: "news", name: "News", schema_id: "news-news-article", category: "news", api_endpoint: "https://example.com/news.json", owner_note: "ask Tuan" };
     const anEnum = { id: "role", name: "Role", options: [{ id: "tank", name: "Tank" }], sort: "manual" };

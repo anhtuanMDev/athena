@@ -15,6 +15,8 @@ import {
   validateSchemaFile,
   validateScreenFile,
 } from "../app/lib/screen-policy";
+// P2: the app's policy (limits, its own screens) read from the block manifest.
+import * as policy from "../app/lib/screen-policy";
 
 const block = (props: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
   id: "b1",
@@ -100,7 +102,7 @@ describe("screen files", () => {
   });
 
   it("caps blocks and size", () => {
-    const many = Array.from({ length: LIMITS.blocksPerScreen + 1 }, (_, i) => block({}, { id: `b${i}` }));
+    const many = Array.from({ length: policy.APP_POLICY.limits.blocksPerScreen + 1 }, (_, i) => block({}, { id: `b${i}` }));
     assert.ok(validateScreenFile(screen(many)).some((e) => e.includes("at most")));
     assert.ok(validateScreenFile(screen([block({ text: "x".repeat(LIMITS.screenSize) })])).includes("The screen file is too large."));
   });
@@ -121,7 +123,7 @@ describe("navigation", () => {
     // Inherited object keys aren't screens.
     assert.ok(validateNavigationFile(tabs([{ screen: "constructor", label: "X" }]), { home: "home" })[0].includes("doesn't exist"));
     assert.ok(validateNavigationFile(tabs([{ screen: "app:settings", label: "P" }])).some((e) => e.startsWith("The first tab")));
-    const six = Array.from({ length: LIMITS.tabs + 1 }, () => ({ screen: "home", label: "H" }));
+    const six = Array.from({ length: policy.APP_POLICY.limits.tabs + 1 }, (_, i) => ({ screen: `s${i}`, label: "H" }));
     assert.ok(validateNavigationFile(tabs(six)).some((e) => e.includes("at most")));
     assert.ok(validateNavigationFile(tabs([{ screen: "home", label: " " }])).some((e) => e.includes("label")));
     assert.ok(validateNavigationFile(tabs([])).some((e) => e.includes("at least one")));
@@ -215,5 +217,110 @@ describe("asset headers", () => {
     assert.equal(assetHeaders("assets/games/overwatch-icon.ico", "no-cache").get("Content-Type"), "image/x-icon");
     assert.equal(assetHeaders("assets/x/page.html", "no-cache").get("Content-Type"), "application/octet-stream");
     assert.equal(assetHeaders("assets/x/noextension", "no-cache").get("Content-Type"), "application/octet-stream");
+  });
+});
+
+// A hand-made manifest in the shape worker B generates (zms tools/generate-primitives.js):
+// keys athena doesn't read (routeStops, linkHosts, imageHosts, blockedProps) are ignored.
+const manifestWithPolicy = {
+  $policy: {
+    limits: { screensPerGame: 40, blocksPerScreen: 30, tabs: 4, listItems: 80, smallList: 8, text: 1000, routeStops: 9 },
+    linkHosts: ["blizzard.com"],
+    imageHosts: [],
+    appScreens: ["app:settings", "app:search"],
+    blockedProps: ["style"],
+  },
+  screen_header: { name: "ScreenHeader", props: { title: { type: "string" } } },
+};
+
+describe("the app's policy, from the block manifest", () => {
+  it("is today's app values when the manifest has none", () => {
+    assert.deepEqual(policy.APP_POLICY, {
+      limits: { screensPerGame: 50, blocksPerScreen: 60, tabs: 5, listItems: 100, smallList: 12, text: 2000 },
+      appScreens: ["app:settings"],
+    });
+    for (const raw of [undefined, null, "x", {}, { screen_header: manifestWithPolicy.screen_header }, { $policy: "x" }, { $policy: [] }]) {
+      assert.deepEqual(policy.appPolicy(raw), policy.APP_POLICY, JSON.stringify(raw));
+    }
+  });
+
+  it("reads the limits and app screens, and ignores the rest", () => {
+    assert.deepEqual(policy.appPolicy(manifestWithPolicy), {
+      limits: { screensPerGame: 40, blocksPerScreen: 30, tabs: 4, listItems: 80, smallList: 8, text: 1000 },
+      appScreens: ["app:settings", "app:search"],
+    });
+  });
+
+  it("falls back key by key for values that aren't positive whole numbers or app screen ids", () => {
+    const read = policy.appPolicy({ $policy: { limits: { tabs: "6", smallList: 0, listItems: 1.5, text: -1, screensPerGame: 45 }, appScreens: ["app:settings", "nope", 3, "app:Bad"] } });
+    assert.deepEqual(read.limits, { ...policy.APP_POLICY.limits, screensPerGame: 45 });
+    assert.deepEqual(read.appScreens, ["app:settings"]);
+    assert.deepEqual(policy.appPolicy({ $policy: { appScreens: "app:settings" } }).appScreens, ["app:settings"]);
+  });
+
+  it("is read from the data repo, and is today's values when it can't be", async () => {
+    const files: Record<string, string> = { [policy.MANIFEST_PATH]: JSON.stringify(manifestWithPolicy) };
+    assert.equal(policy.MANIFEST_PATH, "data/_meta/mobile_primitives.json");
+    assert.equal((await policy.readAppPolicy(async (path) => files[path])).limits.tabs, 4);
+    const missing = async (): Promise<string> => {
+      throw Object.assign(new Error("Not Found"), { status: 404 });
+    };
+    assert.deepEqual(await policy.readAppPolicy(missing), policy.APP_POLICY);
+    assert.deepEqual(await policy.readAppPolicy(async () => "{ not json"), policy.APP_POLICY);
+  });
+
+  it("is read for writes of screens and navigation only", () => {
+    assert.ok(policy.needsAppPolicy("data/overwatch/screens/home.json"));
+    assert.ok(policy.needsAppPolicy("data/overwatch/navigation.json"));
+    assert.ok(!policy.needsAppPolicy("data/overwatch/heroes/ana.json"));
+    assert.ok(!policy.needsAppPolicy("data/overwatch/schemas/hero-hero.json"));
+    assert.ok(!policy.needsAppPolicy("data/_meta/mobile_primitives.json"));
+  });
+});
+
+describe("screens and tabs against the app's policy", () => {
+  // Built lazily, so a missing APP_POLICY fails each test rather than the suite.
+  const small = () => ({ limits: { ...policy.APP_POLICY.limits, blocksPerScreen: 2, tabs: 2 }, appScreens: ["app:settings"] });
+  const threeBlocks = screen([block({}, { id: "a" }), block({}, { id: "b" }), block({ action: { url: "https://evil.example" } }, { id: "c" })]);
+  const tabs = (list: unknown[]) => ({ tabs: list });
+
+  it("cap blocks and tabs at the policy's limits", () => {
+    assert.ok(policy.validateScreenFile(threeBlocks, small()).includes("A screen can have at most 2 blocks."));
+    assert.ok(!policy.validateScreenFile(threeBlocks).some((e) => e.includes("at most")));
+    const three = tabs([{ screen: "home", label: "Home" }, { screen: "heroes", label: "Heroes" }, { screen: "maps", label: "Maps" }]);
+    assert.ok(policy.validateNavigationFile(three, undefined, small()).includes("The tab bar fits at most 2 tabs."));
+    assert.deepEqual(policy.validateNavigationFile(three), []);
+  });
+
+  it("accept only screens the app has itself", () => {
+    const withApp = (screen: string) => tabs([{ screen: "home", label: "Home" }, { screen, label: "X" }]);
+    assert.deepEqual(policy.validateNavigationFile(withApp("app:settings"), { home: "home" }), []);
+    assert.deepEqual(policy.validateNavigationFile(withApp("app:foo"), { home: "home" }), ['Tab 2 opens "app:foo", which the app doesn\'t have: use app:settings.']);
+    const search = { limits: policy.APP_POLICY.limits, appScreens: ["app:settings", "app:search"] };
+    assert.deepEqual(policy.validateNavigationFile(withApp("app:search"), { home: "home" }, search), []);
+  });
+
+  it("refuse two tabs that open the same screen, which the app can't tell apart", () => {
+    const twice = tabs([{ screen: "home", label: "Home" }, { screen: "heroes", label: "Heroes" }, { screen: "heroes", label: "Again" }]);
+    assert.deepEqual(policy.validateNavigationFile(twice, { home: "home", heroes: "list" }), ['Tab 3 opens "heroes", as tab 2 does: the app keeps one tab per screen.']);
+    const settingsTwice = tabs([{ screen: "home", label: "Home" }, { screen: "app:settings", label: "A" }, { screen: "app:settings", label: "B" }]);
+    assert.equal(policy.validateNavigationFile(settingsTwice).length, 1);
+  });
+
+  it("give the same problems in the editor and in the write API, for the same file and policy", () => {
+    const nav = tabs([{ screen: "home", label: "Home" }, { screen: "app:foo", label: "X" }, { screen: "home", label: "Again" }]);
+    const smallPolicy = small();
+    for (const p of [policy.APP_POLICY, smallPolicy]) {
+      const screenPath = "data/overwatch/screens/x.json";
+      const navPath = "data/overwatch/navigation.json";
+      const fromEditor = policy.validateScreenFile(threeBlocks, p);
+      assert.ok(fromEditor.length > 0);
+      assert.deepEqual(policy.dataWriteProblems(screenPath, threeBlocks, false, DEFAULT_CATEGORIES, {}, p), fromEditor);
+      assert.deepEqual(policy.dataWriteProblems(screenPath, encodeUtf8Base64(JSON.stringify(threeBlocks)), true, DEFAULT_CATEGORIES, {}, p), fromEditor);
+      const navFromEditor = policy.validateNavigationFile(nav, undefined, p);
+      assert.equal(navFromEditor.length, p === smallPolicy ? 3 : 2);
+      assert.deepEqual(policy.dataWriteProblems(navPath, nav, false, DEFAULT_CATEGORIES, {}, p), navFromEditor);
+      assert.deepEqual(policy.dataWriteProblems(navPath, encodeUtf8Base64(JSON.stringify(nav)), true, DEFAULT_CATEGORIES, {}, p), navFromEditor);
+    }
   });
 });

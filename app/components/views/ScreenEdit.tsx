@@ -6,9 +6,9 @@ import { useToast } from "~/components/ToastProvider";
 import { Button } from "~/components/ui/button";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { BlockPreview, type PreviewContext } from "~/components/layout-editor/BlockPreview";
-import { PropControl, inputBaseClass, inputClass, type PropContext } from "~/components/layout-editor/PropControl";
+import { PropControl, SourceInput, inputBaseClass, inputClass, type PropContext } from "~/components/layout-editor/PropControl";
 import { getFile, isConflictError, listDirectory, updateFile } from "~/lib/github";
-import { validateScreenFile } from "~/lib/screen-policy";
+import { MANIFEST_PATH, appPolicy, validateScreenFile } from "~/lib/screen-policy";
 import { useData } from "~/lib/use-data";
 import { useCategories } from "~/lib/categories-context";
 import {
@@ -22,6 +22,7 @@ import {
   isBinding,
   itemFieldsFor,
   normalizeManifest,
+  previewRecords,
   readScreen,
   recordLabel,
   sourceFields,
@@ -83,17 +84,6 @@ function tabsOf(screen: ScreenFile): string[] {
   return typeof bar?.props.tabs === "string" ? bar.props.tabs.split(",").map((t) => t.trim()).filter(Boolean) : [];
 }
 
-function sortRecords(records: Record<string, unknown>[], source: RecordSource | undefined): Record<string, unknown>[] {
-  if (!source) return records;
-  let result = source.schema ? records.filter((r) => (r.schema_id ?? source.schema) === source.schema) : records;
-  if (source.sort) {
-    const key = source.sort;
-    const dir = source.order === "desc" ? -1 : 1;
-    result = [...result].sort((a, b) => dir * String(a[key] ?? "").localeCompare(String(b[key] ?? ""), undefined, { numeric: true }));
-  }
-  return source.limit ? result.slice(0, source.limit) : result;
-}
-
 export default function ScreenEdit() {
   const { game, "*": splat } = useParams();
   const configured = useCategories();
@@ -109,7 +99,7 @@ export default function ScreenEdit() {
         listDirectory<SchemaInfo>(game!, "schemas", true).catch(() => []),
         listDirectory<EnumFile>(game!, "enums", true).catch(() => []),
         listDirectory<string>(game!, "screens").catch(() => []),
-        getFile(`data/_meta/mobile_primitives.json`).catch(() => null),
+        getFile(MANIFEST_PATH).catch(() => null),
       ]);
       if (!file) throw new Error(`Screen "${id}" was not found in data/${game}/screens.`);
       const categories = [...new Set(schemas.map((s) => s.category))];
@@ -127,6 +117,8 @@ export default function ScreenEdit() {
         enums,
         screenIds: screenNames.filter((n) => typeof n === "string"),
         manifest: normalizeManifest(manifestFile?.content),
+        // The app's limits and own screens; today's when the manifest has none.
+        policy: appPolicy(manifestFile?.content),
         records: Object.fromEntries(recordLists) as Record<string, Record<string, unknown>[]>,
       };
     },
@@ -168,8 +160,13 @@ export default function ScreenEdit() {
   const manifest: PrimitiveManifest | null = loaded?.manifest ?? null;
   const schemas = loaded?.schemas ?? [];
   const icons = useMemo(() => iconOptions(manifest), [manifest]);
+  const policy = loaded?.policy;
+  // What the app lists for a source: its schema's records, sorted, and capped at its list size.
   const recordsFor = useCallback(
-    (source: RecordSource | undefined) => sortRecords(source ? loaded?.records[source.category] ?? [] : [], source),
+    (source: RecordSource | undefined) =>
+      source && loaded
+        ? previewRecords(loaded.records[source.category] ?? [], source, loaded.schemas.filter((s) => s.category === source.category), loaded.policy.limits)
+        : [],
     [loaded],
   );
 
@@ -205,13 +202,16 @@ export default function ScreenEdit() {
 
   const recordsOf = useCallback((category: string) => loaded?.records[category] ?? [], [loaded]);
   const issues = useMemo(
-    () => (screen ? validateScreen(screen, manifest, dataFields, schemas, loaded?.screenIds ?? [], recordsOf) : []),
-    [screen, manifest, dataFields, schemas, loaded, recordsOf],
+    () =>
+      screen && policy
+        ? validateScreen(screen, manifest, dataFields, schemas, loaded?.screenIds ?? [], recordsOf, { ...policy, categories: configured })
+        : [],
+    [screen, manifest, dataFields, schemas, loaded, recordsOf, policy, configured],
   );
   const visibleIssues = (list: ScreenIssue[]) => list.filter((i) => attemptedSave || i.kind !== "required");
   const jsonErrorList = Object.entries(jsonErrors);
   // The same structural check the write API runs, so a save never fails there unexpectedly.
-  const fileErrors = useMemo(() => (screen ? validateScreenFile(screen) : []), [screen]);
+  const fileErrors = useMemo(() => (screen && policy ? validateScreenFile(screen, policy) : []), [screen, policy]);
   const errorCount = issues.filter((i) => i.level === "error").length;
   // File errors mostly repeat the editor's own checks: list and count them only when those pass.
   const listedFileErrors = errorCount > 0 ? [] : fileErrors;
@@ -404,6 +404,7 @@ export default function ScreenEdit() {
     recordsFor,
     enumOptions,
     dataFields,
+    itemFieldsFor: (block) => itemFieldsFor(block, screen, dataFields, schemas, recordsOf),
     screenSource: screen.source,
   };
   const summaryIssues = visibleIssues(issues).filter((i) => i.level === "error");
@@ -576,14 +577,29 @@ export default function ScreenEdit() {
                       ))}
                     </div>
                   </div>
-                  {(screen.type === "list" || screen.type === "detail") && (
+                  {screen.type === "list" && (
+                    // The records the screen's list blocks show unless they set their own (zms useSourceRecords).
+                    <div className="text-xs font-medium text-ink md:col-span-2">
+                      <label htmlFor="screen-source">Records listed</label>
+                      <div className="mt-1.5">
+                        <SourceInput
+                          id="screen-source"
+                          value={screen.source}
+                          onChange={(source) => update({ source: source as RecordSource | undefined })}
+                          schemas={schemas}
+                          limits={loaded.policy.limits}
+                          emptyLabel="Choose a category…"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {screen.type === "detail" && (
                     <label className="block text-xs font-medium text-ink">
-                      {screen.type === "list" ? "Records listed" : "Record shown"}
+                      Record shown
                       <select
                         value={screen.source?.category ?? ""}
-                        onChange={(e) =>
-                          update({ source: e.target.value ? { ...(screen.source ?? {}), category: e.target.value, schema: undefined } : undefined })
-                        }
+                        // A detail screen shows the record it was opened with, so only the category counts.
+                        onChange={(e) => update({ source: e.target.value ? { category: e.target.value } : undefined })}
                         className={`${inputClass} mt-1.5`}
                         aria-invalid={screenIssues.length > 0 ? true : undefined}
                       >
@@ -596,17 +612,16 @@ export default function ScreenEdit() {
                       </select>
                     </label>
                   )}
-                  {screen.type === "detail" && (
-                    <label className="block text-xs font-medium text-ink md:col-span-2">
-                      Accent color
-                      <input
-                        value={screen.accent ?? ""}
-                        placeholder="#FF8200, or data.color for a per-record color"
-                        onChange={(e) => update({ accent: e.target.value || undefined })}
-                        className={`${inputClass} mt-1.5 font-mono`}
-                      />
-                    </label>
-                  )}
+                  {/* The app reads the accent on every screen type (zms ScreenView). */}
+                  <label className="block text-xs font-medium text-ink md:col-span-2">
+                    Accent color
+                    <input
+                      value={screen.accent ?? ""}
+                      placeholder={screen.type === "detail" ? "#FF8200, or data.color for a per-record color" : "#FF8200, or data.game.secondary for the game's color"}
+                      onChange={(e) => update({ accent: e.target.value || undefined })}
+                      className={`${inputClass} mt-1.5 font-mono`}
+                    />
+                  </label>
                   {screenIssues.map((i) => (
                     <p key={i.message} className="text-xs text-danger-ink md:col-span-2">
                       {i.message}
@@ -649,6 +664,8 @@ export default function ScreenEdit() {
                   itemFields: spec?.list ? itemFieldsFor(block, screen, dataFields, schemas, recordsOf) : null,
                   schemas,
                   screenIds: loaded.screenIds,
+                  appScreens: loaded.policy.appScreens,
+                  limits: loaded.policy.limits,
                   icons,
                 };
 
