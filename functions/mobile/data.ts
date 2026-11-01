@@ -40,9 +40,10 @@ export async function onRequest(context: any): Promise<Response> {
 
   const cache = (caches as any).default;
   const internalOrigin = "https://api.internal";
+  // Read through this data center's memo, so KV reads don't grow with players.
   const [version, assetsVersion] = await Promise.all([
-    readCacheVersion(env.RATE_LIMIT_KV, mobileDataVersionKey(game, entity)),
-    readCacheVersion(env.RATE_LIMIT_KV, MOBILE_ASSETS_VERSION_KEY),
+    readCacheVersion(env.RATE_LIMIT_KV, cache, mobileDataVersionKey(game, entity)),
+    readCacheVersion(env.RATE_LIMIT_KV, cache, MOBILE_ASSETS_VERSION_KEY),
   ]);
   const cacheKey = new Request(
     `${internalOrigin}/mobile/data?game=${game}&entity=${entity}&v=${encodeURIComponent(version)}&a=${encodeURIComponent(assetsVersion)}`,
