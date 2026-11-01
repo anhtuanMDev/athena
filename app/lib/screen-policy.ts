@@ -54,9 +54,10 @@ export function isAllowedLink(url: unknown): boolean {
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** Every `url` inside a value, with the path to it, for checking links nested in props. */
-const BOUND_LINK = /^(data|item)\.[A-Za-z0-9_.]+$/;
+/** A link read from a record: "data.<field>" on the screen's record, "item.<field>" on each entry of a list block. */
+export const BOUND_LINK = /^(data|item)\.[A-Za-z0-9_.]+$/;
 
+/** Every `url` inside a value, with the path to it, for checking links nested in props. */
 function findUrls(value: unknown, path: string, out: { path: string; url: unknown }[] = []) {
   if (Array.isArray(value)) value.forEach((entry, i) => findUrls(entry, `${path}[${i}]`, out));
   else if (isObject(value)) {
