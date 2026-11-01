@@ -18,6 +18,14 @@ export interface DataRepo {
   commit(changes: FileChange[], message: string): Promise<void>;
 }
 
+/** The repository at one commit, for a change that must apply to exactly what was checked. */
+export interface PinnedRepo {
+  /** The branch's head commit, and the blob sha of each file at `paths`, or under those ending in "/". */
+  snapshot(paths: string[]): Promise<{ head: string; files: Record<string, string> }>;
+  /** Commits `changes` on top of `parent` only: if the branch has moved since, nothing is written (RepoError 422). */
+  commitOn(parent: string, changes: FileChange[], message: string): Promise<void>;
+}
+
 export interface GitHubEnv {
   GITHUB_TOKEN: string;
   GITHUB_OWNER: string;
@@ -35,7 +43,7 @@ export class RepoError extends Error {
 }
 
 /** A DataRepo backed by the GitHub REST API. */
-export function githubRepo(env: GitHubEnv, fetcher: typeof fetch = fetch): DataRepo {
+export function githubRepo(env: GitHubEnv, fetcher: typeof fetch = fetch): DataRepo & PinnedRepo {
   const base = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}`;
   const branch = env.GITHUB_BRANCH || "main";
 
@@ -58,9 +66,11 @@ export function githubRepo(env: GitHubEnv, fetcher: typeof fetch = fetch): DataR
   const contents = (path: string) =>
     `/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(branch)}`;
 
-  async function commitOnce(changes: FileChange[], message: string): Promise<void> {
-    const ref = await call<{ object: { sha: string } }>("GET", `/git/ref/heads/${encodeURIComponent(branch)}`);
-    const parent = await call<{ tree: { sha: string } }>("GET", `/git/commits/${ref.object.sha}`);
+  const head = async () => (await call<{ object: { sha: string } }>("GET", `/git/ref/heads/${encodeURIComponent(branch)}`)).object.sha;
+
+  async function commitOnce(changes: FileChange[], message: string, on?: string): Promise<void> {
+    const parentSha = on ?? (await head());
+    const parent = await call<{ tree: { sha: string } }>("GET", `/git/commits/${parentSha}`);
     const tree = await call<{ sha: string }>("POST", "/git/trees", {
       base_tree: parent.tree.sha,
       tree: changes.map((change) =>
@@ -72,7 +82,7 @@ export function githubRepo(env: GitHubEnv, fetcher: typeof fetch = fetch): DataR
     const commit = await call<{ sha: string }>("POST", "/git/commits", {
       message,
       tree: tree.sha,
-      parents: [ref.object.sha],
+      parents: [parentSha],
     });
     await call("PATCH", `/git/refs/heads/${encodeURIComponent(branch)}`, { sha: commit.sha });
   }
@@ -97,6 +107,19 @@ export function githubRepo(env: GitHubEnv, fetcher: typeof fetch = fetch): DataR
         if (err instanceof RepoError && err.status === 404) return null;
         throw err;
       }
+    },
+    async snapshot(paths) {
+      const commit = await head();
+      const { tree: root } = await call<{ tree: { sha: string } }>("GET", `/git/commits/${commit}`);
+      const tree = await call<{ tree: { path: string; type: string; sha: string }[]; truncated: boolean }>("GET", `/git/trees/${root.sha}?recursive=1`);
+      // A truncated tree can't show that a file isn't there: refuse rather than guess.
+      if (tree.truncated) throw new RepoError("The data repository has too many files to list in one read.", 503);
+      const wanted = (path: string) => paths.some((p) => (p.endsWith("/") ? path.startsWith(p) : path === p));
+      const files = Object.fromEntries(tree.tree.filter((e) => e.type === "blob" && wanted(e.path)).map((e) => [e.path, e.sha]));
+      return { head: commit, files };
+    },
+    async commitOn(parent, changes, message) {
+      if (changes.length > 0) await commitOnce(changes, message, parent);
     },
     async commit(changes, message) {
       if (changes.length === 0) return;

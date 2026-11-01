@@ -5,11 +5,15 @@ import { DynamicSelectField } from "~/components/DynamicSelectField";
 import { MultiImageUploadField } from "~/components/MultiImageUploadField";
 import type { DynamicField } from "~/schemas/dynamic-schema";
 import { slugify } from "~/lib/slug";
+import { abilityKey } from "~/lib/ability-icons";
 
 import { EntityReferenceField } from "~/components/EntityReferenceField";
 
 export interface AbilityFieldData {
+  /** The key its pictures are kept by while it's edited (see ability-icons.ts). */
   _clientId?: string;
+  /** Added in this form: only then does its id follow its name. */
+  _isNew?: boolean;
   id?: string;
   name?: string;
   type?: string;
@@ -21,8 +25,9 @@ interface AbilitiesFieldProps {
   name: string;
   label: string;
   game: string;
-  abilityIcons: Record<string, ImageEntry[]>;
-  setAbilityIcons: (icons: Record<string, ImageEntry[]>) => void;
+  /** The pictures of the form's abilities, by abilityKey. Without them, the form has no pictures to save and shows no upload. */
+  abilityIcons?: Record<string, ImageEntry[]>;
+  setAbilityIcons?: (icons: Record<string, ImageEntry[]>) => void;
   subFields?: DynamicField[];
   /** The schema's ability (or weapon) types; without them, the type is typed freely. */
   options?: string[];
@@ -58,9 +63,7 @@ export function AbilitiesField({
       <div className="space-y-4">
         {fields.map((field, i) => {
           const abilityErrors = (errors[name] as any)?.[i];
-          const currentAbility = field as any;
-          const realId = getValues(`${name}.${i}.id`);
-          const dataId = currentAbility._clientId || realId || field.id;
+          const dataId = abilityKey(name, getValues(`${name}.${i}`), i);
 
           return (
             <div
@@ -80,16 +83,18 @@ export function AbilitiesField({
                 </button>
               </div>
               <div className="flex flex-col md:flex-row gap-6">
-                <div className="w-full md:w-64">
-                  <MultiImageUploadField
-                    label="Icons"
-                    entries={abilityIcons[dataId] || []}
-                    onChange={(newIcons: ImageEntry[]) =>
-                      setAbilityIcons({ ...abilityIcons, [dataId]: newIcons })
-                    }
-                    defaultKey="main"
-                  />
-                </div>
+                {abilityIcons && setAbilityIcons && (
+                  <div className="w-full md:w-64">
+                    <MultiImageUploadField
+                      label="Icons"
+                      entries={abilityIcons[dataId] || []}
+                      onChange={(newIcons: ImageEntry[]) =>
+                        setAbilityIcons({ ...abilityIcons, [dataId]: newIcons })
+                      }
+                      defaultKey="main"
+                    />
+                  </div>
+                )}
                 <div className="flex-1 space-y-3">
                   <input
                     type="hidden"
@@ -113,7 +118,7 @@ export function AbilitiesField({
                       {...register(`${name}.${i}.name` as const)}
                       onChange={(e) => {
                         register(`${name}.${i}.name` as const).onChange(e);
-                        if (currentAbility._clientId) {
+                        if (getValues(`${name}.${i}._isNew`) === true) {
                           const newName = e.target.value;
                           const generatedId = slugify(newName);
                           setValue(`${name}.${i}.id`, generatedId, {
@@ -297,7 +302,8 @@ export function AbilitiesField({
         type="button"
         onClick={() =>
           append({
-            _clientId: Math.random().toString(36).substring(7),
+            _clientId: `new-${Math.random().toString(36).substring(2, 9)}`,
+            _isNew: true,
             id: "",
             name: "",
             type: "",

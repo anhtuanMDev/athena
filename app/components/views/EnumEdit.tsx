@@ -9,6 +9,7 @@ import { FormField } from "~/components/FormField";
 import { Button } from "~/components/ui/button";
 import { EnumSchema } from "~/schemas/enum";
 import { keepUnknownKeys } from "~/lib/unknown-keys";
+import { asStored } from "~/lib/as-stored";
 import type { GlobalEnum } from "~/schemas/enum";
 import { Plus, Trash2 } from "lucide-react";
 import { useData } from "~/lib/use-data";
@@ -363,8 +364,9 @@ function EditEnumForm({
         option.icon = `/api/assets/${game}/enums/${id}/${option.id}.${ext}`;
       }
 
-      // The enum's keys the form doesn't edit stay as they are.
-      const saved = keepUnknownKeys(enumData, parsed, EnumSchema);
+      // The enum's keys the form doesn't edit stay as they are, and what the
+      // form filled in for keys it had no value for doesn't count as an edit.
+      const saved = asStored(enumData, keepUnknownKeys(enumData, parsed, EnumSchema), EnumSchema);
       const diffs = computeDiff(enumData, saved);
       setPreview({ diffs, enumJson: JSON.stringify(saved), sha });
     } catch (err) {
@@ -416,9 +418,10 @@ function EditEnumForm({
 
       if (uploads.length > 0) await Promise.all(uploads);
 
+      // What was reviewed is what's saved (its icon URLs included): parsing it again would undo asStored.
       await updateFile(
         `data/${game}/enums/${id}.json`,
-        keepUnknownKeys(enumData, parsed.data, EnumSchema),
+        parsedData,
         sha,
         `Update enum: ${parsed.data.name}`,
       );

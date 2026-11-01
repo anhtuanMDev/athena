@@ -12,6 +12,7 @@ import { RecordFields, compact, useRecordForm } from "~/components/views/SchemaR
 import { getFile, isConflictError, listDirectory, publishRecord, updateFile } from "~/lib/github";
 import { recordFormSchema, schemaOf } from "~/lib/record-schema";
 import { unknownKeys } from "~/lib/unknown-keys";
+import { asStored } from "~/lib/as-stored";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useCategories } from "~/lib/categories-context";
 import { useData } from "~/lib/use-data";
@@ -116,7 +117,8 @@ function RecordForm({
     const path = `data/${game}/${folder}/${saved.id}.json`;
     try {
       if (id) {
-        await updateFile(path, saved, sha!, `Update ${category}: ${saved.id}`);
+        // What the form filled in or left out for keys the record had no value for doesn't count as an edit.
+        await updateFile(path, asStored(record, saved, recordFormSchema(fields)), sha!, `Update ${category}: ${saved.id}`);
         toastSuccess(`${noun} saved.`);
       } else {
         if (await getFile(path)) throw new Error(`A ${noun.toLowerCase()} with the id "${saved.id}" already exists.`);

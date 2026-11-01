@@ -1,5 +1,6 @@
 import { Plus, Upload, X } from "lucide-react";
 import { useRef } from "react";
+import { iconKeyProblem } from "~/lib/ability-icons";
 
 export interface ImageEntry {
   id: string;
@@ -66,6 +67,7 @@ export function MultiImageUploadField({
           <ImageRow
             key={entry.id}
             entry={entry}
+            problem={iconKeyProblem(entries, entry)}
             onUpdate={(u) => updateEntry(entry.id, u)}
             onRemove={() => removeEntry(entry.id)}
           />
@@ -77,10 +79,13 @@ export function MultiImageUploadField({
 
 function ImageRow({
   entry,
+  problem,
   onUpdate,
   onRemove,
 }: {
   entry: ImageEntry;
+  /** Why its key can't name its file, if it can't: said here, before the server would refuse the upload. */
+  problem?: string;
   onUpdate: (u: Partial<ImageEntry>) => void;
   onRemove: () => void;
 }) {
@@ -112,8 +117,15 @@ function ImageRow({
           placeholder="Key (e.g. main, splash)"
           value={entry.key}
           onChange={(e) => onUpdate({ key: e.target.value })}
+          aria-invalid={problem ? true : undefined}
+          aria-describedby={problem ? `${entry.id}-key-problem` : undefined}
           className="block w-full rounded-lg border-border-strong px-3 py-2 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:bg-gray-900 dark:text-gray-100"
         />
+        {problem && (
+          <p id={`${entry.id}-key-problem`} className="mt-1 text-xs text-red-600 dark:text-red-400">
+            {problem}
+          </p>
+        )}
       </div>
 
       {entry.previewUrl ? (

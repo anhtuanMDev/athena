@@ -10,8 +10,9 @@ import { type ImageEntry } from "~/components/MultiImageUploadField";
 interface DynamicFieldsRendererProps {
   fields: DynamicField[];
   game: string;
-  abilityIcons: Record<string, ImageEntry[]>;
-  setAbilityIcons: React.Dispatch<React.SetStateAction<Record<string, ImageEntry[]>>>;
+  /** Ability pictures, for the editors that save them (see AbilitiesField). */
+  abilityIcons?: Record<string, ImageEntry[]>;
+  setAbilityIcons?: React.Dispatch<React.SetStateAction<Record<string, ImageEntry[]>>>;
   control: Control<any>;
   register: UseFormRegister<any>;
   errors: FieldErrors<any>;

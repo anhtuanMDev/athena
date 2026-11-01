@@ -82,10 +82,18 @@ export function getCategoryDirectory(category: SchemaCategory): string {
  * empty), and records saved before this check hold numbers as text too;
  * either way the entry is saved with a number, or without the key.
  */
-const entryNumber = z.preprocess(
-  (value) => (typeof value === "string" ? (value.trim() === "" ? undefined : Number(value)) : value === null ? undefined : value),
-  z.number({ message: "Must be a number" }).optional(),
-);
+const typedNumber = (value: unknown) => (typeof value === "string" ? (value.trim() === "" ? undefined : Number(value)) : value === null ? undefined : value);
+const entryNumber = z.preprocess(typedNumber, z.number({ message: "Must be a number" }).optional());
+
+/**
+ * A number field of a record, by the same rule: a blank input means no value,
+ * never 0 (z.coerce.number() made "" a 0, so saving a record that hadn't the
+ * field added it as 0). Left blank, a required one is refused.
+ */
+const fieldNumber = (required: boolean) =>
+  required
+    ? z.preprocess(typedNumber, z.number({ message: "Required" }).min(1, "Required"))
+    : z.preprocess(typedNumber, z.number().optional()).catch(undefined);
 
 /**
  * A record's own unit for a field with hasCustomSuffix, saved as "<key>_suffix"
@@ -121,7 +129,7 @@ export function buildDynamicZodSchema(
     if (excludeKeys.includes(f.key)) return;
     let fieldSchema: z.ZodTypeAny =
       f.type === "number"
-        ? z.coerce.number()
+        ? fieldNumber(f.required)
         : f.type === "boolean"
           ? z.boolean()
           : z.string();
@@ -138,7 +146,7 @@ export function buildDynamicZodSchema(
     
     if (f.required) {
       if (f.type === "number")
-        fieldSchema = z.coerce.number().min(1, "Required");
+        fieldSchema = fieldNumber(true);
       else if (f.type === "boolean")
         fieldSchema = z.boolean({ message: "Required" });
       else if (entries) fieldSchema = entries.min(1, "Required");
@@ -147,6 +155,7 @@ export function buildDynamicZodSchema(
       else fieldSchema = z.string().min(1, "Required");
     } else {
       if (f.type === "boolean") fieldSchema = z.boolean().nullish().catch(undefined);
+      else if (f.type === "number") fieldSchema = fieldNumber(false);
       else if (entries) fieldSchema = listOf(entries);
       else if (f.type === "list" || f.type === "reference_list")
         fieldSchema = z.array(z.unknown()).nullish().catch(undefined);

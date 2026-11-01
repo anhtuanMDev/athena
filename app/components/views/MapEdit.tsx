@@ -4,7 +4,7 @@ import { FormProvider, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { MapSchema, type Map } from "~/schemas/map";
-import { getFile, updateFile, deleteFile, isConflictError, listDirectory } from "~/lib/github";
+import { getFile, updateFile, isConflictError, listDirectory } from "~/lib/github";
 import { type DynamicSchemaFile, type DynamicField } from "~/schemas/dynamic-schema";
 import { mapRecordSchema } from "~/lib/record-schema";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
@@ -17,8 +17,8 @@ import { useToast } from "~/components/ToastProvider";
 import { EmptyState } from "~/components/ui/EmptyState";
 import { UnknownKeysNotice } from "~/components/UnknownKeysNotice";
 import { keepUnknownKeys, unknownKeys } from "~/lib/unknown-keys";
+import { asStored } from "~/lib/as-stored";
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
-import type { ImageEntry } from "~/components/MultiImageUploadField";
 
 export default function EditMap() {
   const { game, "*": splat } = useParams();
@@ -46,8 +46,6 @@ export default function EditMap() {
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // DynamicFieldsRenderer's ability pictures; map schemas have no ability lists today.
-  const [abilityIcons, setAbilityIcons] = useState<Record<string, ImageEntry[]>>({});
 
   const dynamicZodSchema = useMemo(() => {
     if (!schemaData) return MapSchema;
@@ -79,8 +77,10 @@ export default function EditMap() {
     try {
       const parsed = dynamicZodSchema.parse(formData);
 
-      // The map's keys stay in the stored file's order, and the form's cleared ones stay out.
-      const saved = keepUnknownKeys(fileData.content as Record<string, unknown>, parsed, dynamicZodSchema);
+      // The map's keys stay in the stored file's order, the form's cleared ones stay out,
+      // and what the form filled in for keys it had no value for doesn't count as an edit.
+      const stored = fileData.content as Record<string, unknown>;
+      const saved = asStored(stored, keepUnknownKeys(stored, parsed, dynamicZodSchema), dynamicZodSchema);
       try {
         await updateFile(`data/${game}/maps/${id}.json`, saved, fileData.sha, `Update map: ${parsed.name}`);
         toastSuccess(`Map ${parsed.name} updated successfully!`);
@@ -102,33 +102,6 @@ export default function EditMap() {
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    if (!fileData) return;
-    if (!confirm("Are you sure you want to delete this map? This action cannot be undone.")) return;
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      try {
-        await deleteFile(`data/${game}/maps/${id}.json`, fileData.sha, `Delete map: ${id}`);
-        toastSuccess("Map deleted successfully.");
-      } catch (err) {
-        if (isConflictError(err)) {
-          setSubmitError(err.message);
-          toastError(err.message);
-          return;
-        }
-        throw err;
-      }
-      navigate(`/${game}/maps`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error";
-      setSubmitError(msg);
-      toastError(`Failed to delete: ${msg}`);
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const loading = fileLoading || schemaLoading;
 
@@ -201,8 +174,6 @@ export default function EditMap() {
               <DynamicFieldsRenderer
                 fields={schemaData.fields}
                 game={game!}
-                abilityIcons={abilityIcons}
-                setAbilityIcons={setAbilityIcons}
                 control={control}
                 register={register}
                 errors={errors}
@@ -222,7 +193,8 @@ export default function EditMap() {
           <div className="mt-8 pt-6 border-t border-border">
             <Button 
               type="button" 
-              onClick={handleDelete}
+              // The delete page checks what uses the map and removes its pictures too.
+              onClick={() => navigate(`/${game}/maps/${id}/delete`)}
               variant="destructive" 
               disabled={submitting} 
               className="w-full sm:w-auto bg-red-600 hover:bg-red-700 shadow-lg"
