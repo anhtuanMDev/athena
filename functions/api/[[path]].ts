@@ -3,7 +3,7 @@ import type { KVNamespace } from "@cloudflare/workers-types";
 import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
 import { bumpCacheVersion, mobileVersionKeyForPath } from "../../app/lib/mobile-cache-version";
 import { dataWriteProblems } from "../../app/lib/screen-policy";
-import { ASSET_VERSION, capGitFetches, serveAsset } from "../../app/lib/asset-headers";
+import { ASSET_VERSION, serveAsset } from "../../app/lib/asset-headers";
 import { SESSION_TTL_SECONDS, createSessionToken, readSessionVersion, revokeSessions, verifySessionToken } from "../../app/lib/session";
 import { SourceError } from "../../app/lib/importer/fetch-source";
 import { githubRepo } from "../../app/lib/importer/repo";
@@ -829,7 +829,6 @@ async function handleGetAsset(context: PagesFunctionContext): Promise<Response> 
   }
 
   const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${githubPath}`;
-  const contentsUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${githubPath}?ref=${encodeURIComponent(branch)}`;
   const headers: Record<string, string> = { "User-Agent": "athena-admin" };
   if (token) headers["Authorization"] = `token ${token}`;
   const version = url.searchParams.get("v") ?? "";
@@ -846,9 +845,6 @@ async function handleGetAsset(context: PagesFunctionContext): Promise<Response> 
         put: (key, response) => cache.put(new Request(key), response),
       },
       fetchAsset: () => fetch(rawUrl, { headers }),
-      fetchFromGit: capGitFetches(env.RATE_LIMIT_KV, () =>
-        fetch(contentsUrl, { headers: { ...headers, Accept: "application/vnd.github.raw" } }),
-      ),
     });
   } catch (err) {
     return new Response("Internal error", { status: 500 });
