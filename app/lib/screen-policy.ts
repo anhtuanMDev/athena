@@ -55,6 +55,8 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** Every `url` inside a value, with the path to it, for checking links nested in props. */
+const BOUND_LINK = /^(data|item)\.[A-Za-z0-9_.]+$/;
+
 function findUrls(value: unknown, path: string, out: { path: string; url: unknown }[] = []) {
   if (Array.isArray(value)) value.forEach((entry, i) => findUrls(entry, `${path}[${i}]`, out));
   else if (isObject(value)) {
@@ -108,7 +110,9 @@ export function validateScreenFile(raw: unknown): string[] {
       if (BLOCKED_PROP.test(name)) errors.push(`${where}: "${name}" isn't allowed in screen files.`);
     }
     for (const { path, url } of findUrls(block.props, "props")) {
-      if (url !== "" && !isAllowedLink(url)) {
+      // A bound link ("data.url", "item.url") comes from a record; the app checks
+      // what it resolves to against the same list before opening it.
+      if (url !== "" && !BOUND_LINK.test(String(url)) && !isAllowedLink(url)) {
         errors.push(`${where} links to ${String(url)} (${path}), which isn't an allowed https site.`);
       }
     }

@@ -71,6 +71,13 @@ describe("screen files", () => {
     assert.match(errors[0], /evil\.example/);
   });
 
+  it("accepts links bound to a record, which the app checks when opened", () => {
+    assert.deepEqual(validateScreenFile(screen([block({ action: { url: "data.url" } })])), []);
+    assert.deepEqual(validateScreenFile(screen([block({ action: { url: "item.links.article" } })])), []);
+    assert.equal(validateScreenFile(screen([block({ action: { url: "data.url; javascript:x" } })])).length, 1);
+    assert.equal(validateScreenFile(screen([block({ action: { url: "record.url" } })])).length, 1);
+  });
+
   it("rejects styles and callbacks", () => {
     const errors = validateScreenFile(screen([block({ style: { position: "absolute" }, onPress: "x" })]));
     assert.equal(errors.length, 2);
