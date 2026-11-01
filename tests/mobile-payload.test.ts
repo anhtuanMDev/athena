@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { readJsonFile, readJsonFolder, type RepoReader } from "../app/lib/mobile-payload";
+import { gitBlobSha } from "../app/lib/asset-headers";
+import { buildDataPayload, buildInitPayload, readJsonFile, readJsonFolder, versionAssets, type RepoReader } from "../app/lib/mobile-payload";
 
 const notFound = () => Object.assign(new Error("Not Found"), { status: 404 });
 
 /** A repo of in-memory files; a value that is an Error makes reading that file fail with it. */
-function memoryReader(files: Record<string, string | Error>, failList: Record<string, Error> = {}) {
+function memoryReader(files: Record<string, string | Error>, failList: Record<string, Error> = {}, assets: Map<string, string> | Error = new Map()) {
   const reads: string[] = [];
   const concurrency = { now: 0, max: 0 };
   const reader: RepoReader = {
@@ -25,6 +26,10 @@ function memoryReader(files: Record<string, string | Error>, failList: Record<st
       if (file === undefined) throw notFound();
       if (file instanceof Error) throw file;
       return file;
+    },
+    async assets() {
+      if (assets instanceof Error) throw assets;
+      return assets;
     },
   };
   return { reader, reads, concurrency };
@@ -97,5 +102,77 @@ describe("mobile payload files", () => {
     });
     assert.deepEqual(await readJsonFile(reader, "data/ow/navigation.json"), { content: null, partial: true });
     await assert.rejects(readJsonFile(reader, "data/mr/navigation.json"), /Bad Gateway/);
+  });
+});
+
+describe("picture versions", () => {
+  const sha = "1f2e3d4c5b6a79881f2e3d4c5b6a79881f2e3d4c";
+  const v = "?v=1f2e3d4c5b6a";
+  const hashes = new Map([
+    ["overwatch/heroes/ana/portrait_2d.webp", sha],
+    ["overwatch/heroes/lúcio/portrait 2d.webp", sha],
+  ]);
+
+  it("version strings that are exactly the path of a picture in the repo", () => {
+    assert.equal(versionAssets("/api/assets/overwatch/heroes/ana/portrait_2d.webp", hashes), `/api/assets/overwatch/heroes/ana/portrait_2d.webp${v}`);
+    assert.equal(versionAssets("assets/overwatch/heroes/ana/portrait_2d.webp", hashes), `assets/overwatch/heroes/ana/portrait_2d.webp${v}`);
+  });
+
+  it("match file names written raw or URL-encoded, keeping them as written", () => {
+    assert.equal(versionAssets("/api/assets/overwatch/heroes/lúcio/portrait 2d.webp", hashes), `/api/assets/overwatch/heroes/lúcio/portrait 2d.webp${v}`);
+    assert.equal(
+      versionAssets("/api/assets/overwatch/heroes/l%C3%BAcio/portrait%202d.webp", hashes),
+      `/api/assets/overwatch/heroes/l%C3%BAcio/portrait%202d.webp${v}`,
+    );
+    assert.equal(versionAssets("/api/assets/overwatch/heroes/%E0%A4%A/x.webp", hashes), "/api/assets/overwatch/heroes/%E0%A4%A/x.webp");
+  });
+
+  it("leave everything else alone", () => {
+    for (const value of [
+      "/api/assets/overwatch/heroes/unknown.webp",
+      "/api/assets/overwatch/heroes/ana/portrait_2d.webp?v=000000000000",
+      "/api/assets/overwatch/heroes/ana/portrait_2d.webp#x",
+      "See /api/assets/overwatch/heroes/ana/portrait_2d.webp for her portrait",
+      " /api/assets/overwatch/heroes/ana/portrait_2d.webp",
+      "https://bnetcmsus-a.akamaihd.net/cms/x.png",
+      "https://athena.example/api/assets/overwatch/heroes/ana/portrait_2d.webp",
+      "/api/assets/",
+    ]) {
+      assert.equal(versionAssets(value, hashes), value, value);
+    }
+    assert.equal(versionAssets(42, hashes), 42);
+    assert.equal(versionAssets(null, hashes), null);
+  });
+
+  it("walk records and lists without changing the input", () => {
+    const record = { id: "ana", portrait: { "2d": "/api/assets/overwatch/heroes/ana/portrait_2d.webp" }, kit: [{ icon: "assets/overwatch/heroes/ana/portrait_2d.webp", n: 1 }] };
+    const copy = structuredClone(record);
+    assert.deepEqual(versionAssets(record, hashes), {
+      id: "ana",
+      portrait: { "2d": `/api/assets/overwatch/heroes/ana/portrait_2d.webp${v}` },
+      kit: [{ icon: `assets/overwatch/heroes/ana/portrait_2d.webp${v}`, n: 1 }],
+    });
+    assert.deepEqual(record, copy);
+  });
+
+  it("are added to both payloads, which go out unversioned and partial when the hashes can't be read", async () => {
+    const files = {
+      "data/_meta/games.json": JSON.stringify({ games: [{ slug: "ow", icon: "/api/assets/overwatch/heroes/ana/portrait_2d.webp" }, { slug: "mr", active: false }] }),
+      "data/ow/heroes/ana.json": JSON.stringify({ id: "ana", portrait: "/api/assets/overwatch/heroes/ana/portrait_2d.webp" }),
+    };
+    const init = await buildInitPayload(memoryReader(files, {}, hashes).reader);
+    assert.equal(init.partial, false);
+    assert.deepEqual((init.payload.games as { slug: string; icon: string }[]).map((g) => [g.slug, g.icon]), [["ow", `/api/assets/overwatch/heroes/ana/portrait_2d.webp${v}`]]);
+    const data = await buildDataPayload(memoryReader(files, {}, hashes).reader, "data/ow/heroes");
+    assert.deepEqual(data, { payload: [{ id: "ana", portrait: `/api/assets/overwatch/heroes/ana/portrait_2d.webp${v}` }], partial: false });
+
+    const offline = await buildDataPayload(memoryReader(files, {}, new Error("tree unavailable")).reader, "data/ow/heroes");
+    assert.deepEqual(offline, { payload: [{ id: "ana", portrait: "/api/assets/overwatch/heroes/ana/portrait_2d.webp" }], partial: true });
+    assert.equal((await buildInitPayload(memoryReader(files, {}, new Error("tree unavailable")).reader)).partial, true);
+  });
+
+  it("use git's blob hash, as the repo tree lists it", async () => {
+    // `printf 'hello\n' | git hash-object --stdin`
+    assert.equal(await gitBlobSha(new TextEncoder().encode("hello\n")), "ce013625030ba8dba906f756967f9e9ca394464a");
   });
 });

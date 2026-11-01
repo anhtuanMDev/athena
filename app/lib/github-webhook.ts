@@ -4,7 +4,7 @@
 // bumps the mobile cache versions (see mobile-cache-version.ts). The webhook
 // bumps them instead, for the payloads the pushed files feed.
 
-import { MOBILE_INIT_VERSION_KEY, mobileDataVersionKey, mobileVersionKeyForPath } from "./mobile-cache-version";
+import { MOBILE_ASSETS_VERSION_KEY, MOBILE_INIT_VERSION_KEY, mobileDataVersionKey, mobileVersionKeyForPath } from "./mobile-cache-version";
 import { ENTITY_TYPES, assertSafeGameSlug } from "./safe-path";
 
 /** The parts of GitHub's push payload the webhook reads. */
@@ -70,5 +70,9 @@ export function versionKeysToBump(paths: string[] | undefined, games: string[]):
       return false;
     }
   });
-  return [MOBILE_INIT_VERSION_KEY, ...safeGames.flatMap((game) => ENTITY_TYPES.map((entity) => mobileDataVersionKey(game, entity)))];
+  return [
+    MOBILE_INIT_VERSION_KEY,
+    MOBILE_ASSETS_VERSION_KEY,
+    ...safeGames.flatMap((game) => ENTITY_TYPES.map((entity) => mobileDataVersionKey(game, entity))),
+  ];
 }

@@ -207,13 +207,13 @@ describe("writes", () => {
 
 describe("asset headers", () => {
   it("type files by their extension and sandbox them", () => {
-    const svg = assetHeaders("assets/overwatch/enums/role/tank.SVG");
+    const svg = assetHeaders("assets/overwatch/enums/role/tank.SVG", "no-cache");
     assert.equal(svg.get("Content-Type"), "image/svg+xml");
     assert.equal(svg.get("X-Content-Type-Options"), "nosniff");
     assert.match(svg.get("Content-Security-Policy") ?? "", /default-src 'none'.*sandbox/);
-    assert.equal(assetHeaders("assets/games/overwatch-icon.webp").get("Content-Type"), "image/webp");
-    assert.equal(assetHeaders("assets/games/overwatch-icon.ico").get("Content-Type"), "image/x-icon");
-    assert.equal(assetHeaders("assets/x/page.html").get("Content-Type"), "application/octet-stream");
-    assert.equal(assetHeaders("assets/x/noextension").get("Content-Type"), "application/octet-stream");
+    assert.equal(assetHeaders("assets/games/overwatch-icon.webp", "no-cache").get("Content-Type"), "image/webp");
+    assert.equal(assetHeaders("assets/games/overwatch-icon.ico", "no-cache").get("Content-Type"), "image/x-icon");
+    assert.equal(assetHeaders("assets/x/page.html", "no-cache").get("Content-Type"), "application/octet-stream");
+    assert.equal(assetHeaders("assets/x/noextension", "no-cache").get("Content-Type"), "application/octet-stream");
   });
 });
