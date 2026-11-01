@@ -1,7 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
-import { decodeUtf8Base64 } from "../../app/lib/utf8-base64";
 import { MOBILE_INIT_VERSION_KEY, readCacheVersion } from "../../app/lib/mobile-cache-version";
+import { CACHE_CONTROL, githubReader, readJsonFile, readJsonFolder } from "../../app/lib/mobile-payload";
 
 export interface Env {
   RATE_LIMIT_KV?: KVNamespace;
@@ -44,109 +44,38 @@ export async function onRequest(context: any): Promise<Response> {
   const branch = env.GITHUB_BRANCH ?? "main";
 
   try {
-    // 1. Fetch games.json
-    const { data: gamesData } = await octokit.repos.getContent({
-      owner,
-      repo,
-      path: "data/_meta/games.json",
-      ref: branch,
-    });
-    
-    let games: any[] = [];
-    if ("content" in (gamesData as any)) {
-      const decoded = decodeUtf8Base64((gamesData as any).content);
-      const parsed = JSON.parse(decoded);
-      games = parsed.games ?? [];
-    }
-    
+    const reader = githubReader(octokit, owner, repo, branch);
+    // 1. games.json; without it there is nothing to show.
+    const games: any[] = JSON.parse(await reader.read("data/_meta/games.json")).games ?? [];
+
     // Filter out inactive games
     const activeGames = games.filter(g => g.active !== false);
-    
+
     const schemas: Record<string, any[]> = {};
     const enums: Record<string, any[]> = {};
     const screens: Record<string, any[]> = {};
     const navigation: Record<string, unknown> = {};
+    // Set when a file was left out, so this payload is only cached briefly.
+    let partial = false;
 
-    // 2. Fetch schemas, enums, screens and navigation for each active game
+    // 2. Schemas, enums, screens and navigation of each active game. A missing
+    // folder is empty; a file that can't be read is left out on its own.
     await Promise.all(activeGames.map(async (game) => {
       const gameId = game.slug || game.id;
-      schemas[gameId] = [];
-      enums[gameId] = [];
-      screens[gameId] = [];
-      navigation[gameId] = null;
-      
-      try {
-        // Fetch schemas directory
-        const { data: schemaFiles } = await octokit.repos.getContent({
-          owner, repo, path: `data/${gameId}/schemas`, ref: branch,
-        });
-        if (Array.isArray(schemaFiles)) {
-          const files = schemaFiles.filter(entry => entry.type === "file" && entry.name.endsWith(".json"));
-          const chunkResults = await Promise.all(files.map(async (entry) => {
-            const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
-            if (!Array.isArray(fileReq.data) && fileReq.data.type === "file" && "content" in fileReq.data) {
-              return JSON.parse(decodeUtf8Base64(fileReq.data.content));
-            }
-            return null;
-          }));
-          schemas[gameId] = chunkResults.filter(Boolean);
-        }
-      } catch (e) {
-        // Ignore if directory doesn't exist
-      }
-      
-      try {
-        // Fetch enums directory
-        const { data: enumFiles } = await octokit.repos.getContent({
-          owner, repo, path: `data/${gameId}/enums`, ref: branch,
-        });
-        if (Array.isArray(enumFiles)) {
-          const files = enumFiles.filter(entry => entry.type === "file" && entry.name.endsWith(".json"));
-          const chunkResults = await Promise.all(files.map(async (entry) => {
-            const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
-            if (!Array.isArray(fileReq.data) && fileReq.data.type === "file" && "content" in fileReq.data) {
-              return JSON.parse(decodeUtf8Base64(fileReq.data.content));
-            }
-            return null;
-          }));
-          enums[gameId] = chunkResults.filter(Boolean);
-        }
-      } catch (e) {
-        // Ignore if directory doesn't exist
-      }
-
-      try {
-        // Fetch screens directory. Screen files are named by their id ("home",
-        // "hero-detail") and don't store it, so the app gets it from the name.
-        const { data: screenFiles } = await octokit.repos.getContent({
-          owner, repo, path: `data/${gameId}/screens`, ref: branch,
-        });
-        if (Array.isArray(screenFiles)) {
-          const files = screenFiles.filter(entry => entry.type === "file" && entry.name.endsWith(".json"));
-          const chunkResults = await Promise.all(files.map(async (entry) => {
-            const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
-            if (!Array.isArray(fileReq.data) && fileReq.data.type === "file" && "content" in fileReq.data) {
-              const content = JSON.parse(decodeUtf8Base64(fileReq.data.content));
-              return { ...content, id: entry.name.replace(/\.json$/, "") };
-            }
-            return null;
-          }));
-          screens[gameId] = chunkResults.filter(Boolean);
-        }
-      } catch (e) {
-        // Ignore if directory doesn't exist
-      }
-
-      try {
-        const { data: navFile } = await octokit.repos.getContent({
-          owner, repo, path: `data/${gameId}/navigation.json`, ref: branch,
-        });
-        if (!Array.isArray(navFile) && navFile.type === "file" && "content" in navFile) {
-          navigation[gameId] = JSON.parse(decodeUtf8Base64(navFile.content));
-        }
-      } catch (e) {
+      const [schemaFiles, enumFiles, screenFiles, navFile] = await Promise.all([
+        readJsonFolder(reader, `data/${gameId}/schemas`),
+        readJsonFolder(reader, `data/${gameId}/enums`),
+        readJsonFolder(reader, `data/${gameId}/screens`),
         // No navigation file: the app shows a single Home tab
-      }
+        readJsonFile(reader, `data/${gameId}/navigation.json`),
+      ]);
+      schemas[gameId] = schemaFiles.files.map((f) => f.content);
+      enums[gameId] = enumFiles.files.map((f) => f.content);
+      // Screen files are named by their id ("home", "hero-detail") and don't
+      // store it, so the app gets it from the name.
+      screens[gameId] = screenFiles.files.map((f) => ({ ...(f.content as object), id: f.name }));
+      navigation[gameId] = navFile.content;
+      partial ||= schemaFiles.partial || enumFiles.partial || screenFiles.partial || navFile.partial;
     }));
 
     const responseData = {
@@ -160,7 +89,7 @@ export async function onRequest(context: any): Promise<Response> {
     };
 
     const cacheableResponse = json(responseData, 200, {
-      "Cache-Control": "public, max-age=31536000, s-maxage=31536000" // Cache for Workers Cache API
+      "Cache-Control": partial ? CACHE_CONTROL.partial : CACHE_CONTROL.complete, // Cache for Workers Cache API
     });
 
     if (context.waitUntil) {

@@ -1,7 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
-import { decodeUtf8Base64 } from "../../app/lib/utf8-base64";
 import { mobileDataVersionKey, readCacheVersion } from "../../app/lib/mobile-cache-version";
+import { CACHE_CONTROL, githubReader, readJsonFolder } from "../../app/lib/mobile-payload";
 import { assertSafeEntityType, assertSafeGameSlug } from "../../app/lib/safe-path";
 
 export interface Env {
@@ -60,55 +60,27 @@ export async function onRequest(context: any): Promise<Response> {
   const branch = env.GITHUB_BRANCH ?? "main";
 
   try {
-    const { data: directory } = await octokit.repos.getContent({
-      owner,
-      repo,
-      path: `data/${game}/${entity}`,
-      ref: branch,
+    // A missing folder has no records; a file that can't be read is left out
+    // on its own, and the list is then cached only briefly.
+    const { files, partial } = await readJsonFolder(githubReader(octokit, owner, repo, branch), `data/${game}/${entity}`);
+    const cacheableResponse = json(files.map((f) => f.content), 200, {
+      "Cache-Control": partial ? CACHE_CONTROL.partial : CACHE_CONTROL.complete,
     });
 
-    if (Array.isArray(directory)) {
-      const files = directory.filter(entry => entry.type === "file" && entry.name.endsWith(".json"));
-      // Chunked like /api/data/directory to stay within Cloudflare and GitHub concurrency limits
-      const payload = [];
-      const CHUNK_SIZE = 10;
-      for (let i = 0; i < files.length; i += CHUNK_SIZE) {
-        const chunkResults = await Promise.all(files.slice(i, i + CHUNK_SIZE).map(async (entry) => {
-          try {
-            const fileReq = await octokit.repos.getContent({ owner, repo, path: entry.path, ref: branch });
-            if (!Array.isArray(fileReq.data) && fileReq.data.type === "file" && "content" in fileReq.data) {
-              return JSON.parse(decodeUtf8Base64(fileReq.data.content));
-            }
-          } catch (e) {
-            console.error(`Failed to fetch content for ${entry.path}`, e);
-          }
-          return null;
-        }));
-        payload.push(...chunkResults.filter(Boolean));
-      }
-      const cacheableResponse = json(payload, 200, {
-        "Cache-Control": "public, max-age=31536000, s-maxage=31536000"
-      });
-
-      if (context.waitUntil) {
-        context.waitUntil(cache.put(cacheKey, cacheableResponse.clone()));
-      } else {
-        await cache.put(cacheKey, cacheableResponse.clone());
-      }
-
-      const clientResponse = new Response(cacheableResponse.body, {
-        status: cacheableResponse.status,
-        headers: new Headers(cacheableResponse.headers)
-      });
-      clientResponse.headers.set("Cache-Control", "no-store");
-
-      return clientResponse;
+    if (context.waitUntil) {
+      context.waitUntil(cache.put(cacheKey, cacheableResponse.clone()));
+    } else {
+      await cache.put(cacheKey, cacheableResponse.clone());
     }
-    return json([]);
+
+    const clientResponse = new Response(cacheableResponse.body, {
+      status: cacheableResponse.status,
+      headers: new Headers(cacheableResponse.headers)
+    });
+    clientResponse.headers.set("Cache-Control", "no-store");
+
+    return clientResponse;
   } catch (err: any) {
-    if (err.status === 404) {
-      return json([]); // Return empty array if directory doesn't exist
-    }
     console.error("Mobile data API error:", err);
     return json({ error: err.message }, 500);
   }
