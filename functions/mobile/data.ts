@@ -39,7 +39,8 @@ export async function onRequest(context: any): Promise<Response> {
   }
   // And only configured categories, checked before any KV read, so made-up
   // folder names can't make version reads or reach GitHub.
-  const reader = githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH ?? "main");
+  // The folder through GraphQL when the token allows: one GitHub request whatever it holds.
+  const reader = githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH ?? "main", { token: env.GITHUB_TOKEN });
   if (!(await servedFolders((caches as any).default, reader)).includes(entity)) {
     return json({ error: `Invalid entity type: ${entity}` }, 400);
   }
