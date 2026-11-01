@@ -283,16 +283,13 @@
       "required": false,
       "referenceApiEndpoint": "/api/{game}/patches",
       "referenceValueKey": "id",
-      "referenceLabelKey": "name"
+      "referenceLabelKey": "title"
     },
     {
       "key": "introduced_event",
       "label": "Introduced In Event",
-      "type": "reference",
-      "required": false,
-      "referenceApiEndpoint": "/api/{game}/events",
-      "referenceValueKey": "id",
-      "referenceLabelKey": "name"
+      "type": "string",
+      "required": false
     },
     {
       "key": "trivia",

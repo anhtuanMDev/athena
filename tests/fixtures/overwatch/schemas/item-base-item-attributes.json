@@ -56,7 +56,7 @@
       "label": "Available To",
       "type": "reference_list",
       "required": false,
-      "referenceApiEndpoint": "/api/heroes",
+      "referenceApiEndpoint": "/api/{game}/heroes",
       "referenceValueKey": "id",
       "referenceLabelKey": "name"
     },
@@ -91,11 +91,8 @@
         {
           "key": "scoped_to",
           "label": "Applies To",
-          "type": "reference",
-          "required": false,
-          "referenceApiEndpoint": "/api/hero_weapons_or_abilities",
-          "referenceValueKey": "id",
-          "referenceLabelKey": "name"
+          "type": "string",
+          "required": false
         }
       ]
     },

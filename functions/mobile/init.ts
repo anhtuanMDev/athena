@@ -1,7 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
-import { MOBILE_INIT_VERSION_KEY, readCacheVersion } from "../../app/lib/mobile-cache-version";
-import { CACHE_CONTROL, githubReader, readJsonFile, readJsonFolder } from "../../app/lib/mobile-payload";
+import { MOBILE_ASSETS_VERSION_KEY, MOBILE_INIT_VERSION_KEY, readCacheVersion } from "../../app/lib/mobile-cache-version";
+import { CACHE_CONTROL, buildInitPayload, githubReader } from "../../app/lib/mobile-payload";
 
 export interface Env {
   RATE_LIMIT_KV?: KVNamespace;
@@ -22,9 +22,12 @@ export async function onRequest(context: any): Promise<Response> {
   const { env, request } = context;
   const cache = (caches as any).default;
   const internalOrigin = "https://api.internal";
-  const version = await readCacheVersion(env.RATE_LIMIT_KV, MOBILE_INIT_VERSION_KEY);
+  const [version, assetsVersion] = await Promise.all([
+    readCacheVersion(env.RATE_LIMIT_KV, MOBILE_INIT_VERSION_KEY),
+    readCacheVersion(env.RATE_LIMIT_KV, MOBILE_ASSETS_VERSION_KEY),
+  ]);
   // init_v4: screens and navigation replace layouts; the new name drops payloads cached in the old shape.
-  const cacheKey = new Request(`${internalOrigin}/mobile/init_v4?v=${encodeURIComponent(version)}`);
+  const cacheKey = new Request(`${internalOrigin}/mobile/init_v4?v=${encodeURIComponent(version)}&a=${encodeURIComponent(assetsVersion)}`);
 
   const cached = await cache.match(cacheKey);
   if (cached) {
@@ -44,49 +47,7 @@ export async function onRequest(context: any): Promise<Response> {
   const branch = env.GITHUB_BRANCH ?? "main";
 
   try {
-    const reader = githubReader(octokit, owner, repo, branch);
-    // 1. games.json; without it there is nothing to show.
-    const games: any[] = JSON.parse(await reader.read("data/_meta/games.json")).games ?? [];
-
-    // Filter out inactive games
-    const activeGames = games.filter(g => g.active !== false);
-
-    const schemas: Record<string, any[]> = {};
-    const enums: Record<string, any[]> = {};
-    const screens: Record<string, any[]> = {};
-    const navigation: Record<string, unknown> = {};
-    // Set when a file was left out, so this payload is only cached briefly.
-    let partial = false;
-
-    // 2. Schemas, enums, screens and navigation of each active game. A missing
-    // folder is empty; a file that can't be read is left out on its own.
-    await Promise.all(activeGames.map(async (game) => {
-      const gameId = game.slug || game.id;
-      const [schemaFiles, enumFiles, screenFiles, navFile] = await Promise.all([
-        readJsonFolder(reader, `data/${gameId}/schemas`),
-        readJsonFolder(reader, `data/${gameId}/enums`),
-        readJsonFolder(reader, `data/${gameId}/screens`),
-        // No navigation file: the app shows a single Home tab
-        readJsonFile(reader, `data/${gameId}/navigation.json`),
-      ]);
-      schemas[gameId] = schemaFiles.files.map((f) => f.content);
-      enums[gameId] = enumFiles.files.map((f) => f.content);
-      // Screen files are named by their id ("home", "hero-detail") and don't
-      // store it, so the app gets it from the name.
-      screens[gameId] = screenFiles.files.map((f) => ({ ...(f.content as object), id: f.name }));
-      navigation[gameId] = navFile.content;
-      partial ||= schemaFiles.partial || enumFiles.partial || screenFiles.partial || navFile.partial;
-    }));
-
-    const responseData = {
-      games: activeGames,
-      schemas,
-      enums,
-      screens,
-      navigation,
-      // App builds from before screens require this key; layouts are no longer served.
-      layouts: {},
-    };
+    const { payload: responseData, partial } = await buildInitPayload(githubReader(octokit, owner, repo, branch));
 
     const cacheableResponse = json(responseData, 200, {
       "Cache-Control": partial ? CACHE_CONTROL.partial : CACHE_CONTROL.complete, // Cache for Workers Cache API

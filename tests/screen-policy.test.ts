@@ -3,13 +3,16 @@ import { describe, it } from "node:test";
 
 import { assetHeaders } from "../app/lib/asset-headers";
 import { encodeUtf8Base64 } from "../app/lib/utf8-base64";
+import { readFileSync, readdirSync } from "node:fs";
 import {
   LIMITS,
+  REFERENCE_ENDPOINTS,
   dataWriteProblems,
   httpsHost,
   isAllowedLink,
   validateDataFile,
   validateNavigationFile,
+  validateSchemaFile,
   validateScreenFile,
 } from "../app/lib/screen-policy";
 
@@ -143,6 +146,40 @@ describe("data files by path", () => {
   });
 });
 
+describe("schema files", () => {
+  const reference = (referenceApiEndpoint: unknown, extra: Record<string, unknown> = {}) => ({
+    key: "hero",
+    label: "Hero",
+    type: "reference",
+    referenceApiEndpoint,
+    ...extra,
+  });
+
+  it("accept the real schemas, whose references read from categories of the game", () => {
+    const dir = new URL("./fixtures/overwatch/schemas/", import.meta.url);
+    for (const name of readdirSync(dir)) {
+      assert.deepEqual(validateSchemaFile(JSON.parse(readFileSync(new URL(name, dir), "utf8"))), [], name);
+    }
+    assert.deepEqual(REFERENCE_ENDPOINTS, ["/api/{game}/heroes", "/api/{game}/maps", "/api/{game}/modes", "/api/{game}/patches", "/api/{game}/items", "/api/{game}/news"]);
+  });
+
+  it("refuse references to anything but a category, nested ones included", () => {
+    for (const endpoint of ["/api/heroes", "/api/seasons", "/api/{game}/events", "/api/{game}/schemas", "/api/overwatch/heroes", "", undefined]) {
+      assert.equal(validateSchemaFile({ id: "x", fields: [reference(endpoint)] }).length, 1, String(endpoint));
+    }
+    const nested = { id: "x", fields: [{ key: "changes", type: "object_array", subFields: [reference("/api/heroes", { type: "reference_list" })] }] };
+    assert.match(validateSchemaFile(nested)[0], /^changes\.hero reads its options from "\/api\/heroes"/);
+    assert.deepEqual(validateSchemaFile({ id: "x", fields: [reference("/api/{game}/heroes"), { key: "name", type: "string" }] }), []);
+  });
+
+  it("are checked on write, by path", () => {
+    const bad = { id: "x", fields: [reference("/api/heroes")] };
+    assert.equal(dataWriteProblems("data/overwatch/schemas/item-x.json", bad, false).length, 1);
+    assert.equal(dataWriteProblems("data/overwatch/schemas/item-x.json", encodeUtf8Base64(JSON.stringify(bad)), true).length, 1);
+    assert.deepEqual(validateDataFile("data/overwatch/heroes/x.json", bad), []);
+  });
+});
+
 describe("writes", () => {
   const unsafe = screen([block({ action: { url: "https://evil.example" } })]);
   const base64 = (value: unknown) => encodeUtf8Base64(JSON.stringify(value));
@@ -170,13 +207,13 @@ describe("writes", () => {
 
 describe("asset headers", () => {
   it("type files by their extension and sandbox them", () => {
-    const svg = assetHeaders("assets/overwatch/enums/role/tank.SVG");
+    const svg = assetHeaders("assets/overwatch/enums/role/tank.SVG", "no-cache");
     assert.equal(svg.get("Content-Type"), "image/svg+xml");
     assert.equal(svg.get("X-Content-Type-Options"), "nosniff");
     assert.match(svg.get("Content-Security-Policy") ?? "", /default-src 'none'.*sandbox/);
-    assert.equal(assetHeaders("assets/games/overwatch-icon.webp").get("Content-Type"), "image/webp");
-    assert.equal(assetHeaders("assets/games/overwatch-icon.ico").get("Content-Type"), "image/x-icon");
-    assert.equal(assetHeaders("assets/x/page.html").get("Content-Type"), "application/octet-stream");
-    assert.equal(assetHeaders("assets/x/noextension").get("Content-Type"), "application/octet-stream");
+    assert.equal(assetHeaders("assets/games/overwatch-icon.webp", "no-cache").get("Content-Type"), "image/webp");
+    assert.equal(assetHeaders("assets/games/overwatch-icon.ico", "no-cache").get("Content-Type"), "image/x-icon");
+    assert.equal(assetHeaders("assets/x/page.html", "no-cache").get("Content-Type"), "application/octet-stream");
+    assert.equal(assetHeaders("assets/x/noextension", "no-cache").get("Content-Type"), "application/octet-stream");
   });
 });

@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import { describe, it } from "node:test";
 
 import { changedPaths, isPushTo, verifyGithubSignature, versionKeysToBump } from "../app/lib/github-webhook";
-import { MOBILE_INIT_VERSION_KEY, mobileDataVersionKey } from "../app/lib/mobile-cache-version";
+import { MOBILE_ASSETS_VERSION_KEY, MOBILE_INIT_VERSION_KEY, mobileDataVersionKey } from "../app/lib/mobile-cache-version";
 import { onRequestPost, type Env } from "../functions/api/webhooks/github";
 
 const SECRET = "test-webhook-secret";
@@ -57,6 +57,11 @@ describe("changedPaths and versionKeysToBump", () => {
     ]);
   });
 
+  it("rebuilds the payloads' picture versions when an asset changes", () => {
+    const paths = changedPaths(push([{ added: ["public/assets/overwatch/heroes/ana/portrait_2d.webp"], modified: [], removed: [] }]));
+    assert.deepEqual(versionKeysToBump(paths, []), [MOBILE_ASSETS_VERSION_KEY]);
+  });
+
   it("bumps nothing for files the app doesn't read", () => {
     assert.deepEqual(versionKeysToBump(changedPaths(push([{ added: ["docs/x.md"], modified: [], removed: [] }])), ["overwatch"]), []);
   });
@@ -72,7 +77,8 @@ describe("changedPaths and versionKeysToBump", () => {
     const keys = versionKeysToBump(undefined, ["overwatch", "../evil", "Bad Slug"]);
     assert.equal(keys[0], MOBILE_INIT_VERSION_KEY);
     assert.ok(keys.includes(mobileDataVersionKey("overwatch", "maps")));
-    assert.ok(keys.every((key) => key === MOBILE_INIT_VERSION_KEY || key.includes(":overwatch:")));
+    assert.ok(keys.includes(MOBILE_ASSETS_VERSION_KEY));
+    assert.ok(keys.every((key) => key === MOBILE_INIT_VERSION_KEY || key === MOBILE_ASSETS_VERSION_KEY || key.includes(":overwatch:")));
   });
 });
 
@@ -121,7 +127,7 @@ describe("POST /api/webhooks/github", () => {
     assert.equal(store.size, 0);
   });
 
-  it("still refreshes the screens and reports a failure when games.json can't be read", async () => {
+  it("still refreshes the screens and pictures, and reports a failure, when games.json can't be read", async () => {
     const { store, kv } = kvWith();
     const realFetch = globalThis.fetch;
     globalThis.fetch = async () => {
@@ -130,7 +136,7 @@ describe("POST /api/webhooks/github", () => {
     try {
       const res = await deliver(envWith(kv), JSON.stringify(push([], { forced: true })));
       assert.equal(res.status, 502);
-      assert.deepEqual([...store.keys()], [MOBILE_INIT_VERSION_KEY]);
+      assert.deepEqual([...store.keys()], [MOBILE_INIT_VERSION_KEY, MOBILE_ASSETS_VERSION_KEY]);
     } finally {
       globalThis.fetch = realFetch;
     }

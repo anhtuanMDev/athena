@@ -11,6 +11,11 @@ interface VersionStore {
 }
 
 export const MOBILE_INIT_VERSION_KEY = "cache_version:mobile_init";
+/**
+ * Part of every mobile payload's cache key: payloads carry each picture's
+ * content hash in its URL, so a new or replaced asset must rebuild them.
+ */
+export const MOBILE_ASSETS_VERSION_KEY = "cache_version:mobile_assets";
 
 export function mobileDataVersionKey(game: string, entity: string): string {
   return `cache_version:mobile_data:${game}:${entity}`;
@@ -20,6 +25,7 @@ const ENTITY_FILE = /^data\/([^/]+)\/([^/]+)\/[^/]+\.json$/;
 
 // Which mobile payload a saved or deleted repo path feeds, if any.
 export function mobileVersionKeyForPath(path: string): string | null {
+  if (path.startsWith("public/assets/")) return MOBILE_ASSETS_VERSION_KEY;
   if (
     path === "data/_meta/games.json" ||
     path.includes("/schemas/") ||

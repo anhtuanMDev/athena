@@ -1,7 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
-import { mobileDataVersionKey, readCacheVersion } from "../../app/lib/mobile-cache-version";
-import { CACHE_CONTROL, githubReader, readJsonFolder } from "../../app/lib/mobile-payload";
+import { MOBILE_ASSETS_VERSION_KEY, mobileDataVersionKey, readCacheVersion } from "../../app/lib/mobile-cache-version";
+import { CACHE_CONTROL, buildDataPayload, githubReader } from "../../app/lib/mobile-payload";
 import { assertSafeEntityType, assertSafeGameSlug } from "../../app/lib/safe-path";
 
 export interface Env {
@@ -40,8 +40,13 @@ export async function onRequest(context: any): Promise<Response> {
 
   const cache = (caches as any).default;
   const internalOrigin = "https://api.internal";
-  const version = await readCacheVersion(env.RATE_LIMIT_KV, mobileDataVersionKey(game, entity));
-  const cacheKey = new Request(`${internalOrigin}/mobile/data?game=${game}&entity=${entity}&v=${encodeURIComponent(version)}`);
+  const [version, assetsVersion] = await Promise.all([
+    readCacheVersion(env.RATE_LIMIT_KV, mobileDataVersionKey(game, entity)),
+    readCacheVersion(env.RATE_LIMIT_KV, MOBILE_ASSETS_VERSION_KEY),
+  ]);
+  const cacheKey = new Request(
+    `${internalOrigin}/mobile/data?game=${game}&entity=${entity}&v=${encodeURIComponent(version)}&a=${encodeURIComponent(assetsVersion)}`,
+  );
 
   const cached = await cache.match(cacheKey);
   if (cached) {
@@ -62,8 +67,8 @@ export async function onRequest(context: any): Promise<Response> {
   try {
     // A missing folder has no records; a file that can't be read is left out
     // on its own, and the list is then cached only briefly.
-    const { files, partial } = await readJsonFolder(githubReader(octokit, owner, repo, branch), `data/${game}/${entity}`);
-    const cacheableResponse = json(files.map((f) => f.content), 200, {
+    const { payload, partial } = await buildDataPayload(githubReader(octokit, owner, repo, branch), `data/${game}/${entity}`);
+    const cacheableResponse = json(payload, 200, {
       "Cache-Control": partial ? CACHE_CONTROL.partial : CACHE_CONTROL.complete,
     });
 

@@ -1,10 +1,11 @@
-// What a screen or navigation file may contain before it is saved.
+// What a screen, navigation or schema file may contain before it is saved.
 //
 // The admin's editor checks this to warn early, and the write API
 // (functions/api) checks it again so a tampered client can't save past it.
 // The mobile app enforces its own copy of the link policy
 // (zms: src/content/policy.ts) — keep LINK_HOSTS in sync.
 
+import { ENTITY_TYPES } from "./safe-path";
 import { decodeUtf8Base64 } from "./utf8-base64";
 
 export const LINK_HOSTS = [
@@ -152,10 +153,37 @@ export function validateNavigationFile(raw: unknown, screenTypes?: Record<string
   return errors;
 }
 
+/**
+ * Where a reference field may read its options: a category folder of the
+ * record's own game. The editor's picker can only load these, so any other
+ * endpoint leaves the field impossible to fill in.
+ */
+export const REFERENCE_ENDPOINTS = ENTITY_TYPES.map((folder) => `/api/{game}/${folder}`);
+
+/** Problems with a schema file: reference fields, nested ones included, that point anywhere but a category. */
+export function validateSchemaFile(raw: unknown): string[] {
+  if (!isObject(raw)) return ["A schema must be a JSON object."];
+  const errors: string[] = [];
+  const check = (fields: unknown, prefix: string) => {
+    if (!Array.isArray(fields)) return;
+    for (const field of fields) {
+      if (!isObject(field)) continue;
+      const name = `${prefix}${String(field.key ?? "?")}`;
+      if ((field.type === "reference" || field.type === "reference_list") && !REFERENCE_ENDPOINTS.includes(String(field.referenceApiEndpoint))) {
+        errors.push(`${name} reads its options from "${String(field.referenceApiEndpoint ?? "")}"; use one of ${REFERENCE_ENDPOINTS.join(", ")}.`);
+      }
+      check(field.subFields, `${name}.`);
+    }
+  };
+  check(raw.fields, "");
+  return errors;
+}
+
 /** Validation for a data file about to be written, by path; other files have no rules here. */
 export function validateDataFile(path: string, content: unknown): string[] {
   if (/^data\/[^/]+\/screens\/[^/]+\.json$/.test(path)) return validateScreenFile(content);
   if (/^data\/[^/]+\/navigation\.json$/.test(path)) return validateNavigationFile(content);
+  if (/^data\/[^/]+\/schemas\/[^/]+\.json$/.test(path)) return validateSchemaFile(content);
   return [];
 }
 

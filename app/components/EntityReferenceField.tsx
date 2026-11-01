@@ -1,5 +1,6 @@
 import React, { forwardRef, useId, useState, useMemo } from "react";
 import { useData } from "~/lib/use-data";
+import { REFERENCE_ENDPOINTS } from "~/lib/screen-policy";
 import { useParams } from "react-router";
 
 interface EntityReferenceFieldProps extends Omit<React.InputHTMLAttributes<HTMLSelectElement | HTMLInputElement>, 'size' | 'value'> {
@@ -24,7 +25,12 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
 
     const { data: entities, loading, error: fetchError } = useData(async () => {
       if (!referenceApiEndpoint) return [];
-      
+      // Options come from a category of this game; any other endpoint can't be loaded.
+      const isEnum = /^\/api\/\{game\}\/enums\/[^/]+$/.test(referenceApiEndpoint);
+      if (!isEnum && !REFERENCE_ENDPOINTS.includes(referenceApiEndpoint)) {
+        throw new Error(`Options come from "${referenceApiEndpoint}", which isn't a category of this game. Fix this field in the schema.`);
+      }
+
       let endpoint = referenceApiEndpoint.replace("{game}", game || "");
       
       // Admin proxy: intercept public API endpoint patterns and route them to internal github API
@@ -122,7 +128,7 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
           <label className={`block text-sm font-medium text-red-500`}>
             {label}
           </label>
-          <div className="mt-1 text-sm text-red-500">Failed to load reference data</div>
+          <div className="mt-1 text-sm text-red-500">{fetchError instanceof Error ? fetchError.message : "Failed to load reference data"}</div>
         </div>
       );
     }
