@@ -1,4 +1,5 @@
 import { clearDataCache } from "~/lib/use-data";
+import type { PushResult } from "~/lib/push";
 import type { Game } from "~/schemas/game";
 
 export interface GitHubFile<T = unknown> {
@@ -69,6 +70,20 @@ export async function fileExists(path: string): Promise<boolean> {
 export async function createFile(path: string, content: unknown, message?: string): Promise<string | null> {
   const res = await api<{ sha?: string | null }>("POST", "data/file", { path, content, message });
   return res.sha ?? null;
+}
+
+/**
+ * Creates a record and, with `notify`, asks the server to tell players: the
+ * server writes the push's text from the category's settings, never from here.
+ */
+export async function publishRecord(path: string, content: unknown, message: string, notify: boolean): Promise<{ sha: string | null; push?: PushResult }> {
+  const res = await api<{ sha?: string | null; push?: PushResult }>("POST", "data/file", { path, content, message, ...(notify && { notify: true }) });
+  return { sha: res.sha ?? null, push: res.push };
+}
+
+/** Whether the server holds push credentials (FCM_SERVICE_ACCOUNT). */
+export async function getPushStatus(): Promise<{ configured: boolean }> {
+  return api("GET", "push/status");
 }
 
 export async function updateFile(path: string, content: unknown, sha: string, message?: string): Promise<string | null> {

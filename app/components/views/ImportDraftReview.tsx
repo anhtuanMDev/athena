@@ -5,6 +5,7 @@ import { ArrowLeft, ExternalLink, Inbox } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { useToast } from "~/components/ToastProvider";
+import { publishedToast, useNotifyPlayers } from "~/components/NotifyPlayers";
 import { RecordFields, compact, useRecordForm } from "~/components/views/SchemaRecordForm";
 import { getFile } from "~/lib/github";
 import { dismissImport, publishImport, type ImportDraft } from "~/lib/imports";
@@ -38,7 +39,7 @@ export default function ImportDraftReview() {
     ]);
     if (!schema) throw new Error("The job's schema was not found.");
     if (!draft) throw new Error("This draft was already published or dismissed.");
-    return { job: job.content, fields: schema.content.fields, draft: draft.content };
+    return { job: job.content, category: schema.content.category, fields: schema.content.fields, draft: draft.content };
   }, [game, jobId, draftId], "ImportDraftReview");
 
   if (loading) {
@@ -57,6 +58,7 @@ export default function ImportDraftReview() {
       game={game!}
       jobId={jobId}
       jobName={data.job.name}
+      category={data.category}
       fields={data.fields}
       draft={data.draft}
       onDone={backToJob}
@@ -68,6 +70,7 @@ function DraftForm({
   game,
   jobId,
   jobName,
+  category,
   fields,
   draft,
   onDone,
@@ -75,11 +78,13 @@ function DraftForm({
   game: string;
   jobId: string;
   jobName: string;
+  category: string;
   fields: DynamicField[];
   draft: ImportDraft;
   onDone: () => void;
 }) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess, error: toastError, warning: toastWarning } = useToast();
+  const { notify, field: notifyField } = useNotifyPlayers(category);
   const [busy, setBusy] = useState<"publish" | "dismiss" | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const draftId = String(draft.record.id);
@@ -89,8 +94,8 @@ function DraftForm({
     setBusy("publish");
     setSubmitError(null);
     try {
-      const { path } = await publishImport(game, jobId, compact(values));
-      toastSuccess(`Published ${path.split("/").pop()?.replace(".json", "")}; it's in the app now.`);
+      const { path, push } = await publishImport(game, jobId, compact(values), notify);
+      publishedToast({ success: toastSuccess, warning: toastWarning }, `Published ${path.split("/").pop()?.replace(".json", "")}; it's in the app now.`, push);
       onDone();
     } catch (err) {
       setSubmitError((err as Error).message);
@@ -169,6 +174,8 @@ function DraftForm({
               {submitError}
             </div>
           )}
+
+          {notifyField}
 
           <RecordFields
             fields={fields}

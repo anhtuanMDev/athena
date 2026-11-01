@@ -4,7 +4,7 @@ import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { MapSchema } from "~/schemas/map";
-import { getFile, createFile, listDirectory } from "~/lib/github";
+import { getFile, listDirectory, publishRecord } from "~/lib/github";
 import {
   type DynamicSchemaFile,
   type DynamicField,
@@ -16,6 +16,7 @@ import { Button } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { FormField } from "~/components/FormField";
 import { useToast } from "~/components/ToastProvider";
+import { publishedToast, useNotifyPlayers } from "~/components/NotifyPlayers";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
 
 import type { Control, UseFormSetValue, FieldValues, FieldError } from "react-hook-form";
@@ -58,7 +59,8 @@ export default function NewMap() {
   }, [game], "MapNew-44");
 
   const navigate = useNavigate();
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess, error: toastError, warning: toastWarning } = useToast();
+  const { notify, field: notifyField } = useNotifyPlayers("map");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -104,12 +106,13 @@ export default function NewMap() {
         setSubmitting(false);
         return;
       }
-      await createFile(
+      const { push } = await publishRecord(
         `data/${game}/maps/${parsed.id}.json`,
         parsed,
         `Add map: ${parsed.name}`,
+        notify,
       );
-      toastSuccess(`Map ${parsed.name} created successfully!`);
+      publishedToast({ success: toastSuccess, warning: toastWarning }, `Map ${parsed.name} created successfully!`, push);
       navigate(`/${game}/maps`);
     } catch (err) {
       const msg = (err as Error).message;
@@ -185,6 +188,8 @@ export default function NewMap() {
                 {submitting ? "Creating..." : "Create Map"}
               </Button>
             </div>
+
+            {notifyField}
 
             <AutoGenerateId control={control} setValue={setValue} />
             <input type="hidden" {...register("game")} />

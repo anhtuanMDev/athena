@@ -4,6 +4,7 @@
 import { api } from "~/lib/github";
 import type { CronJob } from "~/schemas/cron";
 import type { ImportState, PreviewItem } from "~/lib/importer/run";
+import type { PushResult } from "~/lib/push";
 
 export type { ImportDraft, ImportState, PreviewItem } from "~/lib/importer/run";
 
@@ -15,8 +16,8 @@ export function runImport(game: string, jobId: string) {
   return api<NonNullable<ImportState["last_result"]>>("POST", "imports/run", { game, jobId });
 }
 
-export function publishImport(game: string, jobId: string, record: Record<string, unknown>) {
-  return api<{ ok: true; path: string }>("POST", "imports/publish", { game, jobId, record });
+export function publishImport(game: string, jobId: string, record: Record<string, unknown>, notify: boolean) {
+  return api<{ ok: true; path: string; push?: PushResult }>("POST", "imports/publish", { game, jobId, record, ...(notify && { notify: true }) });
 }
 
 export function dismissImport(game: string, jobId: string, id: string) {

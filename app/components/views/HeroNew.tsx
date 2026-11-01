@@ -16,14 +16,15 @@ import {
   type ImageEntry,
 } from "~/components/MultiImageUploadField";
 import { useToast } from "~/components/ToastProvider";
+import { publishedToast, useNotifyPlayers } from "~/components/NotifyPlayers";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { AIPromptModalWrapper, ImportDataModalWrapper } from "~/components/views/HeroFormModals";
 import {
-  createFile,
   getFile,
   getFileSha,
   listDirectory,
+  publishRecord,
   uploadAsset,
 } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
@@ -218,7 +219,8 @@ function HeroFormInner({
   onImportSuccess,
 }: HeroFormInnerProps) {
   const navigate = useNavigate();
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess, error: toastError, warning: toastWarning } = useToast();
+  const { notify, field: notifyField } = useNotifyPlayers("hero");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -602,12 +604,13 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       }
       if (uploads.length > 0) await Promise.all(uploads);
 
-      await createFile(
+      const { push } = await publishRecord(
         `data/${game}/heroes/${parsed.id}.json`,
         parsed,
         `Add hero: ${parsed.name}`,
+        notify,
       );
-      toastSuccess(`Hero ${parsed.name} created successfully!`);
+      publishedToast({ success: toastSuccess, warning: toastWarning }, `Hero ${parsed.name} created successfully!`, push);
       navigate(`/${game}/heroes`);
     } catch (err) {
       const msg = (err as Error).message;
@@ -645,6 +648,8 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
             {submitting ? "Creating..." : "Create Hero"}
           </Button>
         </div>
+
+        {notifyField}
 
         <div className="flex flex-wrap gap-3 items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded-xl mb-6">
           <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 text-sm font-medium">
