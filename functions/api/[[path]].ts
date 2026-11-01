@@ -3,6 +3,7 @@ import type { KVNamespace } from "@cloudflare/workers-types";
 import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
 import { bumpCacheVersion, mobileVersionKeyForPath } from "../../app/lib/mobile-cache-version";
 import { validateDataFile } from "../../app/lib/screen-policy";
+import { SESSION_TTL_SECONDS, createSessionToken, readSessionVersion, revokeSessions, verifySessionToken } from "../../app/lib/session";
 import { SourceError } from "../../app/lib/importer/fetch-source";
 import { githubRepo } from "../../app/lib/importer/repo";
 import {
@@ -103,51 +104,6 @@ async function recordAttempt(
   });
 }
 
-async function hmacSign(value: string, secret: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(value));
-  const sigHex = Array.from(new Uint8Array(sig))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return `${value}.${sigHex}`;
-}
-
-async function hmacUnsign(
-  signed: string,
-  secret: string,
-): Promise<string | null> {
-  const dot = signed.lastIndexOf(".");
-  if (dot === -1) return null;
-  const value = signed.slice(0, dot);
-  const expectedSig = signed.slice(dot + 1);
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(value));
-  const sigHex = Array.from(new Uint8Array(sig))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-
-  if (sigHex.length !== expectedSig.length) return null;
-  let result = 0;
-  for (let i = 0; i < sigHex.length; i++) {
-    result |= sigHex.charCodeAt(i) ^ expectedSig.charCodeAt(i);
-  }
-  return result === 0 ? value : null;
-}
-
 function getSessionCookie(request: Request): string | null {
   const cookieHeader = request.headers.get("Cookie");
   if (!cookieHeader) return null;
@@ -160,26 +116,25 @@ function getSessionCookie(request: Request): string | null {
   return null;
 }
 
-async function verifySession(
-  request: Request,
-  secret: string,
-): Promise<boolean> {
-  if (!secret) {
+async function verifySession(request: Request, env: Env): Promise<boolean> {
+  if (!env.SESSION_SECRET) {
     throw new Error("Server misconfigured: SESSION_SECRET is missing");
   }
   const value = getSessionCookie(request);
   if (!value) return false;
-  const unsigned = await hmacUnsign(value, secret);
-  return unsigned === "true";
+  // Fails closed when the session version can't be read (KV unbound or failing):
+  // a session that may have been signed out must not count.
+  const version = await readSessionVersion(env.RATE_LIMIT_KV);
+  return version !== null && (await verifySessionToken(value, env.SESSION_SECRET, version));
 }
 
 async function createSessionCookie(
   secret: string,
+  version: string,
   secure: boolean,
 ): Promise<string> {
-  const value = await hmacSign("true", secret);
-  const maxAge = 60 * 60 * 8;
-  return `${SESSION_KEY}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}; ${secure ? "Secure;" : ""}`;
+  const value = await createSessionToken(secret, version);
+  return `${SESSION_KEY}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_TTL_SECONDS}; ${secure ? "Secure;" : ""}`;
 }
 
 function destroySessionCookie(): string {
@@ -219,11 +174,9 @@ class AuthError extends Error {
 }
 
 function requireAuth(context: PagesFunctionContext): Promise<void> {
-  return verifySession(context.request, context.env.SESSION_SECRET).then(
-    (ok) => {
-      if (!ok) throw new AuthError();
-    },
-  );
+  return verifySession(context.request, context.env).then((ok) => {
+    if (!ok) throw new AuthError();
+  });
 }
 
 interface PagesFunctionContext {
@@ -355,25 +308,37 @@ async function handleLogin(request: Request, env: Env): Promise<Response> {
     );
   }
 
+  const version = await readSessionVersion(env.RATE_LIMIT_KV);
+  if (version === null) {
+    return json({ error: "Sessions are unavailable: RATE_LIMIT_KV can't be read." }, 503);
+  }
+
   await recordAttempt(ip, true, env);
   const secure = env.COOKIE_SECURE !== "false";
-  const cookie = await createSessionCookie(secret, secure);
+  const cookie = await createSessionCookie(secret, version, secure);
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
     headers: { "Content-Type": "application/json", "Set-Cookie": cookie },
   });
 }
 
-async function handleLogout(_request: Request, _env: Env): Promise<Response> {
-  const cookie = destroySessionCookie();
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { "Content-Type": "application/json", "Set-Cookie": cookie },
-  });
+// Signing out ends every admin session (see app/lib/session.ts), but only for
+// a request that has one, so a cross-site or anonymous POST can't sign anyone out.
+async function handleLogout(request: Request, env: Env): Promise<Response> {
+  const headers = { "Content-Type": "application/json", "Set-Cookie": destroySessionCookie() };
+  if (await verifySession(request, env).catch(() => false)) {
+    try {
+      await revokeSessions(env.RATE_LIMIT_KV!);
+    } catch (err) {
+      console.error("Session revocation failed:", err);
+      return new Response(JSON.stringify({ error: "Signed out here, but other sessions couldn't be ended. Try again." }), { status: 500, headers });
+    }
+  }
+  return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
 }
 
 async function handleCheck(request: Request, env: Env): Promise<Response> {
-  const authenticated = await verifySession(request, env.SESSION_SECRET);
+  const authenticated = await verifySession(request, env);
   return json({ authenticated });
 }
 
