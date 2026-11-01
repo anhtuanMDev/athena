@@ -81,6 +81,32 @@ export function getCategoryDirectory(category: SchemaCategory): string {
   return categoryMap[category] || `${category}s`;
 }
 
+/**
+ * A number inside a list entry. Form inputs give text ("8", "" when left
+ * empty), and records saved before this check hold numbers as text too;
+ * either way the entry is saved with a number, or without the key.
+ */
+const entryNumber = z.preprocess(
+  (value) => (typeof value === "string" ? (value.trim() === "" ? undefined : Number(value)) : value === null ? undefined : value),
+  z.number({ message: "Must be a number" }).optional(),
+);
+
+/**
+ * An optional list of entries. No .catch() here: with entries checked, one bad
+ * value would otherwise drop the whole list without a word.
+ */
+const listOf = (entries: z.ZodArray<z.ZodType>) => z.preprocess((value) => (value === "" || value === null ? undefined : value), entries.optional());
+
+/** An entry of an object list (or an ability's params): its number sub-fields coerced, every other key kept as is. */
+function entrySchema(subFields: DynamicField[] = []): z.ZodType {
+  const shape: Record<string, z.ZodType> = {};
+  for (const sf of subFields) {
+    if (sf.type === "number") shape[sf.key] = entryNumber;
+    else if (sf.type === "object_array") shape[sf.key] = listOf(z.array(entrySchema(sf.subFields)));
+  }
+  return z.looseObject(shape);
+}
+
 export function buildDynamicZodSchema(
   fields: DynamicField[],
   baseSchema: z.ZodObject<any, any>,
@@ -97,33 +123,29 @@ export function buildDynamicZodSchema(
           : z.string();
     if (f.type === "list" || f.type === "reference_list")
       fieldSchema = z.array(z.string());
-    if (f.type === "abilities" || f.type === "weapon") fieldSchema = z.array(KitItemSchema);
-    if (f.type === "object_array") fieldSchema = z.array(z.unknown());
+    // Entries of list fields keep their numbers as numbers (see entrySchema).
+    const entries =
+      f.type === "object_array"
+        ? z.array(entrySchema(f.subFields))
+        : f.type === "abilities" || f.type === "weapon"
+          ? z.array(KitItemSchema.extend({ params: entrySchema(f.subFields) }))
+          : undefined;
+    if (entries) fieldSchema = entries;
     
     if (f.required) {
       if (f.type === "number")
         fieldSchema = z.coerce.number().min(1, "Required");
       else if (f.type === "boolean")
         fieldSchema = z.boolean({ message: "Required" });
-      else if (
-        f.type === "list" ||
-        f.type === "reference_list" ||
-        f.type === "object_array"
-      )
+      else if (entries) fieldSchema = entries.min(1, "Required");
+      else if (f.type === "list" || f.type === "reference_list")
         fieldSchema = z.array(z.unknown()).min(1, "Required");
-      else if (f.type === "abilities" || f.type === "weapon")
-        fieldSchema = z.array(KitItemSchema).min(1, "Required");
       else fieldSchema = z.string().min(1, "Required");
     } else {
       if (f.type === "boolean") fieldSchema = z.boolean().nullish().catch(undefined);
-      else if (
-        f.type === "list" ||
-        f.type === "reference_list" ||
-        f.type === "object_array"
-      )
+      else if (entries) fieldSchema = listOf(entries);
+      else if (f.type === "list" || f.type === "reference_list")
         fieldSchema = z.array(z.unknown()).nullish().catch(undefined);
-      else if (f.type === "abilities" || f.type === "weapon")
-        fieldSchema = z.array(KitItemSchema).nullish().catch(undefined);
       else fieldSchema = fieldSchema.nullish().or(z.literal("")).catch(undefined);
     }
     shape[f.key] = fieldSchema;
