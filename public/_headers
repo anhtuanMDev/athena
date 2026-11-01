@@ -1,0 +1,25 @@
+# Security headers for the admin's pages and files. Pages adds them to what
+# it serves from build/client, including index.html for every app route
+# (functions/[[path]].ts fetches those through env.ASSETS). Responses the
+# Functions make themselves (/api/*, /mobile/*) never get them: /api/assets
+# keeps its own sandboxed CSP (app/lib/asset-headers.ts).
+#
+# The Content-Security-Policy, by directive:
+# - script-src: the app's bundles, and React Router's inline bootstrap scripts
+#   in index.html by hash. The build writes those hashes in place of the
+#   token after 'self' (app/lib/csp-hashes.ts), as they change with every
+#   build. No 'unsafe-inline' or 'unsafe-eval'.
+# - style-src 'unsafe-inline': MUI styles with emotion, which writes <style>
+#   elements at run time (and two into index.html). They can't be listed by
+#   hash, and a nonce needs a value per response, which this file can't give.
+# - img-src: /api/assets; data: URLs, the previews of pictures picked for
+#   upload; and any https picture, the art records and games link to.
+# - font-src, connect-src: the bundled Inter font, and /api, on this origin.
+# - frame-ancestors 'none' (with X-Frame-Options for older browsers): no page
+#   may frame the admin.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' __INLINE_SCRIPT_HASHES__; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
