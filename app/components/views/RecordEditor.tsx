@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { FormProvider } from "react-hook-form";
 import { ArrowLeft, type LucideIcon } from "lucide-react";
@@ -7,9 +7,11 @@ import { Card, CardContent } from "~/components/ui/card";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { useToast } from "~/components/ToastProvider";
 import { publishedToast, useNotifyPlayers } from "~/components/NotifyPlayers";
+import { UnknownKeysNotice } from "~/components/UnknownKeysNotice";
 import { RecordFields, compact, useRecordForm } from "~/components/views/SchemaRecordForm";
 import { getFile, isConflictError, listDirectory, publishRecord, updateFile } from "~/lib/github";
-import { schemaOf } from "~/lib/record-schema";
+import { recordFormSchema, schemaOf } from "~/lib/record-schema";
+import { unknownKeys } from "~/lib/unknown-keys";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useCategories } from "~/lib/categories-context";
 import { useData } from "~/lib/use-data";
@@ -104,6 +106,8 @@ function RecordForm({
   const [schemaId, setSchemaId] = useState(() => schemaOf(schemas, record.schema_id)!.id);
   const fields = schemaOf(schemas, schemaId)?.fields ?? [];
   const methods = useRecordForm(fields, { ...record, schema_id: schemaId });
+  // The form refuses a saved record with keys its schema doesn't list; say which.
+  const unknown = useMemo(() => (id ? unknownKeys(record, recordFormSchema(fields)) : []), [id, record, fields]);
 
   async function save(values: Record<string, unknown>) {
     setSubmitting(true);
@@ -164,6 +168,8 @@ function RecordForm({
               {submitError}
             </div>
           )}
+
+          <UnknownKeysNotice keys={unknown} rawEditor={`/${game}/raw/${folder}/${id}`} />
 
           {!id && notifyField}
 

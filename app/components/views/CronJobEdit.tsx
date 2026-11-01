@@ -7,6 +7,7 @@ import { dismissImport, runImport, type ImportDraft, type ImportState } from "~/
 import { Button } from "~/components/ui/button";
 import { clearDataCache, useData } from "~/lib/use-data";
 import { assertSafeGameSlug } from "~/lib/safe-path";
+import { keepUnknownKeys } from "~/lib/unknown-keys";
 import { Clock, ArrowLeft, Play, Loader2, Inbox } from "lucide-react";
 import { useToast } from "~/components/ToastProvider";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
@@ -73,7 +74,9 @@ export default function CronJobEdit() {
     }
 
     try {
-      await updateFile(`data/${game}/cron_jobs/${id}.json`, parsed.data, loaderData.sha, `Update cron job: ${id}`);
+      // Keys of the job the form doesn't edit stay as they are.
+      const saved = keepUnknownKeys(loaderData.cron, parsed.data, CronJobSchema);
+      await updateFile(`data/${game}/cron_jobs/${id}.json`, saved, loaderData.sha, `Update cron job: ${id}`);
       toastSuccess(`Cron Job ${loaderData.cron.name} updated successfully!`);
       navigate(`/${game}/cron`);
     } catch (err) {

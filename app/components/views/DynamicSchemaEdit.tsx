@@ -33,6 +33,7 @@ import {
   updateFile,
 } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
+import { keepUnknownKeys } from "~/lib/unknown-keys";
 import { referenceEndpoints } from "~/lib/categories";
 import { useCategories } from "~/lib/categories-context";
 import { clearDataCache, useData } from "~/lib/use-data";
@@ -851,7 +852,8 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
     try {
       await updateFile(
         `data/${game}/schemas/${id}.json`,
-        parsed.data,
+        // The schema file's keys this editor doesn't know stay as they are.
+        keepUnknownKeys(loaderData.schema, parsed.data, DynamicSchemaFileSchema),
         loaderData.sha,
         `Update schema: ${id}`,
       );

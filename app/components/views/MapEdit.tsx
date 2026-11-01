@@ -16,6 +16,8 @@ import { useData } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
 import { EmptyState } from "~/components/ui/EmptyState";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
+import { UnknownKeysNotice } from "~/components/UnknownKeysNotice";
+import { unknownKeys } from "~/lib/unknown-keys";
 
 export default function EditMap() {
   const { game, "*": splat } = useParams();
@@ -173,6 +175,7 @@ export default function EditMap() {
           {submitError && (
             <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200 mb-4">{submitError}</div>
           )}
+          <UnknownKeysNotice keys={unknownKeys(m, dynamicZodSchema)} rawEditor={`/${game}/raw/maps/${id}`} className="mb-4" />
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {/* Top Actions */}
             <div className="flex justify-between items-center border-b border-border pb-4 mb-4">
