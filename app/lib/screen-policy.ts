@@ -5,6 +5,8 @@
 // The mobile app enforces its own copy of the link policy
 // (zms: src/content/policy.ts) — keep LINK_HOSTS in sync.
 
+import { decodeUtf8Base64 } from "./utf8-base64";
+
 export const LINK_HOSTS = [
   "playoverwatch.com",
   "overwatch.blizzard.com",
@@ -155,4 +157,21 @@ export function validateDataFile(path: string, content: unknown): string[] {
   if (/^data\/[^/]+\/screens\/[^/]+\.json$/.test(path)) return validateScreenFile(content);
   if (/^data\/[^/]+\/navigation\.json$/.test(path)) return validateNavigationFile(content);
   return [];
+}
+
+/**
+ * Problems with a write the API is asked to make. Assets arrive as base64; a
+ * JSON data file sent that way is decoded and checked like one sent as JSON,
+ * so the encoding can't be used to skip validateDataFile.
+ */
+export function dataWriteProblems(path: string, content: unknown, isBase64: boolean): string[] {
+  if (!isBase64) return validateDataFile(path, content);
+  if (!/^data\/.+\.json$/.test(path)) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(decodeUtf8Base64(String(content)));
+  } catch {
+    return ["The file isn't valid JSON."];
+  }
+  return validateDataFile(path, parsed);
 }

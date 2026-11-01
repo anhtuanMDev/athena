@@ -2,7 +2,8 @@ import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
 import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
 import { bumpCacheVersion, mobileVersionKeyForPath } from "../../app/lib/mobile-cache-version";
-import { validateDataFile } from "../../app/lib/screen-policy";
+import { dataWriteProblems } from "../../app/lib/screen-policy";
+import { assetHeaders } from "../../app/lib/asset-headers";
 import { SESSION_TTL_SECONDS, createSessionToken, readSessionVersion, revokeSessions, verifySessionToken } from "../../app/lib/session";
 import { SourceError } from "../../app/lib/importer/fetch-source";
 import { githubRepo } from "../../app/lib/importer/repo";
@@ -403,11 +404,10 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
   if (!body.path) return json({ error: "path is required" }, 400);
   assertSafeFilePath(body.path);
   // Screens and navigation drive the mobile app; reject unsafe or unreadable ones
-  // here too, not only in the editor, so a tampered client can't save them.
-  if (!body.isBase64) {
-    const problems = validateDataFile(body.path, body.content);
-    if (problems.length > 0) return json({ error: `This file can't be saved: ${problems.join(" ")}` }, 400);
-  }
+  // here too, not only in the editor, so a tampered client can't save them,
+  // whether it sends them as JSON or as base64.
+  const problems = dataWriteProblems(body.path, body.content, body.isBase64 === true);
+  if (problems.length > 0) return json({ error: `This file can't be saved: ${problems.join(" ")}` }, 400);
 
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
   const owner = env.GITHUB_OWNER;
@@ -819,10 +819,11 @@ async function handleGetAsset(context: PagesFunctionContext): Promise<Response> 
   const cacheKey = new Request(`${internalOrigin}/api/${path}`);
   const cached = await cache.match(cacheKey);
   if (cached) {
+    // The headers are set again, for copies cached before they were added.
     const response = new Response(cached.body, {
       status: cached.status,
       statusText: cached.statusText,
-      headers: cached.headers,
+      headers: assetHeaders(path),
     });
     response.headers.set("Cache-Control", "no-store");
     return response;
@@ -854,10 +855,7 @@ async function handleGetAsset(context: PagesFunctionContext): Promise<Response> 
       return new Response("Asset not found", { status: 404 });
     }
 
-    const cacheableHeaders = new Headers();
-    const contentType = response.headers.get("content-type");
-    if (contentType) cacheableHeaders.set("Content-Type", contentType);
-    cacheableHeaders.set("Cache-Control", "public, max-age=3600");
+    const cacheableHeaders = assetHeaders(path);
 
     const cacheableResponse = new Response(response.clone().body, {
       status: 200,
