@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import {
+  appScreenLabel,
   bindingPath,
   bindingScope,
   fieldsForProp,
+  filterFields,
   isBinding,
   sourceFields,
   toBinding,
@@ -14,7 +16,7 @@ import {
   type SchemaInfo,
 } from "~/lib/screen-model";
 import { useCategories } from "~/lib/categories-context";
-import { BOUND_LINK, LINK_HOSTS, isAllowedLink } from "~/lib/screen-policy";
+import { BOUND_LINK, LINK_HOSTS, isAllowedLink, type AppLimits } from "~/lib/screen-policy";
 
 /** Field styling without a width, for controls sized by their row. */
 export const inputBaseClass =
@@ -154,6 +156,10 @@ export interface PropContext {
   itemFields: FieldOption[] | null;
   schemas: SchemaInfo[];
   screenIds: string[];
+  /** Screens the app provides itself (the manifest's policy). */
+  appScreens: string[];
+  /** What the app drops or caps (the manifest's policy). */
+  limits: AppLimits;
   icons: string[];
 }
 
@@ -171,11 +177,30 @@ function FieldOptions({ fields, spec, scope }: { fields: FieldOption[]; spec: Pr
   );
 }
 
-/** Which records a list block shows. */
-function SourceInput({ id, value, onChange, schemas }: { id: string; value: unknown; onChange: (v: unknown) => void; schemas: SchemaInfo[] }) {
+/** Which records a list block (or a list screen) shows. */
+export function SourceInput({
+  id,
+  value,
+  onChange,
+  schemas,
+  limits,
+  emptyLabel = "The screen's records",
+}: {
+  id: string;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  schemas: SchemaInfo[];
+  limits: AppLimits;
+  /** The category option for no source. */
+  emptyLabel?: string;
+}) {
   const source = (value && typeof value === "object" ? value : {}) as Partial<RecordSource>;
-  const categories = useCategories().filter((c) => schemas.some((s) => s.category === c.category));
+  const configured = useCategories();
+  const categories = configured.filter((c) => schemas.some((s) => s.category === c.category));
   const fields = source.category ? sourceFields(schemas, { category: source.category }) : [];
+  // The app saves favorites only for favoritable categories, so a favorites list of another is always empty.
+  const favoritable = configured.find((c) => c.category === source.category)?.favoritable === true;
+  const overLimit = typeof source.limit === "number" && source.limit > limits.listItems;
   const update = (patch: Partial<RecordSource>) => {
     const next = { ...source, ...patch };
     for (const key of Object.keys(next) as (keyof RecordSource)[]) {
@@ -185,8 +210,9 @@ function SourceInput({ id, value, onChange, schemas }: { id: string; value: unkn
   };
   return (
     <div className="grid grid-cols-2 gap-2">
-      <select id={id} aria-label="Category" value={source.category ?? ""} onChange={(e) => update({ category: e.target.value || undefined, schema: undefined, sort: undefined })} className={inputClass}>
-        <option value="">The screen's records</option>
+      {/* Another category's fields and favorites don't carry over. */}
+      <select id={id} aria-label="Category" value={source.category ?? ""} onChange={(e) => update({ category: e.target.value || undefined, schema: undefined, sort: undefined, order: undefined, favorites: undefined })} className={inputClass}>
+        <option value="">{emptyLabel}</option>
         {categories.map((c) => (
           <option key={c.category} value={c.category}>{c.label}</option>
         ))}
@@ -208,29 +234,40 @@ function SourceInput({ id, value, onChange, schemas }: { id: string; value: unkn
           <option value="asc">A → Z</option>
           <option value="desc">Z → A</option>
         </select>
-        <input aria-label="Show at most" type="number" min={1} inputMode="numeric" placeholder="All" value={source.limit ?? ""} disabled={!source.category} onChange={(e) => update({ limit: e.target.value ? Number(e.target.value) : undefined })} className={`${inputBaseClass} w-24 tabular-nums`} />
+        <input aria-label="Show at most" type="number" min={1} max={limits.listItems} inputMode="numeric" placeholder={`All, up to ${limits.listItems}`} value={source.limit ?? ""} disabled={!source.category} aria-invalid={overLimit || undefined} onChange={(e) => update({ limit: e.target.value ? Number(e.target.value) : undefined })} className={`${inputBaseClass} w-28 tabular-nums`} />
       </div>
-      <select aria-label="Whose records" value={source.favorites ? "favorites" : ""} disabled={!source.category} onChange={(e) => update({ favorites: e.target.value === "favorites" || undefined })} className={`${inputClass} col-span-2`}>
-        <option value="">All records</option>
-        <option value="favorites">Only the player's favorites (hidden when signed out)</option>
-      </select>
+      {overLimit && <p className="col-span-2 text-xs text-danger-ink">The app shows at most {limits.listItems} records.</p>}
+      {(favoritable || source.favorites) && (
+        <select aria-label="Whose records" value={source.favorites ? "favorites" : ""} disabled={!source.category} aria-invalid={(source.favorites && !favoritable) || undefined} onChange={(e) => update({ favorites: e.target.value === "favorites" || undefined })} className={`${inputClass} col-span-2`}>
+          <option value="">All records</option>
+          <option value="favorites">Only the player's favorites (hidden when signed out)</option>
+        </select>
+      )}
+      {source.favorites && !favoritable && (
+        <p className="col-span-2 text-xs text-danger-ink">Players can't favorite these records, so this list would always be empty: choose All records.</p>
+      )}
     </div>
   );
 }
 
-/** What tapping does: open a screen of this game, a link, or a link read from the record. */
+/** What tapping does: open a screen of this game or of the app, a link, or a link read from the record. */
 function ActionInput({
   id,
   value,
   onChange,
   screenIds,
+  appScreens,
   linkFields,
   describedBy,
+  label,
 }: {
   id: string;
   value: unknown;
   onChange: (v: unknown) => void;
   screenIds: string[];
+  appScreens: string[];
+  /** The control's name when no <label> points at `id` (a tile's action). */
+  label?: string;
   /** Text fields a link can be read from: "item.<key>" in list blocks, "data.<key>" for the screen's record. */
   linkFields: string[];
   describedBy?: string;
@@ -242,6 +279,7 @@ function ActionInput({
     <div className="space-y-2">
       <select
         id={id}
+        aria-label={label}
         aria-describedby={describedBy}
         value={mode}
         onChange={(e) => {
@@ -251,9 +289,12 @@ function ActionInput({
         className={inputClass}
       >
         <option value="">Nothing</option>
-        {action.screen && !screenIds.includes(action.screen) && <option value={`screen:${action.screen}`}>{action.screen} (missing)</option>}
+        {action.screen && !screenIds.includes(action.screen) && !appScreens.includes(action.screen) && <option value={`screen:${action.screen}`}>{action.screen} (missing)</option>}
         {screenIds.map((s) => (
           <option key={s} value={`screen:${s}`}>Open screen: {s}</option>
+        ))}
+        {appScreens.map((s) => (
+          <option key={s} value={`screen:${s}`}>Open: {appScreenLabel(s)}</option>
         ))}
         <option value="url">Open a link…</option>
         {(boundUrl || linkFields.length > 0) && <option value="field">Open a link from the record…</option>}
@@ -295,13 +336,41 @@ interface Shortcut {
   label: string;
   icon?: string;
   screen?: string;
+  url?: string;
 }
 
-/** Quick-access tiles: label, icon and the screen each opens. */
-function ShortcutsInput({ id, value, onChange, screenIds, icons }: { id: string; value: unknown; onChange: (v: unknown) => void; screenIds: string[]; icons: string[] }) {
+/** Quick-access tiles: label, icon, and what each opens (a screen, the app's settings, or a link). */
+function ShortcutsInput({
+  id,
+  value,
+  onChange,
+  screenIds,
+  appScreens,
+  linkFields,
+  icons,
+  max,
+}: {
+  id: string;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  screenIds: string[];
+  appScreens: string[];
+  linkFields: string[];
+  icons: string[];
+  /** The app shows this many tiles at most. */
+  max: number;
+}) {
   const items: Shortcut[] = Array.isArray(value) ? (value as Shortcut[]) : [];
   const set = (next: Shortcut[]) => onChange(next.length > 0 ? next : undefined);
-  const patch = (i: number, p: Partial<Shortcut>) => set(items.map((item, j) => (j === i ? { ...item, ...p } : item)));
+  const patch = (i: number, p: Partial<Shortcut>) =>
+    set(
+      items.map((item, j) => {
+        if (j !== i) return item;
+        const next = { ...item, ...p };
+        for (const key of Object.keys(p) as (keyof Shortcut)[]) if (next[key] === undefined) delete next[key];
+        return next;
+      }),
+    );
   const move = (i: number, d: -1 | 1) => {
     const next = [...items];
     [next[i], next[i + d]] = [next[i + d], next[i]];
@@ -310,20 +379,29 @@ function ShortcutsInput({ id, value, onChange, screenIds, icons }: { id: string;
   return (
     <div id={id} className="space-y-2">
       {items.map((item, i) => (
-        <div key={i} className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-2 sm:flex-nowrap">
-          <input aria-label={`Tile ${i + 1} label`} value={item.label ?? ""} placeholder="Label" onChange={(e) => patch(i, { label: e.target.value })} className={`${inputBaseClass} min-w-0 flex-1`} />
+        <div key={i} className="flex flex-wrap items-start gap-2 rounded-lg border border-border p-2">
+          <input aria-label={`Tile ${i + 1} label`} value={item.label ?? ""} placeholder="Label" onChange={(e) => patch(i, { label: e.target.value })} className={`${inputBaseClass} min-w-32 flex-1`} />
           <select aria-label={`Tile ${i + 1} icon`} value={item.icon ?? ""} onChange={(e) => patch(i, { icon: e.target.value || undefined })} className={`${inputBaseClass} w-36`}>
             <option value="">No icon</option>
             {icons.map((icon) => (
               <option key={icon} value={icon}>{icon}</option>
             ))}
           </select>
-          <select aria-label={`Tile ${i + 1} screen`} value={item.screen ?? ""} onChange={(e) => patch(i, { screen: e.target.value || undefined })} className={`${inputBaseClass} w-40`}>
-            <option value="">Opens nothing</option>
-            {screenIds.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+          <div className="w-full sm:w-64">
+            {/* The app opens a tile's screen if it has one, else its link (zms sanitize.ts), so a tile keeps one of them. */}
+            <ActionInput
+              id={`${id}-tile-${i}-action`}
+              label={`Tile ${i + 1} opens`}
+              value={item.screen !== undefined || item.url !== undefined ? { screen: item.screen, url: item.url } : undefined}
+              onChange={(v) => {
+                const action = (v ?? {}) as ScreenAction;
+                patch(i, { screen: action.screen, url: action.screen ? undefined : action.url });
+              }}
+              screenIds={screenIds}
+              appScreens={appScreens}
+              linkFields={linkFields}
+            />
+          </div>
           <div className="flex">
             <button type="button" aria-label={`Move tile ${i + 1} up`} disabled={i === 0} onClick={() => move(i, -1)} className={smallButtonClass}><ArrowUp aria-hidden="true" className="size-4" /></button>
             <button type="button" aria-label={`Move tile ${i + 1} down`} disabled={i === items.length - 1} onClick={() => move(i, 1)} className={smallButtonClass}><ArrowDown aria-hidden="true" className="size-4" /></button>
@@ -334,11 +412,13 @@ function ShortcutsInput({ id, value, onChange, screenIds, icons }: { id: string;
       <button
         type="button"
         onClick={() => set([...items, { label: "", icon: icons[0], screen: screenIds[0] }])}
-        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        disabled={items.length >= max}
+        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50 disabled:hover:bg-transparent"
       >
         <Plus aria-hidden="true" className="size-4" />
         Add tile
       </button>
+      {items.length >= max && <p className="text-xs text-ink-muted">The app shows {max} tiles at most.</p>}
     </div>
   );
 }
@@ -350,7 +430,22 @@ interface InfoRow {
 }
 
 /** Info rows: label, icon, and a field (or fixed text) for the value. */
-function InfoRowsInput({ id, value, onChange, dataFields, icons }: { id: string; value: unknown; onChange: (v: unknown) => void; dataFields: FieldOption[]; icons: string[] }) {
+function InfoRowsInput({
+  id,
+  value,
+  onChange,
+  dataFields,
+  icons,
+  max,
+}: {
+  id: string;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  dataFields: FieldOption[];
+  icons: string[];
+  /** The app shows this many rows at most. */
+  max: number;
+}) {
   const rows: InfoRow[] = Array.isArray(value) ? (value as InfoRow[]) : [];
   const set = (next: InfoRow[]) => onChange(next.length > 0 ? next : undefined);
   const patch = (i: number, p: Partial<InfoRow>) => set(rows.map((row, j) => (j === i ? { ...row, ...p } : row)));
@@ -399,11 +494,13 @@ function InfoRowsInput({ id, value, onChange, dataFields, icons }: { id: string;
       <button
         type="button"
         onClick={() => set([...rows, { label: "", icon: icons[0], value: scalarFields[0] ? `data.${scalarFields[0].key}` : "" }])}
-        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        disabled={rows.length >= max}
+        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50 disabled:hover:bg-transparent"
       >
         <Plus aria-hidden="true" className="size-4" />
         Add row
       </button>
+      {rows.length >= max && <p className="text-xs text-ink-muted">The app shows {max} rows at most.</p>}
     </div>
   );
 }
@@ -417,7 +514,7 @@ function linkFields({ itemFields, dataFields }: PropContext): string[] {
 const SPECIAL_HELP: Record<string, string> = {
   source: "Which records this block lists. Empty uses the screen's records.",
   action: "What tapping does.",
-  shortcuts: "Tiles in order, each opening a screen.",
+  shortcuts: "Tiles in order, each opening a screen, the app's settings or a link.",
   field_key: "The field whose values become the chips; they filter this screen's lists.",
   info_rows: "Rows in order: a label, an icon, and the field (or fixed text) shown as the value.",
 };
@@ -487,13 +584,16 @@ export function PropControl({
 
   if (special) {
     let control: React.ReactNode;
-    if (spec.type === "source") control = <SourceInput id={inputId} value={value} onChange={onChange} schemas={context.schemas} />;
-    else if (spec.type === "action") control = <ActionInput id={inputId} value={value} onChange={onChange} screenIds={context.screenIds} linkFields={linkFields(context)} describedBy={describedBy} />;
-    else if (spec.type === "shortcuts") control = <ShortcutsInput id={inputId} value={value} onChange={onChange} screenIds={context.screenIds} icons={context.icons} />;
-    else if (spec.type === "info_rows") control = <InfoRowsInput id={inputId} value={value} onChange={onChange} dataFields={dataFields} icons={context.icons} />;
+    if (spec.type === "source") control = <SourceInput id={inputId} value={value} onChange={onChange} schemas={context.schemas} limits={context.limits} />;
+    else if (spec.type === "action") control = <ActionInput id={inputId} value={value} onChange={onChange} screenIds={context.screenIds} appScreens={context.appScreens} linkFields={linkFields(context)} describedBy={describedBy} />;
+    else if (spec.type === "shortcuts") {
+      // A tile isn't an entry of a list, so only the screen's data can give it a link.
+      const tileLinks = linkFields({ ...context, itemFields: null });
+      control = <ShortcutsInput id={inputId} value={value} onChange={onChange} screenIds={context.screenIds} appScreens={context.appScreens} linkFields={tileLinks} icons={context.icons} max={context.limits.smallList} />;
+    } else if (spec.type === "info_rows") control = <InfoRowsInput id={inputId} value={value} onChange={onChange} dataFields={dataFields} icons={context.icons} max={context.limits.smallList} />;
     else {
       const current = typeof value === "string" ? value : "";
-      const choices = dataFields.filter((f) => f.type === "enum" || (f.options && f.options.length > 0));
+      const choices = filterFields(dataFields);
       control = (
         <select id={inputId} value={current} aria-describedby={describedBy} aria-invalid={error ? true : undefined} onChange={(e) => onChange(e.target.value || undefined)} className={inputClass}>
           <option value="">Choose a field…</option>

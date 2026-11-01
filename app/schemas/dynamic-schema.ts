@@ -40,19 +40,13 @@ export const DynamicFieldSchema: z.ZodType<DynamicField> = z.lazy(() => z.object
 export const SchemaCategorySchema = z.string().regex(/^[a-z][a-z0-9_]{0,39}$/, "Use lowercase letters, digits and _");
 export type SchemaCategory = z.infer<typeof SchemaCategorySchema>;
 
-export const CronConfigSchema = z.object({
-  apiResponseDefinition: z.string().default(""),
-  apiPayloadDefinition: z.string().default(""),
-  dataHandling: z.string().default(""),
-  finalResultDestination: z.string().default(""),
-});
-
+// A legacy cron_job schema's "cronConfig" isn't listed: nothing reads it, so the
+// editor no longer shows it, and saving keeps it as it was (keepUnknownKeys).
 export const DynamicSchemaFileSchema = z.object({
   id: z.string().min(1).regex(/^[a-z0-9-]+$/, "ID must be kebab-case"),
   name: z.string().min(1),
   category: SchemaCategorySchema,
   fields: z.array(DynamicFieldSchema).default([]),
-  cronConfig: CronConfigSchema.optional(),
 }).superRefine((data, ctx) => {
   const keys = new Set();
   for (let i = 0; i < data.fields.length; i++) {
@@ -70,7 +64,7 @@ export const DynamicSchemaFileSchema = z.object({
 
 export type DynamicSchemaFile = z.infer<typeof DynamicSchemaFileSchema>;
 
-/** The folder of a category that isn't configured: legacy ones such as cron_job. */
+/** The folder of a category that isn't configured; legacy ones such as cron_job get "<category>s". */
 export function getCategoryDirectory(category: SchemaCategory): string {
   const categoryMap: Record<string, string> = {
     hero: "heroes",
@@ -79,8 +73,6 @@ export function getCategoryDirectory(category: SchemaCategory): string {
     patch: "patches",
     news: "news",
     item: "items",
-    event: "events",
-    cron_job: "cron_jobs",
   };
   return categoryMap[category] || `${category}s`;
 }
@@ -96,6 +88,13 @@ const entryNumber = z.preprocess(
 );
 
 /**
+ * A record's own unit for a field with hasCustomSuffix, saved as "<key>_suffix"
+ * next to the value: trimmed, and left out when blank so the field's unit shows.
+ * The app renders it by the same rule (screen-model.ts valueWithUnit).
+ */
+const customSuffix = z.preprocess((value) => (typeof value === "string" && value.trim() ? value.trim() : undefined), z.string().optional());
+
+/**
  * An optional list of entries. No .catch() here: with entries checked, one bad
  * value would otherwise drop the whole list without a word.
  */
@@ -107,6 +106,7 @@ function entrySchema(subFields: DynamicField[] = []): z.ZodType {
   for (const sf of subFields) {
     if (sf.type === "number") shape[sf.key] = entryNumber;
     else if (sf.type === "object_array") shape[sf.key] = listOf(z.array(entrySchema(sf.subFields)));
+    if (sf.hasCustomSuffix) shape[`${sf.key}_suffix`] = customSuffix;
   }
   return z.looseObject(shape);
 }
@@ -155,7 +155,7 @@ export function buildDynamicZodSchema(
     shape[f.key] = fieldSchema;
 
     if (f.hasCustomSuffix) {
-      shape[`${f.key}_suffix`] = z.string().optional();
+      shape[`${f.key}_suffix`] = customSuffix;
     }
   });
   return baseSchema.extend(shape);

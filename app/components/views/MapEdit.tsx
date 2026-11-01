@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
-import { useForm, Controller, type FieldError } from "react-hook-form";
+import { FormProvider, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { MapSchema, type Map } from "~/schemas/map";
@@ -15,9 +15,10 @@ import { FormField } from "~/components/FormField";
 import { useData } from "~/lib/use-data";
 import { useToast } from "~/components/ToastProvider";
 import { EmptyState } from "~/components/ui/EmptyState";
-import { DynamicSelectField } from "~/components/DynamicSelectField";
 import { UnknownKeysNotice } from "~/components/UnknownKeysNotice";
-import { unknownKeys } from "~/lib/unknown-keys";
+import { keepUnknownKeys, unknownKeys } from "~/lib/unknown-keys";
+import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
+import type { ImageEntry } from "~/components/MultiImageUploadField";
 
 export default function EditMap() {
   const { game, "*": splat } = useParams();
@@ -37,38 +38,38 @@ export default function EditMap() {
     const mapSchemas = schemas.filter(s => s && s.category === "map");
     const allFields: DynamicField[] = [];
     for (const s of mapSchemas) {
-      if (s.fields) allFields.push(...s.fields);
+      // Every map schema's fields, each key once (the form has one input per key).
+      for (const f of s.fields ?? []) if (!allFields.some((g) => g.key === f.key)) allFields.push(f);
     }
     return { fields: allFields, schemaCount: mapSchemas.length, game: game! };
   }, [game], "MapEdit-30");
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // DynamicFieldsRenderer's ability pictures; map schemas have no ability lists today.
+  const [abilityIcons, setAbilityIcons] = useState<Record<string, ImageEntry[]>>({});
 
   const dynamicZodSchema = useMemo(() => {
     if (!schemaData) return MapSchema;
     return mapRecordSchema(schemaData.fields);
   }, [schemaData]);
 
+  const methods = useForm({
+    resolver: zodResolver(dynamicZodSchema),
+    mode: "onChange",
+  });
   const {
     register,
     handleSubmit,
     control,
     reset,
     formState: { errors, isValid }
-  } = useForm({
-    resolver: zodResolver(dynamicZodSchema),
-    mode: "onChange",
-  });
+  } = methods;
 
   useEffect(() => {
-    if (fileData?.content) {
-      const defaultValues = { ...fileData.content };
-      if (defaultValues.game_modes && Array.isArray(defaultValues.game_modes)) {
-        (defaultValues as Record<string, unknown>).game_modes = defaultValues.game_modes.join(", ");
-      }
-      reset(defaultValues);
-    }
+    // The legacy game_modes list has no input, so it stays the list it was
+    // (as text it failed the form's own check, and the map couldn't be saved).
+    if (fileData?.content) reset({ ...fileData.content });
   }, [fileData, reset]);
 
   const onSubmit = async (formData: Record<string, unknown>) => {
@@ -76,13 +77,12 @@ export default function EditMap() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const parsed = dynamicZodSchema.parse({
-        ...formData,
-        game_modes: (formData.game_modes as string || "").split(",").map((s: string) => s.trim()).filter(Boolean),
-      });
+      const parsed = dynamicZodSchema.parse(formData);
 
+      // The map's keys stay in the stored file's order, and the form's cleared ones stay out.
+      const saved = keepUnknownKeys(fileData.content as Record<string, unknown>, parsed, dynamicZodSchema);
       try {
-        await updateFile(`data/${game}/maps/${id}.json`, parsed, fileData.sha, `Update map: ${parsed.name}`);
+        await updateFile(`data/${game}/maps/${id}.json`, saved, fileData.sha, `Update map: ${parsed.name}`);
         toastSuccess(`Map ${parsed.name} updated successfully!`);
       } catch (err) {
         if (isConflictError(err)) {
@@ -176,6 +176,7 @@ export default function EditMap() {
             <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200 mb-4">{submitError}</div>
           )}
           <UnknownKeysNotice keys={unknownKeys(m, dynamicZodSchema)} rawEditor={`/${game}/raw/maps/${id}`} className="mb-4" />
+          <FormProvider {...methods}>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {/* Top Actions */}
             <div className="flex justify-between items-center border-b border-border pb-4 mb-4">
@@ -195,44 +196,20 @@ export default function EditMap() {
               helperText={errors.name?.message as string}
             />
 
-            {schemaData.fields.map((f) => {
-              if (f.key === "name" || f.key === "id") return null;
-              
-              if (f.type === "enum" || f.type === "list") {
-                return (
-                  <Controller
-                    key={f.key}
-                    name={f.key}
-                    control={control}
-                    render={({ field }) => (
-                      <DynamicSelectField 
-                        label={f.label}
-                        options={f.options || []}
-                        multiple={f.type === "list"}
-                        required={f.required}
-                        error={!!(errors as Record<string, FieldError>)[f.key]}
-                        helperText={(errors as Record<string, FieldError>)[f.key]?.message as string}
-                        currentValue={field.value}
-                        {...field}
-                        value={field.value as string | string[] | undefined}
-                      />
-                    )}
-                  />
-                );
-              }
-              return (
-                <FormField 
-                  key={f.key}
-                  label={f.label} 
-                  required={f.required} 
-                  type={f.type === "number" ? "number" : "text"} 
-                  {...register(f.key)}
-                  error={!!(errors as Record<string, FieldError>)[f.key]}
-                  helperText={(errors as Record<string, FieldError>)[f.key]?.message as string}
-                />
-              );
-            })}
-            
+            {/* The schema's fields as every record form shows them: global enums, object lists, suffixes. */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <DynamicFieldsRenderer
+                fields={schemaData.fields}
+                game={game!}
+                abilityIcons={abilityIcons}
+                setAbilityIcons={setAbilityIcons}
+                control={control}
+                register={register}
+                errors={errors}
+                skipFields={["id", "name"]}
+              />
+            </div>
+
             <div className="pt-4 flex items-center justify-between">
               <Button type="button" variant="ghost" onClick={() => navigate(`/${game}/maps`)}>Cancel</Button>
               <Button type="submit" disabled={submitting || !isValid} className="shadow-lg w-full sm:w-auto">
@@ -240,6 +217,7 @@ export default function EditMap() {
               </Button>
             </div>
           </form>
+          </FormProvider>
 
           <div className="mt-8 pt-6 border-t border-border">
             <Button 

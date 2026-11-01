@@ -243,3 +243,17 @@ export const needsCategories = (path: string) => /^data\/[^/]+\/schemas\/[^/]+\.
 export function referenceEndpoints(categories: readonly Pick<Category, "folder">[]): string[] {
   return categories.map((c) => `/api/{game}/${c.folder}`);
 }
+
+const ENUM_ENDPOINT = /^\/api\/([^/]+)\/enums\/[^/]+$/;
+
+/**
+ * Whether a reference picker in `game` may load its options from `endpoint`: a
+ * category folder of the game (referenceEndpoints), or one of the game's enums.
+ * An enum may be named by "{game}" (sub-fields) or by the game itself, which
+ * is how the record forms name a top-level field's global enum.
+ */
+export function isLoadableReference(endpoint: string, categories: readonly Pick<Category, "folder">[], game: string | undefined): boolean {
+  if (referenceEndpoints(categories).includes(endpoint)) return true;
+  const enumGame = ENUM_ENDPOINT.exec(endpoint)?.[1];
+  return enumGame === "{game}" || (enumGame !== undefined && game !== undefined && enumGame === game);
+}

@@ -27,12 +27,14 @@ import { createFile, getFile, listDirectory } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { clearDataCache, useData } from "~/lib/use-data";
 import { referenceEndpoints } from "~/lib/categories";
+import { SubFieldReference } from "~/components/views/DynamicSchemaEdit";
 import { useCategories } from "~/lib/categories-context";
 import {
   DynamicSchemaFileSchema,
   type DynamicField,
   type DynamicSchemaFile,
 } from "~/schemas/dynamic-schema";
+import { slugify } from "~/lib/slug";
 
 export default function DynamicSchemaNew() {
   const categories = useCategories();
@@ -429,10 +431,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
       return;
     }
 
-    const generatedId = `${category}-${name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "")}`;
+    const generatedId = `${category}-${slugify(name)}`;
 
     // Clean up options before saving
     const cleanedFields = fields.map((f) => {
@@ -789,6 +788,8 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                             <option value="object_array">
                               Object Group (Nested List)
                             </option>
+                            <option value="reference">Reference (Single Select)</option>
+                            <option value="reference_list">Reference List (Multiple Select)</option>
                           </select>
                         </div>
                       </div>
@@ -1160,6 +1161,8 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                         <option value="list">
                                           List (Multiple Select / Enum)
                                         </option>
+                                        <option value="reference">Reference (Single Select)</option>
+                                        <option value="reference_list">Reference List (Multiple Select)</option>
                                       </select>
                                       <button
                                         type="button"
@@ -1237,6 +1240,14 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                           </div>
                                         )}
                                       </div>
+                                    )}
+
+                                    {(subField.type === "reference" || subField.type === "reference_list") && (
+                                      <SubFieldReference
+                                        subField={subField}
+                                        referenceOptions={referenceEndpoints(categories)}
+                                        onChange={(key, value) => handleChangeSubField(index, sIndex, key, value)}
+                                      />
                                     )}
                                   </div>
                                 ))}

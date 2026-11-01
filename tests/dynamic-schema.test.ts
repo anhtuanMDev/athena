@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import { z } from "zod";
 
 import { buildDynamicZodSchema, type DynamicField } from "../app/schemas/dynamic-schema";
+import * as schemaUtils from "../app/lib/schema-utils";
 
 const fixture = (path: string) => JSON.parse(readFileSync(new URL(`./fixtures/overwatch/${path}`, import.meta.url), "utf8"));
 const base = z.object({ id: z.string() });
@@ -86,5 +87,47 @@ describe("list entries", () => {
     assert.deepEqual(buildDynamicZodSchema(optional, base).parse({ id: "x", tips: [{}] }).tips, [{}]);
     const required: DynamicField[] = [{ ...optional[0], required: true }];
     assert.equal(buildDynamicZodSchema(required, base).safeParse({ id: "x", tips: [] }).success, false);
+  });
+});
+
+describe("custom suffixes (F3)", () => {
+  // A record's own unit for a field with hasCustomSuffix: "<key>_suffix", next to
+  // "<key>" in the same object (the record, a list entry, or an ability's params).
+  const fields: DynamicField[] = [
+    { key: "range", label: "Range", type: "number", required: false, hasCustomSuffix: true },
+    { key: "stats", label: "Stats", type: "object_array", required: false, subFields: [{ key: "value", label: "Value", type: "number", required: false, hasCustomSuffix: true }] },
+    { key: "abilities", label: "Abilities", type: "abilities", required: false, subFields: [{ key: "cooldown", label: "Cooldown", type: "number", required: false, hasCustomSuffix: true }] },
+  ];
+  const save = (record: Record<string, unknown>) => JSON.parse(JSON.stringify(buildDynamicZodSchema(fields, base).parse({ id: "x", ...record })));
+
+  it("are saved trimmed, at every level", () => {
+    const saved = save({
+      range: 40,
+      range_suffix: " m ",
+      stats: [{ value: "5", value_suffix: "%" }],
+      abilities: [{ id: "a", name: "A", type: "Ability", params: { cooldown: 8, cooldown_suffix: " s" } }],
+    });
+    assert.equal(saved.range_suffix, "m");
+    assert.deepEqual(saved.stats, [{ value: 5, value_suffix: "%" }]);
+    assert.deepEqual(saved.abilities[0].params, { cooldown: 8, cooldown_suffix: "s" });
+  });
+
+  it("are left out when empty, so the field's unit shows", () => {
+    const saved = save({
+      range: 40,
+      range_suffix: "  ",
+      stats: [{ value: 2, value_suffix: "" }],
+      abilities: [{ id: "a", name: "A", type: "Ability", params: { cooldown: 3, cooldown_suffix: "   " } }],
+    });
+    assert.ok(!("range_suffix" in saved));
+    assert.deepEqual(saved.stats, [{ value: 2 }]);
+    assert.deepEqual(saved.abilities[0].params, { cooldown: 3 });
+  });
+});
+
+describe("lists without options", () => {
+  it("are typed one value per line", () => {
+    assert.deepEqual(schemaUtils.linesToList(" Tank \n\nDamage\n  \nSupport"), ["Tank", "Damage", "Support"]);
+    assert.deepEqual(schemaUtils.linesToList(""), []);
   });
 });

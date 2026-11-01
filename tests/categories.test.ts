@@ -15,6 +15,7 @@ import {
   readCategories,
   type Category,
 } from "../app/lib/categories";
+import * as categoriesLib from "../app/lib/categories";
 import { versionKeysToBump } from "../app/lib/github-webhook";
 import type { DataRepo, FileChange } from "../app/lib/importer/repo";
 import { publishDraft, recordFolder } from "../app/lib/importer/run";
@@ -331,5 +332,32 @@ describe("GET /mobile/data", () => {
     for (const entity of ["schemas", "cron_jobs", "_meta", "..%2Fx"]) assert.equal((await get(entity)).status, 400, entity);
     assert.deepEqual(github, []);
     assert.deepEqual(kvReads, []);
+  });
+});
+
+describe("reference pickers", () => {
+  // EntityReferenceField loads options only from these; DynamicFieldsRenderer
+  // names a top-level field's global enum with the game itself.
+  const loadable = (endpoint: string, game: string | undefined = "overwatch") => categoriesLib.isLoadableReference(endpoint, DEFAULT_CATEGORIES, game);
+
+  it("load a category of the game, or an enum of the game, by placeholder or by the game's own name", () => {
+    assert.ok(loadable("/api/{game}/heroes"));
+    assert.ok(loadable("/api/{game}/patches"));
+    assert.ok(loadable("/api/{game}/enums/map-types"));
+    assert.ok(loadable("/api/overwatch/enums/map-types"));
+  });
+
+  it("refuse everything else, as before", () => {
+    assert.ok(!loadable("/api/marvel-rivals/enums/map-types"));
+    // Without a game, only the placeholder names one (a default parameter would hide undefined here).
+    assert.ok(!categoriesLib.isLoadableReference("/api/overwatch/enums/map-types", DEFAULT_CATEGORIES, undefined));
+    assert.ok(!loadable("/api/overwatch/heroes"));
+    assert.ok(!loadable("/api/heroes"));
+    assert.ok(!loadable("/api/{game}/events"));
+    assert.ok(!loadable("/api/{game}/schemas"));
+    assert.ok(!loadable("/api/{game}/enums/a/b"));
+    assert.ok(!loadable("/api/{game}/enums/"));
+    assert.ok(!loadable("/api/overwatch/enums/"));
+    assert.ok(!loadable(""));
   });
 });

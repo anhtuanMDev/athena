@@ -1,4 +1,5 @@
-import React, { forwardRef, useId } from "react";
+import React, { forwardRef, useEffect, useId, useState } from "react";
+import { linesToList } from "~/lib/schema-utils";
 
 interface DynamicSelectFieldProps extends Omit<React.InputHTMLAttributes<HTMLSelectElement | HTMLInputElement>, 'size' | 'value'> {
   name: string;
@@ -10,6 +11,52 @@ interface DynamicSelectFieldProps extends Omit<React.InputHTMLAttributes<HTMLSel
   error?: boolean;
   helperText?: string;
   value?: string | number | readonly string[] | unknown;
+}
+
+/**
+ * A list field without options: its values typed one per line. The text is kept
+ * as typed, so a new line can be started; the list it stands for is what's saved.
+ */
+function FreeListInput({
+  id,
+  name,
+  values,
+  error,
+  describedBy,
+  onChange,
+  onBlur,
+}: {
+  id: string;
+  name: string;
+  values: string[];
+  error?: boolean;
+  describedBy?: string;
+  onChange?: (values: string[]) => void;
+  onBlur?: React.FocusEventHandler<HTMLTextAreaElement>;
+}) {
+  const [text, setText] = useState(values.join("\n"));
+  // A reset of the form (a record loading) replaces the text; typing doesn't.
+  const joined = values.join("\n");
+  useEffect(() => {
+    if (linesToList(text).join("\n") !== joined) setText(joined);
+  }, [joined]);
+  return (
+    <textarea
+      id={id}
+      name={name}
+      rows={Math.min(Math.max(values.length + 1, 3), 8)}
+      value={text}
+      placeholder="One value per line"
+      aria-invalid={error || undefined}
+      aria-describedby={describedBy}
+      onChange={(e) => {
+        setText(e.target.value);
+        onChange?.(linesToList(e.target.value));
+      }}
+      onBlur={onBlur}
+      className={`mt-1 block w-full rounded-md border ${error ? "border-red-500" : "border-border-strong"} bg-surface px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
+    />
+  );
 }
 
 export const DynamicSelectField = forwardRef<HTMLInputElement & HTMLSelectElement, DynamicSelectFieldProps>(
@@ -25,16 +72,27 @@ export const DynamicSelectField = forwardRef<HTMLInputElement & HTMLSelectElemen
     
     return (
       <div>
-        <label id={labelId} htmlFor={multiple ? undefined : fieldId} className={`block text-sm font-medium ${error ? 'text-red-500' : 'text-ink'}`}>
+        <label id={labelId} htmlFor={multiple && options.length > 0 ? undefined : fieldId} className={`block text-sm font-medium ${error ? 'text-red-500' : 'text-ink'}`}>
           {label}
           {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
         </label>
-        {hasInvalidOldData && (
+        {hasInvalidOldData && options.length > 0 && (
           <p className="text-xs text-orange-500 dark:text-orange-400 mt-1 mb-1">
             Warning: Old data contained "{valArray.join(", ")}" which is no longer valid. Please select a new option.
           </p>
         )}
-        {multiple ? (
+        {multiple && options.length === 0 ? (
+          // Nothing to tick: the schema gives this list no options, so its values are typed.
+          <FreeListInput
+            id={fieldId}
+            name={name}
+            values={valArray.map(String)}
+            error={error}
+            describedBy={error && helperText ? helpId : undefined}
+            onChange={props.onChange as ((values: string[]) => void) | undefined}
+            onBlur={props.onBlur as React.FocusEventHandler<HTMLTextAreaElement> | undefined}
+          />
+        ) : multiple ? (
           <div role="group" aria-labelledby={labelId} className="mt-2 space-y-2">
             {options.map((opt) => (
               <label key={opt} className="inline-flex items-center mr-4">

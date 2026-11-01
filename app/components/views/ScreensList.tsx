@@ -7,11 +7,12 @@ import { Button } from "~/components/ui/button";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { inputBaseClass, inputClass } from "~/components/layout-editor/PropControl";
 import { createFile, deleteFile, getFile, isConflictError, listDirectory, updateFile } from "~/lib/github";
-import { LIMITS, validateNavigationFile } from "~/lib/screen-policy";
+import { APP_POLICY, MANIFEST_PATH, appPolicy, validateNavigationFile } from "~/lib/screen-policy";
 import { useData } from "~/lib/use-data";
 import {
   SCREEN_ID,
   SCREEN_TYPES,
+  appScreenLabel,
   iconOptions,
   normalizeManifest,
   readScreen,
@@ -23,8 +24,6 @@ import {
   type ScreenType,
 } from "~/lib/screen-model";
 import { useCategories } from "~/lib/categories-context";
-
-const APP_SCREENS = [{ id: "app:settings", label: "Settings (built into the app)" }];
 
 const iconButtonClass =
   "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-40 pointer-coarse:size-11";
@@ -42,7 +41,7 @@ export default function ScreensList() {
         listDirectory<string>(game!, "screens").catch(() => []),
         getFile<NavigationFile>(navPath).catch(() => null),
         listDirectory<SchemaInfo>(game!, "schemas", true).catch(() => []),
-        getFile(`data/_meta/mobile_primitives.json`).catch(() => null),
+        getFile(MANIFEST_PATH).catch(() => null),
       ]);
       const files = await Promise.all(
         names.map(async (name) => {
@@ -56,6 +55,8 @@ export default function ScreensList() {
         navSha: navFile?.sha,
         schemas: schemas.filter((s) => s && typeof s === "object" && s.category),
         icons: iconOptions(normalizeManifest(manifestFile?.content)),
+        // The app's tab and screen limits, and the screens it provides itself.
+        policy: appPolicy(manifestFile?.content),
       };
     },
     [game],
@@ -82,7 +83,7 @@ export default function ScreensList() {
   const screenIds = useMemo(() => (data?.screens ?? []).map((s) => s.id), [data]);
   const screenTypes = useMemo(() => Object.fromEntries((data?.screens ?? []).map((s) => [s.id, s.screen.type])), [data]);
   const tabsDirty = JSON.stringify(tabs) !== savedTabs;
-  const tabErrors = useMemo(() => validateNavigationFile({ tabs }, screenTypes), [tabs, screenTypes]);
+  const tabErrors = useMemo(() => validateNavigationFile({ tabs }, screenTypes, data?.policy ?? APP_POLICY), [tabs, screenTypes, data]);
 
   /** Where a screen is opened from: tabs, and actions or tiles on other screens. */
   const referencesTo = (id: string): string[] => {
@@ -124,8 +125,12 @@ export default function ScreensList() {
     }
   };
 
+  // The app shows this many screens of a game and leaves out the rest (zms normalizeScreens).
+  const screenLimit = data.policy.limits.screensPerGame;
+  const screenRoom = screenLimit - data.screens.length;
+
   const createScreen = async () => {
-    if (!newScreen) return;
+    if (!newScreen || screenRoom < 1) return;
     const id = newScreen.id.trim();
     if (!SCREEN_ID.test(id)) {
       toastError("Use lowercase letters, numbers and dashes for the screen id, e.g. hero-detail.");
@@ -158,6 +163,10 @@ export default function ScreensList() {
     const starters = starterScreens(schema, categories).filter((s) => !screenIds.includes(s.id));
     if (starters.length === 0) {
       toastError("Those screens already exist.");
+      return;
+    }
+    if (starters.length > screenRoom) {
+      toastError(`The app shows ${screenLimit} screens per game at most: delete ${starters.length - Math.max(screenRoom, 0)} to make room for these.`);
       return;
     }
     setCreating(true);
@@ -193,7 +202,7 @@ export default function ScreensList() {
   const patchTab = (i: number, patch: Partial<NavTab>) => setTabs((prev) => prev.map((t, j) => (j === i ? { ...t, ...patch } : t)));
   // A detail screen shows one entry picked from a list, so it can't open from a tab.
   const tabScreens = data.screens.filter((s) => s.screen.type !== "detail");
-  const tabTargets = [...tabScreens.map((s) => ({ id: s.id, label: s.id })), ...APP_SCREENS];
+  const tabTargets = [...tabScreens.map((s) => ({ id: s.id, label: s.id })), ...data.policy.appScreens.map((id) => ({ id, label: appScreenLabel(id) }))];
   const unlistedTarget = (screen: string) =>
     !screen ? "Choose a screen…" : `${screen} (${screenTypes[screen] === "detail" ? "detail screen" : "missing"})`;
   /** A new tab opens the next screen without one, named after it, ahead of a trailing built-in tab such as Settings. */
@@ -218,11 +227,19 @@ export default function ScreensList() {
             data; nothing appears in the app until a screen uses it.
           </p>
         </div>
-        <Button type="button" className="shrink-0 whitespace-nowrap" onClick={() => setNewScreen({ id: "", type: "list", title: "", category: "" })}>
+        <Button type="button" className="shrink-0 whitespace-nowrap" disabled={screenRoom < 1} onClick={() => setNewScreen({ id: "", type: "list", title: "", category: "" })}>
           <Plus aria-hidden="true" className="mr-1.5 size-4" />
           New screen
         </Button>
       </header>
+
+      {screenRoom < 1 && (
+        <p role="note" className={`rounded-xl border p-4 text-sm ${screenRoom < 0 ? "border-danger/40 bg-danger/5 text-danger-ink" : "border-border bg-surface-raised text-ink"}`}>
+          {screenRoom < 0
+            ? `The app shows ${screenLimit} screens per game at most, and this game has ${data.screens.length}: it leaves out ${-screenRoom}. Delete the screens you don't need.`
+            : `This game has ${screenLimit} screens, the most the app shows. Delete one to add another.`}
+        </p>
+      )}
 
       {newScreen && (
         <section aria-labelledby="new-screen-heading" className="rounded-xl border border-border-strong bg-surface p-5">
@@ -336,13 +353,13 @@ export default function ScreensList() {
         <button
           type="button"
           onClick={addTab}
-          disabled={tabs.length >= LIMITS.tabs}
+          disabled={tabs.length >= data.policy.limits.tabs}
           className="mt-2 inline-flex items-center gap-2 rounded-lg border border-dashed border-border-strong px-3 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-40"
         >
           <Plus aria-hidden="true" className="size-4" />
           Add tab
         </button>
-        {tabs.length >= LIMITS.tabs && <p className="mt-1 text-xs text-ink-muted">The tab bar holds {LIMITS.tabs} tabs at most.</p>}
+        {tabs.length >= data.policy.limits.tabs && <p className="mt-1 text-xs text-ink-muted">The tab bar holds {data.policy.limits.tabs} tabs at most.</p>}
       </section>
 
       <section aria-labelledby="screens-heading">
@@ -410,7 +427,7 @@ export default function ScreensList() {
               </option>
             ))}
           </select>
-          <Button type="button" variant="secondary" onClick={createStarters} disabled={!starterSchema || creating}>
+          <Button type="button" variant="secondary" onClick={createStarters} disabled={!starterSchema || creating || screenRoom < 1}>
             {creating ? "Creating…" : "Create starter screens"}
           </Button>
         </div>

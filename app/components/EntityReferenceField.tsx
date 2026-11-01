@@ -1,6 +1,6 @@
 import React, { forwardRef, useId, useState, useMemo } from "react";
 import { useData } from "~/lib/use-data";
-import { referenceEndpoints } from "~/lib/categories";
+import { isLoadableReference } from "~/lib/categories";
 import { useCategories } from "~/lib/categories-context";
 import { useParams } from "react-router";
 
@@ -23,13 +23,12 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
   ({ name, label, game: propGame, referenceApiEndpoint, referenceValueKey = "id", referenceLabelKey = "name", multiple = false, required = false, currentValue, error, helperText, ...props }, ref) => {
     const { game: urlGame } = useParams();
     const game = propGame || urlGame;
-    const endpoints = referenceEndpoints(useCategories());
+    const categories = useCategories();
 
     const { data: entities, loading, error: fetchError } = useData(async () => {
       if (!referenceApiEndpoint) return [];
-      // Options come from a category of this game; any other endpoint can't be loaded.
-      const isEnum = /^\/api\/\{game\}\/enums\/[^/]+$/.test(referenceApiEndpoint);
-      if (!isEnum && !endpoints.includes(referenceApiEndpoint)) {
+      // Options come from a category or an enum of this game; any other endpoint can't be loaded.
+      if (!isLoadableReference(referenceApiEndpoint, categories, game)) {
         throw new Error(`Options come from "${referenceApiEndpoint}", which isn't a category of this game. Fix this field in the schema.`);
       }
 
@@ -83,7 +82,7 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
           name: labelValue,
         };
       });
-    }, [game, referenceApiEndpoint, referenceValueKey, referenceLabelKey, endpoints.join()], "EntityReferenceField-21");
+    }, [game, referenceApiEndpoint, referenceValueKey, referenceLabelKey, categories.map((c) => c.folder).join()], "EntityReferenceField-21");
 
     const options = (entities as {id: string, name: string}[]) || [];
     

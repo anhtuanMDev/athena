@@ -43,6 +43,7 @@ export function DynamicFieldsRenderer({
                 abilityIcons={abilityIcons}
                 setAbilityIcons={setAbilityIcons as any}
                 subFields={f.subFields || []}
+                options={f.options}
               />
             </div>
           );
@@ -140,6 +141,32 @@ export function DynamicFieldsRenderer({
           );
         }
         
+        if (f.hasCustomSuffix) {
+          // The record's own unit, saved next to the value as <key>_suffix (F3).
+          const suffixKey = `${f.key}_suffix`;
+          return (
+            <div className="flex gap-2" key={f.key}>
+              <div className="flex-1">
+                <FormField
+                  label={f.label}
+                  type={f.type === "number" ? "number" : "text"}
+                  {...register(f.key, { valueAsNumber: f.type === "number" })}
+                  error={!!errors[f.key]}
+                  helperText={errors[f.key]?.message as string}
+                />
+              </div>
+              <div className="w-1/3">
+                <FormField
+                  label="Unit/Suffix"
+                  {...register(suffixKey)}
+                  error={!!errors[suffixKey]}
+                  helperText={errors[suffixKey]?.message as string}
+                />
+              </div>
+            </div>
+          );
+        }
+
         return (
           <FormField
             key={f.key}

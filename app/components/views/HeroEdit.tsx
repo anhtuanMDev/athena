@@ -38,6 +38,7 @@ import {
 import { type Hero } from "~/schemas/hero";
 import { type GlobalEnum } from "~/schemas/enum";
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
+import { slugify } from "~/lib/slug";
 
 export default function EditHero() {
   const { game, "*": splat } = useParams();
@@ -412,10 +413,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
           // Auto-generate id from name if missing
           if (!formattedItem.id) {
             if (formattedItem.name && typeof formattedItem.name === "string") {
-              formattedItem.id = formattedItem.name
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, "-")
-                .replace(/^-+|-+$/g, "");
+              formattedItem.id = slugify(formattedItem.name);
             } else {
               formattedItem.id = Math.random().toString(36).substring(7);
             }

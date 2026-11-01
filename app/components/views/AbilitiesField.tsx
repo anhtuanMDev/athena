@@ -4,6 +4,7 @@ import { FormField } from "~/components/FormField";
 import { DynamicSelectField } from "~/components/DynamicSelectField";
 import { MultiImageUploadField } from "~/components/MultiImageUploadField";
 import type { DynamicField } from "~/schemas/dynamic-schema";
+import { slugify } from "~/lib/slug";
 
 import { EntityReferenceField } from "~/components/EntityReferenceField";
 
@@ -23,6 +24,8 @@ interface AbilitiesFieldProps {
   abilityIcons: Record<string, ImageEntry[]>;
   setAbilityIcons: (icons: Record<string, ImageEntry[]>) => void;
   subFields?: DynamicField[];
+  /** The schema's ability (or weapon) types; without them, the type is typed freely. */
+  options?: string[];
 }
 
 export function AbilitiesField({
@@ -32,6 +35,7 @@ export function AbilitiesField({
   abilityIcons,
   setAbilityIcons,
   subFields,
+  options,
 }: AbilitiesFieldProps) {
   const { control, register, setValue, getValues, formState: { errors } } = useFormContext<any>();
   const { fields, append, remove } = useFieldArray({
@@ -111,10 +115,7 @@ export function AbilitiesField({
                         register(`${name}.${i}.name` as const).onChange(e);
                         if (currentAbility._clientId) {
                           const newName = e.target.value;
-                          const generatedId = newName
-                            .toLowerCase()
-                            .replace(/[^a-z0-9]+/g, "-")
-                            .replace(/(^-|-$)/g, "");
+                          const generatedId = slugify(newName);
                           setValue(`${name}.${i}.id`, generatedId, {
                             shouldDirty: true,
                             shouldValidate: true,
@@ -124,12 +125,30 @@ export function AbilitiesField({
                       error={!!abilityErrors?.name}
                       helperText={abilityErrors?.name?.message as string}
                     />
-                    <FormField
-                      label="Type"
-                      {...register(`${name}.${i}.type` as const)}
-                      error={!!abilityErrors?.type}
-                      helperText={abilityErrors?.type?.message as string}
-                    />
+                    {options && options.length > 0 ? (
+                      // The schema lists the types (e.g. Ultimate, Ability, Weapon, Melee); the app shows the one picked.
+                      <Controller
+                        name={`${name}.${i}.type` as const}
+                        control={control}
+                        render={({ field }) => (
+                          <DynamicSelectField
+                            label="Type"
+                            options={options}
+                            currentValue={field.value}
+                            error={!!abilityErrors?.type}
+                            helperText={abilityErrors?.type?.message as string}
+                            {...field}
+                          />
+                        )}
+                      />
+                    ) : (
+                      <FormField
+                        label="Type"
+                        {...register(`${name}.${i}.type` as const)}
+                        error={!!abilityErrors?.type}
+                        helperText={abilityErrors?.type?.message as string}
+                      />
+                    )}
                   </div>
                   <FormField
                     label="Description (optional)"
@@ -227,6 +246,31 @@ export function AbilitiesField({
                                   />
                                 )}
                               />
+                            );
+                          }
+                          if (sf.hasCustomSuffix) {
+                            // The record's own unit, saved next to the value as params.<key>_suffix (F3).
+                            const suffixError = abilityErrors?.params?.[`${sf.key}_suffix`];
+                            return (
+                              <div className="flex gap-2 w-full" key={sf.key}>
+                                <div className="flex-1">
+                                  <FormField
+                                    label={sf.label}
+                                    type={sf.type === "number" ? "number" : "text"}
+                                    {...register(`${name}.${i}.params.${sf.key}`)}
+                                    error={!!paramError}
+                                    helperText={paramError?.message as string}
+                                  />
+                                </div>
+                                <div className="w-1/3">
+                                  <FormField
+                                    label="Unit/Suffix"
+                                    {...register(`${name}.${i}.params.${sf.key}_suffix`)}
+                                    error={!!suffixError}
+                                    helperText={suffixError?.message as string}
+                                  />
+                                </div>
+                              </div>
                             );
                           }
                           return (

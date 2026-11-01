@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
-import { useForm, Controller, useWatch } from "react-hook-form";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { MapSchema } from "~/schemas/map";
@@ -17,18 +17,17 @@ import { assertSafeGameSlug } from "~/lib/safe-path";
 import { FormField } from "~/components/FormField";
 import { useToast } from "~/components/ToastProvider";
 import { publishedToast, useNotifyPlayers } from "~/components/NotifyPlayers";
-import { DynamicSelectField } from "~/components/DynamicSelectField";
+import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
+import type { ImageEntry } from "~/components/MultiImageUploadField";
 
-import type { Control, UseFormSetValue, FieldValues, FieldError } from "react-hook-form";
+import type { Control, UseFormSetValue, FieldValues } from "react-hook-form";
+import { slugify } from "~/lib/slug";
 function AutoGenerateId({ control, setValue }: { control: Control<FieldValues>, setValue: UseFormSetValue<FieldValues> }) {
   const nameValue = useWatch({ control, name: "name" });
   
   useEffect(() => {
     if (nameValue && typeof nameValue === "string") {
-      const generatedId = nameValue
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
+      const generatedId = slugify(nameValue);
       setValue("id", generatedId, { shouldValidate: true, shouldDirty: true });
     }
   }, [nameValue, setValue]);
@@ -53,7 +52,8 @@ export default function NewMap() {
     const mapSchemas = schemas.filter((s) => s && s.category === "map");
     const allFields: DynamicField[] = [];
     for (const s of mapSchemas) {
-      if (s.fields) allFields.push(...s.fields);
+      // Every map schema's fields, each key once (the form has one input per key).
+      for (const f of s.fields ?? []) if (!allFields.some((g) => g.key === f.key)) allFields.push(f);
     }
     return { fields: allFields, schemaCount: mapSchemas.length, game: game! };
   }, [game], "MapNew-44");
@@ -63,41 +63,37 @@ export default function NewMap() {
   const { notify, field: notifyField } = useNotifyPlayers("map");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // DynamicFieldsRenderer's ability pictures; map schemas have no ability lists today.
+  const [abilityIcons, setAbilityIcons] = useState<Record<string, ImageEntry[]>>({});
 
   const dynamicZodSchema = useMemo(() => {
     if (!data) return MapSchema;
     return mapRecordSchema(data.fields);
   }, [data]);
 
-  const {
-    register,
-    handleSubmit,
-    control,
-    watch,
-    setValue,
-    formState: { errors, isValid },
-  } = useForm({
+  const methods = useForm({
     resolver: zodResolver(dynamicZodSchema),
     mode: "onChange",
     defaultValues: {
       game: game!,
       id: "",
       name: "",
-      game_modes: "",
     },
   });
+  const {
+    register,
+    handleSubmit,
+    control,
+    setValue,
+    formState: { errors, isValid },
+  } = methods;
 
   const onSubmit = async (formData: Record<string, unknown>) => {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const parsed = dynamicZodSchema.parse({
-        ...formData,
-        game_modes: ((formData.game_modes as string) || "")
-          .split(",")
-          .map((s: string) => s.trim())
-          .filter(Boolean),
-      });
+      // No input edits the legacy game_modes list, so a new map doesn't get one.
+      const parsed = dynamicZodSchema.parse(formData);
 
       const exists = await getFile(`data/${game}/maps/${parsed.id}.json`);
       if (exists) {
@@ -180,6 +176,7 @@ export default function NewMap() {
               {submitError}
             </div>
           )}
+          <FormProvider {...methods}>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {/* Top Actions */}
             <div className="flex justify-between items-center border-b border-border pb-4 mb-4">
@@ -214,47 +211,19 @@ export default function NewMap() {
               />
             </div>
 
-            {data.fields.map((f) => {
-              if (f.key === "name" || f.key === "id") return null;
-
-              if (f.type === "enum" || f.type === "list") {
-                return (
-                  <Controller
-                    key={f.key}
-                    name={f.key}
-                    control={control}
-                    render={({ field }) => (
-                      <DynamicSelectField
-                        label={f.label}
-                        options={f.options || []}
-                        multiple={f.type === "list"}
-                        required={f.required}
-                        error={!!(errors as Record<string, FieldError>)[f.key]}
-                        helperText={
-                          (errors as Record<string, FieldError>)[f.key]
-                            ?.message as string
-                        }
-                        {...field}
-                        value={field.value as string | string[] | undefined}
-                      />
-                    )}
-                  />
-                );
-              }
-              return (
-                <FormField
-                  key={f.key}
-                  label={f.label}
-                  required={f.required}
-                  type={f.type === "number" ? "number" : "text"}
-                  {...register(f.key)}
-                  error={!!(errors as Record<string, FieldError>)[f.key]}
-                  helperText={
-                    (errors as Record<string, FieldError>)[f.key]?.message as string
-                  }
-                />
-              );
-            })}
+            {/* The schema's fields as every record form shows them: global enums, object lists, suffixes. */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <DynamicFieldsRenderer
+                fields={data.fields}
+                game={game!}
+                abilityIcons={abilityIcons}
+                setAbilityIcons={setAbilityIcons}
+                control={control}
+                register={register}
+                errors={errors}
+                skipFields={["id", "name"]}
+              />
+            </div>
 
             <div className="pt-4 flex items-center justify-between">
               <Button
@@ -273,6 +242,7 @@ export default function NewMap() {
               </Button>
             </div>
           </form>
+          </FormProvider>
         </CardContent>
       </Card>
     </div>

@@ -37,6 +37,7 @@ import {
 } from "~/schemas/dynamic-schema";
 import { type GlobalEnum } from "~/schemas/enum";
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
+import { slugify } from "~/lib/slug";
 
 function AutoGenerateId() {
   const {
@@ -49,10 +50,7 @@ function AutoGenerateId() {
 
   useEffect(() => {
     if (nameValue && typeof nameValue === "string" && !touchedFields.id) {
-      const generatedId = nameValue
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
+      const generatedId = slugify(nameValue);
       if (idValue !== generatedId) {
         setValue("id", generatedId, {
           shouldValidate: true,
@@ -345,10 +343,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
     if (!formattedJson.id) {
       const heroName = formattedJson.name;
       if (heroName && typeof heroName === "string") {
-        formattedJson.id = heroName
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "");
+        formattedJson.id = slugify(heroName);
       }
     }
 
@@ -426,10 +421,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                 formattedItem.name &&
                 typeof formattedItem.name === "string"
               ) {
-                formattedItem.id = formattedItem.name
-                  .toLowerCase()
-                  .replace(/[^a-z0-9]+/g, "-")
-                  .replace(/^-+|-+$/g, "");
+                formattedItem.id = slugify(formattedItem.name);
               } else {
                 formattedItem.id = Math.random().toString(36).substring(7);
               }

@@ -15,12 +15,10 @@ import {
   pruneMappings,
   type JobSettings,
 } from "~/components/views/ImportJobSettings";
+import { slugify } from "~/lib/slug";
 
 const jobIdFor = (name: string) =>
-  `cron-${name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")}`;
+  `cron-${slugify(name)}`;
 
 export default function CronJobNew() {
   const { game } = useParams();

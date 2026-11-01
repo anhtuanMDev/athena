@@ -2,7 +2,7 @@ import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
 import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
 import { bumpCacheVersion, mobileVersionKeyForPath } from "../../app/lib/mobile-cache-version";
-import { dataWriteProblems } from "../../app/lib/screen-policy";
+import { APP_POLICY, dataWriteProblems, needsAppPolicy, readAppPolicy } from "../../app/lib/screen-policy";
 import { ASSET_VERSION, serveAsset } from "../../app/lib/asset-headers";
 import { checkLoginAttempts, recordLoginAttempt } from "../../app/lib/login-attempts";
 import { SESSION_TTL_SECONDS, createSessionToken, readSessionVersion, revokeSessions, verifySessionToken } from "../../app/lib/session";
@@ -354,7 +354,9 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
   // whether it sends them as JSON or as base64.
   // Notification templates may only name fields the categories' schemas have.
   const templateFields = body.path === CATEGORIES_PATH ? await schemaTemplateFields(dataReader(env)) : undefined;
-  const problems = dataWriteProblems(body.path, body.content, body.isBase64 === true, categories, templateFields);
+  // Their limits and the app's own screens come from the block manifest, as in the editors.
+  const policy = needsAppPolicy(body.path) ? await readAppPolicy((path) => dataReader(env).read(path)) : APP_POLICY;
+  const problems = dataWriteProblems(body.path, body.content, body.isBase64 === true, categories, templateFields, policy);
   if (problems.length > 0) return json({ error: `This file can't be saved: ${problems.join(" ")}` }, 400);
 
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });

@@ -14,6 +14,7 @@ import type { GlobalEnum } from "~/schemas/enum";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect } from "react";
 import { useWatch } from "react-hook-form";
+import { slugify } from "~/lib/slug";
 
 function AutoGenerateId() {
   const { control, setValue, formState: { touchedFields } } = useFormContext<GlobalEnum>();
@@ -22,10 +23,7 @@ function AutoGenerateId() {
 
   useEffect(() => {
     if (nameValue && typeof nameValue === "string" && !touchedFields.id) {
-      const generatedId = nameValue
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
+      const generatedId = slugify(nameValue);
       if (idValue !== generatedId) {
         setValue("id", generatedId, {
           shouldValidate: true,
@@ -49,10 +47,7 @@ function AutoGenerateOptionId({ index }: { index: number }) {
       typeof nameValue === "string" &&
       !touchedFields?.options?.[index]?.id
     ) {
-      const generatedId = nameValue
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
+      const generatedId = slugify(nameValue);
       if (idValue !== generatedId) {
         setValue(`options.${index}.id`, generatedId, {
           shouldValidate: true,
@@ -268,10 +263,7 @@ export default function EnumNew() {
 
       data.options.forEach((opt, idx) => {
         if (!opt.id)
-          opt.id = opt.name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, "");
+          opt.id = slugify(opt.name);
       });
 
       // Check for duplicate option IDs

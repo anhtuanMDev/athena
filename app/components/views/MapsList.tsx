@@ -7,16 +7,18 @@ import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus } from "lucide-react";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
+// Keys of the map schema (map-base-map-attributes); map_type is a map-types
+// enum id, shown as stored.
 interface MapRow {
   id: string;
   name: string;
-  game_modes?: string[];
+  map_type?: string;
   location?: string;
 }
 
 const columns: Column<MapRow>[] = [
   { key: "name", header: "Name" },
-  { key: "game_modes", header: "Game Modes", render: (m) => m.game_modes?.join(", ") ?? "" },
+  { key: "map_type", header: "Type", render: (m) => m.map_type ? <span className="capitalize">{m.map_type}</span> : "-" },
   { key: "location", header: "Location", render: (m) => m.location ?? "" },
 ];
 

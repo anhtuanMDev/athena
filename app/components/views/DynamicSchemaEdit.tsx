@@ -23,7 +23,6 @@ import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router";
 import { useToast } from "~/components/ToastProvider";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent } from "~/components/ui/card";
 import { EmptyState } from "~/components/ui/EmptyState";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import {
@@ -43,6 +42,50 @@ import {
   type DynamicSchemaFile,
 } from "~/schemas/dynamic-schema";
 
+/**
+ * Where a reference sub-field reads its options: a category of the game, the
+ * same as for top-level references (the record forms' pickers load them from there).
+ */
+export function SubFieldReference({
+  subField,
+  referenceOptions,
+  onChange,
+}: {
+  subField: DynamicField;
+  referenceOptions: string[];
+  onChange: (key: keyof DynamicField, value: string | undefined) => void;
+}) {
+  const controlClass =
+    "mt-1.5 block w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm font-normal normal-case tracking-normal text-ink focus:ring-1 focus:ring-blue-500 transition-colors";
+  const endpoint = subField.referenceApiEndpoint || "";
+  return (
+    <div className="mt-1 grid w-full gap-3 sm:grid-cols-3">
+      <label className="block text-xs font-bold uppercase tracking-wider text-ink-muted">
+        API Endpoint
+        <select value={endpoint} onChange={(e) => onChange("referenceApiEndpoint", e.target.value || undefined)} className={controlClass}>
+          <option value="" disabled>
+            Select API Endpoint
+          </option>
+          {endpoint && !referenceOptions.includes(endpoint) && <option value={endpoint}>{endpoint} (not a category)</option>}
+          {referenceOptions.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-xs font-bold uppercase tracking-wider text-ink-muted">
+        Value Key
+        <input value={subField.referenceValueKey || ""} placeholder="id" onChange={(e) => onChange("referenceValueKey", e.target.value || undefined)} className={controlClass} />
+      </label>
+      <label className="block text-xs font-bold uppercase tracking-wider text-ink-muted">
+        Label Template
+        <input value={subField.referenceLabelKey || ""} placeholder="name" onChange={(e) => onChange("referenceLabelKey", e.target.value || undefined)} className={controlClass} />
+      </label>
+    </div>
+  );
+}
+
 function SubFieldList({
   subFields,
   path,
@@ -50,6 +93,7 @@ function SubFieldList({
   onAdd,
   onRemove,
   enums,
+  referenceOptions,
 }: {
   subFields: DynamicField[];
   path: number[];
@@ -61,6 +105,8 @@ function SubFieldList({
   onAdd: (path: number[]) => void;
   onRemove: (path: number[], removeIndex: number) => void;
   enums: string[];
+  /** Where a reference sub-field may read its options (referenceEndpoints). */
+  referenceOptions: string[];
 }) {
   return (
     <div className="space-y-3">
@@ -99,10 +145,14 @@ function SubFieldList({
               <option value="enum">Enum (Single Select)</option>
               <option value="list">List (Multiple Select / Enum)</option>
               <option value="object_array">Object Group (Nested List)</option>
+              <option value="reference">Reference (Single Select)</option>
+              <option value="reference_list">Reference List (Multiple Select)</option>
             </select>
             {subField.type !== "object_array" &&
               subField.type !== "enum" &&
-              subField.type !== "list" && (
+              subField.type !== "list" &&
+              subField.type !== "reference" &&
+              subField.type !== "reference_list" && (
                 <div className="w-full sm:w-1/4 flex flex-col gap-1 justify-center">
                   <label className="flex items-center gap-1.5 text-xs text-ink-muted cursor-pointer w-max select-none">
                     <input
@@ -183,6 +233,14 @@ function SubFieldList({
             </div>
           )}
 
+          {(subField.type === "reference" || subField.type === "reference_list") && (
+            <SubFieldReference
+              subField={subField}
+              referenceOptions={referenceOptions}
+              onChange={(key, value) => onChange([...path, sIndex], key, value)}
+            />
+          )}
+
           {subField.type === "object_array" && (
             <div className="w-full mt-3 rounded-xl border border-blue-500/30 bg-blue-50/30 dark:bg-blue-900/10 p-4 shadow-sm relative overflow-hidden">
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500/50"></div>
@@ -218,6 +276,7 @@ function SubFieldList({
                     onAdd={onAdd}
                     onRemove={onRemove}
                     enums={enums}
+                    referenceOptions={referenceOptions}
                   />
                 ) : (
                   <div className="py-6 text-center border border-dashed border-blue-200 dark:border-blue-800/50 rounded-lg bg-surface">
@@ -271,12 +330,6 @@ export default function DynamicSchemaEdit() {
   );
 
   const [fields, setFields] = useState<DynamicField[] | null>(null);
-  const [cronConfig, setCronConfig] = useState({
-    apiResponseDefinition: "",
-    apiPayloadDefinition: "",
-    dataHandling: "",
-    finalResultDestination: "",
-  });
   const [submitting, setSubmitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
   const [exportCopied, setExportCopied] = useState(false);
@@ -354,9 +407,7 @@ export default function DynamicSchemaEdit() {
                 ? "News Article"
                 : category === "item"
                 ? "Item"
-                : category === "event"
-                  ? "Event"
-                  : "Entity";
+                : "Entity";
 
     let categoryHint = "";
     if (category === "hero")
@@ -377,9 +428,6 @@ export default function DynamicSchemaEdit() {
     else if (category === "item")
       categoryHint =
         "Think about cost, tier, effects, stat bonuses, and descriptions.";
-    else if (category === "event")
-      categoryHint =
-        "Think about start/end dates, event type, rewards, and related game modes.";
 
     const apiOptionsString = referenceOptions.map((endpoint) => `"${endpoint}"`).join(", ");
 
@@ -568,17 +616,6 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
   useEffect(() => {
     if (loaderData && fields === null) {
       setFields(loaderData.schema.fields || []);
-      if (loaderData.schema.cronConfig) {
-        setCronConfig({
-          apiResponseDefinition:
-            loaderData.schema.cronConfig.apiResponseDefinition || "",
-          apiPayloadDefinition:
-            loaderData.schema.cronConfig.apiPayloadDefinition || "",
-          dataHandling: loaderData.schema.cronConfig.dataHandling || "",
-          finalResultDestination:
-            loaderData.schema.cronConfig.finalResultDestination || "",
-        });
-      }
     }
   }, [loaderData, fields]);
 
@@ -832,11 +869,8 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
       return newF;
     });
 
-    const updatedSchema = {
-      ...loaderData.schema,
-      fields: loaderData.schema.category === "cron_job" ? [] : cleanedFields,
-      ...(loaderData.schema.category === "cron_job" ? { cronConfig } : {}),
-    };
+    // A legacy cron_job schema's cronConfig isn't edited here; keepUnknownKeys keeps it.
+    const updatedSchema = { ...loaderData.schema, fields: cleanedFields };
 
     const parsed = DynamicSchemaFileSchema.safeParse(updatedSchema);
     if (!parsed.success) {
@@ -1048,100 +1082,6 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
           </div>
         )}
 
-        {/* Conditionally Render Fields or Cron Config */}
-        {loaderData.schema.category === "cron_job" ? (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-border pb-4">
-              <h2 className="text-xl font-bold text-ink tracking-tight">
-                Cron Job Configuration
-              </h2>
-            </div>
-            <Card className="border-orange-500/20 shadow-sm">
-              <CardContent className="p-6 md:p-8 space-y-6">
-                <div>
-                  <label className="block text-sm font-bold text-ink mb-2">
-                    API Response Definition
-                  </label>
-                  <p className="text-xs text-ink-muted mb-2">
-                    Define how the API responds (e.g. JSON structure, expected
-                    fields).
-                  </p>
-                  <textarea aria-label="API Response Definition"
-                    value={cronConfig.apiResponseDefinition}
-                    onChange={(e) =>
-                      setCronConfig({
-                        ...cronConfig,
-                        apiResponseDefinition: e.target.value,
-                      })
-                    }
-                    rows={4}
-                    className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-ink mb-2">
-                    API Params / Payload
-                  </label>
-                  <p className="text-xs text-ink-muted mb-2">
-                    Define parameters or payload (enum, current/custom time,
-                    required params, or call another API with params).
-                  </p>
-                  <textarea aria-label="API Params / Payload"
-                    value={cronConfig.apiPayloadDefinition}
-                    onChange={(e) =>
-                      setCronConfig({
-                        ...cronConfig,
-                        apiPayloadDefinition: e.target.value,
-                      })
-                    }
-                    rows={4}
-                    className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-ink mb-2">
-                    Data Handling
-                  </label>
-                  <p className="text-xs text-ink-muted mb-2">
-                    How we handle the API response (convert, add, extract,
-                    filter, mapping).
-                  </p>
-                  <textarea aria-label="Data Handling"
-                    value={cronConfig.dataHandling}
-                    onChange={(e) =>
-                      setCronConfig({
-                        ...cronConfig,
-                        dataHandling: e.target.value,
-                      })
-                    }
-                    rows={4}
-                    className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-ink mb-2">
-                    Final Result Destination
-                  </label>
-                  <p className="text-xs text-ink-muted mb-2">
-                    Select other schema to know the structure to insert new data
-                    or calling another cron job.
-                  </p>
-                  <textarea aria-label="Final Result Destination"
-                    value={cronConfig.finalResultDestination}
-                    onChange={(e) =>
-                      setCronConfig({
-                        ...cronConfig,
-                        finalResultDestination: e.target.value,
-                      })
-                    }
-                    rows={4}
-                    className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        ) : (
           <div className="space-y-6">
             <div className="flex items-center justify-between border-b border-border pb-4">
               <h2 className="text-xl font-bold text-ink tracking-tight">
@@ -1668,6 +1608,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                 onAdd={handleAddSubFieldDeep}
                                 onRemove={handleRemoveSubFieldDeep}
                                 enums={loaderData?.enums || []}
+                                referenceOptions={referenceOptions}
                               />
                             ) : (
                               <div className="py-8 text-center border-2 border-dashed border-border rounded-xl bg-gray-50/30 dark:bg-gray-800/10">
@@ -1709,7 +1650,6 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
               </div>
             )}
           </div>
-        )}
       </form>
 
       {/* Clear All Fields Confirm Modal */}
