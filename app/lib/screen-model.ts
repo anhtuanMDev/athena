@@ -450,6 +450,41 @@ export function recordLabel(record: Record<string, unknown>): string {
 
 export const SCREEN_ID = /^[a-z0-9][a-z0-9-]*$/;
 
+// ─── A record's main fields ───────────────────────────────────────────
+
+const DATE_KEY = /(^|_)(date|at)$/;
+
+/** The field that names a record: the schema's title or name field, else the "name" every form stores. */
+export function titleField(fields: FieldOption[]): string {
+  const text = fields.filter((f) => f.type === "string");
+  return (
+    text.find((f) => f.key === "title" || f.key === "name") ??
+    text.find((f) => /_(title|name)$/.test(f.key))
+  )?.key ?? "name";
+}
+
+/** The date a record is ordered by, newest first (a patch's release_date, an article's published_at). */
+export function dateField(fields: FieldOption[]): string | undefined {
+  return fields.find((f) => f.type === "string" && DATE_KEY.test(f.key))?.key;
+}
+
+/** A short text about the record (a description, bio or summary). */
+export function summaryField(fields: FieldOption[]): string | undefined {
+  return fields.find((f) => f.type === "string" && /description|bio|summary|lore/.test(f.key))?.key;
+}
+
+/** Records for a list: newest first by their date field (undated last), else by title. */
+export function recordListOrder<T extends Record<string, unknown>>(records: T[], fields: FieldOption[]): T[] {
+  const date = dateField(fields);
+  const title = titleField(fields);
+  const text = (record: T, key: string | undefined) => (key && typeof record[key] === "string" ? (record[key] as string) : "");
+  return [...records].sort(
+    (a, b) =>
+      text(b, date).localeCompare(text(a, date)) ||
+      (text(a, title) || String(a.id)).localeCompare(text(b, title) || String(b.id), undefined, { numeric: true }),
+  );
+}
+
 /**
  * Starter screens for a category: a list (picture grid, role chips when the
  * schema has an enum) and a detail screen with the schema's main fields.

@@ -26,13 +26,12 @@ import {
 } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
+import { modeRecordSchema } from "~/lib/record-schema";
 import {
   type DynamicField,
   type DynamicSchemaFile,
-  buildDynamicZodSchema,
 } from "~/schemas/dynamic-schema";
 import { type GlobalEnum } from "~/schemas/enum";
-import { ModeSchema } from "~/schemas/mode";
 import { formatImportedJson, generateAiPromptMarkdown } from "~/lib/schema-utils";
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
 
@@ -236,7 +235,7 @@ function ModeFormInner({
 
   const dynamicZodSchema = useMemo(
     () =>
-      buildDynamicZodSchema(fields, ModeSchema, ["id", "name", "description"]),
+      modeRecordSchema(fields),
     [fields],
   );
 

@@ -1,0 +1,152 @@
+{
+  "id": "item-base-item-attributes",
+  "name": "Base Item Attributes",
+  "category": "item",
+  "fields": [
+    {
+      "key": "item_name",
+      "label": "Item Name",
+      "type": "string",
+      "required": true
+    },
+    {
+      "key": "item_slot_type",
+      "label": "Slot Type",
+      "type": "enum",
+      "required": true,
+      "options": [
+        "Weapon",
+        "Ability",
+        "Survival",
+        "Gadgets"
+      ]
+    },
+    {
+      "key": "rarity",
+      "label": "Rarity",
+      "type": "enum",
+      "required": true,
+      "options": [
+        "Common",
+        "Rare",
+        "Epic"
+      ]
+    },
+    {
+      "key": "cost",
+      "label": "Cost",
+      "type": "number",
+      "unit": "Credits",
+      "required": true
+    },
+    {
+      "key": "icon",
+      "label": "Icon Asset",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "description",
+      "label": "Flavor / Short Text",
+      "type": "string",
+      "required": false
+    },
+    {
+      "key": "applicable_heroes",
+      "label": "Available To",
+      "type": "reference_list",
+      "required": false,
+      "referenceApiEndpoint": "/api/heroes",
+      "referenceValueKey": "id",
+      "referenceLabelKey": "name"
+    },
+    {
+      "key": "stat_modifiers",
+      "label": "Stat Modifiers",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "stat_key",
+          "label": "Stat",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "value_type",
+          "label": "Value Type",
+          "type": "enum",
+          "required": true,
+          "options": [
+            "Percent",
+            "Flat"
+          ]
+        },
+        {
+          "key": "scoped_to",
+          "label": "Applies To",
+          "type": "reference",
+          "required": false,
+          "referenceApiEndpoint": "/api/hero_weapons_or_abilities",
+          "referenceValueKey": "id",
+          "referenceLabelKey": "name"
+        }
+      ]
+    },
+    {
+      "key": "proc_effects",
+      "label": "Triggered Effects",
+      "type": "object_array",
+      "required": false,
+      "subFields": [
+        {
+          "key": "trigger",
+          "label": "Trigger",
+          "type": "enum",
+          "required": true,
+          "options": [
+            "On Ability Use",
+            "On Gadget Use",
+            "On Kill",
+            "On Elimination Assist",
+            "Passive"
+          ]
+        },
+        {
+          "key": "effect_stat",
+          "label": "Effect Stat",
+          "type": "string",
+          "required": true
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "value_type",
+          "label": "Value Type",
+          "type": "enum",
+          "required": true,
+          "options": [
+            "Percent",
+            "Flat"
+          ]
+        }
+      ]
+    },
+    {
+      "key": "slot_cost",
+      "label": "Slots Consumed",
+      "type": "number",
+      "required": true
+    }
+  ]
+}

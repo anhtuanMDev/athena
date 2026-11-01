@@ -479,9 +479,15 @@ describe("reviewing drafts", () => {
     const { repo, files, commits } = memoryRepo({ ...baseRepoFiles(), [draftPath]: { record } });
     const path = await publishDraft(repo, "overwatch", "ow-patch-notes", record);
     assert.equal(path, "data/overwatch/patches/patch-2026-10-20.json");
-    assert.deepEqual(files[path], record);
+    assert.deepEqual(files[path], { ...record, schema_id: "patch-base" });
     assert.equal(files[draftPath], undefined);
     assert.equal(commits.length, 1);
+  });
+
+  it("files the record under the job's schema, whatever the draft says", async () => {
+    const { repo, files } = memoryRepo({ ...baseRepoFiles(), [draftPath]: { record } });
+    const path = await publishDraft(repo, "overwatch", "ow-patch-notes", { ...record, schema_id: "patch-other" });
+    assert.equal((files[path] as Record<string, unknown>).schema_id, "patch-base");
   });
 
   it("won't publish a record that breaks the schema or already exists", async () => {
@@ -502,6 +508,12 @@ describe("reviewing drafts", () => {
 
   it("checks types, required fields and nested entries", () => {
     assert.deepEqual(recordProblems(PATCH_FIELDS, record), []);
+    assert.deepEqual(recordProblems(PATCH_FIELDS, { ...record, schema_id: "patch-base" }), []);
+    assert.deepEqual(recordProblems(PATCH_FIELDS, { ...record, schema_id: 3 }), ["The schema id must be text."]);
+    // Only the record names a schema; its entries don't.
+    assert.deepEqual(recordProblems(PATCH_FIELDS, { ...record, general_changes: [{ description: "x", schema_id: "y" }] }), [
+      'General Changes: "schema_id" is not a field of this schema.',
+    ]);
     assert.deepEqual(
       recordProblems(PATCH_FIELDS, { ...record, title: 3, affected_modes: ["Arcade"], general_changes: [{}] }),
       ["Title must be text.", "Modes has a value that isn't one of Quick Play, Competitive Play.", "General Changes: Description is required."],

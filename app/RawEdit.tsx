@@ -1,28 +1,26 @@
 import { useNavigate, useParams } from "react-router";
 import { useState } from "react";
-import { getFile, updateFile, isConflictError } from "~/lib/github";
+import { getFile, updateFile, isConflictError, listDirectory } from "~/lib/github";
 import { computeDiff, type DiffEntry } from "~/lib/diff";
 import { DiffView } from "~/components/DiffView";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { useData } from "~/lib/use-data";
 import { assertSafeGameSlug, assertSafeEntityId, assertSafeEntityType, ENTITY_TYPES } from "~/lib/safe-path";
-import { HeroSchema } from "~/schemas/hero";
-import { MapSchema } from "~/schemas/map";
-import { ModeSchema } from "~/schemas/mode";
-import { PatchSchema } from "~/schemas/patch";
-import { ItemSchema } from "~/schemas/item";
+import { recordSchemaFor } from "~/lib/record-schema";
+import { CATEGORIES } from "~/lib/screen-model";
+import type { DynamicSchemaFile } from "~/schemas/dynamic-schema";
 import { useToast } from "~/components/ToastProvider";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { EmptyState } from "~/components/ui/EmptyState";
 
-const typeValidators: Record<string, (data: unknown) => { success: boolean }> = {
-  heroes: (d) => HeroSchema.safeParse(d),
-  maps: (d) => MapSchema.safeParse(d),
-  modes: (d) => ModeSchema.safeParse(d),
-  patches: (d) => PatchSchema.safeParse(d),
-  items: (d) => ItemSchema.safeParse(d),
-};
+/** Problems with `parsed` as a record of `type`, checked as its category's editor checks it; empty when it can be saved. */
+function recordProblems(type: string, schemas: DynamicSchemaFile[], parsed: unknown): string[] {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return ["A record must be a JSON object."];
+  const category = CATEGORIES.find((c) => c.folder === type)?.category;
+  const result = recordSchemaFor(type, schemas.filter((s) => s?.category === category), parsed as Record<string, unknown>).safeParse(parsed);
+  return result.success ? [] : result.error.issues.map((i) => `${i.path.join(".") || "record"}: ${i.message}`);
+}
 
 export default function RawEditor() {
   const { game, "*": splat } = useParams();
@@ -37,9 +35,9 @@ export default function RawEditor() {
   const path = `data/${game}/${type}/${id}.json`;
 
   const { data: loaderData, loading, error: loadError } = useData(async () => {
-    const file = await getFile(path);
+    const [file, schemas] = await Promise.all([getFile(path), listDirectory<DynamicSchemaFile>(game!, "schemas", true)]);
     if (!file) throw new Error("NOT_FOUND");
-    return { content: file.content, sha: file.sha, path, type };
+    return { content: file.content, sha: file.sha, path, type, schemas };
   }, [game, type, id], "RawEdit-37");
 
   const [step, setStep] = useState<"editor" | "preview">("editor");
@@ -60,17 +58,14 @@ export default function RawEditor() {
       return;
     }
 
-    const validator = typeValidators[type!];
-    if (validator) {
-      const result = validator(parsed);
-      if (!result.success) {
-        setError(`Validation failed for ${type}: the data doesn't match the expected schema`);
-        return;
-      }
-    }
-
     if (!loaderData) {
       setError("NOT_FOUND");
+      return;
+    }
+
+    const problems = recordProblems(type!, loaderData.schemas, parsed);
+    if (problems.length > 0) {
+      setError(`Validation failed for ${type}: ${problems.join("; ")}`);
       return;
     }
 
@@ -82,7 +77,7 @@ export default function RawEditor() {
   }
 
   async function handleCommit() {
-    if (!commitRawJson || !commitSha) return;
+    if (!commitRawJson || !commitSha || !loaderData) return;
     setError(null);
 
     let parsed: unknown;
@@ -91,14 +86,11 @@ export default function RawEditor() {
       return;
     }
 
-    const validator = typeValidators[type!];
-    if (validator) {
-      const result = validator(parsed);
-      if (!result.success) {
-        setError(`Validation failed for ${type} on commit: the data doesn't match the expected schema`);
-        toastError("Validation failed on commit!");
-        return;
-      }
+    const problems = recordProblems(type!, loaderData.schemas, parsed);
+    if (problems.length > 0) {
+      setError(`Validation failed for ${type} on commit: ${problems.join("; ")}`);
+      toastError("Validation failed on commit!");
+      return;
     }
 
     try {

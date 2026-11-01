@@ -1,0 +1,346 @@
+{
+  "id": "ana",
+  "schema_id": "hero-hero",
+  "game": "overwatch",
+  "name": "Ana Amary",
+  "real_name": "Ana Amari",
+  "difficulty": "Hard",
+  "health": 250,
+  "portrait": {
+    "2d": "/api/assets/overwatch/heroes/ana/portrait_2d.webp",
+    "3d": "/api/assets/overwatch/heroes/ana/portrait_3d.webp"
+  },
+  "kit": [],
+  "hero_name": "Ana",
+  "aliases": [
+    {
+      "alias": "Shrike"
+    },
+    {
+      "alias": "Bastet"
+    },
+    {
+      "alias": "Horus"
+    },
+    {
+      "alias": "Janina Kowalska"
+    }
+  ],
+  "status": "Active",
+  "birth_date": "January 1st",
+  "ages": [
+    {
+      "context": "Overwatch",
+      "age": "60"
+    },
+    {
+      "context": "Overwatch 2",
+      "age": "62"
+    }
+  ],
+  "role": "support",
+  "sub_role": "tactician",
+  "armor": 0,
+  "shields": 0,
+  "overhealth": 0,
+  "ultimate_cost": 2300,
+  "description": "A founding member of Overwatch and once renowned as the greatest sniper in the world, Ana Amari comes from a long line of decorated military veterans.",
+  "nationality": "Egyptian",
+  "occupation": "Sharpshooter (formerly), Overwatch second-in-command/captain (formerly), Bounty hunter",
+  "base_location": "Gothenburg, Sweden",
+  "affiliations": [
+    {
+      "affiliation": "Egyptian Army",
+      "former": true
+    },
+    {
+      "affiliation": "El-Sa'ka Forces",
+      "former": true
+    },
+    {
+      "affiliation": "Overwatch",
+      "former": false
+    }
+  ],
+  "relations": [],
+  "release_date": "",
+  "hero_number": 22,
+  "voice_actors": [],
+  "perk_level_xp": [
+    {
+      "perk_type": "Minpr",
+      "xp_required": "2025"
+    },
+    {
+      "perk_type": "Mayjor",
+      "xp_required": "5060"
+    }
+  ],
+  "passive_abilities": [
+    {
+      "id": "sub-role-tactician",
+      "name": "Sub-Role: Tactician",
+      "type": "Passive Ability",
+      "description": "Store excess ultimate charge. Tacticians can charge up to 25% of their next ultimate after reaching 100%.",
+      "params": {
+        "effect_type": "Resource",
+        "ultimate_charge_storage": 25,
+        "description": ""
+      }
+    }
+  ],
+  "weapons": [
+    {
+      "id": "biotic-rifle",
+      "name": "Biotic Rifle",
+      "type": "Weapon (Hip Fire)",
+      "description": "Long-range rifle that heals allies and damages enemies.",
+      "params": {
+        "fire_mode": "Primary",
+        "effect_type": "Projectile",
+        "damage": 75,
+        "healing": 75,
+        "headshot_enabled": false,
+        "critical_multiplier": 0,
+        "rate_of_fire": 1.25,
+        "ammo": 15,
+        "reload_time": 1.5,
+        "cast_time": 0,
+        "duration": 0.59,
+        "projectile_speed": 125,
+        "projectile_radius": 0.15,
+        "spread": 0,
+        "movement_speed_penalty": 0,
+        "armor_piercing": true,
+        "travel_time": true,
+        "cleansable": true,
+        "keybind": "",
+        "keywords": ""
+      }
+    },
+    {
+      "id": "zoom-ads",
+      "name": "Zoom (ADS)",
+      "type": "Weapon (ADS)",
+      "description": "Hold to zoom in.",
+      "params": {
+        "fire_mode": "ADS",
+        "effect_type": "Hitscan",
+        "damage": 75,
+        "healing": 75,
+        "headshot_enabled": false,
+        "critical_multiplier": 0,
+        "rate_of_fire": 1.25,
+        "ammo": 15,
+        "reload_time": 1.5,
+        "cast_time": 0.24,
+        "duration": 0.59,
+        "projectile_speed": 0,
+        "projectile_radius": 0.07,
+        "spread": 0,
+        "movement_speed_penalty": 65,
+        "armor_piercing": true,
+        "travel_time": false,
+        "cleansable": true,
+        "keybind": "",
+        "keywords": ""
+      }
+    }
+  ],
+  "abilities": [
+    {
+      "id": "sleep-dart",
+      "name": "Sleep Dart",
+      "type": "Ability",
+      "description": "Fires a dart that puts an enemy to sleep.",
+      "params": {
+        "cooldown": 14,
+        "effect_type": "Projectile",
+        "damage": 5,
+        "healing": 0,
+        "duration": 5,
+        "radius": 0,
+        "max_range": 0,
+        "cast_time": 0.99,
+        "projectile_speed": 60,
+        "projectile_radius": 0.2,
+        "damage_amplification": 0,
+        "damage_reduction": 0,
+        "healing_amplification": 0,
+        "healing_reduction": 0,
+        "movement_speed_modifier": 0,
+        "sleep_duration": 5,
+        "tank_duration": 3.5,
+        "cleansable": true,
+        "area_of_effect": false,
+        "keybind": "",
+        "keywords": true,
+        "is_removed": false,
+        "removed_patch_date": ""
+      }
+    },
+    {
+      "id": "biotic-grenade",
+      "name": "Biotic Grenade",
+      "type": "Ability",
+      "description": "Throws a grenade that heals and increases healing on allies, while damaging and preventing healing on enemies.",
+      "params": {
+        "cooldown": 12,
+        "effect_type": "Area",
+        "damage": 75,
+        "healing": 75,
+        "duration": 3,
+        "radius": 4,
+        "max_range": 0,
+        "cast_time": 0.69,
+        "projectile_speed": 30,
+        "projectile_radius": 0.275,
+        "damage_amplification": 0,
+        "damage_reduction": 0,
+        "healing_amplification": 50,
+        "healing_reduction": 100,
+        "movement_speed_modifier": 0,
+        "sleep_duration": 0,
+        "tank_duration": 0,
+        "cleansable": true,
+        "area_of_effect": true,
+        "keybind": "",
+        "keywords": true,
+        "is_removed": false,
+        "removed_patch_date": ""
+      }
+    }
+  ],
+  "ultimate_ability": [
+    {
+      "id": "nano-boost",
+      "name": "Nano Boost",
+      "type": "Ultimate Ability",
+      "description": "After Ana hits one of her allies with a combat boost, they deal more damage, take less damage from enemies' attacks.",
+      "params": {
+        "ultimate_cost": 2300,
+        "healing": 250,
+        "damage_amplification": 50,
+        "damage_reduction": 50,
+        "duration": 8,
+        "max_range": 40,
+        "cast_time": 0.128,
+        "keybind": "",
+        "keywords": true
+      }
+    }
+  ],
+  "minor_perks": [
+    {
+      "id": "groggy",
+      "name": "Groggy",
+      "type": "Minor Perk",
+      "description": "Enemies waking up from Sleep Dart are slowed and take damage for 2 seconds.",
+      "params": {
+        "unlock_level": 2,
+        "damage": 50,
+        "duration": 2,
+        "movement_speed_modifier": 0,
+        "movement_slow": 50,
+        "is_removed": false,
+        "removed_patch_date": ""
+      }
+    },
+    {
+      "id": "speed-serum",
+      "name": "Speed Serum",
+      "type": "Minor Perk",
+      "description": "Nano Boost grants a movement speed boost to both Ana and her target.",
+      "params": {
+        "unlock_level": 2,
+        "damage": 0,
+        "duration": 0,
+        "movement_speed_modifier": 30,
+        "movement_slow": 0,
+        "is_removed": false,
+        "removed_patch_date": ""
+      }
+    }
+  ],
+  "major_perks": [
+    {
+      "id": "headhunter",
+      "name": "Headhunter",
+      "type": "Major Perk",
+      "description": "Biotic Rifle can crit enemies.",
+      "params": {
+        "unlock_level": 3,
+        "damage": 0,
+        "healing": 0,
+        "critical_multiplier": 2,
+        "secondary_trigger": "",
+        "is_removed": false,
+        "removed_patch_date": ""
+      }
+    },
+    {
+      "id": "biotic-bounce",
+      "name": "Biotic Bounce",
+      "type": "Major Perk",
+      "description": "After exploding, Biotic Grenade bounces and explodes again for damage and healing.",
+      "params": {
+        "unlock_level": 3,
+        "damage": 60,
+        "healing": 60,
+        "critical_multiplier": 0,
+        "secondary_trigger": "",
+        "is_removed": false,
+        "removed_patch_date": ""
+      }
+    }
+  ],
+  "hero_settings": [
+    {
+      "setting_name": "Recoil recovery aim compensation",
+      "setting_type": "Toggle",
+      "default_value": "On",
+      "description": "Stops the recoil's downward pulling return motion if the player applies enough vertical crosshair movement after the shot.",
+      "options": ""
+    },
+    {
+      "setting_name": "Toggle zoom",
+      "setting_type": "Toggle",
+      "default_value": "Off",
+      "description": "Zoom deactivates when player stops holding the button (Off) or presses again (On).",
+      "options": ""
+    },
+    {
+      "setting_name": "Relative aim sensitivity while zoomed",
+      "setting_type": "Slider",
+      "default_value": "30%",
+      "description": "Multiplier to base aim sensitivity while zoomed.",
+      "options": ""
+    },
+    {
+      "setting_name": "Nano Boost requires target confirmation",
+      "setting_type": "Toggle",
+      "default_value": "Off",
+      "description": "If on, activating Nano Boost must be confirmed by pressing Primary Fire.",
+      "options": ""
+    },
+    {
+      "setting_name": "Nano Boost sensitivity",
+      "setting_type": "Slider",
+      "default_value": "100%",
+      "description": "Adjusts the targeting sensitivity of Nano Boost.",
+      "options": ""
+    }
+  ],
+  "strategy_general": [],
+  "strategy_weapons_abilities": [],
+  "match_ups": [],
+  "map_strategies": [],
+  "trivia": [],
+  "misc_character_info": [],
+  "development_history": "",
+  "balance_change_log": [],
+  "media_portraits": [],
+  "media_concept_art": [],
+  "media_videos": [],
+  "external_links": []
+}

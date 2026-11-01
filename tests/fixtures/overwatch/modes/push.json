@@ -1,0 +1,92 @@
+{
+  "id": "push",
+  "game": "overwatch",
+  "name": "Push",
+  "description": "Push is a game mode introduced in Overwatch 2 where two teams fight for control of a TS-1 robot that moves a barricade along a set track. Controlling the robot pushes the barricade toward the enemy spawn, and the team that pushes it farthest within the time limit wins, with an instant win if a barricade reaches the end of the track.",
+  "objective_type": "push",
+  "team_count": 2,
+  "team_size": 5,
+  "is_symmetric": true,
+  "shared_contested_object": true,
+  "controlled_objects": [
+    {
+      "object_name": "TS-1 Robot",
+      "uncontrolled_speed": 5,
+      "controlled_speed": 1.22,
+      "speed_affected_by_hero_count": false,
+      "requires_contest_free_zone": true
+    }
+  ],
+  "checkpoints": [
+    {
+      "checkpoint_label": "Standard Checkpoint",
+      "distance_from_start": 60,
+      "pause_duration": 8,
+      "triggers_defender_respawn": true,
+      "activates_forward_spawn": true
+    },
+    {
+      "checkpoint_label": "New Queen Street Checkpoint",
+      "distance_from_start": 60,
+      "pause_duration": 12,
+      "triggers_defender_respawn": true,
+      "activates_forward_spawn": true
+    }
+  ],
+  "respawn_mechanics": [
+    {
+      "base_respawn_time": 0,
+      "forward_spawn_enabled": true,
+      "forward_spawn_time_penalty": 2,
+      "forward_spawn_revert_condition": "Opposing team pushes the robot back to the starting point at the middle"
+    }
+  ],
+  "time_limit_standard": 8,
+  "time_limit_competitive": 10,
+  "primary_scoring_unit": "Distance",
+  "instant_win_conditions": [
+    {
+      "condition_label": "Barricade Reaches End",
+      "condition_description": "If a team manages to push the barricade all the way to the end, the match ends instantly in their victory."
+    },
+    {
+      "condition_label": "Overtime Control Lost",
+      "condition_description": "If the losing team loses control of the robot during overtime, the match immediately ends."
+    },
+    {
+      "condition_label": "Overtime Distance Overtake",
+      "condition_description": "If the losing team pushes the robot past the other team's best distance during overtime, they immediately win."
+    }
+  ],
+  "overtime_enabled": true,
+  "overtime_rules": [
+    {
+      "trigger_condition": "The team with less distance pushed is controlling or contesting the robot when the match timer expires",
+      "resolution_condition": "Match ends if the losing team loses control, or the losing team wins immediately if they push the robot past the other team's best distance",
+      "max_duration": 0
+    }
+  ],
+  "draw_possible": false,
+  "sudden_death_enabled": false,
+  "supported_playlists": [
+    "quick-play",
+    "competitive",
+    "stadium",
+    "custom-game",
+    "arcade"
+  ],
+  "role_queue_enabled": true,
+  "hero_bans_enabled": false,
+  "compatible_maps": [
+    "Colosseo",
+    "Esperança",
+    "New Queen Street",
+    "Runasapi",
+    "Place Lacroix",
+    "Redwood Dam",
+    "Serenza"
+  ],
+  "introduced_patch": "",
+  "introduced_event": "Overwatch 2",
+  "trivia": "If you say hello to the robot, he will either say \"Hello!\" or \"Greetings!\" Using Juno's Hyper Ring and Lucio's speed boost do not affect the speed of the robot."
+}

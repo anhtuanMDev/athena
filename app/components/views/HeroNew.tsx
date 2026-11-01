@@ -28,12 +28,11 @@ import {
 } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
+import { heroRecordSchema } from "~/lib/record-schema";
 import {
   type DynamicField,
   type DynamicSchemaFile,
-  buildDynamicZodSchema,
 } from "~/schemas/dynamic-schema";
-import { HeroSchema } from "~/schemas/hero";
 import { type GlobalEnum } from "~/schemas/enum";
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
 
@@ -243,12 +242,7 @@ function HeroFormInner({
 
   const dynamicZodSchema = useMemo(
     () =>
-      buildDynamicZodSchema(fields, HeroSchema, [
-        "id",
-        "name",
-        "real_name",
-        "portrait",
-      ]),
+      heroRecordSchema(fields),
     [fields],
   );
 

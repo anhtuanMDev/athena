@@ -1,32 +1,22 @@
 import { useMemo, useState } from "react";
 import { useForm, useFormContext } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { Card, CardContent } from "~/components/ui/card";
 import { FormField } from "~/components/FormField";
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
 import { type ImageEntry } from "~/components/MultiImageUploadField";
-import { buildDynamicZodSchema, type DynamicField } from "~/schemas/dynamic-schema";
+import { recordFormSchema } from "~/lib/record-schema";
+import { type DynamicField } from "~/schemas/dynamic-schema";
 
 /**
  * A record of a dynamic schema, edited in that schema's own form: its id,
- * then each field. Used where no category has a form of its own (news) and
- * for import drafts of any category.
+ * then each field. Used for the categories without a form of their own
+ * (news, patches, items) and for import drafts of any category.
  */
-
-const RECORD_ID = /^(?!.*\.\.)[a-z0-9](?:[a-z0-9.-]{0,78}[a-z0-9])?$/;
 
 /** A react-hook-form for `fields` plus an id, validated like the other entity editors. */
 export function useRecordForm(fields: DynamicField[], defaultValues: Record<string, unknown>) {
-  const schema = useMemo(
-    () =>
-      buildDynamicZodSchema(
-        fields,
-        z.object({ id: z.string().regex(RECORD_ID, "Lowercase letters, digits, dots and dashes") }),
-        ["id"],
-      ).strict(),
-    [fields],
-  );
+  const schema = useMemo(() => recordFormSchema(fields), [fields]);
   return useForm<Record<string, unknown>>({ resolver: zodResolver(schema), mode: "onChange", defaultValues });
 }
 

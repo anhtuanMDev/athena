@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { starterScreens, validateScreen, type PrimitiveManifest, type ScreenFile } from "../app/lib/screen-model";
+import { recordListOrder, starterScreens, validateScreen, type PrimitiveManifest, type ScreenFile } from "../app/lib/screen-model";
 import { validateScreenFile } from "../app/lib/screen-policy";
 
 const manifest: PrimitiveManifest = {
@@ -48,5 +48,23 @@ describe("starter screens", () => {
     for (const { file } of starterScreens({ id: "hero-hero", name: "Hero", category: "hero", fields: [{ key: "role", type: "enum" }, { key: "health", type: "number" }, { key: "abilities", type: "abilities" }] })) {
       assert.deepEqual(validateScreenFile(file), []);
     }
+  });
+});
+
+describe("record lists", () => {
+  it("put the newest first, undated ones last, then order by title", () => {
+    const fields = [
+      { key: "title", type: "string" },
+      { key: "release_date", type: "string" },
+    ];
+    const records = [
+      { id: "b", title: "Bravo" },
+      { id: "old", title: "Old", release_date: "2026-10-06" },
+      { id: "a", title: "Alpha" },
+      { id: "new", title: "New", release_date: "2026-10-20" },
+    ];
+    assert.deepEqual(recordListOrder(records, fields).map((r) => r.id), ["new", "old", "a", "b"]);
+    // Without a date field, by title, else id.
+    assert.deepEqual(recordListOrder([{ id: "z", item_name: "Alpha" }, { id: "y" }], [{ key: "item_name", type: "string" }]).map((r) => r.id), ["z", "y"]);
   });
 });

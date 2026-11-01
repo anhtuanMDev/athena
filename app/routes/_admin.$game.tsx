@@ -1,4 +1,5 @@
 import { useParams } from "react-router";
+import { Box, FileClock, Newspaper, type LucideIcon } from "lucide-react";
 import { PanelTransition } from "~/components/PanelTransition";
 
 // Heroes
@@ -17,16 +18,6 @@ import ModeEdit from "~/components/views/ModeEdit";
 import ModeNew from "~/components/views/ModeNew";
 import ModesList from "~/components/views/ModesList";
 
-// Patches
-import PatchEdit from "~/components/views/PatchEdit";
-import PatchesList from "~/components/views/PatchesList";
-import PatchNew from "~/components/views/PatchNew";
-
-// Items
-import ItemEdit from "~/components/views/ItemEdit";
-import ItemNew from "~/components/views/ItemNew";
-import ItemsList from "~/components/views/ItemsList";
-
 // Enums
 import EnumEdit from "~/components/views/EnumEdit";
 import EnumNew from "~/components/views/EnumNew";
@@ -44,13 +35,22 @@ import CronJobNew from "~/components/views/CronJobNew";
 import CronJobsList from "~/components/views/CronJobsList";
 import ImportDraftReview from "~/components/views/ImportDraftReview";
 
-// News
-import NewsEditor from "~/components/views/NewsEditor";
-import NewsList from "~/components/views/NewsList";
+// News, patches and items: records edited in their schema's own form
+import RecordEditor from "~/components/views/RecordEditor";
+import RecordList from "~/components/views/RecordList";
 
 // App screens
 import ScreenEdit from "~/components/views/ScreenEdit";
 import ScreensList from "~/components/views/ScreensList";
+
+const SCHEMA_FORMS: Record<
+  string,
+  { category: string; noun: string; icon: LucideIcon }
+> = {
+  news: { category: "news", noun: "Article", icon: Newspaper },
+  patches: { category: "patch", noun: "Patch", icon: FileClock },
+  items: { category: "item", noun: "Item", icon: Box },
+};
 
 export default function GameDashboardRouter() {
   const params = useParams();
@@ -87,23 +87,26 @@ export default function GameDashboardRouter() {
     );
   }
 
-  // Route: /:game/news
-  if (entity === "news") {
+  // Route: /:game/news, /:game/patches, /:game/items
+  const form = Object.hasOwn(SCHEMA_FORMS, entity)
+    ? SCHEMA_FORMS[entity]
+    : undefined;
+  if (form) {
     if (!idOrAction)
       return (
         <PanelTransition>
-          <NewsList />
+          <RecordList key={entity} {...form} />
         </PanelTransition>
       );
     if (subAction === "delete")
       return (
         <PanelTransition>
-          <EntityDelete entityType="news" />
+          <EntityDelete entityType={entity as "news" | "patches" | "items"} />
         </PanelTransition>
       );
     return (
       <PanelTransition>
-        <NewsEditor />
+        <RecordEditor key={entity} {...form} />
       </PanelTransition>
     );
   }
@@ -184,19 +187,6 @@ export default function GameDashboardRouter() {
         if (idOrAction === "new") return <ModeNew />;
         if (subAction === "delete") return <EntityDelete entityType="modes" />;
         return <ModeEdit />;
-
-      case "patches":
-        if (!idOrAction) return <PatchesList />;
-        if (idOrAction === "new") return <PatchNew />;
-        if (subAction === "delete")
-          return <EntityDelete entityType="patches" />;
-        return <PatchEdit />;
-
-      case "items":
-        if (!idOrAction) return <ItemsList />;
-        if (idOrAction === "new") return <ItemNew />;
-        if (subAction === "delete") return <EntityDelete entityType="items" />;
-        return <ItemEdit />;
 
       case "enums":
         if (!idOrAction) return <EnumsList />;

@@ -5,7 +5,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { MapSchema, type Map } from "~/schemas/map";
 import { getFile, updateFile, deleteFile, isConflictError, listDirectory } from "~/lib/github";
-import { type DynamicSchemaFile, type DynamicField, buildDynamicZodSchema } from "~/schemas/dynamic-schema";
+import { type DynamicSchemaFile, type DynamicField } from "~/schemas/dynamic-schema";
+import { mapRecordSchema } from "~/lib/record-schema";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
@@ -44,7 +45,7 @@ export default function EditMap() {
 
   const dynamicZodSchema = useMemo(() => {
     if (!schemaData) return MapSchema;
-    return buildDynamicZodSchema(schemaData.fields, MapSchema, ["name", "id", "game_modes"]).strict();
+    return mapRecordSchema(schemaData.fields);
   }, [schemaData]);
 
   const {
