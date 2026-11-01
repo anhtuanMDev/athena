@@ -1,7 +1,7 @@
 # Security headers for the admin's pages and files. Pages adds them to what
-# it serves from build/client, including index.html for every app route
-# (functions/[[path]].ts fetches those through env.ASSETS). Responses the
-# Functions make themselves (/api/*, /mobile/*) never get them: /api/assets
+# it serves from build/client, including index.html for every app route (its
+# SPA fallback). Only /api/* and /mobile/* run a Function (_routes.json), and
+# the responses those make themselves never get these headers: /api/assets
 # keeps its own sandboxed CSP (app/lib/asset-headers.ts).
 #
 # The Content-Security-Policy, by directive:
