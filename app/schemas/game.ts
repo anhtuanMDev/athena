@@ -6,6 +6,28 @@ const hexColor = z
   .optional()
   .or(z.literal(""));
 
+/**
+ * The colors of a game's light screens (games.json `light`), any part of
+ * them: the app fills in the rest (zms: screenPalette). The top-level colors
+ * stay the dark palette, which is all that older app builds read.
+ */
+export const LightPaletteSchema = z.object({
+  primary: hexColor,
+  secondary: hexColor,
+  accent: hexColor,
+  background: hexColor,
+  surface: hexColor,
+  surfaceVariant: hexColor,
+  onPrimary: hexColor,
+  onSecondary: hexColor,
+  onBackground: hexColor,
+  onSurface: hexColor,
+  error: hexColor,
+  warning: hexColor,
+  success: hexColor,
+  border: hexColor,
+});
+
 export const GameSchema = z.object({
   slug: z.string().min(1).regex(/^[a-z0-9-]+$/, "Must be a URL-safe slug"),
   name: z.string().min(1, "Name is required"),
@@ -27,6 +49,7 @@ export const GameSchema = z.object({
   warning: hexColor,
   success: hexColor,
   border: hexColor,
+  light: LightPaletteSchema.optional(),
 });
 
 export type Game = z.infer<typeof GameSchema>;

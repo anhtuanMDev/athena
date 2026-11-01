@@ -17,6 +17,19 @@ import { useData } from "~/lib/use-data";
 import type { Game } from "~/schemas/game";
 import { GameSchema } from "~/schemas/game";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
+import {
+  LIGHT_BASE,
+  MIN_CONTRAST,
+  PALETTE_KEYS,
+  PALETTE_LABELS,
+  colorField,
+  contrastWarnings,
+  effectivePalette,
+  isHex,
+  lightFromGame,
+  lightToSave,
+  type PaletteKey,
+} from "~/lib/game-palette";
 
 export default function GamesList() {
   const { data, loading, error } = useData(
@@ -56,6 +69,10 @@ export default function GamesList() {
   const [border, setBorder] = useState("#E2E8F0");
   const [active, setActive] = useState(true);
   const [originalGame, setOriginalGame] = useState<Game | null>(null);
+  // The top-level colors are the dark palette, all that older app builds
+  // read; `light` holds the light screens' colors, any part of them.
+  const [light, setLight] = useState<Partial<Record<PaletteKey, string>>>({});
+  const [paletteTab, setPaletteTab] = useState<"dark" | "light">("dark");
 
   const isValid = slug.trim().length > 0 && name.trim().length > 0;
   const isDirty =
@@ -67,22 +84,45 @@ export default function GamesList() {
           developer !== (originalGame.developer || "") ||
           icon !== (originalGame.icon || "") ||
           iconFile !== null ||
-          primary !== (originalGame.primary || "") ||
-          secondary !== (originalGame.secondary || "") ||
-          accent !== (originalGame.accent || "") ||
-          background !== (originalGame.background || "") ||
-          surface !== (originalGame.surface || "") ||
-          surfaceVariant !== (originalGame.surfaceVariant || "") ||
-          onPrimary !== (originalGame.onPrimary || "") ||
-          onSecondary !== (originalGame.onSecondary || "") ||
-          onBackground !== (originalGame.onBackground || "") ||
-          onSurface !== (originalGame.onSurface || "") ||
-          errorColor !== (originalGame.error || "") ||
-          warning !== (originalGame.warning || "") ||
-          success !== (originalGame.success || "") ||
-          border !== (originalGame.border || "") ||
+          primary !== colorField(originalGame.primary) ||
+          secondary !== colorField(originalGame.secondary) ||
+          accent !== colorField(originalGame.accent) ||
+          background !== colorField(originalGame.background) ||
+          surface !== colorField(originalGame.surface) ||
+          surfaceVariant !== colorField(originalGame.surfaceVariant) ||
+          onPrimary !== colorField(originalGame.onPrimary) ||
+          onSecondary !== colorField(originalGame.onSecondary) ||
+          onBackground !== colorField(originalGame.onBackground) ||
+          onSurface !== colorField(originalGame.onSurface) ||
+          errorColor !== colorField(originalGame.error) ||
+          warning !== colorField(originalGame.warning) ||
+          success !== colorField(originalGame.success) ||
+          border !== colorField(originalGame.border) ||
+          JSON.stringify(lightToSave(light) ?? {}) !== JSON.stringify(lightToSave(lightFromGame(originalGame.light)) ?? {}) ||
           active !== originalGame.active
         : false;
+
+  const darkPalette: Record<PaletteKey, string> = {
+    primary, secondary, accent, background, surface, surfaceVariant, onPrimary,
+    onSecondary, onBackground, onSurface, error: errorColor, warning, success, border,
+  };
+  const setDark: Record<PaletteKey, (value: string) => void> = {
+    primary: setPrimary, secondary: setSecondary, accent: setAccent, background: setBackground,
+    surface: setSurface, surfaceVariant: setSurfaceVariant, onPrimary: setOnPrimary,
+    onSecondary: setOnSecondary, onBackground: setOnBackground, onSurface: setOnSurface,
+    error: setErrorColor, warning: setWarning, success: setSuccess, border: setBorder,
+  };
+  // What the app draws each tab with: empty light colors as the app fills them in.
+  const lightFallbacks = effectivePalette(darkPalette, {});
+  const warnings = {
+    dark: contrastWarnings(effectivePalette(darkPalette)),
+    light: contrastWarnings(effectivePalette(darkPalette, light)),
+  };
+  const paletteRows = PALETTE_KEYS.map((key) =>
+    paletteTab === "dark"
+      ? { key, value: darkPalette[key], set: setDark[key], fallback: LIGHT_BASE[key] }
+      : { key, value: light[key] ?? "", set: (value: string) => setLight((l) => ({ ...l, [key]: value })), fallback: lightFallbacks[key] },
+  );
 
   function openCreate() {
     setSlug("");
@@ -104,6 +144,8 @@ export default function GamesList() {
     setWarning("#F59E0B");
     setSuccess("#10B981");
     setBorder("#E2E8F0");
+    setLight({});
+    setPaletteTab("dark");
     setActive(true);
     setFormErrors(null);
     setOriginalGame(null);
@@ -117,20 +159,22 @@ export default function GamesList() {
     setDeveloper(game.developer || "");
     setIcon(game.icon || "");
     setIconFile(null);
-    setPrimary(game.primary || "");
-    setSecondary(game.secondary || "");
-    setAccent(game.accent || "");
-    setBackground(game.background || "");
-    setSurface(game.surface || "");
-    setSurfaceVariant(game.surfaceVariant || "");
-    setOnPrimary(game.onPrimary || "");
-    setOnSecondary(game.onSecondary || "");
-    setOnBackground(game.onBackground || "");
-    setOnSurface(game.onSurface || "");
-    setErrorColor(game.error || "");
-    setWarning(game.warning || "");
-    setSuccess(game.success || "");
-    setBorder(game.border || "");
+    setPrimary(colorField(game.primary));
+    setSecondary(colorField(game.secondary));
+    setAccent(colorField(game.accent));
+    setBackground(colorField(game.background));
+    setSurface(colorField(game.surface));
+    setSurfaceVariant(colorField(game.surfaceVariant));
+    setOnPrimary(colorField(game.onPrimary));
+    setOnSecondary(colorField(game.onSecondary));
+    setOnBackground(colorField(game.onBackground));
+    setOnSurface(colorField(game.onSurface));
+    setErrorColor(colorField(game.error));
+    setWarning(colorField(game.warning));
+    setSuccess(colorField(game.success));
+    setBorder(colorField(game.border));
+    setLight(lightFromGame(game.light));
+    setPaletteTab("dark");
     setActive(game.active);
     setFormErrors(null);
     setOriginalGame(game);
@@ -189,11 +233,19 @@ export default function GamesList() {
         warning,
         success,
         border,
+        light: lightToSave(light),
         active,
       });
 
       if (!parsed.success) {
-        setFormErrors(parsed.error.flatten().fieldErrors);
+        const fieldErrors = parsed.error.flatten().fieldErrors;
+        // Only form-wide errors show up top; a bad light color is on the other tab.
+        if (fieldErrors.light) {
+          setPaletteTab("light");
+          setFormErrors({ ...fieldErrors, _form: ["A light color isn't a hex color such as #1A2B3C."] });
+          return;
+        }
+        setFormErrors(fieldErrors);
         return;
       }
 
@@ -515,27 +567,59 @@ export default function GamesList() {
                           )}
                         </div>
 
-                        {(
-                          [
-                            { key: "primary",       label: "Primary",         value: primary,       set: setPrimary,       fallback: "#6366F1" },
-                            { key: "secondary",     label: "Secondary",       value: secondary,     set: setSecondary,     fallback: "#8B5CF6" },
-                            { key: "accent",        label: "Accent",          value: accent,        set: setAccent,        fallback: "#EC4899" },
-                            { key: "background",    label: "Background",      value: background,    set: setBackground,    fallback: "#F8FAFC" },
-                            { key: "surface",       label: "Surface",         value: surface,       set: setSurface,       fallback: "#FFFFFF" },
-                            { key: "surfaceVariant",label: "Surface Variant",  value: surfaceVariant,set: setSurfaceVariant,fallback: "#F1F5F9" },
-                            { key: "onPrimary",     label: "On Primary",      value: onPrimary,     set: setOnPrimary,     fallback: "#FFFFFF" },
-                            { key: "onSecondary",   label: "On Secondary",    value: onSecondary,   set: setOnSecondary,   fallback: "#FFFFFF" },
-                            { key: "onBackground",  label: "On Background",   value: onBackground,  set: setOnBackground,  fallback: "#0F172A" },
-                            { key: "onSurface",     label: "On Surface",      value: onSurface,     set: setOnSurface,     fallback: "#1E293B" },
-                            { key: "error",         label: "Error",           value: errorColor,    set: setErrorColor,    fallback: "#EF4444" },
-                            { key: "warning",       label: "Warning",         value: warning,       set: setWarning,       fallback: "#F59E0B" },
-                            { key: "success",       label: "Success",         value: success,       set: setSuccess,       fallback: "#10B981" },
-                            { key: "border",        label: "Border",          value: border,        set: setBorder,        fallback: "#E2E8F0" },
-                         ] as Array<{ key: string; label: string; value: string; set: (v: string) => void; fallback: string }>
-                        ).map(({ key, label, value, set, fallback }) => (
-                          <div key={key} className="flex gap-4 items-center">
+                        <div className="flex flex-col gap-4 pt-2">
+                          <div role="tablist" aria-label="Palette" className="flex gap-2">
+                            {(["dark", "light"] as const).map((tab) => (
+                              <button
+                                key={tab}
+                                type="button"
+                                role="tab"
+                                aria-selected={paletteTab === tab}
+                                onClick={() => setPaletteTab(tab)}
+                                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${paletteTab === tab ? "bg-primary-tint text-primary-ink" : "text-ink-muted hover:bg-surface-raised hover:text-ink"}`}
+                              >
+                                {tab === "dark" ? "Dark" : "Light"}
+                                {warnings[tab].length > 0 && <span className="ml-1.5 text-xs text-amber-600 dark:text-amber-400">· {warnings[tab].length} low contrast</span>}
+                              </button>
+                            ))}
+                          </div>
+                          {paletteTab === "dark" && (
+                            <p className="text-xs text-ink-muted">Dark screens. Older app builds use these colors on every screen.</p>
+                          )}
+                          {paletteTab === "light" && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="flex-1 min-w-48 text-xs text-ink-muted">
+                                Light screens. An empty color is what the app uses today, shown greyed.
+                              </p>
+                              <div className="flex shrink-0 gap-2">
+                                <Button type="button" variant="outline" onClick={() => setLight({ ...darkPalette })}>
+                                  Start from dark
+                                </Button>
+                                <Button type="button" variant="ghost" onClick={() => setLight({})}>
+                                  Clear
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          {warnings[paletteTab].length > 0 && (
+                            <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                              <p className="font-semibold">Hard to read: below {MIN_CONTRAST}:1 (WCAG AA)</p>
+                              <ul className="mt-1 list-disc pl-4">
+                                {warnings[paletteTab].map(({ text, under, ratio }) => (
+                                  <li key={`${text}-${under}`}>
+                                    {PALETTE_LABELS[text]} on {PALETTE_LABELS[under]}: {ratio.toFixed(2)}:1
+                                  </li>
+                                ))}
+                              </ul>
+                              <p className="mt-1">You can still save. Text in the primary color the app makes readable by itself.</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {paletteRows.map(({ key, value, set, fallback }) => (
+                          <div key={`${paletteTab}-${key}`} className="flex gap-4 items-center">
                             <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0 border border-border shadow-sm">
-                              <input aria-label={`${label} color`}
+                              <input aria-label={`${PALETTE_LABELS[key]} color`}
                                 type="color"
                                 className="absolute -inset-2 w-14 h-14 cursor-pointer"
                                 value={/^#[0-9A-F]{6}$/i.test(value) ? value : fallback}
@@ -544,12 +628,14 @@ export default function GamesList() {
                             </div>
                             <div className="flex-1">
                               <FormField
-                                name={key}
-                                label={`${label} (Hex)`}
+                                name={paletteTab === "light" ? `light.${key}` : key}
+                                label={`${PALETTE_LABELS[key]} (Hex)`}
                                 placeholder={fallback}
                                 required={false}
                                 value={value}
                                 onChange={(e) => set(e.target.value)}
+                                error={value.trim() !== "" && !isHex(value)}
+                                slotProps={paletteTab === "light" ? { inputLabel: { shrink: true } } : undefined}
                               />
                             </div>
                           </div>
