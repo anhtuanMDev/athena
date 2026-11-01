@@ -6,7 +6,7 @@ import type { DynamicField } from "../app/schemas/dynamic-schema";
 import { fetchSource, isSafeUrl } from "../app/lib/importer/fetch-source";
 import { mapDocument, parseRule, slugify, toIsoDate } from "../app/lib/importer/map";
 import type { DataRepo, FileChange } from "../app/lib/importer/repo";
-import { dismissDraft, previewImport, publishDraft, recordProblems, runImport } from "../app/lib/importer/run";
+import { dismissDraft, previewImport, publishDraft, recordFolder, recordProblems, runImport } from "../app/lib/importer/run";
 
 // ─── Fixtures ──────────────────────────────────────────────────────────
 
@@ -175,6 +175,57 @@ describe("mapping HTML", () => {
   it("needs an item selector, and a valid one", () => {
     assert.throws(() => mapDocument(PATCH_PAGE, { ...htmlJob, items_path: "" }, PATCH_FIELDS), /need an item selector/);
     assert.throws(() => mapDocument(PATCH_PAGE, { ...htmlJob, items_path: "div[" }, PATCH_FIELDS), /Invalid CSS selector/);
+  });
+});
+
+describe("mapping a news list", () => {
+  const NEWS_FIELDS: DynamicField[] = [
+    { key: "title", label: "Title", type: "string", required: true },
+    { key: "published_at", label: "Published", type: "string", required: true },
+    { key: "summary", label: "Summary", type: "string", required: false },
+    { key: "image", label: "Image", type: "string", required: false },
+    { key: "url", label: "Article URL", type: "string", required: false },
+  ];
+  // Blizzard's news page: each article is a link around a custom element.
+  const NEWS_PAGE = `<blz-news><a href="/news/1/featured"><blz-list-item headingtext="Featured"></blz-list-item></a></blz-news>
+  <blz-section class="news-list"><div class="blz-list">
+    <a href="/news/24295392/season-4-midcycle"><blz-list-item class="news" imagesrc="https://bnetcmsus-a.akamaihd.net/cms/a.png"
+      headingtext="Season 4 Midcycle Takes You To The BlizzCon Stage!"><h1 slot="heading">Season 4 Midcycle Takes You To The BlizzCon Stage!</h1>
+      <div slot="description"><p class="article-summary">We come together for the World Cup. </p>
+      <blz-timestamp class="date" timestamp="2026-09-04T16:00:00.000Z"></blz-timestamp></div></blz-list-item></a>
+    <a href="javascript:alert(1)"><blz-list-item headingtext="Odd link"><blz-timestamp timestamp="2026-08-01T00:00:00Z"></blz-timestamp></blz-list-item></a>
+  </div></blz-section>`;
+  const newsJob = {
+    ...htmlJob,
+    api_endpoint: "https://overwatch.blizzard.com/en-us/news/",
+    items_path: ".news-list a",
+    id_from: "title",
+    field_mappings: {
+      title: "blz-list-item@headingtext",
+      published_at: "blz-timestamp@timestamp | date",
+      summary: ".article-summary",
+      image: "blz-list-item@imagesrc",
+      url: "@href | url",
+    },
+  };
+
+  it("reads attributes of custom elements and makes links absolute", () => {
+    const [article, odd] = mapDocument(NEWS_PAGE, newsJob, NEWS_FIELDS);
+    assert.deepEqual(article.record, {
+      id: "season-4-midcycle-takes-you-to-the-blizzcon-stage",
+      title: "Season 4 Midcycle Takes You To The BlizzCon Stage!",
+      published_at: "2026-09-04",
+      summary: "We come together for the World Cup.",
+      image: "https://bnetcmsus-a.akamaihd.net/cms/a.png",
+      url: "https://overwatch.blizzard.com/news/24295392/season-4-midcycle",
+    });
+    assert.deepEqual(article.problems, []);
+    // A link that isn't http(s) is dropped, not resolved.
+    assert.equal(odd.record.url, undefined);
+  });
+
+  it("publishes news into its own folder", () => {
+    assert.equal(recordFolder("news"), "news");
   });
 });
 

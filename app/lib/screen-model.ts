@@ -120,6 +120,7 @@ export const CATEGORIES: { category: string; folder: string; label: string }[] =
   { category: "mode", folder: "modes", label: "Modes" },
   { category: "item", folder: "items", label: "Items" },
   { category: "patch", folder: "patches", label: "Patches" },
+  { category: "news", folder: "news", label: "News" },
 ];
 
 export function folderFor(category: string): string | null {

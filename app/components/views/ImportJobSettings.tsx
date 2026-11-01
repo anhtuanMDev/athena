@@ -41,6 +41,12 @@ export function settingsOf(job: Partial<CronJob>): JobSettings {
 
 const UNMAPPABLE = new Set(["abilities", "weapon"]);
 
+/** The field that names a record in lists: its title or name, else its first text field. */
+export function labelFieldOf(schema: DynamicSchemaFile | undefined): string | undefined {
+  const fields = schema?.fields ?? [];
+  return (fields.find((f) => f.key === "title" || f.key === "name") ?? fields.find((f) => f.type === "string"))?.key;
+}
+
 /** Only rules for the schema's fields, without empty ones. */
 export function pruneMappings(schema: DynamicSchemaFile, mappings: Record<string, FieldRule>): Record<string, FieldRule> {
   const pruned: Record<string, FieldRule> = {};
@@ -251,8 +257,8 @@ function FieldMappings({
           ) : (
             <>A dot path reads a value (<code>stats.health</code>, <code>tags[0]</code>).</>
           )}{" "}
-          <code>=Live</code> is a constant. Add <code>| date</code>, <code>| slug</code>, <code>| number</code>, <code>| lower</code> or{" "}
-          <code>| upper</code> to transform. Leave a field empty to fill it in during review.
+          <code>=Live</code> is a constant. Add <code>| date</code>, <code>| slug</code>, <code>| number</code>, <code>| lower</code>, <code>| upper</code>{" "}
+          or <code>| url</code> (makes a relative link absolute) to transform. Leave a field empty to fill it in during review.
         </p>
       </div>
 
@@ -335,7 +341,7 @@ function ImportPreview({ game, jobId, schema, settings }: { game: string; jobId:
   const [state, setState] = useState<
     { status: "idle" } | { status: "loading" } | { status: "error"; message: string } | { status: "done"; items: PreviewItem[]; total: number }
   >({ status: "idle" });
-  const titleField = schema.fields.find((f) => f.type === "string" && f.key !== settings.id_from)?.key;
+  const titleField = labelFieldOf(schema);
 
   async function run() {
     setState({ status: "loading" });

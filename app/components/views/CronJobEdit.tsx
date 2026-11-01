@@ -11,7 +11,7 @@ import { Clock, ArrowLeft, Play, Loader2, Inbox } from "lucide-react";
 import { useToast } from "~/components/ToastProvider";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { CronJobInstructions } from "~/components/views/CronJobInstructions";
-import { ImportJobSettings, pruneMappings, settingsOf, type JobSettings } from "~/components/views/ImportJobSettings";
+import { ImportJobSettings, labelFieldOf, pruneMappings, settingsOf, type JobSettings } from "~/components/views/ImportJobSettings";
 
 export default function CronJobEdit() {
   const { game, "*": splat } = useParams();
@@ -139,7 +139,7 @@ export default function CronJobEdit() {
 
   const { sync, drafts } = loaderData;
   const schema = loaderData.schemas.find((s) => s.id === settings.schema_id);
-  const titleField = schema?.fields.find((f) => f.type === "string" && f.key !== settings.id_from)?.key;
+  const titleField = labelFieldOf(schema);
 
   return (
     <div className="w-full py-8 pb-32">

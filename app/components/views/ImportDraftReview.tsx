@@ -1,35 +1,17 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { FormProvider, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { FormProvider } from "react-hook-form";
 import { ArrowLeft, ExternalLink, Inbox } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent } from "~/components/ui/card";
-import { FormField } from "~/components/FormField";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { useToast } from "~/components/ToastProvider";
-import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
-import { type ImageEntry } from "~/components/MultiImageUploadField";
+import { RecordFields, compact, useRecordForm } from "~/components/views/SchemaRecordForm";
 import { getFile } from "~/lib/github";
 import { dismissImport, publishImport, type ImportDraft } from "~/lib/imports";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
 import type { CronJob } from "~/schemas/cron";
-import { buildDynamicZodSchema, type DynamicField, type DynamicSchemaFile } from "~/schemas/dynamic-schema";
-
-const RECORD_ID = /^(?!.*\.\.)[a-z0-9](?:[a-z0-9.-]{0,78}[a-z0-9])?$/;
-
-const isEmpty = (v: unknown) => v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
-
-/** The values a record keeps: no empty text, empty lists or unset fields, in its entries too. */
-function compact(values: Record<string, unknown>): Record<string, unknown> {
-  const entries = Object.entries(values).map(([k, v]): [string, unknown] => [
-    k,
-    Array.isArray(v) ? v.map((item) => (item && typeof item === "object" && !Array.isArray(item) ? compact(item as Record<string, unknown>) : item)) : v,
-  ]);
-  return Object.fromEntries(entries.filter(([, v]) => !isEmpty(v)));
-}
+import type { DynamicField, DynamicSchemaFile } from "~/schemas/dynamic-schema";
 
 const hostOf = (url: string) => {
   try {
@@ -100,29 +82,8 @@ function DraftForm({
   const { success: toastSuccess, error: toastError } = useToast();
   const [busy, setBusy] = useState<"publish" | "dismiss" | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [abilityIcons, setAbilityIcons] = useState<Record<string, ImageEntry[]>>({});
   const draftId = String(draft.record.id);
-
-  const schema = useMemo(
-    () =>
-      buildDynamicZodSchema(
-        fields,
-        z.object({ id: z.string().regex(RECORD_ID, "Lowercase letters, digits, dots and dashes") }),
-        ["id"],
-      ).strict(),
-    [fields],
-  );
-  const methods = useForm<Record<string, unknown>>({
-    resolver: zodResolver(schema),
-    mode: "onChange",
-    defaultValues: draft.record,
-  });
-  const {
-    register,
-    control,
-    handleSubmit,
-    formState: { errors },
-  } = methods;
+  const methods = useRecordForm(fields, draft.record);
 
   async function publish(values: Record<string, unknown>) {
     setBusy("publish");
@@ -151,12 +112,10 @@ function DraftForm({
     }
   }
 
-  const errorEntries = Object.entries(errors);
-
   return (
     <div className="w-full py-8 pb-32">
       <FormProvider {...methods}>
-        <form onSubmit={handleSubmit(publish)} className="space-y-8">
+        <form onSubmit={methods.handleSubmit(publish)} className="space-y-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <button
@@ -211,44 +170,12 @@ function DraftForm({
             </div>
           )}
 
-          <Card>
-            <CardContent className="p-6 md:p-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  label="Record ID"
-                  required
-                  {...register("id")}
-                  error={!!errors.id}
-                  helperText={(errors.id?.message as string) ?? "The file name in the app's data; can't change after publishing."}
-                />
-                <div className="hidden md:block" />
-                <DynamicFieldsRenderer
-                  fields={fields}
-                  game={game}
-                  abilityIcons={abilityIcons}
-                  setAbilityIcons={setAbilityIcons}
-                  control={control}
-                  register={register}
-                  errors={errors}
-                  skipFields={["id"]}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {errorEntries.length > 0 && (
-            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50">
-              <h4 className="text-sm font-bold text-red-800 dark:text-red-400 mb-2">Fix these before publishing:</h4>
-              <ul className="list-disc pl-5 text-sm text-red-700 dark:text-red-300 space-y-1">
-                {errorEntries.map(([key, err]) => (
-                  <li key={key}>
-                    <strong>{fields.find((f) => f.key === key)?.label ?? key}:</strong>{" "}
-                    {(err?.message as string) || "Invalid value"}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <RecordFields
+            fields={fields}
+            game={game}
+            idHelp="The file name in the app's data; can't change after publishing."
+            action="publishing"
+          />
         </form>
       </FormProvider>
     </div>

@@ -16,7 +16,7 @@ interface EntityBase {
   schema_id?: string;
 }
 
-export default function EntityDelete({ entityType }: { entityType: "heroes" | "maps" | "modes" | "patches" | "items" | "schemas" | "cron_jobs" | "enums" }) {
+export default function EntityDelete({ entityType }: { entityType: "heroes" | "maps" | "modes" | "patches" | "news" | "items" | "schemas" | "cron_jobs" | "enums" }) {
   const { game, "*": splat } = useParams();
   const id = splat?.split("/")[1];
   assertSafeGameSlug(game!);
@@ -94,6 +94,7 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
 
           await Promise.all([
             checkCategory("patches"),
+            checkCategory("news"),
             checkCategory("items"),
             checkCategory("modes"),
             checkCategory("maps"),
@@ -154,6 +155,7 @@ export default function EntityDelete({ entityType }: { entityType: "heroes" | "m
     maps: "map",
     modes: "mode",
     patches: "patch",
+    news: "news article",
     items: "item",
     schemas: "schema",
     cron_jobs: "cron job"

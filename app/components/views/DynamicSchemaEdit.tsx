@@ -347,7 +347,9 @@ export default function DynamicSchemaEdit() {
             ? "Game Mode"
             : category === "patch"
               ? "Patch"
-              : category === "item"
+              : category === "news"
+                ? "News Article"
+                : category === "item"
                 ? "Item"
                 : category === "event"
                   ? "Event"
@@ -366,6 +368,9 @@ export default function DynamicSchemaEdit() {
     else if (category === "patch")
       categoryHint =
         "Think about version string, release date, developer notes, and highlights.";
+    else if (category === "news")
+      categoryHint =
+        "Think about headline, publish date, summary, cover image, and the link to the full article.";
     else if (category === "item")
       categoryHint =
         "Think about cost, tier, effects, stat bonuses, and descriptions.";
@@ -383,7 +388,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
 \`\`\`json
 {
   "name": "${schemaName || `Base ${entityName} Attributes`}",
-  "category": "${category}", // enum: "hero", "map", "mode", "patch", "event", "item", "cron_job"
+  "category": "${category}", // enum: "hero", "map", "mode", "patch", "news", "event", "item", "cron_job"
   "fields": [
     {
       "key": "example_basic_field",

@@ -10,7 +10,8 @@
  *                    item itself); scalar fields take the first match
  *   "a@href", "@id"  HTML: an attribute of the matches, or of the item
  *   "time | date"    transforms, applied in order: date, slug, number,
- *                    lower, upper
+ *                    lower, upper, and url (a link made absolute against
+ *                    the source's address)
  * Object-array fields take { each, fields }: one object per match of `each`,
  * its sub-fields mapped by the same rules relative to that match.
  *
@@ -23,7 +24,7 @@ import type { DynamicField } from "../../schemas/dynamic-schema";
 
 export type SourceFormat = "json" | "html";
 
-const TRANSFORMS = ["date", "slug", "number", "lower", "upper"] as const;
+const TRANSFORMS = ["date", "slug", "number", "lower", "upper", "url"] as const;
 type Transform = (typeof TRANSFORMS)[number];
 
 interface ParsedRule {
@@ -59,6 +60,8 @@ export function parseRule(rule: string, attributes = true): ParsedRule | { error
 interface Doc {
   /** Whether rules can read attributes ("a@href"). */
   attributes: boolean;
+  /** The source's address, which relative links resolve against. */
+  base?: string;
   /** The items to import, at `path` (a JSON path or CSS selector). */
   items(path: string): unknown[];
   /** The nodes at `path` inside `node`. */
@@ -100,10 +103,11 @@ function jsonAt(value: unknown, path: string): unknown[] {
 
 const spread = (value: unknown): unknown[] => (Array.isArray(value) ? value : [value]);
 
-function jsonDoc(body: string): Doc {
+function jsonDoc(body: string, base?: string): Doc {
   const root: unknown = JSON.parse(body);
   return {
     attributes: false,
+    base,
     items: (path) => jsonAt(root, path),
     select: (node, path) => jsonAt(node, path),
     read: (node, rule) => jsonAt(node, rule.path),
@@ -113,7 +117,7 @@ function jsonDoc(body: string): Doc {
 /** Text as a reader sees it: entities decoded, whitespace collapsed. */
 const textOf = (element: HTMLElement) => element.textContent.replace(/\s+/g, " ").trim();
 
-function htmlDoc(body: string): Doc {
+function htmlDoc(body: string, base?: string): Doc {
   const root = parse(body, { comment: false, blockTextElements: { script: false, style: false, pre: true } });
   const select = (node: unknown, path: string): HTMLElement[] => {
     const scope = node as HTMLElement;
@@ -126,6 +130,7 @@ function htmlDoc(body: string): Doc {
   };
   return {
     attributes: true,
+    base,
     items: (path) => (path.trim() === "" ? [root] : select(root, path)),
     select,
     read: (node, rule) =>
@@ -135,10 +140,10 @@ function htmlDoc(body: string): Doc {
   };
 }
 
-export function parseDocument(body: string, format: SourceFormat): Doc {
-  if (format === "html") return htmlDoc(body);
+export function parseDocument(body: string, format: SourceFormat, base?: string): Doc {
+  if (format === "html") return htmlDoc(body, base);
   try {
-    return jsonDoc(body);
+    return jsonDoc(body, base);
   } catch {
     throw new Error("The source didn't return valid JSON.");
   }
@@ -178,7 +183,7 @@ export function slugify(value: unknown): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function applyTransform(value: unknown, transform: Transform): unknown {
+function applyTransform(value: unknown, transform: Transform, base?: string): unknown {
   switch (transform) {
     case "date":
       return toIsoDate(value);
@@ -192,6 +197,13 @@ function applyTransform(value: unknown, transform: Transform): unknown {
       return String(value).toLowerCase();
     case "upper":
       return String(value).toUpperCase();
+    case "url":
+      try {
+        const url = new URL(String(value).trim(), base);
+        return url.protocol === "https:" || url.protocol === "http:" ? url.href : undefined;
+      } catch {
+        return undefined;
+      }
   }
 }
 
@@ -270,6 +282,8 @@ export interface MappedItem {
 }
 
 interface MappingConfig {
+  /** The source's address; "| url" resolves relative links against it. */
+  api_endpoint?: string;
   source_format: SourceFormat;
   items_path: string;
   id_from: string;
@@ -286,7 +300,7 @@ function readRule(doc: Doc, node: unknown, rule: string): unknown[] | { error: s
   try {
     return doc
       .read(node, parsed)
-      .map((value) => parsed.transforms.reduce<unknown>((v, t) => (v === undefined ? v : applyTransform(v, t)), value))
+      .map((value) => parsed.transforms.reduce<unknown>((v, t) => (v === undefined ? v : applyTransform(v, t, doc.base)), value))
       .filter((value) => value !== undefined);
   } catch (err) {
     return { error: (err as Error).message };
@@ -355,7 +369,7 @@ export function missingRequired(fields: DynamicField[], record: Record<string, u
  * itself can't be read (bad JSON, a bad item selector).
  */
 export function mapDocument(body: string, config: MappingConfig, fields: DynamicField[]): MappedItem[] {
-  const doc = parseDocument(body, config.source_format);
+  const doc = parseDocument(body, config.source_format, config.api_endpoint);
   if (config.source_format === "html" && config.items_path.trim() === "") {
     throw new Error("HTML sources need an item selector.");
   }

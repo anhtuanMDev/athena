@@ -56,6 +56,7 @@ const CATEGORY_FOLDERS: Record<string, string> = {
   map: "maps",
   mode: "modes",
   patch: "patches",
+  news: "news",
   item: "items",
 };
 
