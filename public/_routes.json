@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "description": "Only the API and the mobile endpoints run a Function. The admin's pages and files are served as files (with _headers), and an unknown path gets index.html: Pages' SPA fallback when there's no 404.html. See tests/routes.test.ts.",
+  "include": ["/api/*", "/mobile/*"],
+  "exclude": []
+}

@@ -131,3 +131,27 @@ describe("lists without options", () => {
     assert.deepEqual(schemaUtils.linesToList(""), []);
   });
 });
+
+describe("number fields left blank (C5)", () => {
+  const fields: DynamicField[] = [
+    { key: "armor", label: "Armor", type: "number", required: false },
+    { key: "health", label: "Health", type: "number", required: true },
+  ];
+  const schema = buildDynamicZodSchema(fields, base);
+
+  it("mean no value when optional, never 0, and still take numbers typed as text", () => {
+    const blank = schema.parse({ id: "a", health: 250, armor: "" }) as Record<string, unknown>;
+    assert.equal(blank.armor, undefined);
+    assert.equal((schema.parse({ id: "a", health: 250, armor: "  " }) as Record<string, unknown>).armor, undefined);
+    assert.equal((schema.parse({ id: "a", health: "250", armor: "8" }) as Record<string, unknown>).armor, 8);
+    assert.equal((schema.parse({ id: "a", health: "250", armor: 0 }) as Record<string, unknown>).armor, 0);
+  });
+
+  it("are refused when required, rather than saved as 0", () => {
+    const result = schema.safeParse({ id: "a", health: "" });
+    assert.equal(result.success, false);
+    assert.deepEqual(result.error!.issues.map((i) => [i.path.join("."), i.message]), [["health", "Required"]]);
+    assert.equal(schema.safeParse({ id: "a" }).success, false);
+    assert.equal((schema.parse({ id: "a", health: "250" }) as Record<string, unknown>).health, 250);
+  });
+});

@@ -30,7 +30,7 @@ import {
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
 import { heroRecordSchema } from "~/lib/record-schema";
-import { abilityKey } from "~/lib/ability-icons";
+import { abilityIcons as loadAbilityIcons, abilityLists, applyAbilityIcons, iconKeyProblem, withAbilityKeys } from "~/lib/ability-icons";
 import {
   type DynamicField,
   type DynamicSchemaFile,
@@ -186,7 +186,8 @@ function HeroForm({
   });
 
   const handleImportSuccess = (data: Record<string, unknown>) => {
-    setInitData(data);
+    // Imported abilities get keys of their own, as loaded ones do (see ability-icons.ts).
+    setInitData(withAbilityKeys(data, abilityLists(schemas.flatMap((s) => s.fields ?? []))));
     setFormKey((k) => k + 1);
   };
 
@@ -228,7 +229,7 @@ function HeroFormInner({
   // We'll manage ability icons parallel to the react-hook-form array
   const [abilityIcons, setAbilityIcons] = useState<
     Record<string, ImageEntry[]>
-  >({});
+  >(() => loadAbilityIcons(initData, abilityLists(schemas.flatMap((s) => s.fields ?? []))));
 
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>(
     (initData.schema_id as string) || schemas[0]?.id || "",
@@ -466,6 +467,8 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
         setSubmitting(false);
         return;
       }
+      const portraitProblem = iconKeyProblem(portraits);
+      if (portraitProblem) throw new Error(`Portraits: ${portraitProblem}`);
       // Handle Portraits
       let portraitData: string | Record<string, string> =
         (formData.portrait as string | Record<string, string>) || "";
@@ -486,11 +489,6 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       }
       if (portraitData) formData.portrait = portraitData;
 
-      const abilityUploads: {
-        path: string;
-        base64: string;
-        message: string;
-      }[] = [];
 
       // Validate mode_overrides
       const modes = await listDirectory(game, "modes");
@@ -510,50 +508,8 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
         }
       }
 
-      // Ensure Abilities and Weapons are formatted correctly (icons processing)
-      fields
-        .filter((f) => f.type === "abilities" || f.type === "weapon")
-        .forEach((f) => {
-          const abilityList = (formData[f.key] || []) as Record<string, unknown>[];
-          abilityList.forEach((ability: Record<string, unknown>, i: number) => {
-            if (!ability.params) ability.params = {};
-
-            const aIcons =
-              abilityIcons[abilityKey(getValues(`${f.key}.${i}`), i)] || [];
-            if (aIcons.length === 1 && aIcons[0].key === "main") {
-              const ext =
-                aIcons[0].name?.split(".").pop() ||
-                aIcons[0].previewUrl?.split(".").pop() ||
-                "png";
-              const displayPath = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
-              const uploadPath = `public/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
-              ability.icon = displayPath;
-              if (aIcons[0].base64)
-                abilityUploads.push({
-                  path: uploadPath,
-                  base64: aIcons[0].base64,
-                  message: `Add ${ability.name} icon for ${id}`,
-                });
-            } else if (aIcons.length > 0) {
-              ability.icon = {};
-              for (const icon of aIcons) {
-                const ext =
-                  icon.name?.split(".").pop() ||
-                  icon.previewUrl?.split(".").pop() ||
-                  "png";
-                const displayPath = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
-                const uploadPath = `public/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
-                (ability.icon as Record<string, string>)[icon.key] = displayPath;
-                if (icon.base64)
-                  abilityUploads.push({
-                    path: uploadPath,
-                    base64: icon.base64,
-                    message: `Add ${ability.name} ${icon.key} icon for ${id}`,
-                  });
-              }
-            }
-          });
-        });
+      // Each ability's icon, from its pictures (see ability-icons.ts).
+      const { uploads: abilityUploads } = applyAbilityIcons(formData, (path) => getValues(path), abilityLists(fields), abilityIcons, `${game}/heroes/${id}`);
 
       const parsed = dynamicZodSchema.parse(formData) as Record<string, unknown>;
 

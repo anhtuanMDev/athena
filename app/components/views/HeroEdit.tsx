@@ -30,7 +30,8 @@ import { assertSafeEntityId, assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
 import { heroRecordSchema } from "~/lib/record-schema";
 import { keepUnknownKeys } from "~/lib/unknown-keys";
-import { abilityKey, kitIcons, withKitKeys } from "~/lib/ability-icons";
+import { abilityIcons as loadAbilityIcons, abilityLists, applyAbilityIcons, iconKeyProblem, withAbilityKeys } from "~/lib/ability-icons";
+import { asStored } from "~/lib/as-stored";
 import {
   type DynamicField,
   type DynamicSchemaFile,
@@ -165,11 +166,13 @@ function EditHeroForm({
   id: string;
 }) {
   const [formKey, setFormKey] = useState(0);
-  const [initData, setInitData] = useState<Record<string, unknown>>(() => withKitKeys(hero));
+  // Every hero schema's ability lists, so switching schemas keeps each ability's key.
+  const lists = abilityLists(schemas.flatMap((s) => s.fields ?? []));
+  const [initData, setInitData] = useState<Record<string, unknown>>(() => withAbilityKeys(hero, lists));
 
   const handleImportSuccess = (data: Record<string, unknown>) => {
     // Always preserve the canonical id/game from the URL
-    setInitData({ ...data, id, game });
+    setInitData(withAbilityKeys({ ...data, id, game }, lists));
     setFormKey((k) => k + 1);
   };
 
@@ -230,9 +233,10 @@ function EditHeroFormInner({
       previewUrl: url as string,
     }));
   });
+  const lists = useMemo(() => abilityLists(schemas.flatMap((s) => s.fields ?? [])), [schemas]);
   const [abilityIcons, setAbilityIcons] = useState<
     Record<string, ImageEntry[]>
-  >(() => kitIcons(hero.kit));
+  >(() => loadAbilityIcons(initData, lists));
 
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>(
     (initData.schema_id as string) || schemas[0]?.id || "",
@@ -448,6 +452,8 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
     setSubmitError(null);
 
     try {
+      const portraitProblem = iconKeyProblem(portraits);
+      if (portraitProblem) throw new Error(`Portraits: ${portraitProblem}`);
       // Handle Portraits overrides
       let portraitData: string | Record<string, string> =
         (formData.portrait as string | Record<string, string>) || "";
@@ -468,12 +474,6 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       }
       if (portraitData) formData.portrait = portraitData;
 
-      const abilityUploads: {
-        path: string;
-        base64: string;
-        message: string;
-      }[] = [];
-
       // Validate mode_overrides
       const modes = await listDirectory(game, "modes");
       const modeSet = new Set(modes);
@@ -492,58 +492,13 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
         }
       }
 
-      // Ensure Abilities and Weapons are formatted correctly
-      fields
-        .filter((f) => f.type === "abilities" || f.type === "weapon")
-        .forEach((f) => {
-          const abilityList = (formData[f.key] || []) as Record<string, unknown>[];
-          abilityList.forEach((ability: Record<string, unknown>, i: number) => {
-            if (!ability.params) ability.params = {};
-            const aIcons =
-              abilityIcons[abilityKey(getValues(`${f.key}.${i}`), i)] || [];
-            if (aIcons.length === 1 && aIcons[0].key === "main") {
-              const ext =
-                aIcons[0].name?.split(".").pop() ||
-                aIcons[0].previewUrl?.split(".").pop() ||
-                "png";
-              // An icon it already had keeps its URL, even if the ability's id changed.
-              ability.icon =
-                aIcons[0].previewUrl && !aIcons[0].base64
-                  ? aIcons[0].previewUrl
-                  : `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
-              if (aIcons[0].base64) {
-                abilityUploads.push({
-                  path: `public/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`,
-                  base64: aIcons[0].base64,
-                  message: `Update ${ability.name} icon for ${id}`,
-                });
-              }
-            } else if (aIcons.length > 0) {
-              ability.icon = {};
-              for (const icon of aIcons) {
-                const ext =
-                  icon.name?.split(".").pop() ||
-                  icon.previewUrl?.split(".").pop() ||
-                  "png";
-                (ability.icon as Record<string, string>)[icon.key] =
-                  icon.previewUrl && !icon.base64
-                    ? icon.previewUrl
-                    : `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
-                if (icon.base64) {
-                  abilityUploads.push({
-                    path: `public/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`,
-                    base64: icon.base64,
-                    message: `Update ${ability.name} ${icon.key} icon for ${id}`,
-                  });
-                }
-              }
-            }
-          });
-        });
+      // Each ability's icon, from its pictures (see ability-icons.ts).
+      const { uploads: abilityUploads } = applyAbilityIcons(formData, (path) => getValues(path), abilityLists(fields), abilityIcons, `${game}/heroes/${id}`);
 
       const parsed = dynamicZodSchema.parse(formData) as Record<string, unknown>;
-      // The hero's keys the schema doesn't list stay as they are (see keepUnknownKeys).
-      const saved = keepUnknownKeys(hero, parsed, dynamicZodSchema);
+      // The hero's keys the schema doesn't list stay as they are (see keepUnknownKeys),
+      // and what the form filled in for keys it had no value for doesn't count as an edit (asStored).
+      const saved = asStored(hero, keepUnknownKeys(hero, parsed, dynamicZodSchema), dynamicZodSchema) as Record<string, unknown>;
       const diffs = computeDiff(hero, saved);
       setPreview({
         diffs,
@@ -610,9 +565,10 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       }
       if (uploads.length > 0) await Promise.all(uploads);
 
+      // What was reviewed is what's saved: parsing it again would undo asStored.
       await updateFile(
         `data/${game}/heroes/${id}.json`,
-        keepUnknownKeys(hero, parsed.data, dynamicZodSchema),
+        parsedData,
         sha,
         `Update hero: ${parsed.data.name || id}`,
       );

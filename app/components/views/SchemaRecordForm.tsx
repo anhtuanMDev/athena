@@ -1,10 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useForm, useFormContext } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, CardContent } from "~/components/ui/card";
 import { FormField } from "~/components/FormField";
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
-import { type ImageEntry } from "~/components/MultiImageUploadField";
 import { recordFormSchema } from "~/lib/record-schema";
 import { type DynamicField } from "~/schemas/dynamic-schema";
 
@@ -52,7 +51,6 @@ export function RecordFields({
     control,
     formState: { errors },
   } = useFormContext<Record<string, unknown>>();
-  const [abilityIcons, setAbilityIcons] = useState<Record<string, ImageEntry[]>>({});
   const errorEntries = Object.entries(errors);
 
   return (
@@ -72,8 +70,6 @@ export function RecordFields({
             <DynamicFieldsRenderer
               fields={fields}
               game={game}
-              abilityIcons={abilityIcons}
-              setAbilityIcons={setAbilityIcons}
               control={control}
               register={register}
               errors={errors}

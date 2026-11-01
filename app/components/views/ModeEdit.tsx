@@ -15,7 +15,6 @@ import {
   ImportDataModalWrapper,
 } from "~/components/views/HeroFormModals";
 import {
-  deleteFile,
   getFile,
   getFileSha,
   isConflictError,
@@ -26,7 +25,8 @@ import {
 import { assertSafeEntityId, assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
 import { modeRecordSchema } from "~/lib/record-schema";
-import { abilityKey } from "~/lib/ability-icons";
+import { abilityIcons as loadAbilityIcons, abilityLists, applyAbilityIcons, withAbilityKeys } from "~/lib/ability-icons";
+import { asStored } from "~/lib/as-stored";
 import {
   type DynamicField,
   type DynamicSchemaFile,
@@ -37,13 +37,6 @@ import { formatImportedJson, generateAiPromptMarkdown } from "~/lib/schema-utils
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
 import { UnknownKeysNotice } from "~/components/UnknownKeysNotice";
 import { unknownKeys } from "~/lib/unknown-keys";
-
-interface DeleteConfirm {
-  mode: string;
-  referencingItems: string[];
-  referencingHeroes: string[];
-  referencingMaps: string[];
-}
 
 export default function EditMode() {
   const { game, "*": splat } = useParams();
@@ -184,14 +177,15 @@ function ModeForm({
   modeSha: string;
 }) {
   const [formKey, setFormKey] = useState(0);
-  const [initData, setInitData] = useState<Record<string, unknown>>({
+  const lists = abilityLists(schemas.flatMap((s) => s.fields ?? []));
+  const [initData, setInitData] = useState<Record<string, unknown>>(() => withAbilityKeys({
     game,
     ...modeData,
     schema_id: modeData.schema_id || schemas[0]?.id || "",
-  });
+  }, lists));
 
   const handleImportSuccess = (data: Record<string, unknown>) => {
-    setInitData({ ...initData, ...data, id: initData.id }); // preserve ID
+    setInitData(withAbilityKeys({ ...initData, ...data, id: initData.id }, lists)); // preserve ID
     setFormKey((k) => k + 1);
   };
 
@@ -202,6 +196,7 @@ function ModeForm({
       enums={enums}
       game={game}
       initData={initData}
+      stored={modeData}
       modeSha={modeSha}
       onImportSuccess={handleImportSuccess}
     />
@@ -213,6 +208,8 @@ type ModeFormInnerProps = {
   enums: GlobalEnum[];
   game: string;
   initData: Record<string, unknown>;
+  /** The mode as loaded: a save changes only what was edited (asStored). */
+  stored: Record<string, unknown>;
   modeSha: string;
   onImportSuccess: (data: Record<string, unknown>) => void;
 };
@@ -222,6 +219,7 @@ function ModeFormInner({
   enums,
   game,
   initData,
+  stored,
   modeSha,
   onImportSuccess,
 }: ModeFormInnerProps) {
@@ -229,13 +227,10 @@ function ModeFormInner({
   const { success: toastSuccess, error: toastError } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(
-    null,
-  );
 
   const [abilityIcons, setAbilityIcons] = useState<
     Record<string, ImageEntry[]>
-  >({});
+  >(() => loadAbilityIcons(initData, abilityLists(schemas.flatMap((s) => s.fields ?? []))));
 
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>(
     (initData.schema_id as string) || schemas[0]?.id || "",
@@ -291,54 +286,8 @@ function ModeFormInner({
         return;
       }
 
-      const abilityUploads: {
-        path: string;
-        base64: string;
-        message: string;
-      }[] = [];
-
-      fields
-        .filter((f) => f.type === "abilities" || f.type === "weapon")
-        .forEach((f) => {
-          const abilityList = (formData[f.key] || []) as Record<string, unknown>[];
-          abilityList.forEach((ability: Record<string, unknown>, i: number) => {
-            if (!ability.params) ability.params = {};
-            const aIcons =
-              abilityIcons[abilityKey(methods.getValues(`${f.key}.${i}`), i)] || [];
-            if (aIcons.length === 1 && aIcons[0].key === "main") {
-              const ext =
-                aIcons[0].name?.split(".").pop() ||
-                aIcons[0].previewUrl?.split(".").pop() ||
-                "png";
-              const displayPath = `/api/assets/${game}/modes/${id}/abilities/${ability.id}.${ext}`;
-              const uploadPath = `public/assets/${game}/modes/${id}/abilities/${ability.id}.${ext}`;
-              ability.icon = displayPath;
-              if (aIcons[0].base64)
-                abilityUploads.push({
-                  path: uploadPath,
-                  base64: aIcons[0].base64,
-                  message: `Add ${ability.name} icon for ${id}`,
-                });
-            } else if (aIcons.length > 0) {
-              ability.icon = {};
-              for (const icon of aIcons) {
-                const ext =
-                  icon.name?.split(".").pop() ||
-                  icon.previewUrl?.split(".").pop() ||
-                  "png";
-                const displayPath = `/api/assets/${game}/modes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
-                const uploadPath = `public/assets/${game}/modes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
-                (ability.icon as Record<string, string>)[icon.key] = displayPath;
-                if (icon.base64)
-                  abilityUploads.push({
-                    path: uploadPath,
-                    base64: icon.base64,
-                    message: `Add ${ability.name} ${icon.key} icon for ${id}`,
-                  });
-              }
-            }
-          });
-        });
+      // Each ability's icon, from its pictures (see ability-icons.ts).
+      const { uploads: abilityUploads } = applyAbilityIcons(formData, (path) => methods.getValues(path), abilityLists(fields), abilityIcons, `${game}/modes/${id}`);
 
       const parsed = dynamicZodSchema.parse(formData) as Record<string, unknown>;
 
@@ -356,9 +305,10 @@ function ModeFormInner({
       }
       if (uploads.length > 0) await Promise.all(uploads);
 
+      // What the form filled in for keys the mode had no value for doesn't count as an edit.
       await updateFile(
         `data/${game}/modes/${parsed.id}.json`,
-        parsed,
+        asStored(stored, parsed, dynamicZodSchema),
         modeSha,
         `Update mode: ${parsed.name}`,
       );
@@ -377,178 +327,6 @@ function ModeFormInner({
       setSubmitting(false);
     }
   };
-
-  async function handleDeleteCheck() {
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      const items = await listDirectory<{ id: string; mode?: string }>(
-        game!,
-        "items",
-        true,
-        ["id", "mode"],
-      );
-      const referencingItems = items
-        .filter((item) => item.mode === initData.id)
-        .map((item) => item.id);
-
-      const heroes = await listDirectory<{
-        id: string;
-        kit?: Array<{ mode_overrides?: Record<string, unknown> }>;
-      }>(game!, "heroes", true, ["id", "kit"]);
-      const referencingHeroes = heroes
-        .filter((hero) =>
-          hero.kit?.some(
-            (a) => a.mode_overrides && (initData.id as string) in a.mode_overrides,
-          ),
-        )
-        .map((hero) => hero.id);
-
-      const maps = await listDirectory<{ id: string; game_modes?: string[] }>(
-        game!,
-        "maps",
-        true,
-        ["id", "game_modes"],
-      );
-      const referencingMaps = maps
-        .filter((map) => map.game_modes?.includes(initData.id as string))
-        .map((map) => map.id);
-
-      setDeleteConfirm({
-        mode: initData.id as string,
-        referencingItems,
-        referencingHeroes,
-        referencingMaps,
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error";
-      setSubmitError(msg);
-      toastError(`Failed to check references: ${msg}`);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleDeleteConfirm(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      try {
-        await deleteFile(
-          `data/${game}/modes/${initData.id}.json`,
-          modeSha,
-          `Delete mode: ${initData.id}`,
-        );
-        toastSuccess("Mode deleted successfully.");
-      } catch (err) {
-        if (isConflictError(err)) {
-          setSubmitError(err.message);
-          toastError(err.message);
-          return;
-        }
-        throw err;
-      }
-      navigate(`/${game}/modes`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error";
-      setSubmitError(msg);
-      toastError(`Failed to delete: ${msg}`);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  if (deleteConfirm) {
-    return (
-      <Card className="border-red-200/50 dark:border-red-800/50 bg-surface backdrop-blur-sm">
-        <CardHeader>
-          <h1 className="text-2xl font-bold text-red-600 dark:text-red-400">
-            Delete Mode: {initData.name as string}?
-          </h1>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {deleteConfirm.referencingItems.length > 0 && (
-            <div className="p-4 bg-yellow-50/80 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/50 rounded-xl text-sm backdrop-blur-sm">
-              <p className="font-bold text-yellow-800 dark:text-yellow-300">
-                This mode is referenced by{" "}
-                {deleteConfirm.referencingItems.length} item(s):
-              </p>
-              <p className="text-yellow-700 dark:text-yellow-400 font-mono mt-1">
-                {deleteConfirm.referencingItems.join(", ")}
-              </p>
-              <p className="text-yellow-700 dark:text-yellow-400 mt-2 font-medium">
-                These references will become dangling.
-              </p>
-            </div>
-          )}
-          {deleteConfirm.referencingHeroes.length > 0 && (
-            <div className="p-4 bg-yellow-50/80 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/50 rounded-xl text-sm backdrop-blur-sm">
-              <p className="font-bold text-yellow-800 dark:text-yellow-300">
-                This mode has mode_overrides in{" "}
-                {deleteConfirm.referencingHeroes.length} hero(es):
-              </p>
-              <p className="text-yellow-700 dark:text-yellow-400 font-mono mt-1">
-                {deleteConfirm.referencingHeroes.join(", ")}
-              </p>
-              <p className="text-yellow-700 dark:text-yellow-400 mt-2 font-medium">
-                These overrides will become dangling.
-              </p>
-            </div>
-          )}
-          {deleteConfirm.referencingMaps.length > 0 && (
-            <div className="p-4 bg-yellow-50/80 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/50 rounded-xl text-sm backdrop-blur-sm">
-              <p className="font-bold text-yellow-800 dark:text-yellow-300">
-                This mode is referenced by{" "}
-                {deleteConfirm.referencingMaps.length} map(s):
-              </p>
-              <p className="text-yellow-700 dark:text-yellow-400 font-mono mt-1">
-                {deleteConfirm.referencingMaps.join(", ")}
-              </p>
-              <p className="text-yellow-700 dark:text-yellow-400 mt-2 font-medium">
-                These references will become dangling.
-              </p>
-            </div>
-          )}
-          {deleteConfirm.referencingItems.length === 0 &&
-            deleteConfirm.referencingHeroes.length === 0 &&
-            deleteConfirm.referencingMaps.length === 0 && (
-              <p className="text-sm text-ink-muted p-2">
-                No other entities reference this mode.
-              </p>
-            )}
-          <div className="flex gap-4 pt-4">
-            <form onSubmit={handleDeleteConfirm} className="w-1/2">
-              <Button
-                type="submit"
-                variant="destructive"
-                disabled={submitting}
-                className="w-full shadow-lg"
-              >
-                {submitting ? "Deleting..." : "Delete Anyway"}
-              </Button>
-            </form>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setDeleteConfirm(null);
-                setSubmitError(null);
-              }}
-              className="w-1/2 bg-surface-raised"
-            >
-              Cancel
-            </Button>
-          </div>
-          {submitError && (
-            <p className="text-sm text-red-600 dark:text-red-400 p-2">
-              {submitError}
-            </p>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <FormProvider {...methods}>
@@ -658,7 +436,8 @@ function ModeFormInner({
             type="button"
             variant="destructive"
             disabled={submitting}
-            onClick={handleDeleteCheck}
+            // The delete page checks what uses the mode and removes its pictures too.
+            onClick={() => navigate(`/${game}/modes/${initData.id}/delete`)}
             className="bg-red-600 hover:bg-red-700 shadow-lg"
           >
             <Trash2 className="w-4 h-4 mr-2" />

@@ -1,6 +1,7 @@
 import { clearDataCache } from "~/lib/use-data";
 import type { PushResult } from "~/lib/push";
 import type { Game } from "~/schemas/game";
+import type { AssetFile, DeletionRequest, Listing } from "~/lib/record-assets";
 
 export interface GitHubFile<T = unknown> {
   sha: string;
@@ -9,8 +10,9 @@ export interface GitHubFile<T = unknown> {
 
 export class ConflictError extends Error {
   path: string;
-  constructor(path: string) {
-    super(`Conflict on ${path}: the file was modified since you loaded it. Please refresh and re-apply your changes.`);
+  /** `message`: the server's own, for a request that isn't about one file. */
+  constructor(path: string, message?: string) {
+    super(message ?? `Conflict on ${path}: the file was modified since you loaded it. Please refresh and re-apply your changes.`);
     this.name = "ConflictError";
     this.path = path;
   }
@@ -25,6 +27,11 @@ export function conflictResponse() {
 }
 
 export async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
+  return (await apiResponse<T>(method, path, body)).data;
+}
+
+/** api(), with the response's headers. */
+async function apiResponse<T>(method: string, path: string, body?: unknown): Promise<{ data: T; headers: Headers }> {
   const opts: RequestInit = {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
@@ -45,7 +52,7 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
     }
     if (res.status === 409 && (data as Record<string, unknown>).conflict) {
       const pathMatch = (body as Record<string, unknown>)?.path as string | undefined;
-      throw new ConflictError(pathMatch ?? "unknown");
+      throw new ConflictError(pathMatch ?? "unknown", pathMatch ? undefined : ((data as Record<string, unknown>).error as string | undefined));
     }
     throw new Error((data as Record<string, unknown>).error as string ?? res.statusText);
   }
@@ -54,7 +61,7 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
     clearDataCache();
   }
 
-  return data as T;
+  return { data: data as T, headers: res.headers };
 }
 
 export async function getFile<T = unknown>(path: string): Promise<GitHubFile<T> | null> {
@@ -104,6 +111,28 @@ export async function listDirectory<T = string>(game: string, subpath: string, i
   if (includeContent) url += '&includeContent=true';
   if (keysOnly && keysOnly.length > 0) url += `&keysOnly=${encodeURIComponent(keysOnly.join(','))}`;
   return api<T[]>("GET", url);
+}
+
+/**
+ * A folder's records, and whether every one of them could be read: the server
+ * leaves out those it couldn't, and says so (X-Incomplete). For checks that
+ * must see them all, such as what uses a record before it's deleted.
+ */
+export async function listDirectoryChecked(game: string, subpath: string, keysOnly?: string[]): Promise<Listing> {
+  let url = `data/directory?game=${encodeURIComponent(game)}&subpath=${encodeURIComponent(subpath)}&includeContent=true`;
+  if (keysOnly) url += `&keysOnly=${encodeURIComponent(keysOnly.join(","))}`;
+  const { data, headers } = await apiResponse<unknown[]>("GET", url);
+  return { items: Array.isArray(data) ? data : [], complete: !headers.get("X-Incomplete") };
+}
+
+/** A record's own pictures (public/assets/{game}/{folder}/{id}/), its file's sha, and the data commit they were read at. */
+export async function getRecordAssets(game: string, folder: string, id: string): Promise<{ head: string; sha: string | null; files: AssetFile[] }> {
+  return api("GET", `data/record-assets?game=${encodeURIComponent(game)}&folder=${encodeURIComponent(folder)}&id=${encodeURIComponent(id)}`);
+}
+
+/** Deletes a record and those of its pictures, in one commit (see record-assets.ts). */
+export async function deleteRecord(request: DeletionRequest): Promise<void> {
+  await api("POST", "data/delete-record", request);
 }
 
 export async function listGames(): Promise<Game[]> {

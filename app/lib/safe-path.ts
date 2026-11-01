@@ -1,7 +1,7 @@
 import { isCategoryFolderFormat } from "./categories";
 
-const SAFE_SLUG = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
-const SAFE_ENTITY_ID = /^(?!.*\.\.)[a-z0-9][a-z0-9.-]*[a-z0-9]$|^[a-z0-9]$/;
+export const SAFE_SLUG = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
+export const SAFE_ENTITY_ID = /^(?!.*\.\.)[a-z0-9][a-z0-9.-]*[a-z0-9]$|^[a-z0-9]$/;
 
 export function assertSafeGameSlug(slug: string): void {
   if (!SAFE_SLUG.test(slug)) {

@@ -7,7 +7,9 @@ import { ASSET_VERSION, serveAsset } from "../../app/lib/asset-headers";
 import { checkLoginAttempts, recordLoginAttempt } from "../../app/lib/login-attempts";
 import { SESSION_TTL_SECONDS, createSessionToken, readSessionVersion, revokeSessions, verifySessionToken } from "../../app/lib/session";
 import { SourceError } from "../../app/lib/importer/fetch-source";
-import { githubRepo } from "../../app/lib/importer/repo";
+import { RepoError, githubRepo } from "../../app/lib/importer/repo";
+import { deletionConflict, deletionRequest, isOwnedAsset, recordAssetDir } from "../../app/lib/record-assets";
+import { assertSafeEntityId, assertSafeGameSlug } from "../../app/lib/safe-path";
 import {
   ImportError,
   dismissDraft,
@@ -173,6 +175,10 @@ export async function onRequest(
       return await handleWriteFile(context);
     if (path === "data/file" && request.method === "DELETE")
       return await handleDeleteFile(context);
+    if (path === "data/record-assets" && request.method === "GET")
+      return await handleRecordAssets(context);
+    if (path === "data/delete-record" && request.method === "POST")
+      return await handleDeleteRecord(context);
     if (path === "data/directory" && request.method === "GET")
       return await handleListDirectory(context);
     if (path === "data/games" && request.method === "GET")
@@ -445,6 +451,66 @@ async function handleDeleteFile(context: PagesFunctionContext): Promise<Response
   }
 }
 
+// A record's pictures, for the delete page (app/lib/record-assets.ts): the files
+// of its own folder, the record's sha, and the commit they were read at.
+async function handleRecordAssets(context: PagesFunctionContext): Promise<Response> {
+  await requireAuth(context);
+  const url = new URL(context.request.url);
+  const game = url.searchParams.get("game") ?? "";
+  const folder = url.searchParams.get("folder") ?? "";
+  const id = url.searchParams.get("id") ?? "";
+  assertSafeGameSlug(game);
+  assertSafeEntityId(id);
+  const record = `data/${game}/${folder}/${id}.json`;
+  assertSafeFilePath(record);
+  const dir = recordAssetDir(game, folder, id);
+  try {
+    const { head, files } = await githubRepo(context.env).snapshot([record, dir]);
+    const assets = Object.entries(files).filter(([p]) => isOwnedAsset(p, dir)).map(([path, sha]) => ({ path, sha }));
+    return json({ head, sha: files[record] ?? null, files: assets }, 200, { "Cache-Control": "no-store" });
+  } catch (err) {
+    if (err instanceof RepoError && err.status === 503) return json({ error: err.message }, 503);
+    throw err;
+  }
+}
+
+// Deletes a record and the pictures of its folder the delete page showed, in
+// one commit (so the push webhook fires once). Only files of the record's own
+// folder, exactly as the page saw them, at the commit it read them at; any
+// change since is a conflict to reload. Which pictures other records still use
+// is the page's check: the server can't read every record of a game within a
+// Function's 50 subrequests (Workers Free).
+async function handleDeleteRecord(context: PagesFunctionContext): Promise<Response> {
+  await requireAuth(context);
+  const request = deletionRequest(await context.request.json().catch(() => ({})));
+  if (typeof request === "string") return json({ error: request }, 400);
+  const record = `data/${request.game}/${request.folder}/${request.id}.json`;
+  for (const path of [record, ...request.remove.map((f) => f.path), ...request.keep]) assertSafeFilePath(path);
+  const repo = githubRepo(context.env);
+  const conflict = (error: string) => json({ error, conflict: true }, 409);
+  try {
+    const snapshot = await repo.snapshot([record, recordAssetDir(request.game, request.folder, request.id)]);
+    const problem = deletionConflict(request, snapshot);
+    if (problem) return conflict(problem);
+    await repo.commitOn(
+      snapshot.head,
+      [record, ...request.remove.map((f) => f.path)].map((path) => ({ path, content: null })),
+      `Delete ${request.folder} ${request.id} and ${request.remove.length} of its pictures`,
+    );
+  } catch (err) {
+    // 422: the branch moved between the check and the commit.
+    if (err instanceof RepoError && err.status === 422) return conflict("The data changed while deleting. Reload the page to check again.");
+    if (err instanceof RepoError && err.status === 503) return json({ error: err.message }, 503);
+    throw err;
+  }
+  // The record's caches, and the pictures' once, not per file: they share one mobile
+  // version key, and KV takes one write a second per key. The other pictures' edge
+  // copies expire within 5 minutes (asset-headers.ts).
+  triggerCachePurge(context, record);
+  triggerCachePurge(context, request.remove[0].path);
+  return json({ ok: true });
+}
+
 // Import jobs (app/lib/importer): preview a mapping, run a job now, and the
 // reviewer's answers to a draft. Each write is one commit; a published record
 // refreshes the mobile caches like any other save.
@@ -600,14 +666,21 @@ async function handleListDirectory(
       }
 
       const payload = items.filter(Boolean);
+      // Records that couldn't be read are left out; X-Incomplete says how many, so a
+      // check that must see them all (the delete page's) knows it didn't.
+      const unread = files.length - payload.length;
       return json(payload, 200, {
         "Cache-Control": "no-store",
+        ...(unread > 0 && { "X-Incomplete": String(unread) }),
       });
     }
     return json([]);
   } catch (err) {
+    // A folder that doesn't exist is empty; any other failure is an empty list
+    // that isn't the folder's, which X-Incomplete says.
+    if (err instanceof Error && "status" in err && (err as { status: number }).status === 404) return json([]);
     console.error("handleListDirectory error:", err);
-    return json([]);
+    return json([], 200, { "X-Incomplete": "all" });
   }
 }
 

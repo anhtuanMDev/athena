@@ -18,7 +18,6 @@ import { FormField } from "~/components/FormField";
 import { useToast } from "~/components/ToastProvider";
 import { publishedToast, useNotifyPlayers } from "~/components/NotifyPlayers";
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
-import type { ImageEntry } from "~/components/MultiImageUploadField";
 
 import type { Control, UseFormSetValue, FieldValues } from "react-hook-form";
 import { slugify } from "~/lib/slug";
@@ -63,8 +62,6 @@ export default function NewMap() {
   const { notify, field: notifyField } = useNotifyPlayers("map");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // DynamicFieldsRenderer's ability pictures; map schemas have no ability lists today.
-  const [abilityIcons, setAbilityIcons] = useState<Record<string, ImageEntry[]>>({});
 
   const dynamicZodSchema = useMemo(() => {
     if (!data) return MapSchema;
@@ -216,8 +213,6 @@ export default function NewMap() {
               <DynamicFieldsRenderer
                 fields={data.fields}
                 game={game!}
-                abilityIcons={abilityIcons}
-                setAbilityIcons={setAbilityIcons}
                 control={control}
                 register={register}
                 errors={errors}
