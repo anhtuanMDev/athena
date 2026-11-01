@@ -22,9 +22,10 @@ export async function onRequest(context: any): Promise<Response> {
   const { env, request } = context;
   const cache = (caches as any).default;
   const internalOrigin = "https://api.internal";
+  // Read through this data center's memo, so KV reads don't grow with players.
   const [version, assetsVersion] = await Promise.all([
-    readCacheVersion(env.RATE_LIMIT_KV, MOBILE_INIT_VERSION_KEY),
-    readCacheVersion(env.RATE_LIMIT_KV, MOBILE_ASSETS_VERSION_KEY),
+    readCacheVersion(env.RATE_LIMIT_KV, cache, MOBILE_INIT_VERSION_KEY),
+    readCacheVersion(env.RATE_LIMIT_KV, cache, MOBILE_ASSETS_VERSION_KEY),
   ]);
   // init_v4: screens and navigation replace layouts; the new name drops payloads cached in the old shape.
   const cacheKey = new Request(`${internalOrigin}/mobile/init_v4?v=${encodeURIComponent(version)}&a=${encodeURIComponent(assetsVersion)}`);

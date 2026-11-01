@@ -34,7 +34,10 @@ export const DynamicFieldSchema: z.ZodType<DynamicField> = z.lazy(() => z.object
   globalEnumId: z.string().optional(),
 }));
 
-export const SchemaCategorySchema = z.enum(["hero", "mode", "patch", "news", "event", "item", "map", "cron_job"]);
+// Any category name, so schemas of newly configured categories (and legacy
+// "event" and "cron_job" ones) still open; which ones the app shows is
+// data/_meta/categories.json's business (see app/lib/categories.ts).
+export const SchemaCategorySchema = z.string().regex(/^[a-z][a-z0-9_]{0,39}$/, "Use lowercase letters, digits and _");
 export type SchemaCategory = z.infer<typeof SchemaCategorySchema>;
 
 export const CronConfigSchema = z.object({
@@ -67,8 +70,9 @@ export const DynamicSchemaFileSchema = z.object({
 
 export type DynamicSchemaFile = z.infer<typeof DynamicSchemaFileSchema>;
 
+/** The folder of a category that isn't configured: legacy ones such as cron_job. */
 export function getCategoryDirectory(category: SchemaCategory): string {
-  const categoryMap: Record<SchemaCategory, string> = {
+  const categoryMap: Record<string, string> = {
     hero: "heroes",
     map: "maps",
     mode: "modes",

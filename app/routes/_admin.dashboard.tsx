@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Link } from "react-router";
 import { useData } from "~/lib/use-data";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
+import { useCategories } from "~/lib/categories-context";
 
 async function fetchDashboardData() {
   return await getDashboardData();
@@ -10,6 +11,7 @@ async function fetchDashboardData() {
 
 export default function Dashboard() {
   const { data, loading, error } = useData(fetchDashboardData, [], "dashboard");
+  const categories = useCategories();
 
   if (loading) return (
     <div className="space-y-6">
@@ -65,19 +67,15 @@ export default function Dashboard() {
               {game.developer && <p className="text-sm text-ink-muted">{game.developer}</p>}
             </CardHeader>
             <CardContent>
-              <div className="flex gap-4 text-sm">
-                <div>
-                  <span className="font-semibold text-ink">{game.heroCount}</span>
-                  <span className="text-ink-muted ml-1">heroes</span>
-                </div>
-                <div>
-                  <span className="font-semibold text-ink">{game.patchCount}</span>
-                  <span className="text-ink-muted ml-1">patches</span>
-                </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                {categories.map((c) => (
+                  <Link key={c.folder} to={`/${game.slug}/${c.folder}`} className="rounded-sm hover:underline">
+                    <span className="font-semibold text-ink tabular-nums">{game.counts?.[c.folder] ?? 0}</span>
+                    <span className="text-ink-muted ml-1">{c.label.toLowerCase()}</span>
+                  </Link>
+                ))}
               </div>
               <div className="mt-4 flex gap-2">
-                <Link to={`/${game.slug}/heroes`} className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">Heroes</Link>
-                <Link to={`/${game.slug}/patches`} className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">Patches</Link>
                 <Link to={`/${game.slug}/schemas`} className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400">Schemas</Link>
               </div>
             </CardContent>

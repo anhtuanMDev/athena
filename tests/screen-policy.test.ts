@@ -3,10 +3,10 @@ import { describe, it } from "node:test";
 
 import { assetHeaders } from "../app/lib/asset-headers";
 import { encodeUtf8Base64 } from "../app/lib/utf8-base64";
+import { DEFAULT_CATEGORIES, referenceEndpoints } from "../app/lib/categories";
 import { readFileSync, readdirSync } from "node:fs";
 import {
   LIMITS,
-  REFERENCE_ENDPOINTS,
   dataWriteProblems,
   httpsHost,
   isAllowedLink,
@@ -160,7 +160,7 @@ describe("schema files", () => {
     for (const name of readdirSync(dir)) {
       assert.deepEqual(validateSchemaFile(JSON.parse(readFileSync(new URL(name, dir), "utf8"))), [], name);
     }
-    assert.deepEqual(REFERENCE_ENDPOINTS, ["/api/{game}/heroes", "/api/{game}/maps", "/api/{game}/modes", "/api/{game}/patches", "/api/{game}/items", "/api/{game}/news"]);
+    assert.deepEqual(referenceEndpoints(DEFAULT_CATEGORIES), ["/api/{game}/heroes", "/api/{game}/maps", "/api/{game}/modes", "/api/{game}/items", "/api/{game}/patches", "/api/{game}/news"]);
   });
 
   it("refuse references to anything but a category, nested ones included", () => {

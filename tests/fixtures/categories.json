@@ -1,0 +1,52 @@
+{
+  "categories": [
+    {
+      "category": "hero",
+      "folder": "heroes",
+      "label": "Heroes",
+      "singular": "Hero",
+      "icon": "users",
+      "favoritable": true
+    },
+    {
+      "category": "map",
+      "folder": "maps",
+      "label": "Maps",
+      "singular": "Map",
+      "icon": "map",
+      "favoritable": true
+    },
+    {
+      "category": "mode",
+      "folder": "modes",
+      "label": "Modes",
+      "singular": "Mode",
+      "icon": "crosshair",
+      "favoritable": true
+    },
+    {
+      "category": "item",
+      "folder": "items",
+      "label": "Items",
+      "singular": "Item",
+      "icon": "box",
+      "favoritable": true
+    },
+    {
+      "category": "patch",
+      "folder": "patches",
+      "label": "Patches",
+      "singular": "Patch",
+      "icon": "file-clock",
+      "favoritable": true
+    },
+    {
+      "category": "news",
+      "folder": "news",
+      "label": "News",
+      "singular": "Article",
+      "icon": "newspaper",
+      "favoritable": false
+    }
+  ]
+}

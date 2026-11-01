@@ -1,3 +1,4 @@
+import { DEFAULT_CATEGORIES, type Category } from "./categories";
 import { BLOCKED_PROP, BOUND_LINK, LIMITS, isAllowedLink } from "./screen-policy";
 
 // App screens under data/<game>/screens/<id>.json and the tab list in
@@ -114,17 +115,11 @@ export const SCREEN_TYPES: { value: ScreenType; label: string; hint: string }[] 
   { value: "page", label: "Page", hint: "Free content such as news or lore." },
 ];
 
-export const CATEGORIES: { category: string; folder: string; label: string }[] = [
-  { category: "hero", folder: "heroes", label: "Heroes" },
-  { category: "map", folder: "maps", label: "Maps" },
-  { category: "mode", folder: "modes", label: "Modes" },
-  { category: "item", folder: "items", label: "Items" },
-  { category: "patch", folder: "patches", label: "Patches" },
-  { category: "news", folder: "news", label: "News" },
-];
+/** The record categories (data/_meta/categories.json; the admin gets them from useCategories()). */
+type Categories = readonly Pick<Category, "category" | "folder" | "label">[];
 
-export function folderFor(category: string): string | null {
-  return CATEGORIES.find((c) => c.category === category)?.folder ?? null;
+export function folderFor(category: string, categories: Categories = DEFAULT_CATEGORIES): string | null {
+  return categories.find((c) => c.category === category)?.folder ?? null;
 }
 
 // "data.<path>" reads the screen's record (detail) or { game, heroes, maps… } (home, list);
@@ -264,10 +259,10 @@ export function sourceFields(
 }
 
 /** What "data.<path>" can bind to on home and list screens. */
-export function homeFields(): FieldOption[] {
+export function homeFields(categories: Categories = DEFAULT_CATEGORIES): FieldOption[] {
   return [
     { key: "game.name", type: "string", label: "Game name" },
-    ...CATEGORIES.map((c) => ({ key: c.folder, type: "collection", label: c.label })),
+    ...categories.map((c) => ({ key: c.folder, type: "collection", label: c.label })),
   ];
 }
 
@@ -502,9 +497,9 @@ export function recordListOrder<T extends Record<string, unknown>>(records: T[],
  * schema has an enum) and a detail screen with the schema's main fields.
  * They are a starting point to edit, not something the app derives itself.
  */
-export function starterScreens(schema: SchemaInfo): { id: string; file: ScreenFile }[] {
-  const folder = folderFor(schema.category) ?? `${schema.category}s`;
-  const label = CATEGORIES.find((c) => c.category === schema.category)?.label ?? schema.name;
+export function starterScreens(schema: SchemaInfo, categories: Categories = DEFAULT_CATEGORIES): { id: string; file: ScreenFile }[] {
+  const folder = folderFor(schema.category, categories) ?? `${schema.category}s`;
+  const label = categories.find((c) => c.category === schema.category)?.label ?? schema.name;
   const detailId = `${schema.category}-detail`;
   const fields = sourceFields([schema], { category: schema.category, schema: schema.id });
   const title = titleField(schema.fields);

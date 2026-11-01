@@ -10,7 +10,7 @@ import { RecordFields, compact, useRecordForm } from "~/components/views/SchemaR
 import { createFile, getFile, isConflictError, listDirectory, updateFile } from "~/lib/github";
 import { schemaOf } from "~/lib/record-schema";
 import { assertSafeGameSlug } from "~/lib/safe-path";
-import { CATEGORIES } from "~/lib/screen-model";
+import { useCategories } from "~/lib/categories-context";
 import { useData } from "~/lib/use-data";
 import type { DynamicSchemaFile } from "~/schemas/dynamic-schema";
 
@@ -24,7 +24,7 @@ export default function RecordEditor({ category, noun, icon }: { category: strin
   const idParam = splat?.split("/")[1];
   const id = idParam && idParam !== "new" ? idParam : undefined;
   const navigate = useNavigate();
-  const { folder } = CATEGORIES.find((c) => c.category === category)!;
+  const { folder } = useCategories().find((c) => c.category === category)!;
 
   const { data, loading, error } = useData(async () => {
     const schemas = (await listDirectory<DynamicSchemaFile>(game!, "schemas", true)).filter((s) => s?.category === category);

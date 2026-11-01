@@ -26,18 +26,18 @@ import { Card, CardContent } from "~/components/ui/card";
 import { createFile, getFile, listDirectory } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { clearDataCache, useData } from "~/lib/use-data";
-import { CATEGORIES } from "~/lib/screen-model";
-import { REFERENCE_ENDPOINTS } from "~/lib/screen-policy";
+import { referenceEndpoints } from "~/lib/categories";
+import { useCategories } from "~/lib/categories-context";
 import {
   DynamicSchemaFileSchema,
   type DynamicField,
   type DynamicSchemaFile,
 } from "~/schemas/dynamic-schema";
 
-/** Categories a new schema can have: those the app shows (older files may also say "event" or "cron_job"). */
-const isOfferedCategory = (category: unknown) => CATEGORIES.some((c) => c.category === category);
-
 export default function DynamicSchemaNew() {
+  const categories = useCategories();
+  // Categories a new schema can have: the configured ones (older files may also say "event" or "cron_job").
+  const isOfferedCategory = (category: unknown) => categories.some((c) => c.category === category);
   const { game } = useParams();
   assertSafeGameSlug(game!);
   const navigate = useNavigate();
@@ -164,7 +164,7 @@ export default function DynamicSchemaNew() {
       categoryHint =
         "Think about cost, tier, effects, stat bonuses, and descriptions.";
 
-    const apiOptionsString = CATEGORIES.map((c) => `"/api/{game}/${c.folder}"`).join(", ");
+    const apiOptionsString = categories.map((c) => `"/api/{game}/${c.folder}"`).join(", ");
 
     return `# Athena Schema Generation Guidelines
 You are an AI Architect. You are tasked with creating the structural blueprint (a JSON schema definition) for a **${entityName}** in the Athena platform.
@@ -174,7 +174,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
 \`\`\`json
 {
   "name": "${name || `Base ${entityName} Attributes`}",
-  "category": "${category}", // enum: ${CATEGORIES.map((c) => `"${c.category}"`).join(", ")}
+  "category": "${category}", // enum: ${categories.map((c) => `"${c.category}"`).join(", ")}
   "fields": [
     {
       "key": "example_basic_field",
@@ -239,7 +239,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
       try {
         const json = JSON.parse(event.target?.result as string);
         if (json.category && !isOfferedCategory(json.category)) {
-          toastError(`"${json.category}" isn't a category the app shows: use one of ${CATEGORIES.map((c) => c.category).join(", ")}.`);
+          toastError(`"${json.category}" isn't a category the app shows: use one of ${categories.map((c) => c.category).join(", ")}.`);
           e.target.value = "";
           return;
         }
@@ -275,7 +275,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
     try {
       const json = JSON.parse(pastedJson);
       if (json.category && !isOfferedCategory(json.category)) {
-        toastError(`"${json.category}" isn't a category the app shows: use one of ${CATEGORIES.map((c) => c.category).join(", ")}.`);
+        toastError(`"${json.category}" isn't a category the app shows: use one of ${categories.map((c) => c.category).join(", ")}.`);
         return;
       }
       if (json.name) setName(json.name);
@@ -626,7 +626,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                   onChange={(e) => setCategory(e.target.value)}
                   className="block w-full rounded-lg border-border-strong bg-surface-raised px-4 py-3 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 dark:text-white transition-colors"
                 >
-                  {CATEGORIES.map((c) => (
+                  {categories.map((c) => (
                     <option key={c.category} value={c.category}>
                       {c.label}
                     </option>
@@ -901,10 +901,10 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                 <option value="" disabled>
                                   Select API Endpoint
                                 </option>
-                                {field.referenceApiEndpoint && !REFERENCE_ENDPOINTS.includes(field.referenceApiEndpoint) && (
+                                {field.referenceApiEndpoint && !referenceEndpoints(categories).includes(field.referenceApiEndpoint) && (
                                   <option value={field.referenceApiEndpoint}>{field.referenceApiEndpoint} (not a category)</option>
                                 )}
-                                {CATEGORIES.map(
+                                {categories.map(
                                   ({ category, folder }) => (
                                     <option
                                       key={category}

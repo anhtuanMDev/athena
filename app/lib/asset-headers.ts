@@ -34,9 +34,6 @@ export const ASSET_CACHE = {
   versioned: "public, max-age=31536000, immutable",
   edge: "public, max-age=300",
   revalidate: "no-cache",
-  // GitHub's API copy of a file is reused this long, so requests with made-up
-  // versions can't spend the token's API quota faster than once a minute per file.
-  fromGit: "public, max-age=60",
   unavailable: "no-store",
 };
 
@@ -62,49 +59,16 @@ export interface AssetCache {
 }
 
 /**
- * GitHub API fetches for stale pictures allowed per hour, across every edge
- * location. The token's 5,000/hour is shared with admin saves and payload
- * rebuilds; real mismatches only happen in the minutes after an upload.
- */
-export const ASSET_GIT_FETCHES_PER_HOUR = 120;
-
-interface CounterStore {
-  get(key: string): Promise<string | null>;
-  put(key: string, value: string, options: { expirationTtl: number }): Promise<void>;
-}
-
-/**
- * `fetchFromGit`, counted against ASSET_GIT_FETCHES_PER_HOUR. Over the cap, or
- * without KV or when it fails, it answers 503 without calling GitHub, so
- * public requests can never spend the quota unbounded. The count is
- * approximate: KV is eventually consistent and read-then-write isn't atomic,
- * so locations reading at the same time can overshoot it a little.
- */
-export function capGitFetches(
-  kv: CounterStore | undefined,
-  fetchFromGit: () => Promise<Response>,
-  now: () => number = Date.now,
-): () => Promise<Response> {
-  return async () => {
-    const refused = new Response("GitHub fetch cap reached", { status: 503 });
-    if (!kv) return refused;
-    const key = `asset_api_fallback:${new Date(now()).toISOString().slice(0, 13)}`;
-    try {
-      const count = Number(await kv.get(key)) || 0;
-      if (count >= ASSET_GIT_FETCHES_PER_HOUR) return refused;
-      await kv.put(key, String(count + 1), { expirationTtl: 3600 });
-    } catch {
-      return refused;
-    }
-    return fetchFromGit();
-  };
-}
-
-/**
  * A picture under public/assets: from the edge cache, else fetched by
  * `fetchAsset`. A versioned URL only ever answers 2xx with bytes that match
  * the version: the app keeps whatever such a URL returns for good, whatever
  * the headers say, so a stale file must fail instead and be asked for again.
+ *
+ * There's deliberately no second source on a mismatch. It only happens for a
+ * few minutes after a picture is replaced (raw.githubusercontent.com can still
+ * serve the old file), and the app shows its fallback art meanwhile. Asking
+ * GitHub's API instead would let anyone spend the admin token's API quota, or
+ * KV writes to cap that, on the Workers Free plan.
  */
 export async function serveAsset({
   path,
@@ -112,7 +76,6 @@ export async function serveAsset({
   ifNoneMatch,
   cache,
   fetchAsset,
-  fetchFromGit,
 }: {
   /** "assets/…", as in the request URL. */
   path: string;
@@ -121,12 +84,6 @@ export async function serveAsset({
   ifNoneMatch: string | null;
   cache: AssetCache;
   fetchAsset: () => Promise<Response>;
-  /**
-   * The file as GitHub's API has it now. Only asked when fetchAsset's bytes
-   * don't match the version: raw.githubusercontent.com can serve the old file
-   * for a few minutes after an upload, and the API isn't behind that CDN.
-   */
-  fetchFromGit: () => Promise<Response>;
 }): Promise<Response> {
   const key = `https://api.internal/api/${path}${version ? `?v=${version}` : ""}`;
   const respond = (body: BodyInit | null, etag: string, cacheControl: string, status = 200) => {
@@ -139,22 +96,6 @@ export async function serveAsset({
       status: 503,
       headers: { "Retry-After": RETRY_AFTER_SECONDS, "Cache-Control": ASSET_CACHE.unavailable },
     });
-  const fromGit = async () => {
-    const gitKey = `https://api.internal/git/${path}`;
-    try {
-      let copy = await cache.match(gitKey);
-      if (!copy) {
-        const fetched = await fetchFromGit();
-        if (!fetched.ok) return undefined;
-        copy = new Response(await fetched.arrayBuffer(), { headers: { "Cache-Control": ASSET_CACHE.fromGit } });
-        await cache.put(gitKey, copy.clone());
-      }
-      const bytes = new Uint8Array(await copy.arrayBuffer());
-      return { bytes, sha: await gitBlobSha(bytes) };
-    } catch {
-      return undefined;
-    }
-  };
 
   const cached = await cache.match(key);
   if (cached) {
@@ -167,15 +108,13 @@ export async function serveAsset({
   if (!upstream.ok) return new Response("Asset not found", { status: 404 });
   const bytes = new Uint8Array(await upstream.arrayBuffer());
   const sha = await gitBlobSha(bytes);
+  const etag = `"${sha}"`;
 
   if (version) {
-    const verified = sha.startsWith(version) ? { bytes, sha } : await fromGit();
-    if (!verified?.sha.startsWith(version)) return unavailable();
-    const verifiedEtag = `"${verified.sha}"`;
-    await cache.put(key, respond(verified.bytes, verifiedEtag, ASSET_CACHE.versioned));
-    return respond(verified.bytes, verifiedEtag, ASSET_CACHE.versioned);
+    if (!sha.startsWith(version)) return unavailable();
+    await cache.put(key, respond(bytes, etag, ASSET_CACHE.versioned));
+    return respond(bytes, etag, ASSET_CACHE.versioned);
   }
-  const etag = `"${sha}"`;
   await cache.put(key, respond(bytes, etag, ASSET_CACHE.edge));
   return respond(bytes, etag, ASSET_CACHE.revalidate, ifNoneMatch === etag ? 304 : 200);
 }

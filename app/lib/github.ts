@@ -95,7 +95,8 @@ export async function listGames(): Promise<Game[]> {
   return api("GET", "data/games");
 }
 
-export async function getDashboardData(): Promise<{ games: (Game & { heroCount: number; patchCount: number })[] }> {
+/** Every game, with its record count per configured category folder. */
+export async function getDashboardData(): Promise<{ games: (Game & { counts: Record<string, number> })[] }> {
   return api("GET", "data/dashboard");
 }
 

@@ -33,7 +33,8 @@ import {
   updateFile,
 } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
-import { REFERENCE_ENDPOINTS } from "~/lib/screen-policy";
+import { referenceEndpoints } from "~/lib/categories";
+import { useCategories } from "~/lib/categories-context";
 import { clearDataCache, useData } from "~/lib/use-data";
 import {
   DynamicSchemaFileSchema,
@@ -234,6 +235,8 @@ function SubFieldList({
 }
 
 export default function DynamicSchemaEdit() {
+  const categories = useCategories();
+  const referenceOptions = referenceEndpoints(categories);
   const { game, "*": splat } = useParams();
   const id = splat?.split("/")[1];
   const navigate = useNavigate();
@@ -377,7 +380,7 @@ export default function DynamicSchemaEdit() {
       categoryHint =
         "Think about start/end dates, event type, rewards, and related game modes.";
 
-    const apiOptionsString = REFERENCE_ENDPOINTS.map((endpoint) => `"${endpoint}"`).join(", ");
+    const apiOptionsString = referenceOptions.map((endpoint) => `"${endpoint}"`).join(", ");
 
     return `# Athena Schema Generation Guidelines
 You are an AI Architect. You are tasked with creating the structural blueprint (a JSON schema definition) for a **${entityName}** in the Athena platform.
@@ -387,7 +390,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
 \`\`\`json
 {
   "name": "${schemaName || `Base ${entityName} Attributes`}",
-  "category": "${category}", // enum: "hero", "map", "mode", "patch", "news", "event", "item", "cron_job"
+  "category": "${category}", // enum: ${categories.map((c) => `"${c.category}"`).join(", ")}
   "fields": [
     {
       "key": "example_basic_field",
@@ -1427,10 +1430,10 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                 <option value="" disabled>
                                   Select API Endpoint
                                 </option>
-                                {field.referenceApiEndpoint && !REFERENCE_ENDPOINTS.includes(field.referenceApiEndpoint) && (
+                                {field.referenceApiEndpoint && !referenceOptions.includes(field.referenceApiEndpoint) && (
                                   <option value={field.referenceApiEndpoint}>{field.referenceApiEndpoint} (not a category)</option>
                                 )}
-                                {REFERENCE_ENDPOINTS.map((endpoint) => (
+                                {referenceOptions.map((endpoint) => (
                                   <option key={endpoint} value={endpoint}>
                                     {endpoint}
                                   </option>
