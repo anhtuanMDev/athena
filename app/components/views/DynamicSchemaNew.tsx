@@ -27,6 +27,7 @@ import { createFile, getFile, listDirectory } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { clearDataCache, useData } from "~/lib/use-data";
 import { CATEGORIES } from "~/lib/screen-model";
+import { REFERENCE_ENDPOINTS } from "~/lib/screen-policy";
 import {
   DynamicSchemaFileSchema,
   type DynamicField,
@@ -900,6 +901,9 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                 <option value="" disabled>
                                   Select API Endpoint
                                 </option>
+                                {field.referenceApiEndpoint && !REFERENCE_ENDPOINTS.includes(field.referenceApiEndpoint) && (
+                                  <option value={field.referenceApiEndpoint}>{field.referenceApiEndpoint} (not a category)</option>
+                                )}
                                 {CATEGORIES.map(
                                   ({ category, folder }) => (
                                     <option

@@ -61,18 +61,15 @@
     {
       "key": "season_reference",
       "label": "Season",
-      "type": "reference",
-      "required": false,
-      "referenceApiEndpoint": "/api/seasons",
-      "referenceValueKey": "id",
-      "referenceLabelKey": "name"
+      "type": "string",
+      "required": false
     },
     {
       "key": "previous_patch",
       "label": "Previous Patch",
       "type": "reference",
       "required": false,
-      "referenceApiEndpoint": "/api/patches",
+      "referenceApiEndpoint": "/api/{game}/patches",
       "referenceValueKey": "id",
       "referenceLabelKey": "title"
     },
@@ -125,7 +122,7 @@
           "label": "Hero",
           "type": "reference",
           "required": true,
-          "referenceApiEndpoint": "/api/heroes",
+          "referenceApiEndpoint": "/api/{game}/heroes",
           "referenceValueKey": "id",
           "referenceLabelKey": "name"
         },
@@ -199,7 +196,7 @@
           "label": "Associated Hero",
           "type": "reference",
           "required": false,
-          "referenceApiEndpoint": "/api/heroes",
+          "referenceApiEndpoint": "/api/{game}/heroes",
           "referenceValueKey": "id",
           "referenceLabelKey": "name"
         },
@@ -301,7 +298,7 @@
           "label": "Related Hero",
           "type": "reference",
           "required": false,
-          "referenceApiEndpoint": "/api/heroes",
+          "referenceApiEndpoint": "/api/{game}/heroes",
           "referenceValueKey": "id",
           "referenceLabelKey": "name"
         }

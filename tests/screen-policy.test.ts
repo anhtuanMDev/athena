@@ -3,13 +3,16 @@ import { describe, it } from "node:test";
 
 import { assetHeaders } from "../app/lib/asset-headers";
 import { encodeUtf8Base64 } from "../app/lib/utf8-base64";
+import { readFileSync, readdirSync } from "node:fs";
 import {
   LIMITS,
+  REFERENCE_ENDPOINTS,
   dataWriteProblems,
   httpsHost,
   isAllowedLink,
   validateDataFile,
   validateNavigationFile,
+  validateSchemaFile,
   validateScreenFile,
 } from "../app/lib/screen-policy";
 
@@ -140,6 +143,40 @@ describe("data files by path", () => {
     assert.ok(validateDataFile("data/overwatch/navigation.json", {}).length > 0);
     assert.deepEqual(validateDataFile("data/overwatch/heroes/ana.json", { anything: true }), []);
     assert.deepEqual(validateDataFile("data/overwatch/screens/nested/x.json", {}), []);
+  });
+});
+
+describe("schema files", () => {
+  const reference = (referenceApiEndpoint: unknown, extra: Record<string, unknown> = {}) => ({
+    key: "hero",
+    label: "Hero",
+    type: "reference",
+    referenceApiEndpoint,
+    ...extra,
+  });
+
+  it("accept the real schemas, whose references read from categories of the game", () => {
+    const dir = new URL("./fixtures/overwatch/schemas/", import.meta.url);
+    for (const name of readdirSync(dir)) {
+      assert.deepEqual(validateSchemaFile(JSON.parse(readFileSync(new URL(name, dir), "utf8"))), [], name);
+    }
+    assert.deepEqual(REFERENCE_ENDPOINTS, ["/api/{game}/heroes", "/api/{game}/maps", "/api/{game}/modes", "/api/{game}/patches", "/api/{game}/items", "/api/{game}/news"]);
+  });
+
+  it("refuse references to anything but a category, nested ones included", () => {
+    for (const endpoint of ["/api/heroes", "/api/seasons", "/api/{game}/events", "/api/{game}/schemas", "/api/overwatch/heroes", "", undefined]) {
+      assert.equal(validateSchemaFile({ id: "x", fields: [reference(endpoint)] }).length, 1, String(endpoint));
+    }
+    const nested = { id: "x", fields: [{ key: "changes", type: "object_array", subFields: [reference("/api/heroes", { type: "reference_list" })] }] };
+    assert.match(validateSchemaFile(nested)[0], /^changes\.hero reads its options from "\/api\/heroes"/);
+    assert.deepEqual(validateSchemaFile({ id: "x", fields: [reference("/api/{game}/heroes"), { key: "name", type: "string" }] }), []);
+  });
+
+  it("are checked on write, by path", () => {
+    const bad = { id: "x", fields: [reference("/api/heroes")] };
+    assert.equal(dataWriteProblems("data/overwatch/schemas/item-x.json", bad, false).length, 1);
+    assert.equal(dataWriteProblems("data/overwatch/schemas/item-x.json", encodeUtf8Base64(JSON.stringify(bad)), true).length, 1);
+    assert.deepEqual(validateDataFile("data/overwatch/heroes/x.json", bad), []);
   });
 });
 

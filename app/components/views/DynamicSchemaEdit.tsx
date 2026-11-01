@@ -33,11 +33,10 @@ import {
   updateFile,
 } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
+import { REFERENCE_ENDPOINTS } from "~/lib/screen-policy";
 import { clearDataCache, useData } from "~/lib/use-data";
 import {
   DynamicSchemaFileSchema,
-  SchemaCategorySchema,
-  getCategoryDirectory,
   type DynamicField,
   type DynamicSchemaFile,
 } from "~/schemas/dynamic-schema";
@@ -378,7 +377,7 @@ export default function DynamicSchemaEdit() {
       categoryHint =
         "Think about start/end dates, event type, rewards, and related game modes.";
 
-    const apiOptionsString = SchemaCategorySchema.options.map((c) => `"/api/{game}/${getCategoryDirectory(c)}"`).join(", ");
+    const apiOptionsString = REFERENCE_ENDPOINTS.map((endpoint) => `"${endpoint}"`).join(", ");
 
     return `# Athena Schema Generation Guidelines
 You are an AI Architect. You are tasked with creating the structural blueprint (a JSON schema definition) for a **${entityName}** in the Athena platform.
@@ -1428,17 +1427,14 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                                 <option value="" disabled>
                                   Select API Endpoint
                                 </option>
-                                {SchemaCategorySchema.options.map(
-                                  (category) => (
-                                    <option
-                                      key={category}
-                                      value={`/api/{game}/${getCategoryDirectory(category)}`}
-                                    >
-                                      /api/{game}/
-                                      {getCategoryDirectory(category)}
-                                    </option>
-                                  ),
+                                {field.referenceApiEndpoint && !REFERENCE_ENDPOINTS.includes(field.referenceApiEndpoint) && (
+                                  <option value={field.referenceApiEndpoint}>{field.referenceApiEndpoint} (not a category)</option>
                                 )}
+                                {REFERENCE_ENDPOINTS.map((endpoint) => (
+                                  <option key={endpoint} value={endpoint}>
+                                    {endpoint}
+                                  </option>
+                                ))}
                               </select>
                               <Button
                                 type="button"
