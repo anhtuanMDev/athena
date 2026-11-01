@@ -34,7 +34,7 @@ export const DynamicFieldSchema: z.ZodType<DynamicField> = z.lazy(() => z.object
   globalEnumId: z.string().optional(),
 }));
 
-export const SchemaCategorySchema = z.enum(["hero", "mode", "patch", "event", "item", "map", "cron_job"]);
+export const SchemaCategorySchema = z.enum(["hero", "mode", "patch", "news", "event", "item", "map", "cron_job"]);
 export type SchemaCategory = z.infer<typeof SchemaCategorySchema>;
 
 export const CronConfigSchema = z.object({
@@ -73,6 +73,7 @@ export function getCategoryDirectory(category: SchemaCategory): string {
     map: "maps",
     mode: "modes",
     patch: "patches",
+    news: "news",
     item: "items",
     event: "events",
     cron_job: "cron_jobs",

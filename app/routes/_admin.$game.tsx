@@ -44,6 +44,10 @@ import CronJobNew from "~/components/views/CronJobNew";
 import CronJobsList from "~/components/views/CronJobsList";
 import ImportDraftReview from "~/components/views/ImportDraftReview";
 
+// News
+import NewsEditor from "~/components/views/NewsEditor";
+import NewsList from "~/components/views/NewsList";
+
 // App screens
 import ScreenEdit from "~/components/views/ScreenEdit";
 import ScreensList from "~/components/views/ScreensList";
@@ -79,6 +83,27 @@ export default function GameDashboardRouter() {
     return (
       <PanelTransition>
         <DynamicSchemaEdit />
+      </PanelTransition>
+    );
+  }
+
+  // Route: /:game/news
+  if (entity === "news") {
+    if (!idOrAction)
+      return (
+        <PanelTransition>
+          <NewsList />
+        </PanelTransition>
+      );
+    if (subAction === "delete")
+      return (
+        <PanelTransition>
+          <EntityDelete entityType="news" />
+        </PanelTransition>
+      );
+    return (
+      <PanelTransition>
+        <NewsEditor />
       </PanelTransition>
     );
   }

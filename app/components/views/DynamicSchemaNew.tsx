@@ -141,7 +141,9 @@ export default function DynamicSchemaNew() {
             ? "Game Mode"
             : category === "patch"
               ? "Patch"
-              : category === "item"
+              : category === "news"
+                ? "News Article"
+                : category === "item"
                 ? "Item"
                 : category === "event"
                   ? "Event"
@@ -160,6 +162,9 @@ export default function DynamicSchemaNew() {
     else if (category === "patch")
       categoryHint =
         "Think about version string, release date, developer notes, and highlights.";
+    else if (category === "news")
+      categoryHint =
+        "Think about headline, publish date, summary, cover image, and the link to the full article.";
     else if (category === "item")
       categoryHint =
         "Think about cost, tier, effects, stat bonuses, and descriptions.";
@@ -177,7 +182,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
 \`\`\`json
 {
   "name": "${name || `Base ${entityName} Attributes`}",
-  "category": "${category}", // enum: "hero", "map", "mode", "patch", "event", "item"
+  "category": "${category}", // enum: "hero", "map", "mode", "patch", "news", "event", "item"
   "fields": [
     {
       "key": "example_basic_field",
@@ -625,6 +630,7 @@ DO NOT extract or generate data for a specific entity (e.g., do not give me Trac
                   <option value="map">Map</option>
                   <option value="mode">Mode</option>
                   <option value="patch">Patch</option>
+                  <option value="news">News</option>
                   <option value="event">Event</option>
                   <option value="item">Item</option>
                   <option value="cron_job">Cron Job</option>

@@ -60,7 +60,7 @@ const SECTIONS: InstructionSection[] = [
       {
         label: "Constants and transforms",
         description:
-          '"=Live" writes that text. Pipe a value through "| date" (to YYYY-MM-DD), "| slug", "| number" (the first number in the text), "| lower" or "| upper".',
+          '"=Live" writes that text. Pipe a value through "| date" (to YYYY-MM-DD), "| slug", "| number" (the first number in the text), "| lower", "| upper" or "| url" (a relative link made absolute against the source URL).',
       },
       {
         label: "Lists of objects",
@@ -72,6 +72,7 @@ const SECTIONS: InstructionSection[] = [
       '".PatchNotes-date | date" → "2026-10-20"',
       '".anchor@id" → "patch-2026-10-20"',
       '"=Live" → "Live"',
+      '"@href | url" → "https://overwatch.blizzard.com/news/24295392/…"',
     ],
   },
   {

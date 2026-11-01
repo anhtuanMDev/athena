@@ -7,6 +7,7 @@ import {
   Map,
   Swords,
   FileClock,
+  Newspaper,
   Box,
   Database,
   Clock,
@@ -156,6 +157,7 @@ function CollapsibleGameSection({
     isActive(`/${game.slug}/maps`) ||
     isActive(`/${game.slug}/modes`) ||
     isActive(`/${game.slug}/patches`) ||
+    isActive(`/${game.slug}/news`) ||
     isActive(`/${game.slug}/items`) ||
     isActive(`/${game.slug}/schemas`) ||
     isActive(`/${game.slug}/screens`) ||
@@ -221,6 +223,13 @@ function CollapsibleGameSection({
           label="Patches"
           icon={FileClock}
           isActive={isActive(`/${game.slug}/patches`)}
+          onClick={onClose}
+        />
+        <NavLink
+          href={`/${game.slug}/news`}
+          label="News"
+          icon={Newspaper}
+          isActive={isActive(`/${game.slug}/news`)}
           onClick={onClose}
         />
         <NavLink
