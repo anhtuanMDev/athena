@@ -15,6 +15,8 @@ import {
   publishDraft,
   runImport,
 } from "../../app/lib/importer/run";
+import { DEFAULT_CATEGORIES, needsCategories, readCategories } from "../../app/lib/categories";
+import { githubReader } from "../../app/lib/mobile-payload";
 
 const SESSION_KEY = "__admin_session";
 
@@ -336,10 +338,14 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
   };
   if (!body.path) return json({ error: "path is required" }, 400);
   assertSafeFilePath(body.path);
+  // A schema's references must name configured categories, which only then need reading.
+  const categories = needsCategories(body.path)
+    ? await readCategories((path) => githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH ?? "main").read(path))
+    : DEFAULT_CATEGORIES;
   // Screens and navigation drive the mobile app; reject unsafe or unreadable ones
   // here too, not only in the editor, so a tampered client can't save them,
   // whether it sends them as JSON or as base64.
-  const problems = dataWriteProblems(body.path, body.content, body.isBase64 === true);
+  const problems = dataWriteProblems(body.path, body.content, body.isBase64 === true, categories);
   if (problems.length > 0) return json({ error: `This file can't be saved: ${problems.join(" ")}` }, 400);
 
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });

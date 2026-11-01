@@ -1,8 +1,10 @@
+import { DEFAULT_CATEGORIES, isCategoryFolderFormat } from "./categories";
+
+/** The built-in category folders, until the admin reads categories.json. */
+export const ENTITY_TYPES = DEFAULT_CATEGORIES.map((c) => c.folder);
+
 const SAFE_SLUG = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 const SAFE_ENTITY_ID = /^(?!.*\.\.)[a-z0-9][a-z0-9.-]*[a-z0-9]$|^[a-z0-9]$/;
-export const ENTITY_TYPES = ["heroes", "maps", "modes", "patches", "items", "news"] as const;
-type EntityType = (typeof ENTITY_TYPES)[number];
-const SAFE_ENTITY_TYPE = new RegExp(`^(${ENTITY_TYPES.join("|")})$`);
 
 export function assertSafeGameSlug(slug: string): void {
   if (!SAFE_SLUG.test(slug)) {
@@ -16,8 +18,12 @@ export function assertSafeEntityId(id: string): void {
   }
 }
 
-export function assertSafeEntityType(type: string): asserts type is EntityType {
-  if (!SAFE_ENTITY_TYPE.test(type)) {
+/**
+ * A folder that may hold records: never an internal one. Whether it's a
+ * configured category is up to the caller (see categories.ts).
+ */
+export function assertSafeEntityType(type: string): void {
+  if (!isCategoryFolderFormat(type)) {
     throw new Response(`Invalid entity type: ${type}`, { status: 400 });
   }
 }

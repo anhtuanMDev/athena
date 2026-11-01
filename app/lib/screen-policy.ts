@@ -5,7 +5,7 @@
 // The mobile app enforces its own copy of the link policy
 // (zms: src/content/policy.ts) — keep LINK_HOSTS in sync.
 
-import { ENTITY_TYPES } from "./safe-path";
+import { CATEGORIES_PATH, DEFAULT_CATEGORIES, needsCategories, normalizeCategories, referenceEndpoints, type Category } from "./categories";
 import { decodeUtf8Base64 } from "./utf8-base64";
 
 export const LINK_HOSTS = [
@@ -153,24 +153,28 @@ export function validateNavigationFile(raw: unknown, screenTypes?: Record<string
   return errors;
 }
 
-/**
- * Where a reference field may read its options: a category folder of the
- * record's own game. The editor's picker can only load these, so any other
- * endpoint leaves the field impossible to fill in.
- */
-export const REFERENCE_ENDPOINTS = ENTITY_TYPES.map((folder) => `/api/{game}/${folder}`);
+type Categories = readonly Pick<Category, "folder">[];
 
-/** Problems with a schema file: reference fields, nested ones included, that point anywhere but a category. */
-export function validateSchemaFile(raw: unknown): string[] {
+/** The built-in categories' endpoints, until the admin reads categories.json. */
+export const REFERENCE_ENDPOINTS = referenceEndpoints(DEFAULT_CATEGORIES);
+
+/**
+ * Problems with a schema file: reference fields, nested ones included, that
+ * point anywhere but a category folder of the record's own game. The editor's
+ * picker can only load those, so any other endpoint leaves the field
+ * impossible to fill in.
+ */
+export function validateSchemaFile(raw: unknown, categories: Categories = DEFAULT_CATEGORIES): string[] {
   if (!isObject(raw)) return ["A schema must be a JSON object."];
+  const endpoints = referenceEndpoints(categories);
   const errors: string[] = [];
   const check = (fields: unknown, prefix: string) => {
     if (!Array.isArray(fields)) return;
     for (const field of fields) {
       if (!isObject(field)) continue;
       const name = `${prefix}${String(field.key ?? "?")}`;
-      if ((field.type === "reference" || field.type === "reference_list") && !REFERENCE_ENDPOINTS.includes(String(field.referenceApiEndpoint))) {
-        errors.push(`${name} reads its options from "${String(field.referenceApiEndpoint ?? "")}"; use one of ${REFERENCE_ENDPOINTS.join(", ")}.`);
+      if ((field.type === "reference" || field.type === "reference_list") && !endpoints.includes(String(field.referenceApiEndpoint))) {
+        errors.push(`${name} reads its options from "${String(field.referenceApiEndpoint ?? "")}"; use one of ${endpoints.join(", ")}.`);
       }
       check(field.subFields, `${name}.`);
     }
@@ -179,11 +183,15 @@ export function validateSchemaFile(raw: unknown): string[] {
   return errors;
 }
 
-/** Validation for a data file about to be written, by path; other files have no rules here. */
-export function validateDataFile(path: string, content: unknown): string[] {
+/**
+ * Validation for a data file about to be written, by path; other files have
+ * no rules here. categories.json must pass its normalizer untouched.
+ */
+export function validateDataFile(path: string, content: unknown, categories: Categories = DEFAULT_CATEGORIES): string[] {
   if (/^data\/[^/]+\/screens\/[^/]+\.json$/.test(path)) return validateScreenFile(content);
   if (/^data\/[^/]+\/navigation\.json$/.test(path)) return validateNavigationFile(content);
-  if (/^data\/[^/]+\/schemas\/[^/]+\.json$/.test(path)) return validateSchemaFile(content);
+  if (needsCategories(path)) return validateSchemaFile(content, categories);
+  if (path === CATEGORIES_PATH) return normalizeCategories(content).problems;
   return [];
 }
 
@@ -192,8 +200,8 @@ export function validateDataFile(path: string, content: unknown): string[] {
  * JSON data file sent that way is decoded and checked like one sent as JSON,
  * so the encoding can't be used to skip validateDataFile.
  */
-export function dataWriteProblems(path: string, content: unknown, isBase64: boolean): string[] {
-  if (!isBase64) return validateDataFile(path, content);
+export function dataWriteProblems(path: string, content: unknown, isBase64: boolean, categories: Categories = DEFAULT_CATEGORIES): string[] {
+  if (!isBase64) return validateDataFile(path, content, categories);
   if (!/^data\/.+\.json$/.test(path)) return [];
   let parsed: unknown;
   try {
@@ -201,5 +209,5 @@ export function dataWriteProblems(path: string, content: unknown, isBase64: bool
   } catch {
     return ["The file isn't valid JSON."];
   }
-  return validateDataFile(path, parsed);
+  return validateDataFile(path, parsed, categories);
 }

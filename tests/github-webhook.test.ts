@@ -4,6 +4,9 @@ import { describe, it } from "node:test";
 
 import { changedPaths, isPushTo, verifyGithubSignature, versionKeysToBump } from "../app/lib/github-webhook";
 import { MOBILE_ASSETS_VERSION_KEY, MOBILE_INIT_VERSION_KEY, mobileDataVersionKey } from "../app/lib/mobile-cache-version";
+import { DEFAULT_CATEGORIES } from "../app/lib/categories";
+
+const FOLDERS = DEFAULT_CATEGORIES.map((c) => c.folder);
 import { onRequestPost, type Env } from "../functions/api/webhooks/github";
 
 const SECRET = "test-webhook-secret";
@@ -50,7 +53,7 @@ describe("changedPaths and versionKeysToBump", () => {
       ]),
     );
     assert.deepEqual(paths, ["data/overwatch/screens/maps.json", "data/overwatch/heroes/ana.json", "README.md", "data/overwatch/maps/old.json"]);
-    assert.deepEqual(versionKeysToBump(paths, []), [
+    assert.deepEqual(versionKeysToBump(paths, [], FOLDERS), [
       MOBILE_INIT_VERSION_KEY,
       mobileDataVersionKey("overwatch", "heroes"),
       mobileDataVersionKey("overwatch", "maps"),
@@ -59,11 +62,11 @@ describe("changedPaths and versionKeysToBump", () => {
 
   it("rebuilds the payloads' picture versions when an asset changes", () => {
     const paths = changedPaths(push([{ added: ["public/assets/overwatch/heroes/ana/portrait_2d.webp"], modified: [], removed: [] }]));
-    assert.deepEqual(versionKeysToBump(paths, []), [MOBILE_ASSETS_VERSION_KEY]);
+    assert.deepEqual(versionKeysToBump(paths, [], FOLDERS), [MOBILE_ASSETS_VERSION_KEY]);
   });
 
   it("bumps nothing for files the app doesn't read", () => {
-    assert.deepEqual(versionKeysToBump(changedPaths(push([{ added: ["docs/x.md"], modified: [], removed: [] }])), ["overwatch"]), []);
+    assert.deepEqual(versionKeysToBump(changedPaths(push([{ added: ["docs/x.md"], modified: [], removed: [] }])), ["overwatch"], FOLDERS), []);
   });
 
   it("can't tell for force pushes, missing file lists or too many commits", () => {
@@ -74,7 +77,7 @@ describe("changedPaths and versionKeysToBump", () => {
   });
 
   it("refreshes every payload of every valid game when the files are unknown", () => {
-    const keys = versionKeysToBump(undefined, ["overwatch", "../evil", "Bad Slug"]);
+    const keys = versionKeysToBump(undefined, ["overwatch", "../evil", "Bad Slug"], FOLDERS);
     assert.equal(keys[0], MOBILE_INIT_VERSION_KEY);
     assert.ok(keys.includes(mobileDataVersionKey("overwatch", "maps")));
     assert.ok(keys.includes(MOBILE_ASSETS_VERSION_KEY));

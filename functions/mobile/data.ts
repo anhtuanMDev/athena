@@ -1,7 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
 import { MOBILE_ASSETS_VERSION_KEY, mobileDataVersionKey, readCacheVersion } from "../../app/lib/mobile-cache-version";
-import { CACHE_CONTROL, buildDataPayload, githubReader } from "../../app/lib/mobile-payload";
+import { CACHE_CONTROL, buildDataPayload, githubReader, servedFolders } from "../../app/lib/mobile-payload";
 import { assertSafeEntityType, assertSafeGameSlug } from "../../app/lib/safe-path";
 
 export interface Env {
@@ -37,6 +37,12 @@ export async function onRequest(context: any): Promise<Response> {
     if (err instanceof Response) return json({ error: await err.text() }, 400);
     throw err;
   }
+  // And only configured categories, checked before any KV read, so made-up
+  // folder names can't make version reads or reach GitHub.
+  const reader = githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH ?? "main");
+  if (!(await servedFolders((caches as any).default, reader)).includes(entity)) {
+    return json({ error: `Invalid entity type: ${entity}` }, 400);
+  }
 
   const cache = (caches as any).default;
   const internalOrigin = "https://api.internal";
@@ -60,15 +66,10 @@ export async function onRequest(context: any): Promise<Response> {
     return response;
   }
 
-  const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
-  const owner = env.GITHUB_OWNER;
-  const repo = env.GITHUB_REPO;
-  const branch = env.GITHUB_BRANCH ?? "main";
-
   try {
     // A missing folder has no records; a file that can't be read is left out
     // on its own, and the list is then cached only briefly.
-    const { payload, partial } = await buildDataPayload(githubReader(octokit, owner, repo, branch), `data/${game}/${entity}`);
+    const { payload, partial } = await buildDataPayload(reader, `data/${game}/${entity}`);
     const cacheableResponse = json(payload, 200, {
       "Cache-Control": partial ? CACHE_CONTROL.partial : CACHE_CONTROL.complete,
     });

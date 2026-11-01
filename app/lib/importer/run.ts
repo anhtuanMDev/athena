@@ -11,7 +11,7 @@
  */
 import type { CronJob } from "../../schemas/cron";
 import type { DynamicField, DynamicSchemaFile } from "../../schemas/dynamic-schema";
-import { ENTITY_TYPES } from "../safe-path";
+import { CATEGORIES_PATH, DEFAULT_CATEGORIES, normalizeCategories, type Category } from "../categories";
 import { fetchSource } from "./fetch-source";
 import { RECORD_ID, mapDocument, missingRequired, type MappedItem } from "./map";
 import type { DataRepo, FileChange } from "./repo";
@@ -51,28 +51,31 @@ const JOB_ID = /^[a-z0-9-]{1,80}$/;
 const MAX_DISMISSED = 500;
 const PREVIEW_ITEMS = 20;
 
-const CATEGORY_FOLDERS: Record<string, string> = {
-  hero: "heroes",
-  map: "maps",
-  mode: "modes",
-  patch: "patches",
-  news: "news",
-  item: "items",
-};
-
 export function assertImportIds(game: string, jobId: string, id?: string): void {
   if (!GAME_SLUG.test(game)) throw new ImportError("Invalid game.");
   if (!JOB_ID.test(jobId)) throw new ImportError("Invalid job id.");
   if (id !== undefined && !RECORD_ID.test(id)) throw new ImportError("Invalid record id.");
 }
 
-/** The folder a job publishes into; only content folders, never schemas, screens or jobs. */
-export function recordFolder(category: string): string {
-  const folder = CATEGORY_FOLDERS[category];
-  if (!folder || !(ENTITY_TYPES as readonly string[]).includes(folder)) {
-    throw new ImportError(`Records of category "${category}" can't be imported.`);
-  }
+/**
+ * The folder a job publishes into: a configured category's, which can never
+ * be schemas, screens, jobs or any other internal folder (see categories.ts).
+ */
+export function recordFolder(category: string, categories: readonly Category[] = DEFAULT_CATEGORIES): string {
+  const folder = categories.find((c) => c.category === category)?.folder;
+  if (!folder) throw new ImportError(`Records of category "${category}" can't be imported.`);
   return folder;
+}
+
+/** The configured categories; the built-in ones when the file is missing or can't be read. */
+async function configuredCategories(repo: DataRepo): Promise<Category[]> {
+  try {
+    const raw = await repo.read(CATEGORIES_PATH);
+    return raw === null ? [...DEFAULT_CATEGORIES] : normalizeCategories(raw).categories;
+  } catch (err) {
+    console.error("categories.json couldn't be read; using the built-in categories:", err);
+    return [...DEFAULT_CATEGORIES];
+  }
 }
 
 const paths = (game: string, jobId: string) => ({
@@ -140,8 +143,9 @@ export async function loadSchema(repo: DataRepo, game: string, job: Pick<CronJob
 /** Which mapped items are new, given what is already published, drafted or dismissed. */
 async function classify(repo: DataRepo, game: string, job: CronJob, schema: DynamicSchemaFile, items: MappedItem[]): Promise<PreviewItem[]> {
   const p = paths(game, job.id);
+  const folder = recordFolder(schema.category, await configuredCategories(repo));
   const [published, drafted, state] = await Promise.all([
-    repo.list(`data/${game}/${recordFolder(schema.category)}`),
+    repo.list(`data/${game}/${folder}`),
     repo.list(p.drafts),
     repo.read<ImportState>(p.state),
   ]);
@@ -316,7 +320,7 @@ export async function publishDraft(
   const { schema } = await loadJob(repo, game, jobId);
   const problems = recordProblems(schema.fields ?? [], record);
   if (problems.length > 0) throw new ImportError(problems.join(" "));
-  const path = `data/${game}/${recordFolder(schema.category)}/${id}.json`;
+  const path = `data/${game}/${recordFolder(schema.category, await configuredCategories(repo))}/${id}.json`;
   if (await repo.read(path)) throw new ImportError(`A record with the id "${id}" already exists.`, 409);
   const p = paths(game, jobId);
   const draft = await repo.read(p.draft(id));

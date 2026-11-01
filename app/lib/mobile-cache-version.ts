@@ -1,4 +1,4 @@
-import { ENTITY_TYPES } from "./safe-path";
+import { CATEGORIES_PATH, isCategoryFolderFormat } from "./categories";
 
 // The Workers Cache API only keeps an entry in the data center that stored it,
 // so cache.delete() during an admin save cannot reach copies cached elsewhere.
@@ -34,6 +34,7 @@ export function mobileVersionKeyForPath(path: string): string | null {
   if (path.startsWith("public/assets/")) return MOBILE_ASSETS_VERSION_KEY;
   if (
     path === "data/_meta/games.json" ||
+    path === CATEGORIES_PATH ||
     path.includes("/schemas/") ||
     path.includes("/enums/") ||
     path.includes("/screens/") ||
@@ -42,7 +43,8 @@ export function mobileVersionKeyForPath(path: string): string | null {
     return MOBILE_INIT_VERSION_KEY;
   }
   const match = ENTITY_FILE.exec(path);
-  if (match && (ENTITY_TYPES as readonly string[]).includes(match[2])) {
+  // Any folder that may hold records, so this needs no config.
+  if (match && isCategoryFolderFormat(match[2])) {
     return mobileDataVersionKey(match[1], match[2]);
   }
   return null;

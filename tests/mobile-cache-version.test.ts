@@ -47,6 +47,8 @@ function fakeCaches() {
         const entry = memo.get(request.url);
         return entry && entry.expires > now ? new Response(entry.body) : undefined;
       }
+      // The category folders /mobile/data serves, kept like the versions.
+      if (request.url.endsWith("/mobile/category-folders")) return new Response(JSON.stringify(["heroes", "maps", "modes"]));
       payloadKeys.push(request.url);
       return new Response("[]");
     },

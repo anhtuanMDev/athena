@@ -1,4 +1,5 @@
 import type { Octokit } from "@octokit/rest";
+import { CATEGORIES_PATH, DEFAULT_CATEGORIES, normalizeCategories, readCategories } from "./categories";
 import { decodeUtf8Base64 } from "./utf8-base64";
 
 // Reading the data repo for /mobile/init and /mobile/data. Files are edited by
@@ -135,6 +136,11 @@ export async function buildInitPayload(reader: RepoReader): Promise<{ payload: R
   // games.json; without it there is nothing to show.
   const games: { slug?: string; id?: string; active?: unknown }[] = JSON.parse(await reader.read("data/_meta/games.json")).games ?? [];
   const activeGames = games.filter((g) => g.active !== false);
+  // The app's category list. Missing: the built-in ones; unreadable: those, cached briefly.
+  const categoriesFile = readJsonFile(reader, CATEGORIES_PATH).catch((err) => {
+    console.error(`Left out ${CATEGORIES_PATH}:`, err);
+    return { content: null, partial: true };
+  });
 
   const schemas: Record<string, unknown[]> = {};
   const enums: Record<string, unknown[]> = {};
@@ -165,9 +171,11 @@ export async function buildInitPayload(reader: RepoReader): Promise<{ payload: R
   );
 
   const { hashes, partial: noHashes } = await assets;
+  const { content: categories, partial: noCategories } = await categoriesFile;
   const payload = versionAssets(
     {
       games: activeGames,
+      categories: categories === null ? [...DEFAULT_CATEGORIES] : normalizeCategories(categories).categories,
       schemas,
       enums,
       screens,
@@ -177,7 +185,28 @@ export async function buildInitPayload(reader: RepoReader): Promise<{ payload: R
     },
     hashes,
   );
-  return { payload, partial: partial || noHashes };
+  return { payload, partial: partial || noHashes || noCategories };
+}
+
+/** How long a data center keeps the list of folders /mobile/data serves. */
+const FOLDERS_MEMO_SECONDS = 60;
+
+/**
+ * The category folders /mobile/data serves, kept FOLDERS_MEMO_SECONDS in this
+ * data center's cache: checking a request costs no KV read and at most one
+ * GitHub read a minute, and a new category is served within that time.
+ */
+export async function servedFolders(
+  cache: { match(request: Request): Promise<Response | undefined>; put(request: Request, response: Response): Promise<void> },
+  reader: RepoReader,
+): Promise<string[]> {
+  const key = new Request("https://api.internal/mobile/category-folders");
+  const kept = await cache.match(key).catch(() => undefined);
+  if (kept) return kept.json();
+  const folders = (await readCategories((path) => reader.read(path))).map((c) => c.folder);
+  const entry = new Response(JSON.stringify(folders), { headers: { "Cache-Control": `max-age=${FOLDERS_MEMO_SECONDS}` } });
+  await cache.put(key, entry).catch((err) => console.error("Category folders memo failed:", err));
+  return folders;
 }
 
 /** The /mobile/data payload: the records of one folder. */

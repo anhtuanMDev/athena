@@ -5,7 +5,7 @@
 // bumps them instead, for the payloads the pushed files feed.
 
 import { MOBILE_ASSETS_VERSION_KEY, MOBILE_INIT_VERSION_KEY, mobileDataVersionKey, mobileVersionKeyForPath } from "./mobile-cache-version";
-import { ENTITY_TYPES, assertSafeGameSlug } from "./safe-path";
+import { assertSafeGameSlug } from "./safe-path";
 
 /** The parts of GitHub's push payload the webhook reads. */
 export interface PushEvent {
@@ -59,8 +59,11 @@ export function changedPaths(push: PushEvent): string[] | undefined {
   return [...paths];
 }
 
-/** Cache version keys to bump: those the paths feed, or every mobile payload of `games` when the paths are unknown. */
-export function versionKeysToBump(paths: string[] | undefined, games: string[]): string[] {
+/**
+ * Cache version keys to bump: those the paths feed, or, when the paths are
+ * unknown, every mobile payload of `games` and their category `folders`.
+ */
+export function versionKeysToBump(paths: string[] | undefined, games: string[], folders: readonly string[]): string[] {
   if (paths) return [...new Set(paths.map(mobileVersionKeyForPath).filter((key) => key !== null))];
   const safeGames = games.filter((game) => {
     try {
@@ -73,6 +76,6 @@ export function versionKeysToBump(paths: string[] | undefined, games: string[]):
   return [
     MOBILE_INIT_VERSION_KEY,
     MOBILE_ASSETS_VERSION_KEY,
-    ...safeGames.flatMap((game) => ENTITY_TYPES.map((entity) => mobileDataVersionKey(game, entity))),
+    ...safeGames.flatMap((game) => folders.map((folder) => mobileDataVersionKey(game, folder))),
   ];
 }

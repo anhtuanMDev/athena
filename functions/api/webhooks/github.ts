@@ -1,7 +1,9 @@
 import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
 import { decodeUtf8Base64 } from "../../../app/lib/utf8-base64";
+import { DEFAULT_CATEGORIES, readCategories } from "../../../app/lib/categories";
 import { bumpCacheVersion } from "../../../app/lib/mobile-cache-version";
+import { githubReader } from "../../../app/lib/mobile-payload";
 import { changedPaths, isPushTo, verifyGithubSignature, versionKeysToBump, type PushEvent } from "../../../app/lib/github-webhook";
 
 // POST /api/webhooks/github — GitHub calls this after each push to the data
@@ -67,15 +69,18 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
 
   const paths = changedPaths(push);
   let games: string[] = [];
+  let folders = DEFAULT_CATEGORIES.map((c) => c.folder);
   let gamesError: string | undefined;
   if (!paths) {
+    const reader = githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, branch);
+    folders = (await readCategories((path) => reader.read(path))).map((c) => c.folder);
     try {
       games = await listGameSlugs(env, branch);
     } catch (err) {
       gamesError = err instanceof Error ? err.message : String(err);
     }
   }
-  const keys = versionKeysToBump(paths, games);
+  const keys = versionKeysToBump(paths, games, folders);
   await Promise.all(keys.map((key) => bumpCacheVersion(env.RATE_LIMIT_KV, key)));
   // A failed delivery shows in GitHub's webhook log, where it can be redelivered.
   if (gamesError) return json({ refreshed: keys, error: `Couldn't read games.json: ${gamesError}` }, 502);
