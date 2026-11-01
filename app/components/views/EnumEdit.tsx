@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { FormField } from "~/components/FormField";
 import { Button } from "~/components/ui/button";
 import { EnumSchema } from "~/schemas/enum";
+import { keepUnknownKeys } from "~/lib/unknown-keys";
 import type { GlobalEnum } from "~/schemas/enum";
 import { Plus, Trash2 } from "lucide-react";
 import { useData } from "~/lib/use-data";
@@ -367,8 +368,10 @@ function EditEnumForm({
         option.icon = `/api/assets/${game}/enums/${id}/${option.id}.${ext}`;
       }
 
-      const diffs = computeDiff(enumData, parsed);
-      setPreview({ diffs, enumJson: JSON.stringify(parsed), sha });
+      // The enum's keys the form doesn't edit stay as they are.
+      const saved = keepUnknownKeys(enumData, parsed, EnumSchema);
+      const diffs = computeDiff(enumData, saved);
+      setPreview({ diffs, enumJson: JSON.stringify(saved), sha });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error";
       setSubmitError(msg);
@@ -420,7 +423,7 @@ function EditEnumForm({
 
       await updateFile(
         `data/${game}/enums/${id}.json`,
-        parsed.data,
+        keepUnknownKeys(enumData, parsed.data, EnumSchema),
         sha,
         `Update enum: ${parsed.data.name}`,
       );

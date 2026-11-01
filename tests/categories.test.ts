@@ -7,6 +7,8 @@ import {
   DEFAULT_CATEGORIES,
   MAX_CATEGORIES,
   appCategory,
+  categoriesFileFor,
+  categoriesForEditing,
   isCategoryFolderFormat,
   normalizeCategories,
   parseCategories,
@@ -103,6 +105,38 @@ describe("categories.json", () => {
       console.error = logError;
     }
     assert.deepEqual(await readCategories(async (path) => (path === CATEGORIES_PATH ? JSON.stringify(withEvents) : "")), [...DEFAULT_CATEGORIES, EVENTS]);
+  });
+});
+
+describe("the Categories page", () => {
+  it("can't save a hand-edited file with a bad entry into one without it", () => {
+    const handEdited = { categories: [...DEFAULT_CATEGORIES, entry({ category: "Live Events", folder: "events" })] };
+    const { categories, problems } = categoriesForEditing(handEdited);
+    // The page can't show the bad entry, so its rows leave it out…
+    assert.deepEqual(categories.map(appCategory), DEFAULT_CATEGORIES);
+    assert.equal(problems.length, 1);
+    // …and saving those rows is refused, with the file's problem.
+    assert.deepEqual(categoriesFileFor(handEdited, categories), { problems });
+    // A fixable entry that loads with a problem (a bad icon) is refused too: saving would change it.
+    const badIcon = { categories: [...DEFAULT_CATEGORIES, entry({ icon: "skull" as Category["icon"] })] };
+    assert.equal("problems" in categoriesFileFor(badIcon, categoriesForEditing(badIcon).categories), true);
+  });
+
+  it("keeps the keys of the file and of its entries that it doesn't edit", () => {
+    const saved = { version: 2, categories: [{ ...DEFAULT_CATEGORIES[0], color: "#F99E1A" }, ...DEFAULT_CATEGORIES.slice(1)] };
+    const rows = categoriesForEditing(saved).categories;
+    assert.equal((rows[0] as Category & { color?: string }).color, "#F99E1A");
+    // An edit made on the page, as the page makes it: the row with its change.
+    const edited = rows.map((row, i) => (i === 0 ? { ...row, label: "Agents" } : row));
+    const file = categoriesFileFor(saved, edited);
+    assert.ok("content" in file);
+    assert.equal(file.content.version, 2);
+    assert.deepEqual((file.content.categories as Record<string, unknown>[])[0], { ...DEFAULT_CATEGORIES[0], color: "#F99E1A", label: "Agents" });
+    assert.deepEqual(validateDataFile(CATEGORIES_PATH, file.content), []);
+  });
+
+  it("writes a first file with the rows alone", () => {
+    assert.deepEqual(categoriesFileFor(undefined, [...DEFAULT_CATEGORIES]), { content: { categories: DEFAULT_CATEGORIES } });
   });
 });
 

@@ -6,7 +6,7 @@ import { Button } from "~/components/ui/button";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { inputClass } from "~/components/layout-editor/PropControl";
 import { useToast } from "~/components/ToastProvider";
-import { CATEGORIES_PATH, CATEGORY_ICONS, DEFAULT_CATEGORIES, MAX_CATEGORIES, normalizeCategories, type Category } from "~/lib/categories";
+import { CATEGORIES_PATH, CATEGORY_ICONS, DEFAULT_CATEGORIES, MAX_CATEGORIES, categoriesFileFor, categoriesForEditing, normalizeCategories, type Category } from "~/lib/categories";
 import { useReloadCategories } from "~/lib/categories-context";
 import { createFile, getDashboardData, getFile, isConflictError, listDirectory, updateFile } from "~/lib/github";
 import { allowedFields, notifyTemplateProblems, templateFieldsByCategory } from "~/lib/notify-template";
@@ -39,9 +39,13 @@ export default function CategoriesPage() {
       for (const g of dashboard.games) for (const [folder, n] of Object.entries(g.counts ?? {})) records[folder] = (records[folder] ?? 0) + n;
       const schemas: Record<string, number> = {};
       for (const s of schemaCategories) if (s?.category) schemas[s.category] = (schemas[s.category] ?? 0) + 1;
+      const editing = file ? categoriesForEditing(file.content) : { categories: [...DEFAULT_CATEGORIES], problems: [] };
       return {
         sha: file?.sha,
-        categories: file ? normalizeCategories(file.content).categories : [...DEFAULT_CATEGORIES],
+        file: file?.content,
+        categories: editing.categories,
+        // What's wrong with the saved file: its entries the page can't show as they are.
+        fileProblems: editing.problems,
         records,
         schemas,
         // What notification templates may use; the server checks the same on save.
@@ -86,9 +90,11 @@ export default function CategoriesPage() {
   const update = (i: number, change: Partial<Category>) => setRows((list) => list.map((row, j) => (j === i ? { ...row, ...change } : row)));
 
   async function save() {
+    const file = categoriesFileFor(data!.file, rows);
+    if ("problems" in file) return;
     setSaving(true);
     try {
-      const content = { categories: rows };
+      const { content } = file;
       const newSha = sha
         ? await updateFile(CATEGORIES_PATH, content, sha, "Update categories")
         : await createFile(CATEGORIES_PATH, content, "Add categories");
@@ -112,12 +118,26 @@ export default function CategoriesPage() {
             data/&lt;game&gt;/&lt;folder&gt;. A category&apos;s name and folder lock once a game has records or schemas in it.
           </p>
         </div>
-        <Button onClick={save} disabled={saving || !dirty || problems.length > 0}>
+        <Button onClick={save} disabled={saving || !dirty || problems.length > 0 || data.fileProblems.length > 0}>
           {saving ? "Saving…" : "Save"}
         </Button>
       </div>
 
       {pushConfigured === false && <PushNotConfigured />}
+
+      {data.fileProblems.length > 0 && (
+        <div role="alert" className="space-y-1 rounded-xl border border-danger/40 bg-danger/5 p-4 text-sm text-danger">
+          <p className="font-semibold">
+            The saved {CATEGORIES_PATH} has problems, so this page can&apos;t save: it would drop or change these entries. Fix the file in the data
+            repository first.
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            {data.fileProblems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {problems.length > 0 && (
         <ul role="alert" className="space-y-1 rounded-xl border border-danger/40 bg-danger/5 p-4 text-sm text-danger">

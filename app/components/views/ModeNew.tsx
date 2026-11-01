@@ -28,6 +28,7 @@ import {
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
 import { modeRecordSchema } from "~/lib/record-schema";
+import { abilityKey } from "~/lib/ability-icons";
 import {
   type DynamicField,
   type DynamicSchemaFile,
@@ -293,7 +294,7 @@ function ModeFormInner({
           abilityList.forEach((ability: Record<string, unknown>, i: number) => {
             if (!ability.params) ability.params = {};
             const aIcons =
-              abilityIcons[(ability._clientId || ability.id || i) as string] || [];
+              abilityIcons[abilityKey(methods.getValues(`${f.key}.${i}`), i)] || [];
             if (aIcons.length === 1 && aIcons[0].key === "main") {
               const ext =
                 aIcons[0].name?.split(".").pop() ||

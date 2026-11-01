@@ -17,6 +17,7 @@ import { useData } from "~/lib/use-data";
 import type { Game } from "~/schemas/game";
 import { GameSchema } from "~/schemas/game";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
+import { keepUnknownKeys } from "~/lib/unknown-keys";
 import {
   LIGHT_BASE,
   MIN_CONTRAST,
@@ -264,8 +265,9 @@ export default function GamesList() {
           setFormErrors({ slug: ["A game with this slug already exists"] });
           return;
         }
+        // The game's keys this form doesn't edit (a banner…) stay as they are.
         updatedGames = file.content.games.map((g) =>
-          g.slug === editOriginalSlug ? parsed.data : g,
+          g.slug === editOriginalSlug ? (keepUnknownKeys(g, parsed.data, GameSchema) as Game) : g,
         );
       } else {
         if (file.content.games.some((g) => g.slug === parsed.data.slug)) {
@@ -278,7 +280,7 @@ export default function GamesList() {
       try {
         await updateFile(
           "data/_meta/games.json",
-          { games: updatedGames },
+          { ...file.content, games: updatedGames },
           file.sha,
           `${modalMode === "edit" ? "Edit" : "Add"} game: ${parsed.data.name}`,
         );

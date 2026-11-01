@@ -26,6 +26,7 @@ import {
 import { assertSafeEntityId, assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
 import { modeRecordSchema } from "~/lib/record-schema";
+import { abilityKey } from "~/lib/ability-icons";
 import {
   type DynamicField,
   type DynamicSchemaFile,
@@ -34,6 +35,8 @@ import { type GlobalEnum } from "~/schemas/enum";
 import { type Mode } from "~/schemas/mode";
 import { formatImportedJson, generateAiPromptMarkdown } from "~/lib/schema-utils";
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
+import { UnknownKeysNotice } from "~/components/UnknownKeysNotice";
+import { unknownKeys } from "~/lib/unknown-keys";
 
 interface DeleteConfirm {
   mode: string;
@@ -301,7 +304,7 @@ function ModeFormInner({
           abilityList.forEach((ability: Record<string, unknown>, i: number) => {
             if (!ability.params) ability.params = {};
             const aIcons =
-              abilityIcons[(ability._clientId || ability.id || i) as string] || [];
+              abilityIcons[abilityKey(methods.getValues(`${f.key}.${i}`), i)] || [];
             if (aIcons.length === 1 && aIcons[0].key === "main") {
               const ext =
                 aIcons[0].name?.split(".").pop() ||
@@ -555,6 +558,7 @@ function ModeFormInner({
             {submitError}
           </div>
         )}
+        <UnknownKeysNotice keys={unknownKeys(initData, dynamicZodSchema)} rawEditor={`/${game}/raw/modes/${initData.id}`} />
 
         {/* Top Actions */}
         <div className="flex justify-between items-center border-b border-border pb-4 mb-4">

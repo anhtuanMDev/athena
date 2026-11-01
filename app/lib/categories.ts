@@ -6,6 +6,8 @@
 // A category's push notification (`notify`) is the admin's alone: zms never
 // reads it, and /mobile/init leaves it out (see appCategory).
 
+import { keepUnknownKeys } from "./unknown-keys";
+
 export const CATEGORIES_PATH = "data/_meta/categories.json";
 
 /** Icons a category may use: names both the admin and the app can draw (lucide's). */
@@ -145,6 +147,41 @@ export function normalizeCategories(raw: unknown): { categories: Category[]; pro
     return { categories: [...DEFAULT_CATEGORIES], problems };
   }
   return { categories, problems };
+}
+
+/** The keys of a category the Categories page edits. */
+const CATEGORY_KEYS = ["category", "folder", "label", "singular", "icon", "favoritable", "notify"];
+
+/**
+ * categories.json as the Categories page edits it: its usable categories,
+ * each with the keys of its entry the page doesn't edit kept as they are, and
+ * the file's problems. The page can't show an entry with a problem as it is,
+ * so it can't save until the file is fixed (see categoriesFileFor).
+ */
+export function categoriesForEditing(raw: unknown): { categories: Category[]; problems: string[] } {
+  const { categories, problems } = normalizeCategories(raw);
+  const entries = isObject(raw) && Array.isArray(raw.categories) ? raw.categories.filter(isObject) : [];
+  return {
+    categories: categories.map((c) => {
+      const entry = entries.find((e) => e.category === c.category);
+      return entry ? (keepUnknownKeys(entry, { ...c }, CATEGORY_KEYS) as unknown as Category) : c;
+    }),
+    problems,
+  };
+}
+
+/**
+ * The categories.json the Categories page writes for `rows`, with the saved
+ * file's other keys; or, while the saved file has problems, those instead:
+ * writing `rows` would drop or change the entries the page couldn't show.
+ * `saved` is undefined when there's no file yet.
+ */
+export function categoriesFileFor(saved: unknown, rows: Category[]): { content: Record<string, unknown> } | { problems: string[] } {
+  if (saved !== undefined) {
+    const { problems } = normalizeCategories(saved);
+    if (problems.length > 0) return { problems };
+  }
+  return { content: { ...(isObject(saved) ? saved : {}), categories: rows } };
 }
 
 /**

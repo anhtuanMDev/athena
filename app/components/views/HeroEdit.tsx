@@ -29,6 +29,8 @@ import {
 import { assertSafeEntityId, assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
 import { heroRecordSchema } from "~/lib/record-schema";
+import { keepUnknownKeys } from "~/lib/unknown-keys";
+import { abilityKey, kitIcons, withKitKeys } from "~/lib/ability-icons";
 import {
   type DynamicField,
   type DynamicSchemaFile,
@@ -162,7 +164,7 @@ function EditHeroForm({
   id: string;
 }) {
   const [formKey, setFormKey] = useState(0);
-  const [initData, setInitData] = useState<Record<string, unknown>>({ ...hero });
+  const [initData, setInitData] = useState<Record<string, unknown>>(() => withKitKeys(hero));
 
   const handleImportSuccess = (data: Record<string, unknown>) => {
     // Always preserve the canonical id/game from the URL
@@ -229,24 +231,7 @@ function EditHeroFormInner({
   });
   const [abilityIcons, setAbilityIcons] = useState<
     Record<string, ImageEntry[]>
-  >(() => {
-    const icons: Record<string, ImageEntry[]> = {};
-    if (hero.kit && Array.isArray(hero.kit)) {
-      hero.kit.forEach((ability: Record<string, unknown>, i: number) => {
-        if (!ability._clientId) ability._clientId = ability.id || i.toString();
-        if (ability.icon && typeof ability.icon === "object") {
-          icons[ability._clientId as string] = Object.entries(ability.icon).map(
-            ([key, url]) => ({
-              id: Math.random().toString(36).substring(7),
-              key,
-              previewUrl: url as string,
-            }),
-          );
-        }
-      });
-    }
-    return icons;
-  });
+  >(() => kitIcons(hero.kit));
 
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>(
     (initData.schema_id as string) || schemas[0]?.id || "",
@@ -517,13 +502,17 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
           abilityList.forEach((ability: Record<string, unknown>, i: number) => {
             if (!ability.params) ability.params = {};
             const aIcons =
-              abilityIcons[(ability._clientId || ability.id || i) as string] || [];
+              abilityIcons[abilityKey(getValues(`${f.key}.${i}`), i)] || [];
             if (aIcons.length === 1 && aIcons[0].key === "main") {
               const ext =
                 aIcons[0].name?.split(".").pop() ||
                 aIcons[0].previewUrl?.split(".").pop() ||
                 "png";
-              ability.icon = `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
+              // An icon it already had keeps its URL, even if the ability's id changed.
+              ability.icon =
+                aIcons[0].previewUrl && !aIcons[0].base64
+                  ? aIcons[0].previewUrl
+                  : `/api/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`;
               if (aIcons[0].base64) {
                 abilityUploads.push({
                   path: `public/assets/${game}/heroes/${id}/abilities/${ability.id}.${ext}`,
@@ -539,7 +528,9 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
                   icon.previewUrl?.split(".").pop() ||
                   "png";
                 (ability.icon as Record<string, string>)[icon.key] =
-                  `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
+                  icon.previewUrl && !icon.base64
+                    ? icon.previewUrl
+                    : `/api/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`;
                 if (icon.base64) {
                   abilityUploads.push({
                     path: `public/assets/${game}/heroes/${id}/abilities/${ability.id}_${icon.key}.${ext}`,
@@ -553,10 +544,12 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
         });
 
       const parsed = dynamicZodSchema.parse(formData) as Record<string, unknown>;
-      const diffs = computeDiff(hero, parsed);
+      // The hero's keys the schema doesn't list stay as they are (see keepUnknownKeys).
+      const saved = keepUnknownKeys(hero, parsed, dynamicZodSchema);
+      const diffs = computeDiff(hero, saved);
       setPreview({
         diffs,
-        heroJson: JSON.stringify(parsed),
+        heroJson: JSON.stringify(saved),
         sha: sha,
         abilityUploads,
       });
@@ -621,7 +614,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
 
       await updateFile(
         `data/${game}/heroes/${id}.json`,
-        parsed.data,
+        keepUnknownKeys(hero, parsed.data, dynamicZodSchema),
         sha,
         `Update hero: ${parsed.data.name || id}`,
       );
