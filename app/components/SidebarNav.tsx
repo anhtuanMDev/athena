@@ -4,6 +4,7 @@ import {
   Activity,
   Gamepad2,
   Database,
+  Shapes,
   Clock,
   LogOut,
   ChevronRight,
@@ -82,6 +83,13 @@ export function SidebarNav({
             label="Games"
             icon={Gamepad2}
             isActive={isActive("/games")}
+            onClick={onClose}
+          />
+          <NavLink
+            href="/categories"
+            label="Categories"
+            icon={Shapes}
+            isActive={isActive("/categories")}
             onClick={onClose}
           />
         </div>
