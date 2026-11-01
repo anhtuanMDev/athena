@@ -44,12 +44,6 @@ export const CronJobSchema = z.object({
   // ("h3", "a@href"), a constant ("=Live"), optionally piped through transforms
   // ("time | date"). Object-array fields take { each, fields }.
   field_mappings: z.record(z.string(), FieldRuleSchema).default({}),
-  notify_on_success: z.object({
-    topic: z.string().default("all_users"),
-    title: z.string(),
-    body: z.string(),
-    data: z.record(z.string(), z.string()).optional()
-  }).optional()
 });
 
 export type CronJob = z.infer<typeof CronJobSchema>;
