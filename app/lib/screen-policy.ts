@@ -110,6 +110,68 @@ export function appPolicy(manifest: unknown): AppPolicy {
   return { limits, appScreens };
 }
 
+/**
+ * Problems with the block manifest, for checking the data repo. appPolicy
+ * quietly puts APP_POLICY's values in place of malformed ones so the editors
+ * keep working; a check of the repo says so instead. The manifest's link
+ * hosts and blocked props must also be this admin's: the app (zms) enforces
+ * its own copy, and if the two differ they disagree on what a screen may hold.
+ */
+export function manifestProblems(raw: unknown): string[] {
+  if (!isObject(raw)) return ["The block manifest must be a JSON object."];
+  const errors: string[] = [];
+  const given = raw.$policy;
+  if (!isObject(given)) errors.push('"$policy" must be an object.');
+  else {
+    const read = appPolicy(raw);
+    const limits = isObject(given.limits) ? given.limits : {};
+    for (const key of Object.keys(APP_POLICY.limits) as (keyof AppLimits)[]) {
+      // appPolicy kept the value only if it is a positive whole number.
+      if (limits[key] !== read.limits[key]) errors.push(`"$policy.limits.${key}" must be a positive whole number.`);
+    }
+    const screens = given.appScreens;
+    if (!Array.isArray(screens) || screens.length !== read.appScreens.length || !screens.every((s, i) => s === read.appScreens[i])) {
+      errors.push('"$policy.appScreens" must list distinct app screens such as "app:settings".');
+    }
+    const hosts = given.linkHosts;
+    const sameHosts = Array.isArray(hosts) && hosts.length === LINK_HOSTS.length && LINK_HOSTS.every((host) => hosts.includes(host));
+    if (!sameHosts) errors.push(`"$policy.linkHosts" must be the admin's link hosts (LINK_HOSTS in app/lib/screen-policy.ts): ${LINK_HOSTS.join(", ")}.`);
+    if (given.blockedProps !== BLOCKED_PROP.source) {
+      errors.push(`"$policy.blockedProps" must be the admin's ${BLOCKED_PROP.source} (BLOCKED_PROP in app/lib/screen-policy.ts).`);
+    }
+  }
+
+  const blocks = Object.entries(raw).filter(([key]) => !key.startsWith("$"));
+  if (blocks.length === 0) errors.push("The block manifest lists no blocks.");
+  for (const [type, spec] of blocks) {
+    const where = `Block "${type}"`;
+    if (!BLOCK_TYPE.test(type)) errors.push(`${where}: the type must be lowercase letters, digits and _.`);
+    if (!isObject(spec)) {
+      errors.push(`${where} must be an object.`);
+      continue;
+    }
+    if (typeof spec.name !== "string" || !spec.name) errors.push(`${where} needs a name.`);
+    if (spec.list !== undefined && typeof spec.list !== "boolean") errors.push(`${where}: list must be true or false.`);
+    if (!isObject(spec.props)) {
+      errors.push(`${where} needs props as an object.`);
+      continue;
+    }
+    for (const [name, prop] of Object.entries(spec.props)) {
+      const at = `${where}: prop "${name}"`;
+      if (!isObject(prop)) {
+        errors.push(`${at} must be an object.`);
+        continue;
+      }
+      if (typeof prop.type !== "string" || !prop.type) errors.push(`${at} needs a type.`);
+      if (prop.required !== undefined && typeof prop.required !== "boolean") errors.push(`${at}: required must be true or false.`);
+      if (prop.options !== undefined && !(Array.isArray(prop.options) && prop.options.every((o) => typeof o === "string"))) {
+        errors.push(`${at}: options must be a list of text.`);
+      }
+    }
+  }
+  return errors;
+}
+
 /** The app's policy from the data repo's manifest, read with `read`; APP_POLICY when it can't be read. */
 export async function readAppPolicy(read: (path: string) => Promise<string>): Promise<AppPolicy> {
   try {

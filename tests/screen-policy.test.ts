@@ -325,3 +325,57 @@ describe("screens and tabs against the app's policy", () => {
     }
   });
 });
+
+describe("the block manifest's shape", () => {
+  // The data repo's manifest as the app generates it (zero-backend data/_meta).
+  const manifest = () => JSON.parse(readFileSync(new URL("./fixtures/mobile_primitives.json", import.meta.url), "utf8"));
+
+  it("accepts the manifest the app generates", () => {
+    assert.deepEqual(policy.manifestProblems(manifest()), []);
+  });
+
+  it("refuses what appPolicy would quietly replace with the admin's defaults", () => {
+    const m = manifest();
+    m.$policy.limits.tabs = "5";
+    delete m.$policy.limits.text;
+    m.$policy.appScreens = ["app:settings", "app:Settings"];
+    assert.deepEqual(policy.manifestProblems(m), [
+      '"$policy.limits.tabs" must be a positive whole number.',
+      '"$policy.limits.text" must be a positive whole number.',
+      '"$policy.appScreens" must list distinct app screens such as "app:settings".',
+    ]);
+    assert.deepEqual(policy.manifestProblems({ ...manifest(), $policy: undefined }), ['"$policy" must be an object.']);
+    assert.deepEqual(policy.manifestProblems([]), ["The block manifest must be a JSON object."]);
+  });
+
+  it("refuses link hosts or blocked props that differ from the admin's", () => {
+    const m = manifest();
+    m.$policy.linkHosts = [...policy.LINK_HOSTS, "evil.example"];
+    m.$policy.blockedProps = "^(style)$";
+    const problems = policy.manifestProblems(m);
+    assert.equal(problems.length, 2);
+    assert.match(problems[0], /^"\$policy\.linkHosts" must be the admin's link hosts/);
+    assert.match(problems[1], /^"\$policy\.blockedProps" must be the admin's/);
+    // Order doesn't matter, only the set.
+    const reordered = manifest();
+    reordered.$policy.linkHosts = [...policy.LINK_HOSTS].reverse();
+    assert.deepEqual(policy.manifestProblems(reordered), []);
+  });
+
+  it("checks every block's spec", () => {
+    const m = manifest();
+    m["Bad-Type"] = { name: "X", props: {} };
+    m.text = { name: "", props: { value: { type: 3, required: "yes", options: ["a", 1] } } };
+    m.gallery = { name: "Gallery" };
+    // In the manifest's order: gallery and text are already in it, Bad-Type is added last.
+    assert.deepEqual(policy.manifestProblems(m), [
+      'Block "gallery" needs props as an object.',
+      'Block "text" needs a name.',
+      'Block "text": prop "value" needs a type.',
+      'Block "text": prop "value": required must be true or false.',
+      'Block "text": prop "value": options must be a list of text.',
+      'Block "Bad-Type": the type must be lowercase letters, digits and _.',
+    ]);
+    assert.deepEqual(policy.manifestProblems({ $policy: manifest().$policy }), ["The block manifest lists no blocks."]);
+  });
+});
