@@ -56,6 +56,24 @@ export function abilityIcons(values: Record<string, unknown>, lists: string[]): 
   return icons;
 }
 
+/**
+ * Whether a set of pictures differs from how it was loaded (`loaded`): a new
+ * picture, one removed, or one under another key. Entries without a picture
+ * don't count, as iconForSave leaves them out. The pictures live outside the
+ * form, so an editor counts this as an edit too: a save may change pictures alone.
+ */
+export function picturesChanged(entries: ImageEntry[], loaded: ImageEntry[]): boolean {
+  const shown = (list: ImageEntry[]) => list.filter((e) => e.base64 || e.previewUrl);
+  if (shown(entries).some((e) => e.base64)) return true;
+  const signature = (list: ImageEntry[]) => shown(list).map((e) => `${e.key}\n${e.previewUrl}`).sort().join("\n\n");
+  return signature(entries) !== signature(loaded);
+}
+
+/** picturesChanged for every ability of an editor (abilityIcons), by abilityKey. */
+export function abilityPicturesChanged(icons: Record<string, ImageEntry[]>, loaded: Record<string, ImageEntry[]>): boolean {
+  return [...new Set([...Object.keys(icons), ...Object.keys(loaded)])].some((key) => picturesChanged(icons[key] ?? [], loaded[key] ?? []));
+}
+
 /** A stored icon's URLs by key: a plain URL is the "main" one. */
 function iconUrls(icon: unknown): Record<string, string> {
   if (typeof icon === "string") return icon ? { main: icon } : {};

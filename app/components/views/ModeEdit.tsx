@@ -19,6 +19,7 @@ import {
   getFileSha,
   isConflictError,
   listDirectory,
+  pruneReplacedAssets,
   updateFile,
   uploadAsset,
 } from "~/lib/github";
@@ -224,7 +225,7 @@ function ModeFormInner({
   onImportSuccess,
 }: ModeFormInnerProps) {
   const navigate = useNavigate();
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess, error: toastError, warning: toastWarning } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -306,13 +307,18 @@ function ModeFormInner({
       if (uploads.length > 0) await Promise.all(uploads);
 
       // What the form filled in for keys the mode had no value for doesn't count as an edit.
+      const saved = asStored(stored, parsed, dynamicZodSchema);
       await updateFile(
         `data/${game}/modes/${parsed.id}.json`,
-        asStored(stored, parsed, dynamicZodSchema),
+        saved,
         modeSha,
         `Update mode: ${parsed.name}`,
       );
-      toastSuccess(`Mode ${parsed.name} updated successfully!`);
+      // Pictures the save replaced or dropped: removed when nothing uses them (never fails the save).
+      const pruned = parsed.id === stored.id ? await pruneReplacedAssets(game, "modes", String(parsed.id), stored, saved) : null;
+      const done = `Mode ${parsed.name} updated successfully!`;
+      if (pruned?.kept) toastWarning(`${done} ${pruned.message}`);
+      else toastSuccess(pruned ? `${done} ${pruned.message}` : done);
       navigate(`/${game}/modes`);
     } catch (err) {
       if (isConflictError(err)) {

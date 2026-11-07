@@ -193,8 +193,12 @@ export interface RunRepo extends DataRepo {
   prefetch(paths: ReadPaths): Promise<void>;
   /** The requests reading these would still make: none for a path prefetched, or read or listed before. */
   pending(paths: { files?: string[]; listings?: string[] }): number;
-  /** Writes everything committed so far in one commit: one job's with its own message, several under one headline. */
-  flush(): Promise<void>;
+  /**
+   * Writes everything committed so far in one commit: one job's with its own
+   * message, several under one headline. `extra` (the run's log) goes in the
+   * same commit, as one more line of its message, without counting as a job.
+   */
+  flush(extra?: { changes: FileChange[]; message: string }): Promise<void>;
 }
 
 /**
@@ -265,10 +269,13 @@ export function runRepo(base: DataRepo & Partial<BulkReader>): RunRepo {
     async commit(changes, message) {
       if (changes.length > 0) held.push({ changes, message });
     },
-    async flush() {
-      if (held.length === 0) return;
+    async flush(extra) {
       const all = held.splice(0);
-      const message = all.length === 1 ? all[0].message : `Import run: ${all.length} jobs\n\n${all.map((c) => c.message).join("\n")}`;
+      if (extra && extra.changes.length > 0) all.push(extra);
+      if (all.length === 0) return;
+      const jobs = all.length - (extra && extra.changes.length > 0 ? 1 : 0);
+      const message =
+        all.length === 1 ? all[0].message : `Import run: ${jobs} job${jobs === 1 ? "" : "s"}\n\n${all.map((c) => c.message).join("\n")}`;
       await base.commit(all.flatMap((c) => c.changes), message);
     },
   };

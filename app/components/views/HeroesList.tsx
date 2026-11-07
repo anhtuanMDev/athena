@@ -7,6 +7,10 @@ import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus, Copy } from "lucide-react";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { useToast } from "~/components/ToastProvider";
+import { listFolders } from "~/lib/github";
+import { useData } from "~/lib/use-data";
+import { useCategories } from "~/lib/categories-context";
+import { cellText, fieldOf, keyColumns, schemaColumns, schemaForRecord, type ColumnSchema } from "~/lib/record-columns";
 
 interface HeroRow {
   id: string;
@@ -17,6 +21,10 @@ interface HeroRow {
 }
 
 import { useMemo } from "react";
+
+/** Keys the list shows otherwise, or that are too long for a cell, when the heroes' schema can't be read. */
+const EXCLUDE = ["id", "name", "game", "kit", "weapon", "abilities", "schema_id", "real_name", "bio", "portrait"];
+const headerOf = (key: string) => key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ");
 
 const baseColumns: Column<any>[] = [
   {
@@ -70,60 +78,42 @@ export default function HeroesIndex() {
     error,
   } = useEntityList<HeroRow>(game!, "heroes");
 
+  // The hero schemas and the game's enums, in one request (data/folders): the
+  // columns are the schema's, and enum values show by name, as in the app.
+  // Until they're read, or if they can't be, columns and values are as stored.
+  const categories = useCategories();
+  const category = categories.find((c) => c.folder === "heroes")?.category ?? "hero";
+  const { data: shape } = useData(
+    async () => {
+      const { folders } = await listFolders(game!, ["schemas", "enums"]);
+      return { schemas: folders.schemas as ColumnSchema[], enums: folders.enums };
+    },
+    [game],
+    `${game}-heroes-list-schemas`,
+  );
+
   const columns = useMemo(() => {
     if (!heroes || heroes.length === 0) return baseColumns;
-
-    // Auto-detect columns based on the first hero's keys
-    // Exclude standard keys and complex objects
-    const exclude = [
-      "id",
-      "name",
-      "game",
-      "kit",
-      "weapon",
-      "abilities",
-      "schema_id",
-      "real_name",
-      "bio",
-      "portrait",
-    ];
-
-    // We scan all heroes to find up to 3 valid scalar/array keys
-    const dynamicKeys = new Set<string>();
-    for (const h of heroes) {
-      for (const k of Object.keys(h)) {
-        if (!exclude.includes(k)) {
-          const val = (h as any)[k];
-          if (
-            typeof val === "string" ||
-            typeof val === "number" ||
-            typeof val === "boolean" ||
-            Array.isArray(val)
-          ) {
-            dynamicKeys.add(k);
-          }
-        }
-      }
+    const rows = heroes as unknown as Record<string, unknown>[];
+    const schemas = (shape?.schemas ?? []).filter((s) => s && typeof s === "object" && s.category === category);
+    const fields = schemaColumns(schemas, rows);
+    if (fields) {
+      return [
+        ...baseColumns,
+        ...fields.map((field): Column<any> => ({
+          key: field.key,
+          header: field.label || headerOf(field.key),
+          // A record of another schema reads the field as its own schema has it.
+          render: (h) => cellText(fieldOf(schemaForRecord(h, schemas), field.key) ?? field, h[field.key], shape!.enums),
+        })),
+      ];
     }
-
-    const cols = [...baseColumns];
-    Array.from(dynamicKeys)
-      .slice(0, 3)
-      .forEach((k) => {
-        cols.push({
-          key: k,
-          header: k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, " "),
-          render: (h) => {
-            const val = (h as any)[k];
-            if (Array.isArray(val)) return val.join(", ");
-            if (typeof val === "boolean") return val ? "Yes" : "No";
-            return val != null ? String(val) : "";
-          },
-        });
-      });
-
-    return cols;
-  }, [heroes]);
+    // No schema: the first keys the heroes hold, as before.
+    return [
+      ...baseColumns,
+      ...keyColumns(rows, EXCLUDE).map((k): Column<any> => ({ key: k, header: headerOf(k), render: (h) => cellText(undefined, h[k], []) })),
+    ];
+  }, [heroes, shape, category]);
 
   if (error)
     return (

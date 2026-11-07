@@ -1,0 +1,58 @@
+{
+  "description": "Which folders a screen's references are labelled from: the admin (athena screen-model.ts screenReferenceFolders) and the app (zms) must agree. Fields come from the screen's source schemas (category 'mode').",
+  "rule": "Blocks in file order, all tabs, visible !== false only; within a block, props in object key order; arrays by index, depth-first; each bound field contributes its referenceFolders (sub-fields in schema order); first occurrence wins; cap max.",
+  "why": {
+    "hidden-news": "visible: false, so news here must not count (counted: news, maps, patches)",
+    "header": "props in key order: quote (maps) before eyebrow (patches); in alphabetical or manifest order it would be patches, maps",
+    "rules": "on the second tab (Details), so it counts; its object_array's sub-fields in schema order give items, then heroes (tab block left out: maps, patches, modes; sub-fields reversed: maps, patches, heroes)",
+    "facts": "rows by index: modes, then news; only expectedUncapped shows it (reversed: ..., news, modes)",
+    "blocks": "in file order (reversed: modes, news, items)"
+  },
+  "categories": [
+    { "category": "hero", "folder": "heroes", "label": "Heroes" },
+    { "category": "map", "folder": "maps", "label": "Maps" },
+    { "category": "mode", "folder": "modes", "label": "Modes" },
+    { "category": "item", "folder": "items", "label": "Items" },
+    { "category": "patch", "folder": "patches", "label": "Patches" },
+    { "category": "news", "folder": "news", "label": "News" }
+  ],
+  "schemas": [
+    {
+      "id": "mode-golden",
+      "name": "Golden mode",
+      "category": "mode",
+      "fields": [
+        { "key": "title", "label": "Title", "type": "string" },
+        { "key": "introduced_patch", "label": "Introduced", "type": "reference", "referenceApiEndpoint": "/api/{game}/patches", "referenceValueKey": "id", "referenceLabelKey": "title" },
+        { "key": "featured_map", "label": "Featured map", "type": "reference", "referenceApiEndpoint": "/api/{game}/maps", "referenceValueKey": "id", "referenceLabelKey": "name" },
+        { "key": "news_ref", "label": "News", "type": "reference", "referenceApiEndpoint": "/api/{game}/news", "referenceValueKey": "id", "referenceLabelKey": "title" },
+        { "key": "related_mode", "label": "Related mode", "type": "reference", "referenceApiEndpoint": "/api/{game}/modes", "referenceValueKey": "id", "referenceLabelKey": "name" },
+        {
+          "key": "rules",
+          "label": "Rules",
+          "type": "object_array",
+          "subFields": [
+            { "key": "rule", "label": "Rule", "type": "string" },
+            { "key": "item", "label": "Item", "type": "reference", "referenceApiEndpoint": "/api/{game}/items", "referenceValueKey": "id", "referenceLabelKey": "name" },
+            { "key": "hero", "label": "Hero", "type": "reference", "referenceApiEndpoint": "/api/{game}/heroes", "referenceValueKey": "id", "referenceLabelKey": "name" }
+          ]
+        }
+      ]
+    }
+  ],
+  "screen": {
+    "type": "detail",
+    "title": "Mode",
+    "source": { "category": "mode" },
+    "blocks": [
+      { "id": "hidden-news", "type": "field_section", "visible": false, "props": { "field": "data.news_ref" } },
+      { "id": "header", "type": "detail_header", "props": { "title": "data.title", "quote": "data.featured_map", "eyebrow": "data.introduced_patch" } },
+      { "id": "tabs", "type": "tab_bar", "props": { "tabs": "Overview, Details" } },
+      { "id": "rules", "type": "field_section", "tab": "Details", "props": { "field": "data.rules", "title": "Rules" } },
+      { "id": "facts", "type": "info_list", "tab": "Overview", "props": { "title": "Facts", "rows": [ { "label": "Related", "value": "data.related_mode" }, { "label": "News", "value": "data.news_ref" } ] } }
+    ]
+  },
+  "max": 3,
+  "expected": ["maps", "patches", "items"],
+  "expectedUncapped": ["maps", "patches", "items", "heroes", "modes", "news"]
+}

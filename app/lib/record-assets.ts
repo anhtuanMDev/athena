@@ -84,12 +84,11 @@ export interface DeletionPlan {
   keep: (AssetFile & { usedBy: string[] })[];
 }
 
-/** What deleting the record `folder/id` does to the files in its folder, given every other record of its game. */
-export function deletionPlan(dir: string, files: AssetFile[], records: ScannedRecord[], self: { folder: string; id: string }): DeletionPlan {
+/** Which of `files` (all under `dir`) `records` point at: those go in `keep`, with who uses them. */
+function planFor(dir: string, files: AssetFile[], records: ScannedRecord[]): DeletionPlan {
   const usedBy = new Map<string, string[]>();
   const paths = files.map((f) => f.path);
   for (const record of records) {
-    if (record.folder === self.folder && record.id === self.id) continue;
     const label = record.folder.includes("/") ? record.folder : `${record.folder}/${record.id}`;
     const hits = new Set(strings(record.content).flatMap((text) => pointedAt(text, dir, paths)));
     for (const path of hits) usedBy.set(path, [...(usedBy.get(path) ?? []), label]);
@@ -98,6 +97,91 @@ export function deletionPlan(dir: string, files: AssetFile[], records: ScannedRe
     remove: files.filter((f) => !usedBy.has(f.path)),
     keep: files.filter((f) => usedBy.has(f.path)).map((f) => ({ ...f, usedBy: usedBy.get(f.path)! })),
   };
+}
+
+/** What deleting the record `folder/id` does to the files in its folder, given every other record of its game. */
+export function deletionPlan(dir: string, files: AssetFile[], records: ScannedRecord[], self: { folder: string; id: string }): DeletionPlan {
+  return planFor(dir, files, records.filter((record) => !(record.folder === self.folder && record.id === self.id)));
+}
+
+// ─── After a save ───────────────────────────────────────────────────────
+// A save that replaces a picture under another name (portrait_2d.webp by
+// portrait_2d.png), drops one, or renames an ability, left the old file for
+// good. After the record is saved, its editor names the files of the record's
+// own folder that the save stopped pointing at (droppedAssets); the server
+// deletes those that nothing, the saved record included, points at
+// (prunePlan), at one commit it read everything at. Nothing it can't check is
+// deleted, and the save itself never waits on it.
+
+/** The files under `dir` that `content` names as a picture: "/api/assets/<path>", "assets/<path>" or a URL holding it, maybe with ?v=… or %-encoded. */
+function namedFiles(content: unknown, dir: string): Set<string> {
+  const rel = dir.slice("public/assets/".length);
+  const named = new Set<string>();
+  for (const text of strings(content)) {
+    const plain = decoded(text);
+    for (let at = plain.indexOf(rel); at !== -1; at = plain.indexOf(rel, at + 1)) {
+      // Only right after "assets/": another game's "rival-overwatch/heroes/ana/" isn't this folder.
+      if (plain.slice(Math.max(0, at - 7), at) !== "assets/") continue;
+      const path = dir + /^[^?#\s"'<>()]*/.exec(plain.slice(at + rel.length))![0];
+      if (isOwnedAsset(path, dir)) named.add(path);
+    }
+  }
+  return named;
+}
+
+/** The files of the record's own folder (`dir`) that `stored` pointed at and `saved` doesn't: what a save leaves behind. */
+export function droppedAssets(stored: unknown, saved: unknown, dir: string): string[] {
+  const kept = namedFiles(saved, dir);
+  return [...namedFiles(stored, dir)].filter((path) => !kept.has(path));
+}
+
+/** Of the files a save left behind, those no record points at (the saved one included) go; the others stay, with who uses them. */
+export function prunePlan(dir: string, files: AssetFile[], records: ScannedRecord[]): DeletionPlan {
+  return planFor(dir, files, records);
+}
+
+/** What an editor asks the server to remove after a save: files of the record's own folder. */
+export interface PruneRequest {
+  game: string;
+  folder: string;
+  id: string;
+  paths: string[];
+}
+
+/** Files one save can ask to remove: a record's pictures, with room to spare. */
+const MAX_PRUNE = 50;
+
+/** `body` as a prune request, or why it isn't one (a 400). */
+export function pruneRequest(body: unknown): PruneRequest | string {
+  const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
+  const { game, folder, id, paths } = b;
+  if (typeof game !== "string" || !SAFE_SLUG.test(game)) return "Invalid game.";
+  if (typeof folder !== "string" || !isRecordFolder(folder)) return "Invalid folder.";
+  if (typeof id !== "string" || !SAFE_ENTITY_ID.test(id)) return "Invalid id.";
+  if (!Array.isArray(paths) || paths.length === 0 || paths.length > MAX_PRUNE || !paths.every((p) => typeof p === "string")) return `Name 1 to ${MAX_PRUNE} pictures.`;
+  // An enum's option icons, as a record's pictures, live in its own folder: public/assets/{game}/enums/{enum}/.
+  const dir = recordAssetDir(game, folder, id);
+  const outside = (paths as string[]).find((p) => !isOwnedAsset(p, dir));
+  if (outside) return `${outside} isn't in ${dir}, the record's own folder.`;
+  if (new Set(paths).size !== paths.length) return "A picture is listed twice.";
+  return { game, folder, id, paths: paths as string[] };
+}
+
+/** The server's answer: what it removed, and what it kept and why. */
+export interface PruneResult {
+  removed: string[];
+  kept: { path: string; why: string }[];
+}
+
+/** The sentence an editor adds to its "saved" message; `kept` makes it a warning. */
+export function pruneNote(result: PruneResult): { message: string; kept: boolean } {
+  // Its path in the record's folder: public/assets/{game}/{folder}/{id}/<this>.
+  const name = (path: string) => path.split("/").slice(5).join("/");
+  const parts: string[] = [];
+  if (result.removed.length === 1) parts.push(`Removed the replaced picture ${name(result.removed[0])}.`);
+  else if (result.removed.length > 1) parts.push(`Removed ${result.removed.length} replaced pictures (${result.removed.map(name).join(", ")}).`);
+  for (const { path, why } of result.kept) parts.push(`Kept the replaced picture ${name(path)}: ${why}.`);
+  return { message: parts.join(" "), kept: result.kept.length > 0 };
 }
 
 /**

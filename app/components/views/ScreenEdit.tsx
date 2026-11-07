@@ -12,6 +12,7 @@ import { enumOptions as optionsOf } from "~/lib/enum-options";
 import { APP_POLICY, MANIFEST_PATH, appPolicy, validateScreenFile } from "~/lib/screen-policy";
 import { useData } from "~/lib/use-data";
 import { useCategories } from "~/lib/categories-context";
+import { detailScreenFor, referenceFolder, referenceLabels, referenceRecords } from "~/lib/reference-labels";
 import {
   SCREEN_TYPES,
   bindingPath,
@@ -27,6 +28,7 @@ import {
   previewRecords,
   readScreen,
   recordLabel,
+  screenReferenceFolders,
   sourceFields,
   validateScreen,
   type FieldOption,
@@ -82,6 +84,16 @@ function summarizeProps(block: ScreenBlock): string {
   return parts.length > 0 ? parts.join(" · ") : "No props set";
 }
 
+/** Folders whose records label a screen's references, as the app loads at most (zms's screen scope). */
+const MAX_REFERENCE_FOLDERS = 3;
+
+/** `items` without one entry equal to `item` (the same JSON). */
+function withoutOne(items: unknown[], item: unknown): unknown[] {
+  const text = JSON.stringify(item);
+  const at = items.findIndex((entry) => JSON.stringify(entry) === text);
+  return at === -1 ? items : items.filter((_, i) => i !== at);
+}
+
 function tabsOf(screen: ScreenFile): string[] {
   const bar = screen.blocks.find((b) => b.type === "tab_bar" && b.visible !== false);
   return typeof bar?.props.tabs === "string" ? bar.props.tabs.split(",").map((t) => t.trim()).filter(Boolean) : [];
@@ -97,11 +109,13 @@ export default function ScreenEdit() {
 
   const { data: loaded, loading, error: loadError } = useData(
     async () => {
-      const [file, schemas, enums, screenNames, manifestFile, games] = await Promise.all([
+      const [file, schemas, enums, screenNames, screenFiles, manifestFile, games] = await Promise.all([
         getFile<ScreenFile>(screenPath),
         listDirectory<SchemaInfo>(game!, "schemas", true).catch(() => []),
         listDirectory<EnumFile>(game!, "enums", true).catch(() => []),
         listDirectory<string>(game!, "screens").catch(() => []),
+        // The screens themselves: which detail screen a linked reference opens (field_section linkReferences).
+        listDirectory<unknown>(game!, "screens", true).catch((): unknown[] => []),
         getFile(MANIFEST_PATH).catch(() => null),
         // The game as the app gets it, for "data.game…" on home and list screens.
         listGames().catch(() => []),
@@ -121,6 +135,8 @@ export default function ScreenEdit() {
         schemas: schemas.filter((s) => s && typeof s === "object" && s.category),
         enums,
         screenIds: screenNames.filter((n) => typeof n === "string"),
+        // This screen as saved is replaced by the one being edited (see `reference`).
+        otherScreens: withoutOne(screenFiles, file.content),
         manifest: normalizeManifest(manifestFile?.content),
         // The app's limits and own screens; today's when the manifest has none.
         policy: appPolicy(manifestFile?.content),
@@ -206,6 +222,36 @@ export default function ScreenEdit() {
         : [],
     [screen, manifest, dataFields, schemas, loaded, recordsOf, policy, configured],
   );
+  // The app labels a screen's references from the records of at most 3 folders
+  // (zms's screen scope): those its visible blocks' bindings point into first.
+  // The editor has their records already (every category with a schema).
+  const referenceFoldersShown = useMemo(
+    () =>
+      screen
+        ? screenReferenceFolders(screen, dataFields, schemas, configured, MAX_REFERENCE_FOLDERS, recordsOf)
+        : [],
+    [screen, dataFields, schemas, recordsOf, configured],
+  );
+  const reference = useMemo<PreviewContext["reference"]>(() => {
+    const built = new Map<FieldOption, { labels: Map<string, string>; records: Map<string, Record<string, unknown>> }>();
+    return (field, id) => {
+      const folder = referenceFolder(field, configured);
+      const category = configured.find((c) => c.folder === folder)?.category;
+      if (!folder || !category || !referenceFoldersShown.includes(folder)) return undefined;
+      let found = built.get(field);
+      if (!found) {
+        const records = loaded?.records[category] ?? [];
+        found = { labels: referenceLabels(records, field), records: referenceRecords(records, field) };
+        built.set(field, found);
+      }
+      const label = found.labels.get(id);
+      if (label === undefined) return undefined;
+      // The app opens the record (linkReferences) when it has an id and one detail screen shows its category.
+      const target = found.records.get(id)?.id;
+      const linked = typeof target === "string" && target !== "" && !!detailScreenFor([...(loaded?.otherScreens ?? []), screen], category);
+      return { label, linked };
+    };
+  }, [configured, referenceFoldersShown, loaded, screen]);
   const visibleIssues = (list: ScreenIssue[]) => list.filter((i) => attemptedSave || i.kind !== "required");
   const jsonErrorList = Object.entries(jsonErrors);
   // The same structural check the write API runs, so a save never fails there unexpectedly.
@@ -403,6 +449,7 @@ export default function ScreenEdit() {
     enumOptions,
     dataFields,
     itemFieldsFor: (block) => itemFieldsFor(block, screen, dataFields, schemas, recordsOf),
+    reference,
     screenSource: screen.source,
     routeStops: (policy ?? APP_POLICY).limits.routeStops,
   };

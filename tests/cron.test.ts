@@ -113,17 +113,19 @@ function fakeWorld(initial: Record<string, string>, sources: Record<string, stri
 }
 
 /**
- * `daily` jobs and 2 hourly ones in each of `games`, which games.json lists with
- * any in `listed`; every job finds 4 items: 1 published, 1 drafted, 1 dismissed and 1 new.
+ * `daily` jobs (a number per game, or the same for each) and 2 hourly ones in
+ * each of `games`, which games.json lists with any in `listed`, `inactive` ones
+ * as inactive; every job finds 4 items: 1 published, 1 drafted, 1 dismissed and 1 new.
  */
-function repoWith(daily: number, games = ["overwatch"], listed = games) {
+function repoWith(daily: number | Record<string, number>, games = ["overwatch"], listed = games, inactive: string[] = []) {
   const files: Record<string, string> = {
-    "data/_meta/games.json": JSON.stringify({ games: listed.map((slug) => ({ slug, name: slug, active: true })) }),
+    "data/_meta/games.json": JSON.stringify({ games: listed.map((slug) => ({ slug, name: slug, active: !inactive.includes(slug) })) }),
   };
   const sources: Record<string, string> = {};
   for (const game of games) {
+    const count = typeof daily === "number" ? daily : daily[game];
     files[`data/${game}/schemas/news-test.json`] = JSON.stringify({ id: "news-test", name: "News", category: "news", fields: [{ key: "title", label: "Title", type: "string", required: true }] });
-    for (const [n, schedule] of [...Array.from({ length: daily }, (_, i) => [i + 1, "daily"] as const), [100, "hourly"] as const, [101, "hourly"] as const]) {
+    for (const [n, schedule] of [...Array.from({ length: count }, (_, i) => [i + 1, "daily"] as const), [100, "hourly"] as const, [101, "hourly"] as const]) {
       const id = `job-${n}`;
       const url = `https://src${n}.${game}.example/feed.json`;
       files[`data/${game}/cron_jobs/${id}.json`] = JSON.stringify({
@@ -160,17 +162,34 @@ async function scheduled(world: ReturnType<typeof fakeWorld>, at = Date.UTC(2026
   await Promise.all(waits).catch((err: Error) => logs.push(`aborted: ${err.message}`));
 }
 
-/** What each daily job of `game` shows after a run: "deferred" (its state says so), "ran" (its new item drafted, its state updated), else "lost". */
+/** The daily run's log of `game` (data/{game}/syncs/_run-daily.json), or null when it wrote none. */
+function runLog(world: ReturnType<typeof fakeWorld>, game = "overwatch"): { run: string; at: string; deferred: string[]; unchecked: string[] } | null {
+  const text = world.files.get(`data/${game}/syncs/_run-daily.json`);
+  if (text === undefined) return null;
+  const log = JSON.parse(text);
+  assert.equal(log.run, "daily");
+  assert.ok(!Number.isNaN(Date.parse(log.at)));
+  assert.ok(text.endsWith("}\n"));
+  return log;
+}
+
+/**
+ * What each daily job of `game` shows after a run: "deferred" or "unchecked"
+ * (the run's log says so, and its state is as it was), "ran" (its new item
+ * drafted, its state updated), else "lost".
+ */
 function outcomes(world: ReturnType<typeof fakeWorld>, daily: number, game = "overwatch", repeat = false) {
-  const result: Record<"ran" | "deferred" | "lost", number[]> = { ran: [], deferred: [], lost: [] };
+  const result: Record<"ran" | "deferred" | "unchecked" | "lost", number[]> = { ran: [], deferred: [], unchecked: [], lost: [] };
+  const log = runLog(world, game);
   for (let n = 1; n <= daily; n++) {
     const state = JSON.parse(world.files.get(`data/${game}/syncs/job-${n}.json`)!);
     assert.deepEqual(state.dismissed, [`job-${n}-dismissed`], `job-${n} keeps its dismissed ids`);
     for (const skipped of ["old", "dismissed"]) assert.ok(!world.files.has(`data/${game}/imports/job-${n}/job-${n}-${skipped}.json`), `job-${n} drafted its ${skipped} item`);
     const draft = world.files.get(`data/${game}/imports/job-${n}/job-${n}-new.json`);
-    if (/^Deferred: subrequest budget/.test(state.last_error ?? "")) {
-      assert.ok(state.last_sync_attempt);
-      result.deferred.push(n);
+    const left = log?.deferred.includes(`job-${n}`) ? "deferred" : log?.unchecked.includes(`job-${n}`) ? "unchecked" : null;
+    if (left) {
+      assert.equal(state.last_error, undefined, `job-${n}'s state isn't where a deferral is kept`);
+      result[left].push(n);
     } else if (draft) {
       assert.deepEqual(JSON.parse(draft).record, { id: `job-${n}-new`, title: `Job ${n} new` });
       assert.ok(draft.endsWith("}\n"));
@@ -191,13 +210,16 @@ describe("a scheduled import run on the Workers Free plan", () => {
     const { files, sources } = repoWith(10);
     const world = fakeWorld(files, sources, { graphql: true });
     await scheduled(world);
-    assert.deepEqual(outcomes(world, 10), { ran: all(10), deferred: [], lost: [] });
+    assert.deepEqual(outcomes(world, 10), { ran: all(10), deferred: [], unchecked: [], lost: [] });
     // 3 GraphQL reads, each job's DNS lookups and source, and one commit of 5 requests.
     assert.equal(world.used(), 8 + 3 * 10);
     assert.equal(world.commits.length, 1);
     const [headline, , ...body] = world.commits[0].message.split("\n");
     assert.equal(headline, "Import run: 10 jobs");
     assert.deepEqual(body.sort(), all(10).map((n) => `Import 1 draft(s) from job-${n}`).sort());
+    // Nothing left for later, nothing to log: the commit is what it always was.
+    assert.equal(runLog(world), null);
+    assert.ok(!world.commits[0].paths.some((p) => p.includes("/_run-")));
   });
 
   it("commits a lone job with the message it always had", async () => {
@@ -205,7 +227,7 @@ describe("a scheduled import run on the Workers Free plan", () => {
     const { files, sources } = repoWith(1, ["overwatch"], ["overwatch", "marvel-rivals"]);
     const world = fakeWorld(files, sources, { graphql: true });
     await scheduled(world);
-    assert.deepEqual(outcomes(world, 1), { ran: [1], deferred: [], lost: [] });
+    assert.deepEqual(outcomes(world, 1), { ran: [1], deferred: [], unchecked: [], lost: [] });
     assert.equal(world.used(), 11);
     assert.deepEqual(world.commits.map((c) => c.message), ["Import 1 draft(s) from job-1"]);
   });
@@ -218,7 +240,7 @@ describe("a scheduled import run on the Workers Free plan", () => {
     await scheduled(viaRest);
     const stamp = (text: string) => text.replace(/"\d{4}-\d\d-\d\dT[\d:.]+Z"/g, '"<time>"');
     assert.deepEqual(new Map([...viaRest.files].map(([p, t]) => [p, stamp(t)])), new Map([...viaGraphql.files].map(([p, t]) => [p, stamp(t)])));
-    assert.deepEqual(outcomes(viaRest, 3), { ran: all(3), deferred: [], lost: [] });
+    assert.deepEqual(outcomes(viaRest, 3), { ran: all(3), deferred: [], unchecked: [], lost: [] });
     assert.ok(viaRest.used() <= LIMIT);
     assert.equal(viaRest.commits.length, 1);
   });
@@ -234,6 +256,9 @@ describe("a scheduled import run on the Workers Free plan", () => {
     assert.equal(result.ran.length, 12);
     assert.equal(result.deferred.length, 8);
     assert.equal(logs.filter((l) => /deferred: subrequest budget/.test(l)).length, 8);
+    // The log rides the run's one commit.
+    assert.equal(world.commits.length, 1);
+    assert.ok(world.commits[0].paths.includes("data/overwatch/syncs/_run-daily.json"));
   });
 
   it("never loses a job through REST either, while it can record a deferral", async () => {
@@ -245,6 +270,56 @@ describe("a scheduled import run on the Workers Free plan", () => {
     assert.deepEqual(result.lost, []);
     assert.equal(result.ran.length + result.deferred.length, 10);
     assert.ok(result.ran.length >= 3);
+  });
+
+  it("through REST, logs every job it leaves for later, and still runs some, with 20 due", async () => {
+    // On main, recording each deferral read the job's state: from 15 due jobs none
+    // ran, and from 18 some deferrals were only logged.
+    const { files, sources } = repoWith(20);
+    const world = fakeWorld(files, sources);
+    await scheduled(world);
+    const result = outcomes(world, 20);
+    assert.equal(world.refused(), 0);
+    assert.ok(world.used() <= LIMIT);
+    assert.deepEqual(result.lost, []);
+    assert.deepEqual(result.unchecked, []);
+    assert.ok(result.ran.length >= 2, `ran ${result.ran.length}`);
+    assert.equal(result.ran.length + result.deferred.length, 20);
+    assert.ok(!logs.some((l) => /not recorded/.test(l)));
+  });
+
+  it("through REST, logs the job files it had no room to read, reads them first next time, and runs one job each run", async () => {
+    const { files, sources } = repoWith(40);
+    const world = fakeWorld(files, sources);
+    await scheduled(world, Date.UTC(2026, 10, 7));
+    const first = outcomes(world, 40);
+    assert.equal(world.refused(), 0);
+    assert.deepEqual(first.lost, []);
+    assert.ok(first.unchecked.length > 0);
+    assert.equal(first.ran.length, 1);
+    assert.equal(world.commits.length, 1);
+    await scheduled(world, Date.UTC(2026, 10, 8));
+    const second = outcomes(world, 40, "overwatch", true);
+    assert.deepEqual(second.lost, []);
+    // What the 7th couldn't read, the 8th read first.
+    assert.deepEqual(first.unchecked.filter((n) => second.unchecked.includes(n)), []);
+    assert.equal(second.ran.length, 1);
+  });
+
+  it("clears its log once nothing is left for later, and then writes none", async () => {
+    const { files, sources } = repoWith(20);
+    const world = fakeWorld(files, sources, { graphql: true });
+    await scheduled(world, Date.UTC(2026, 10, 7));
+    const first = outcomes(world, 20);
+    // Fewer jobs: the 8 deferred ones and 2 others, which all fit.
+    const keep = new Set([...first.deferred, ...first.ran.slice(0, 2)]);
+    for (const n of all(20)) if (!keep.has(n)) world.files.delete(`data/overwatch/cron_jobs/job-${n}.json`);
+    await scheduled(world, Date.UTC(2026, 10, 8));
+    assert.deepEqual(runLog(world), { run: "daily", at: runLog(world)!.at, deferred: [], unchecked: [] });
+    const commits = world.commits.length;
+    await scheduled(world, Date.UTC(2026, 10, 9));
+    assert.equal(world.commits.length, commits + 1);
+    assert.ok(!world.commits.at(-1)!.paths.includes("data/overwatch/syncs/_run-daily.json"));
   });
 
   it("runs first the jobs it deferred last time, and otherwise starts further along each run", async () => {
@@ -262,11 +337,36 @@ describe("a scheduled import run on the Workers Free plan", () => {
     assert.notDeepEqual(outcomes(other, 20).deferred, first.deferred);
   });
 
+  it("runs active games' jobs first when not all fit, whatever the order games.json lists them in", async () => {
+    // alpha is inactive and listed first: its jobs still run, after overwatch's.
+    const { files, sources } = repoWith(10, ["alpha", "overwatch"], ["alpha", "overwatch"], ["alpha"]);
+    for (const day of [7, 8, 9]) {
+      const world = fakeWorld(files, sources, { graphql: true });
+      await scheduled(world, Date.UTC(2026, 10, day));
+      assert.equal(world.refused(), 0);
+      assert.deepEqual(outcomes(world, 10, "overwatch"), { ran: all(10), deferred: [], unchecked: [], lost: [] }, `on the ${day}th`);
+      const alpha = outcomes(world, 10, "alpha");
+      assert.equal(alpha.ran.length, 2);
+      assert.equal(alpha.deferred.length, 8);
+    }
+  });
+
+  it("through REST, reads and runs active games' jobs before an inactive game's job files", async () => {
+    const { files, sources } = repoWith({ alpha: 40, overwatch: 2 }, ["alpha", "overwatch"], ["alpha", "overwatch"], ["alpha"]);
+    const world = fakeWorld(files, sources);
+    await scheduled(world);
+    assert.equal(world.refused(), 0);
+    assert.deepEqual(outcomes(world, 2, "overwatch"), { ran: [1, 2], deferred: [], unchecked: [], lost: [] });
+    const alpha = outcomes(world, 40, "alpha");
+    assert.deepEqual(alpha.lost, []);
+    assert.ok(alpha.unchecked.length > 0);
+  });
+
   it("runs every other game's jobs when one game's can't be listed", async () => {
     const { files, sources } = repoWith(2, ["alpha", "overwatch"]);
     const world = fakeWorld(files, sources, { failLists: ["data/alpha/cron_jobs"] });
     await scheduled(world);
-    assert.deepEqual(outcomes(world, 2, "overwatch"), { ran: [1, 2], deferred: [], lost: [] });
+    assert.deepEqual(outcomes(world, 2, "overwatch"), { ran: [1, 2], deferred: [], unchecked: [], lost: [] });
     assert.ok(logs.some((l) => /alpha/.test(l)));
   });
 });

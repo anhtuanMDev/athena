@@ -269,22 +269,6 @@ export async function importCost(repo: RunRepo, game: string, job: CronJob): Pro
   return SOURCE_REQUESTS + repo.pending({ files, listings }) + (folderKnown ? 0 : 1);
 }
 
-/** What a job's state says when a run had no room left for it: the admin shows it as the run's error. */
-export const DEFERRED = "Deferred: subrequest budget. The run had no room left for this job; a later run takes it.";
-
-/**
- * Records that a scheduled run left `jobId` for a later one, without fetching
- * its source: its state's last attempt, and why (DEFERRED). Its drafts, last
- * success and dismissed ids stay as they are.
- */
-export async function deferImport(repo: DataRepo, game: string, jobId: string, now = new Date()): Promise<void> {
-  assertImportIds(game, jobId);
-  const p = paths(game, jobId);
-  const previous = (await repo.read<ImportState>(p.state)) ?? { id: jobId };
-  const state: ImportState = { ...previous, id: jobId, last_sync_attempt: now.toISOString(), last_error: DEFERRED };
-  await repo.commit([{ path: p.state, content: state }], `Import run deferred: ${jobId} (subrequest budget)`);
-}
-
 /** Drops a draft and remembers its id, so later runs don't bring it back. */
 export async function dismissDraft(repo: DataRepo, game: string, jobId: string, id: string): Promise<void> {
   assertImportIds(game, jobId, id);
