@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router";
-import { useEntityList } from "~/lib/use-entity-list";
+import { useEntityList, useEnumOptions } from "~/lib/use-entity-list";
+import { findEnumOption, type EnumOptionView } from "~/lib/enum-options";
 import { DataTable, type Column } from "~/components/DataTable";
 import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
 import { ButtonLink } from "~/components/ui/button";
@@ -7,8 +8,11 @@ import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus } from "lucide-react";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
-// Keys of the map schema (map-base-map-attributes); map_type is a map-types
-// enum id, shown as stored.
+// Keys of the map schema (map-base-map-attributes). Its map_type field is bound
+// to the map-types enum (globalEnumId), as the mode schema's objective_type is:
+// the column shows the option's name, as the app does.
+const MAP_TYPE_ENUM = "map-types";
+
 interface MapRow {
   id: string;
   name: string;
@@ -16,9 +20,10 @@ interface MapRow {
   location?: string;
 }
 
-const columns: Column<MapRow>[] = [
+// Until the enum is read (or if it can't be), a type shows as its id.
+const columns = (types: EnumOptionView[]): Column<MapRow>[] => [
   { key: "name", header: "Name" },
-  { key: "map_type", header: "Type", render: (m) => m.map_type ? <span className="capitalize">{m.map_type}</span> : "-" },
+  { key: "map_type", header: "Type", render: (m) => m.map_type ? findEnumOption(types, m.map_type)?.name ?? <span className="capitalize">{m.map_type}</span> : "-" },
   { key: "location", header: "Location", render: (m) => m.location ?? "" },
 ];
 
@@ -26,6 +31,7 @@ export default function MapsIndex() {
   const { game } = useParams();
   assertSafeGameSlug(game!);
   const { data: maps, loading, error } = useEntityList<MapRow>(game!, "maps");
+  const types = useEnumOptions(game!, MAP_TYPE_ENUM);
 
   if (error) return (
     <LoadErrorState
@@ -51,7 +57,7 @@ return (
       </div>
 
       {maps ? (
-        <DataTable columns={columns} data={maps} baseUrl={`/${game}/maps`} />
+        <DataTable columns={columns(types)} data={maps} baseUrl={`/${game}/maps`} />
       ) : null}
     </div>
   );

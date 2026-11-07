@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
 import { ChevronRight, ImageOff } from "lucide-react";
+import { enumParamText, findEnumOption, type EnumOptionView } from "~/lib/enum-options";
 import {
   bindingPath,
   bindingScope,
   isBinding,
   normalizeSource,
+  routeLayout,
   valueWithUnit,
   type FieldOption,
   type PrimitiveSpec,
@@ -21,12 +23,14 @@ export interface PreviewContext {
   data: unknown;
   /** Records a source lists (the app applies the same sort and limit). */
   recordsFor: (source: RecordSource | undefined) => Record_[];
-  /** Enum option names for chips and enum-bound values. */
-  enumOptions: (field: FieldOption | undefined) => { id: string; name: string }[];
+  /** A field's enum options: names for chips and enum-bound values, and what field_section shows of one. */
+  enumOptions: (field: FieldOption | undefined) => EnumOptionView[];
   dataFields: FieldOption[];
   /** Fields "item.<path>" reads in a list block, for units and custom suffixes. */
   itemFieldsFor: (block: ScreenBlock) => FieldOption[];
   screenSource?: RecordSource;
+  /** Stages a route timeline shows (the app's routeStops limit). */
+  routeStops: number;
 }
 
 function resolvePath(data: unknown, path: string): unknown {
@@ -67,13 +71,14 @@ function makeReader(block: ScreenBlock, spec: PrimitiveSpec | undefined, ctx: Pr
     let value: unknown = prop;
     if (isBinding(prop)) {
       const scopeData = bindingScope(prop) === "item" ? item : ctx.data;
+      // "item.<path>" is a field of the list's entries, "data.<path>" one of the screen's data.
+      const fields = bindingScope(prop) === "item" ? ctx.itemFieldsFor(block) : ctx.dataFields;
       value = resolvePath(scopeData, bindingPath(prop));
-      if (typeof value === "string") {
-        const field = ctx.dataFields.find((f) => f.key === bindingPath(prop));
-        const option = ctx.enumOptions(field).find((o) => o.id === value);
+      if (typeof value === "string" || typeof value === "number") {
+        const option = findEnumOption(ctx.enumOptions(fields.find((f) => f.key === bindingPath(prop))), value);
         if (option) value = option.name;
       }
-      value = withUnit(bindingScope(prop) === "item" ? ctx.itemFieldsFor(block) : ctx.dataFields, scopeData, bindingPath(prop), value);
+      value = withUnit(fields, scopeData, bindingPath(prop), value);
     }
     if (value !== undefined && value !== null && value !== "") return value;
     if (isBinding(prop)) return undefined;
@@ -128,6 +133,37 @@ function FavoritesNote({ source }: { source: RecordSource | undefined }) {
 function stats(block: ScreenBlock, show: (name: string) => ReactNode) {
   return [1, 2, 3, 4].flatMap((n) =>
     block.props[`stat${n}Value`] !== undefined ? [{ label: block.props[`stat${n}Label`], value: show(`stat${n}Value`) }] : [],
+  );
+}
+
+/**
+ * A route's stages on a line, as the app draws them (zms RouteTimeline.tsx):
+ * up to the app's routeStops, and past four, each label may span two columns
+ * on one line and every other one drops a row, so neighbours never meet.
+ */
+function RouteStops({ block, spec, ctx, entries }: { block: ScreenBlock; spec: PrimitiveSpec | undefined; ctx: PreviewContext; entries: unknown[] }) {
+  const { stops, staggered } = routeLayout(entries, ctx.routeStops);
+  const readers = stops.map((entry) => makeReader(block, spec, ctx, entry));
+  const detailOf = (r: (typeof readers)[number]) => {
+    const value = r.raw("itemDetail");
+    return value === undefined || value === null || value === "" ? undefined : String(value);
+  };
+  const hasDetail = readers.some((r) => detailOf(r) !== undefined);
+  // A dropped row clears the row above: one line of text (two with details) and a gap.
+  const drop = hasDetail ? "mt-12" : "mt-[1.625rem]";
+  return (
+    <div className="relative mt-3 flex">
+      <span aria-hidden="true" className="absolute inset-x-[8%] top-[6px] h-0.5 rounded bg-border" />
+      {readers.map((r, i) => (
+        <div key={i} className="relative flex min-w-0 flex-1 flex-col items-center gap-1.5">
+          <span aria-hidden="true" className={`size-3.5 rotate-45 border-2 border-ink ${i === 0 ? "bg-ink" : "bg-surface"}`} />
+          <div className={`flex flex-col gap-1 text-center ${staggered ? `w-[200%] ${i % 2 === 1 ? drop : ""}` : "w-full"}`}>
+            <p className={`text-[0.75rem] font-bold uppercase ${staggered ? "line-clamp-1" : "line-clamp-2"}`}>{r.show("itemLabel")}</p>
+            {detailOf(r) !== undefined && <p className={`text-[0.75rem] uppercase text-ink-muted ${staggered ? "line-clamp-1" : "line-clamp-2"}`}>{detailOf(r)}</p>}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -318,6 +354,38 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
         </div>
       );
     }
+    case "field_section": {
+      // The app's FieldSection: the field's label (or the block's title) over its
+      // value, and for a single enum value, its option's description and params.
+      const prop = block.props.field;
+      const path = isBinding(prop) ? bindingPath(prop) : undefined;
+      const field = path === undefined ? undefined : ctx.dataFields.find((f) => f.key === path);
+      const value = path === undefined ? undefined : resolvePath(ctx.data, path);
+      const option = field?.type === "enum" ? findEnumOption(ctx.enumOptions(field), value) : undefined;
+      const title = raw("title");
+      return (
+        <div className="space-y-2">
+          <p className="text-[0.75rem] font-semibold uppercase tracking-widest opacity-80">{title ? show("title") : field ? field.label : path}</p>
+          {option ? (
+            <div className="space-y-1.5">
+              <span className="inline-flex items-center gap-1.5">
+                {option.icon && <PreviewImage src={assetUrl(option.icon)} className="size-5 rounded" />}
+                <span className="rounded-full bg-surface-raised px-2.5 py-0.5 text-xs font-semibold">{option.name}</span>
+              </span>
+              {option.description && <p className="text-xs text-ink-muted">{option.description}</p>}
+              {option.params?.map((param) => (
+                <div key={param.id} className="flex gap-3 text-xs">
+                  <span className="w-28 shrink-0 text-ink-muted">{param.label}</span>
+                  <span className="min-w-0 flex-1 font-medium">{enumParamText(param)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm">{show("field")}</p>
+          )}
+        </div>
+      );
+    }
     case "route_timeline":
     case "gallery":
     case "tips_card": {
@@ -336,13 +404,8 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
       return (
         <div className={block.type === "gallery" ? "" : "rounded-xl border border-border bg-surface p-3"}>
           <SectionTitle>{title}</SectionTitle>
-          {block.type === "route_timeline" && (
-            <div className="flex justify-between gap-1 border-t-2 border-border pt-2">
-              {entries.slice(0, 5).map((entry, i) => (
-                <span key={i} className="min-w-0 truncate text-center text-[0.75rem] font-bold uppercase">{makeReader(block, spec, ctx, entry).show(itemProp)}</span>
-              ))}
-            </div>
-          )}
+          {block.type === "route_timeline" && raw("text") !== undefined && <p className="mb-2 text-xs text-ink-muted">{show("text")}</p>}
+          {block.type === "route_timeline" && <RouteStops block={block} spec={spec} ctx={ctx} entries={entries} />}
           {block.type === "gallery" && (
             <div className="flex gap-2 overflow-hidden">
               {entries.slice(0, 3).map((entry, i) => (

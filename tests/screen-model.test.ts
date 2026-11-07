@@ -356,12 +356,12 @@ describe("the app's block manifest (zms npm run primitives, as in zero-backend)"
   const raw = JSON.parse(readFileSync(new URL("./fixtures/mobile_primitives.json", import.meta.url), "utf8"));
 
   it("gives the app's limits and screens, ignoring its other policy keys", () => {
-    // routeStops, linkHosts, imageHosts and blockedProps are the app's own business.
+    // linkHosts, imageHosts and blockedProps are the app's own business; routeStops is the preview's too.
     for (const key of ["routeStops", "linkHosts", "imageHosts", "blockedProps"]) {
       assert.ok(key in raw.$policy || key in raw.$policy.limits, key);
     }
     assert.deepEqual(policyLib.appPolicy(raw), {
-      limits: { screensPerGame: 50, blocksPerScreen: 60, tabs: 5, listItems: 100, smallList: 12, text: 2000 },
+      limits: { screensPerGame: 50, blocksPerScreen: 60, tabs: 5, listItems: 100, smallList: 12, text: 2000, routeStops: 6 },
       appScreens: ["app:settings"],
     });
   });
@@ -376,5 +376,26 @@ describe("the app's block manifest (zms npm run primitives, as in zero-backend)"
       Object.entries(spec.props).filter(([name, prop]) => name === "style" || prop.type === "node").map(([name]) => `${type}.${name}`),
     );
     assert.deepEqual(unsettable, []);
+  });
+});
+
+describe("the screen preview, as the app draws it", () => {
+  it("shows a route's first stages up to the app's limit, staggered past four", () => {
+    const stages = ["Spawn", "Checkpoint 1", "Checkpoint 2", "Checkpoint 3", "Checkpoint 4", "Final", "Extra"];
+    assert.deepEqual(model.routeLayout(stages.slice(0, 4), 6), { stops: stages.slice(0, 4), staggered: false });
+    assert.deepEqual(model.routeLayout(stages.slice(0, 5), 6), { stops: stages.slice(0, 5), staggered: true });
+    assert.deepEqual(model.routeLayout(stages, policyLib.APP_POLICY.limits.routeStops), { stops: stages.slice(0, 6), staggered: true });
+    assert.deepEqual(model.routeLayout(stages, 3), { stops: stages.slice(0, 3), staggered: false });
+  });
+
+  it("gives home and list screens the game's games.json entry and every folder's records", () => {
+    const overwatch = { slug: "overwatch", name: "Overwatch 2", developer: "Blizzard Entertainment", primary: "#00B4FF" };
+    const heroes = [{ id: "ana" }];
+    const data = model.homeData(overwatch, { hero: heroes }, DEFAULT_CATEGORIES);
+    assert.equal(data.game, overwatch);
+    assert.equal(data.heroes, heroes);
+    assert.deepEqual(data.maps, []);
+    // No entry for the game: nothing to bind to, as in the app.
+    assert.ok(!("game" in model.homeData(undefined, {}, DEFAULT_CATEGORIES)));
   });
 });

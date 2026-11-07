@@ -14,7 +14,7 @@ import type { DynamicField, DynamicSchemaFile } from "../../schemas/dynamic-sche
 import { CATEGORIES_PATH, DEFAULT_CATEGORIES, normalizeCategories, type Category } from "../categories";
 import { fetchSource } from "./fetch-source";
 import { RECORD_ID, mapDocument, missingRequired, type MappedItem } from "./map";
-import type { DataRepo, FileChange } from "./repo";
+import type { DataRepo, FileChange, RunRepo } from "./repo";
 
 export interface ImportDraft {
   record: Record<string, unknown>;
@@ -238,6 +238,51 @@ export async function runImport(opts: {
     await repo.commit([{ path: p.state, content: state }], `Import run failed: ${job.id}`).catch(() => {});
     throw err instanceof ImportError ? err : new ImportError(message, 502);
   }
+}
+
+/** Subrequests fetching a job's source makes: its host's A and AAAA lookups, then the fetch (fetch-source.ts). */
+const SOURCE_REQUESTS = 3;
+
+/**
+ * What runImport reads for `job`: its file, schema and state, the categories,
+ * its drafts folder and the folder it publishes to. That last one depends on
+ * the schema and categories, so it's only there (`folderKnown`) once `repo`
+ * holds them without a request.
+ */
+export async function importPaths(repo: RunRepo, game: string, job: CronJob): Promise<{ files: string[]; listings: string[]; folderKnown: boolean }> {
+  const p = paths(game, job.id);
+  const schema = `data/${game}/schemas/${job.schema_id}.json`;
+  const files = [p.job, schema, CATEGORIES_PATH, p.state];
+  const listings = [p.drafts];
+  if (repo.pending({ files: [schema, CATEGORIES_PATH] }) > 0) return { files, listings, folderKnown: false };
+  try {
+    listings.push(`data/${game}/${recordFolder((await loadSchema(repo, game, job)).category, await configuredCategories(repo))}`);
+  } catch {
+    // The run stops at its schema, before listing any folder.
+  }
+  return { files, listings, folderKnown: true };
+}
+
+/** The most subrequests a run of `job` can still make: its source's, and each read `repo` doesn't hold yet. */
+export async function importCost(repo: RunRepo, game: string, job: CronJob): Promise<number> {
+  const { files, listings, folderKnown } = await importPaths(repo, game, job);
+  return SOURCE_REQUESTS + repo.pending({ files, listings }) + (folderKnown ? 0 : 1);
+}
+
+/** What a job's state says when a run had no room left for it: the admin shows it as the run's error. */
+export const DEFERRED = "Deferred: subrequest budget. The run had no room left for this job; a later run takes it.";
+
+/**
+ * Records that a scheduled run left `jobId` for a later one, without fetching
+ * its source: its state's last attempt, and why (DEFERRED). Its drafts, last
+ * success and dismissed ids stay as they are.
+ */
+export async function deferImport(repo: DataRepo, game: string, jobId: string, now = new Date()): Promise<void> {
+  assertImportIds(game, jobId);
+  const p = paths(game, jobId);
+  const previous = (await repo.read<ImportState>(p.state)) ?? { id: jobId };
+  const state: ImportState = { ...previous, id: jobId, last_sync_attempt: now.toISOString(), last_error: DEFERRED };
+  await repo.commit([{ path: p.state, content: state }], `Import run deferred: ${jobId} (subrequest budget)`);
 }
 
 /** Drops a draft and remembers its id, so later runs don't bring it back. */

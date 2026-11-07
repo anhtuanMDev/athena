@@ -54,6 +54,8 @@ fragment Item on GitObject {
   ... on Blob { ...Text }
   ... on Tree { entries { name type mode object { ...Text } } }
 }`;
+// A folder's entries without their files' text: a listing that costs no more for big records.
+const LISTING = `fragment Names on GitObject { ... on Tree { entries { name type mode } } }`;
 
 const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const malformed = () => new GraphqlUnavailable("malformed response");
@@ -103,7 +105,8 @@ function blobOf(value: unknown): GraphqlBlob {
   return { oid: value.oid, byteSize: value.byteSize, isBinary: value.isBinary, isTruncated: value.isTruncated, text: value.text };
 }
 
-function objectOf(value: unknown): GraphqlObject {
+/** `value` as a GraphqlObject; a listing's (`withText` false) entries have no blob. */
+function objectOf(value: unknown, withText = true): GraphqlObject {
   if (value === null) return null;
   if (!isObject(value)) throw malformed();
   if ("entries" in value) {
@@ -112,7 +115,7 @@ function objectOf(value: unknown): GraphqlObject {
       kind: "tree",
       entries: value.entries.map((entry) => {
         if (!isObject(entry) || typeof entry.name !== "string" || typeof entry.type !== "string" || typeof entry.mode !== "number") throw malformed();
-        return { name: entry.name, type: entry.type, mode: entry.mode, blob: entry.type === "blob" ? blobOf(entry.object) : null };
+        return { name: entry.name, type: entry.type, mode: entry.mode, blob: withText && entry.type === "blob" ? blobOf(entry.object) : null };
       }),
     };
   }
@@ -121,20 +124,23 @@ function objectOf(value: unknown): GraphqlObject {
 }
 
 /**
- * What is at each of `paths` on `branch`, in one request. Paths go in as
- * variables ("main:data/overwatch/news"), never into the query's text.
+ * What is at each of `paths` on `branch`, in one request, then at each of
+ * `listings`: folders whose entries come without their files' text. Paths go
+ * in as variables ("main:data/overwatch/news"), never into the query's text.
  */
-export async function readObjects(target: GraphqlTarget, branch: string, paths: string[]): Promise<GraphqlObject[]> {
-  if (paths.length === 0) return [];
+export async function readObjects(target: GraphqlTarget, branch: string, paths: string[], listings: string[] = []): Promise<GraphqlObject[]> {
+  if (paths.length + listings.length === 0) return [];
   const names = paths.map((_, i) => `p${i}`);
-  const text = `query AthenaRead($owner: String!, $name: String!, ${names.map((n) => `$${n}: String!`).join(", ")}) {
+  const lists = listings.map((_, i) => `l${i}`);
+  const text = `query AthenaRead($owner: String!, $name: String!, ${[...names, ...lists].map((n) => `$${n}: String!`).join(", ")}) {
   repository(owner: $owner, name: $name) {
-${names.map((n) => `    ${n}: object(expression: $${n}) { ...Item }`).join("\n")}
+${[...names.map((n) => `    ${n}: object(expression: $${n}) { ...Item }`), ...lists.map((n) => `    ${n}: object(expression: $${n}) { ...Names }`)].join("\n")}
   }
 }
-${OBJECT}`;
-  const repository = await query(target, "AthenaRead", text, Object.fromEntries(paths.map((path, i) => [names[i], `${branch}:${path}`])));
-  return names.map((n) => objectOf(repository[n] ?? null));
+${names.length > 0 ? OBJECT : ""}${names.length > 0 && lists.length > 0 ? "\n" : ""}${lists.length > 0 ? LISTING : ""}`;
+  const variables = Object.fromEntries([...paths.map((path, i) => [names[i], `${branch}:${path}`]), ...listings.map((path, i) => [lists[i], `${branch}:${path}`])]);
+  const repository = await query(target, "AthenaRead", text, variables);
+  return [...names.map((n) => objectOf(repository[n] ?? null)), ...lists.map((n) => objectOf(repository[n] ?? null, false))];
 }
 
 /** Whether GraphQL answers with the server's token: what /api/github/status reports. */

@@ -7,8 +7,9 @@ import { Button } from "~/components/ui/button";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { BlockPreview, type PreviewContext } from "~/components/layout-editor/BlockPreview";
 import { PropControl, SourceInput, inputBaseClass, inputClass, type PropContext } from "~/components/layout-editor/PropControl";
-import { getFile, isConflictError, listDirectory, updateFile } from "~/lib/github";
-import { MANIFEST_PATH, appPolicy, validateScreenFile } from "~/lib/screen-policy";
+import { getFile, isConflictError, listDirectory, listGames, updateFile } from "~/lib/github";
+import { enumOptions as optionsOf } from "~/lib/enum-options";
+import { APP_POLICY, MANIFEST_PATH, appPolicy, validateScreenFile } from "~/lib/screen-policy";
 import { useData } from "~/lib/use-data";
 import { useCategories } from "~/lib/categories-context";
 import {
@@ -17,6 +18,7 @@ import {
   createBlock,
   folderFor,
   formProps,
+  homeData as appHomeData,
   homeFields,
   iconOptions,
   isBinding,
@@ -38,7 +40,8 @@ import {
 
 interface EnumFile {
   id: string;
-  options?: (string | { id?: string; name?: string })[];
+  /** Names, or { id, name, description, icon, params }: read through enum-options.ts. */
+  options?: unknown[];
 }
 
 const iconButtonClass =
@@ -94,12 +97,14 @@ export default function ScreenEdit() {
 
   const { data: loaded, loading, error: loadError } = useData(
     async () => {
-      const [file, schemas, enums, screenNames, manifestFile] = await Promise.all([
+      const [file, schemas, enums, screenNames, manifestFile, games] = await Promise.all([
         getFile<ScreenFile>(screenPath),
         listDirectory<SchemaInfo>(game!, "schemas", true).catch(() => []),
         listDirectory<EnumFile>(game!, "enums", true).catch(() => []),
         listDirectory<string>(game!, "screens").catch(() => []),
         getFile(MANIFEST_PATH).catch(() => null),
+        // The game as the app gets it, for "data.game…" on home and list screens.
+        listGames().catch(() => []),
       ]);
       if (!file) throw new Error(`Screen "${id}" was not found in data/${game}/screens.`);
       const categories = [...new Set(schemas.map((s) => s.category))];
@@ -120,6 +125,7 @@ export default function ScreenEdit() {
         // The app's limits and own screens; today's when the manifest has none.
         policy: appPolicy(manifestFile?.content),
         records: Object.fromEntries(recordLists) as Record<string, Record<string, unknown>[]>,
+        game: games.find((g) => g.slug === game) as Record<string, unknown> | undefined,
       };
     },
     [game, id, folders],
@@ -180,21 +186,13 @@ export default function ScreenEdit() {
     return screen.source ? [...sourceFields(schemas, screen.source), ...fields] : fields;
   }, [screen, schemas, detailRecords, configured]);
 
-  const homeData = useMemo(() => {
-    const data: Record<string, unknown> = { game: { name: game } };
-    for (const c of configured) data[c.folder] = loaded?.records[c.category] ?? [];
-    return data;
-  }, [loaded, game, configured]);
+  const homeData = useMemo(() => appHomeData(loaded?.game, loaded?.records ?? {}, configured), [loaded, configured]);
 
+  // An enum field's options as the app reads them, descriptions and params included (field_section shows them).
   const enumOptions = useCallback(
     (field: FieldOption | undefined) => {
       if (!field) return [];
-      if (field.globalEnumId) {
-        const file = loaded?.enums.find((e) => e.id === field.globalEnumId);
-        return (file?.options ?? []).flatMap((o) =>
-          typeof o === "string" ? [{ id: o, name: o }] : o.id || o.name ? [{ id: String(o.id ?? o.name), name: String(o.name ?? o.id) }] : [],
-        );
-      }
+      if (field.globalEnumId) return optionsOf(loaded?.enums.find((e) => e.id === field.globalEnumId));
       return (field.options ?? []).map((o) => ({ id: o, name: o }));
     },
     [loaded],
@@ -406,6 +404,7 @@ export default function ScreenEdit() {
     dataFields,
     itemFieldsFor: (block) => itemFieldsFor(block, screen, dataFields, schemas, recordsOf),
     screenSource: screen.source,
+    routeStops: (policy ?? APP_POLICY).limits.routeStops,
   };
   const summaryIssues = visibleIssues(issues).filter((i) => i.level === "error");
   const screenIssues = visibleIssues(issues).filter((i) => !i.sectionId);

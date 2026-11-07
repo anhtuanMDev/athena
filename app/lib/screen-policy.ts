@@ -38,6 +38,8 @@ export interface AppLimits {
   smallList: number;
   /** Characters of one text value. */
   text: number;
+  /** Stages a route timeline shows; the screen preview cuts a route as the app does. */
+  routeStops: number;
 }
 
 export interface AppPolicy {
@@ -52,7 +54,7 @@ export interface AppPolicy {
  * replaces these key by key; these stay for a manifest without one.
  */
 export const APP_POLICY: AppPolicy = {
-  limits: { screensPerGame: 50, blocksPerScreen: 60, tabs: 5, listItems: 100, smallList: 12, text: 2000 },
+  limits: { screensPerGame: 50, blocksPerScreen: 60, tabs: 5, listItems: 100, smallList: 12, text: 2000, routeStops: 6 },
   appScreens: ["app:settings"],
 };
 

@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router";
-import { useEntityList } from "~/lib/use-entity-list";
+import { useEntityList, useEnumOptions } from "~/lib/use-entity-list";
+import { findEnumOption, type EnumOptionView } from "~/lib/enum-options";
 import { DataTable, type Column } from "~/components/DataTable";
 import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
 import { ButtonLink } from "~/components/ui/button";
@@ -7,8 +8,11 @@ import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus } from "lucide-react";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
-// Keys of the mode schema (mode-base-game-mode-attributes); objective_type is a
-// map-types enum id, shown as stored.
+// Keys of the mode schema (mode-base-game-mode-attributes). Its objective_type
+// field is bound to the map-types enum (globalEnumId), as the map schema's
+// map_type is: the column shows the option's name, as the app does.
+const OBJECTIVE_ENUM = "map-types";
+
 interface ModeRow {
   id: string;
   name: string;
@@ -17,9 +21,10 @@ interface ModeRow {
   team_size?: number;
 }
 
-const columns: Column<ModeRow>[] = [
+// Until the enum is read (or if it can't be), an objective shows as its id.
+const columns = (objectives: EnumOptionView[]): Column<ModeRow>[] => [
   { key: "name", header: "Name", render: (m) => m.name || m.id },
-  { key: "objective_type", header: "Objective", render: (m) => m.objective_type ? <span className="capitalize">{m.objective_type}</span> : '-' },
+  { key: "objective_type", header: "Objective", render: (m) => m.objective_type ? findEnumOption(objectives, m.objective_type)?.name ?? <span className="capitalize">{m.objective_type}</span> : '-' },
   { key: "team_count", header: "Teams", render: (m) => m.team_count ?? "-" },
   { key: "team_size", header: "Team Size", render: (m) => m.team_size ? `${m.team_size}v${m.team_size}` : '-' },
 ];
@@ -28,6 +33,7 @@ export default function ModesIndex() {
   const { game } = useParams();
   assertSafeGameSlug(game!);
   const { data: modes, loading, error } = useEntityList<ModeRow>(game!, "modes");
+  const objectives = useEnumOptions(game!, OBJECTIVE_ENUM);
 
   if (error) return (
     <LoadErrorState
@@ -53,7 +59,7 @@ return (
       </div>
 
       {modes ? (
-        <DataTable columns={columns} data={modes} baseUrl={`/${game}/modes`} />
+        <DataTable columns={columns(objectives)} data={modes} baseUrl={`/${game}/modes`} />
       ) : null}
     </div>
   );

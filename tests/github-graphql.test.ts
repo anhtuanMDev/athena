@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import { Octokit } from "@octokit/rest";
 
 import { graphqlStatus } from "../app/lib/github-graphql";
+import { githubRepo, runRepo, type DataRepo, type FileChange } from "../app/lib/importer/repo";
 import { buildDataPayload, buildInitPayload, githubReader, readJsonFolder } from "../app/lib/mobile-payload";
 import { createSessionToken } from "../app/lib/session";
 
@@ -32,6 +33,7 @@ const TOKEN = "test-token-not-real";
 function fakeGitHub(files: Record<string, string>, options: FakeOptions = {}) {
   const calls: string[] = [];
   const variables: Record<string, unknown>[] = [];
+  const queries: string[] = [];
   const all = { ...files, ...(options.symlinks ?? {}) };
   const sha = (text: string) => createHash("sha1").update(text).digest("hex");
   const blob = (path: string): Blob => {
@@ -67,6 +69,7 @@ function fakeGitHub(files: Record<string, string>, options: FakeOptions = {}) {
       const body = JSON.parse(String(init?.body));
       calls.push(`graphql ${body.operationName}`);
       variables.push(body.variables);
+      queries.push(body.query);
       assert.equal((init?.headers as Record<string, string>).Authorization, `Bearer ${TOKEN}`);
       const mode = options.graphql ?? "ok";
       if (mode === "network") throw new TypeError("fetch failed");
@@ -77,10 +80,12 @@ function fakeGitHub(files: Record<string, string>, options: FakeOptions = {}) {
       if (body.operationName === "AthenaStatus") return Response.json({ data: { repository: { id: "R_kgDOtest" } } });
       const repository: Record<string, unknown> = {};
       for (const [name, value] of Object.entries(body.variables)) {
-        if (!/^p\d+$/.test(name)) continue;
+        if (!/^[pl]\d+$/.test(name)) continue;
         const [ref, ...path] = String(value).split(":");
         assert.equal(ref, "main");
-        repository[name] = item(path.join(":"));
+        const found = item(path.join(":"));
+        // A listing (l0…) asks for its entries' names alone, as the importer's do.
+        repository[name] = name.startsWith("l") && found && "entries" in found ? { entries: found.entries.map(({ name, type, mode }) => ({ name, type, mode })) } : found;
       }
       if (mode === "partial-errors") return Response.json({ data: { repository }, errors: [error] });
       return Response.json({ data: { repository } });
@@ -106,7 +111,7 @@ function fakeGitHub(files: Record<string, string>, options: FakeOptions = {}) {
     }
     throw new Error(`unexpected request to ${url.href}`);
   }) as typeof fetch;
-  return { fetcher, calls, variables };
+  return { fetcher, calls, variables, queries };
 }
 
 const realFetch = globalThis.fetch;
@@ -300,5 +305,89 @@ describe("the API through GraphQL", () => {
     const r = readers({});
     assert.equal(await graphqlStatus({ token: TOKEN, owner: "o", repo: "r" }), true);
     assert.deepEqual(r.fake.calls, ["graphql AthenaStatus"]);
+  });
+});
+
+describe("an import run's reads (importer/repo.ts runRepo)", () => {
+  const JOBS = "data/overwatch/cron_jobs";
+  const FILES = {
+    "data/_meta/games.json": '{"games":[{"slug":"overwatch"}]}',
+    [`${JOBS}/a.json`]: '{"id":"a"}',
+    [`${JOBS}/b.json`]: '{"id":"b","name":"Zoé ✓ 漢字"}',
+    [`${JOBS}/empty.json`]: "",
+    [`${JOBS}/notes.txt`]: "not a job",
+    [`${JOBS}/old/c.json`]: '{"id":"c"}',
+    [`${NEWS}/n1.json`]: '{"id":"n1"}',
+    [`${NEWS}/n2.json`]: '{"id":"n2"}',
+  };
+  const SYMLINKS = { [`${JOBS}/link.json`]: '{"id":"link"}' };
+  const env = { GITHUB_TOKEN: TOKEN, GITHUB_OWNER: "o", GITHUB_REPO: "r" };
+  // Files, folders read whole and listings, each also where there's nothing, or something else.
+  const PATHS = {
+    files: ["data/_meta/games.json", "data/_meta/missing.json", NEWS],
+    folders: [JOBS, "data/overwatch/nothing"],
+    listings: [NEWS, "data/overwatch/imports/none", "data/_meta/games.json"],
+  };
+  const READS = [...PATHS.files, `${JOBS}/a.json`, `${JOBS}/b.json`, `${JOBS}/empty.json`];
+  const LISTS = [...PATHS.folders, ...PATHS.listings];
+  const everything = async (repo: DataRepo) => ({
+    reads: await Promise.all(READS.map((path) => repo.read(path))),
+    lists: await Promise.all(LISTS.map((dir) => repo.list(dir))),
+  });
+
+  it("reads files, folders and listings in one request, as REST reads them", async () => {
+    const fake = fakeGitHub(FILES, { symlinks: SYMLINKS });
+    const rest = await everything(githubRepo(env, fake.fetcher));
+    fake.calls.length = 0;
+    const repo = runRepo(githubRepo(env, fake.fetcher));
+    await repo.prefetch(PATHS);
+    assert.equal(repo.pending({ files: READS, listings: LISTS }), 0);
+    assert.deepEqual(await everything(repo), rest);
+    assert.deepEqual(rest.lists[0], ["a", "b", "empty"]);
+    assert.deepEqual(fake.calls, ["graphql AthenaRead"]);
+    // A listing asks for names alone, however big its records are.
+    assert.match(fake.queries[0], /l0: object\(expression: \$l0\) \{ \.\.\.Names \}/);
+  });
+
+  it("reads through REST, and counts as still to read, a blob GraphQL can't give whole", async () => {
+    const fake = fakeGitHub(FILES, { blob: (path, b) => (path === `${JOBS}/b.json` ? { ...b, isTruncated: true, text: b.text!.slice(0, 4) } : b) });
+    const repo = runRepo(githubRepo(env, fake.fetcher));
+    await repo.prefetch(PATHS);
+    assert.equal(repo.pending({ files: READS }), 1);
+    assert.deepEqual(await repo.read(`${JOBS}/b.json`), { id: "b", name: "Zoé ✓ 漢字" });
+    assert.deepEqual(fake.calls, ["graphql AthenaRead", `rest ${JOBS}/b.json`]);
+  });
+
+  it("reads through REST, each path once, when GraphQL can't, and tries GraphQL once", async () => {
+    const fake = fakeGitHub(FILES, { graphql: 401 });
+    const rest = await everything(githubRepo(env, fake.fetcher));
+    fake.calls.length = 0;
+    const repo = runRepo(githubRepo(env, fake.fetcher));
+    await repo.prefetch(PATHS);
+    await repo.prefetch({ files: [`${JOBS}/a.json`] });
+    assert.equal(repo.pending({ files: READS, listings: LISTS }), READS.length + LISTS.length);
+    assert.deepEqual(await everything(repo), rest);
+    assert.deepEqual(await everything(repo), rest);
+    assert.equal(graphqlCalls(fake.calls), 1);
+    assert.equal(restCalls(fake.calls), READS.length + LISTS.length);
+    assert.equal(warnings.length, 1);
+  });
+
+  it("holds the run's commits and makes them as one: a lone one under its own message", async () => {
+    const made: { changes: FileChange[]; message: string }[] = [];
+    const base: DataRepo = { list: async () => [], read: async () => null, commit: async (changes, message) => void made.push({ changes, message }) };
+    const repo = runRepo(base);
+    const change = (path: string) => ({ path, content: { id: path } });
+    await repo.commit([change("a")], "Import 1 draft(s) from a");
+    await repo.flush();
+    await repo.commit([change("b"), change("b2")], "Import run: b (nothing new)");
+    await repo.commit([change("c")], "Import run failed: c");
+    assert.equal(made.length, 1);
+    await repo.flush();
+    await repo.flush();
+    assert.deepEqual(made, [
+      { changes: [change("a")], message: "Import 1 draft(s) from a" },
+      { changes: [change("b"), change("b2"), change("c")], message: "Import run: 2 jobs\n\nImport run: b (nothing new)\nImport run failed: c" },
+    ]);
   });
 });
