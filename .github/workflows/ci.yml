@@ -1,0 +1,73 @@
+# Checks every pull request and every push to main: tests, the three
+# typechecks and the production build. No secrets: the job only reads the repo.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push to a pull request replaces its running check. Runs on main are
+# never cancelled, so every commit on main gets a result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  checks:
+    name: Checks and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Exact Node, the same as local development: a floating "24" would pick
+      # up releases only days old. Bump it to a release at least 14 days old,
+      # together with zero-backend's data workflow.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.21.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            workers/cron/package-lock.json
+
+      # --ignore-scripts: no dependency runs code at install. Only fsevents
+      # (macOS only) has an install script, and nothing here needs one.
+      - name: Install
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Tests
+        run: npm test
+
+      - name: Typecheck (admin)
+        run: npm run typecheck
+
+      # --no-install: never fetch the unrelated "tsc" package from npm if
+      # TypeScript were missing.
+      - name: Typecheck (Pages Functions)
+        run: npx --no-install tsc -p functions --noEmit
+
+      - name: Typecheck (cron Worker)
+        run: npx --no-install tsc -p workers/cron --noEmit
+
+      # The cron Worker has its own lockfile (it pins the wrangler that deploys
+      # it); npm ci fails if it no longer matches workers/cron/package.json.
+      - name: Install (cron Worker)
+        working-directory: workers/cron
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck (cron Worker, its own toolchain)
+        working-directory: workers/cron
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+        env:
+          # vite.config.ts loads dotenv: never read a .env in CI.
+          DOTENV_CONFIG_PATH: /dev/null
