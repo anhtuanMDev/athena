@@ -301,6 +301,34 @@ const GAME_FIELDS: FieldOption[] = [
   ...GAME_COLORS.map((color) => ({ key: `game.${color}`, type: "string", label: `Game color: ${color}` })),
 ];
 
+/**
+ * What "data.<path>" reads on home and list screens, as the app builds it (zms
+ * model.ts homeData): the game's own games.json entry, then each folder's
+ * records. Without an entry, "data.game…" reads nothing, as in the app.
+ */
+export function homeData(
+  game: Record<string, unknown> | undefined,
+  recordsByCategory: Record<string, Record<string, unknown>[]>,
+  categories: Categories = DEFAULT_CATEGORIES,
+): Record<string, unknown> {
+  const data: Record<string, unknown> = game ? { game } : {};
+  for (const c of categories) data[c.folder] = recordsByCategory[c.category] ?? [];
+  return data;
+}
+
+/** Stages a route timeline fits on one row; past these the app staggers their labels (zms RouteTimeline.tsx ONE_ROW). */
+const ROUTE_ONE_ROW = 4;
+
+/**
+ * A route timeline's stages as the app lays them out (zms RouteTimeline.tsx):
+ * the first `limit` (the app's routeStops), and past four, labels staggered
+ * on two rows so long names never meet their neighbours.
+ */
+export function routeLayout<T>(entries: readonly T[], limit: number): { stops: T[]; staggered: boolean } {
+  const stops = entries.slice(0, limit);
+  return { stops, staggered: stops.length > ROUTE_ONE_ROW };
+}
+
 /** What "data.<path>" can bind to on home and list screens. */
 export function homeFields(categories: Categories = DEFAULT_CATEGORIES): FieldOption[] {
   return [...GAME_FIELDS, ...categories.map((c) => ({ key: c.folder, type: "collection", label: c.label }))];

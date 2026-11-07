@@ -1,0 +1,42 @@
+{
+  "id": "map-types",
+  "name": "Map Types",
+  "description": "",
+  "options": [
+    {
+      "id": "assault",
+      "name": "Assault",
+      "description": "Legacy maps where attackers capture two sequential points; currently only in Arcade."
+    },
+    {
+      "id": "clash",
+      "name": "Clash",
+      "description": "A specialized map type with specific rules."
+    },
+    {
+      "id": "flashpoint",
+      "name": "Flashpoint",
+      "description": "Asymmetrical maps with unique objectives, such as Malevento."
+    },
+    {
+      "id": "push",
+      "name": "Push",
+      "description": "A new mode introduced in Overwatch 2 involving pushing a destructible object."
+    },
+    {
+      "id": "control",
+      "name": "Control",
+      "description": "Teams fight for control of a single objective in a best-of-three format across three sub-maps."
+    },
+    {
+      "id": "hybrid",
+      "name": "Hybrid",
+      "description": "A combination of Assault and Escort; attackers capture a point, then escort a payload."
+    },
+    {
+      "id": "escort",
+      "name": "Escort",
+      "description": "Attackers move a payload through checkpoints to a destination."
+    }
+  ]
+}

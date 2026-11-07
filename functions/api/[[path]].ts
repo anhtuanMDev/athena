@@ -1,6 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
 import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
+import { jsonFileText } from "../../app/lib/json-file";
 import { bumpCacheVersion, mobileVersionKeyForPath } from "../../app/lib/mobile-cache-version";
 import { APP_POLICY, dataWriteProblems, needsAppPolicy, readAppPolicy } from "../../app/lib/screen-policy";
 import { ASSET_VERSION, serveAsset } from "../../app/lib/asset-headers";
@@ -382,7 +383,7 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
         body.message ?? (body.sha ? `Update ${body.path}` : `Add ${body.path}`),
       content: body.isBase64
         ? (body.content as string)
-        : encodeUtf8Base64(JSON.stringify(body.content, null, 2)),
+        : encodeUtf8Base64(jsonFileText(body.content)),
       sha: body.sha,
       branch,
     });

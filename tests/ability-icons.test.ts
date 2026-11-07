@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { abilityIcons, abilityKey, abilityLists, applyAbilityIcons, iconForSave, iconKeyProblem, withAbilityKeys } from "../app/lib/ability-icons";
+import { abilityIcons, abilityKey, abilityLists, applyAbilityIcons, iconForSave, iconKeyProblem, portraitForSave, withAbilityKeys } from "../app/lib/ability-icons";
 import { asStored } from "../app/lib/as-stored";
 import { computeDiff } from "../app/lib/diff";
 import { heroRecordSchema } from "../app/lib/record-schema";
@@ -120,5 +120,53 @@ describe("saving a hero nobody edited (c)", () => {
     // Only the coercions the schema means to make: numbers stored as text.
     assert.deepEqual(computeDiff(hero, saved).map((d) => d.path), ["ages", "perk_level_xp"]);
     for (const list of LISTS) assert.equal(JSON.stringify(saved[list]), JSON.stringify(hero[list]), list);
+  });
+});
+
+describe("a hero's portrait when saved", () => {
+  const DIR = "overwatch/heroes/ana";
+  /** The portrait field's entries for a stored portrait, as HeroEdit loads them. */
+  const loaded = (portrait: Record<string, string>) => Object.entries(portrait).map(([key, url], i) => ({ id: String(i), key, previewUrl: url }));
+
+  it("stays exactly as stored when its pictures weren't touched, whatever their URLs", () => {
+    const stored = {
+      "2d": "https://cdn.example.com/ow/ana-2d.webp",
+      "3d": "/api/assets/overwatch/heroes/ana/portrait_3d.webp?v=abc123def456",
+      art: "https://cdn.example.com/ow/ana",
+    };
+    const { portrait, uploads } = portraitForSave(loaded(stored), stored, DIR);
+    assert.equal(portrait, stored);
+    assert.deepEqual(uploads, []);
+    // A lone picture stored under "main" stays as stored too, object and all.
+    const lone = { main: "https://cdn.example.com/x/ana" };
+    assert.equal(portraitForSave(loaded(lone), lone, DIR).portrait, lone);
+  });
+
+  it("names a new picture's file from its name, with a safe extension", () => {
+    const pick = (name: string) => [{ id: "n", key: "main", name, base64: "AA", previewUrl: "data:image/jpeg;base64,AA" }];
+    assert.deepEqual(portraitForSave(pick("Ana Portrait.JPG"), undefined, DIR), {
+      portrait: "/api/assets/overwatch/heroes/ana/portrait.jpg",
+      uploads: [{ path: "public/assets/overwatch/heroes/ana/portrait.jpg", base64: "AA", key: "main" }],
+    });
+    // No extension in the name: png, never the name itself.
+    assert.equal(portraitForSave(pick("ana"), undefined, DIR).portrait, "/api/assets/overwatch/heroes/ana/portrait.png");
+    assert.equal(portraitForSave(pick("ana.portrait?v=1"), undefined, DIR).uploads[0].path, "public/assets/overwatch/heroes/ana/portrait.png");
+  });
+
+  it("replaces one picture and keeps the URL of the other as stored", () => {
+    const stored = { "2d": "https://cdn.example.com/ow/ana-2d.webp", "3d": "/api/assets/overwatch/heroes/ana/portrait_3d.webp?v=abc123def456" };
+    const entries = [{ id: "0", key: "2d", name: "new.PNG", base64: "BB", previewUrl: "data:image/png;base64,BB" }, ...loaded(stored).slice(1)];
+    assert.deepEqual(portraitForSave(entries, stored, DIR), {
+      portrait: { "2d": "/api/assets/overwatch/heroes/ana/portrait_2d.png", "3d": stored["3d"] },
+      uploads: [{ path: "public/assets/overwatch/heroes/ana/portrait_2d.png", base64: "BB", key: "2d" }],
+    });
+  });
+
+  it("leaves out entries without a picture, and without pictures there is none", () => {
+    const stored = { "2d": "/api/assets/overwatch/heroes/ana/portrait_2d.webp" };
+    assert.deepEqual(portraitForSave([...loaded(stored), { id: "x", key: "3d" }], stored, DIR).portrait, stored);
+    assert.deepEqual(portraitForSave([{ id: "x", key: "main" }], stored, DIR), { portrait: undefined, uploads: [] });
+    // No entries at all: the portrait is the URL typed in the form instead.
+    assert.deepEqual(portraitForSave([], stored, DIR), { portrait: undefined, uploads: [] });
   });
 });

@@ -140,6 +140,11 @@ export async function deleteRecord(request: DeletionRequest): Promise<void> {
   await api("POST", "data/delete-record", request);
 }
 
+/** One enum file of a game, e.g. map-types (GET /api/{game}/enums/{id}: one GitHub read). */
+export async function getEnum(game: string, id: string): Promise<unknown> {
+  return api("GET", `${encodeURIComponent(game)}/enums/${encodeURIComponent(id)}`);
+}
+
 export async function listGames(): Promise<Game[]> {
   return api("GET", "data/games");
 }

@@ -30,7 +30,7 @@ import {
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
 import { heroRecordSchema } from "~/lib/record-schema";
-import { abilityIcons as loadAbilityIcons, abilityLists, applyAbilityIcons, iconKeyProblem, withAbilityKeys } from "~/lib/ability-icons";
+import { abilityIcons as loadAbilityIcons, abilityLists, applyAbilityIcons, iconKeyProblem, portraitForSave, withAbilityKeys } from "~/lib/ability-icons";
 import {
   type DynamicField,
   type DynamicSchemaFile,
@@ -469,25 +469,12 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       }
       const portraitProblem = iconKeyProblem(portraits);
       if (portraitProblem) throw new Error(`Portraits: ${portraitProblem}`);
-      // Handle Portraits
-      let portraitData: string | Record<string, string> =
-        (formData.portrait as string | Record<string, string>) || "";
-      if (portraits.length === 1 && portraits[0].key === "main") {
-        const ext =
-          portraits[0].name?.split(".").pop() ||
-          portraits[0].previewUrl?.split(".").pop() ||
-          "png";
-        portraitData = `/api/assets/${game}/heroes/${id}/portrait.${ext}`;
-      } else if (portraits.length > 0) {
-        portraitData = {};
-        for (const p of portraits) {
-          const ext =
-            p.name?.split(".").pop() || p.previewUrl?.split(".").pop() || "png";
-          (portraitData as Record<string, string>)[p.key] =
-            `/api/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
-        }
+      // The portrait from its pictures (see portraitForSave); without pictures, the URL typed in the form stands.
+      const { portrait, uploads: portraitUploads } = portraitForSave(portraits, undefined, `${game}/heroes/${id}`);
+      if (portraits.length > 0) {
+        if (portrait === undefined) delete formData.portrait;
+        else formData.portrait = portrait;
       }
-      if (portraitData) formData.portrait = portraitData;
 
 
       // Validate mode_overrides
@@ -522,23 +509,16 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       }
 
       const uploads = [];
-      for (const p of portraits) {
-        if (p.base64) {
-          const ext = p.name?.split(".").pop() || "png";
-          const path =
-            portraits.length === 1 && p.key === "main"
-              ? `public/assets/${game}/heroes/${id}/portrait.${ext}`
-              : `public/assets/${game}/heroes/${id}/portrait_${p.key}.${ext}`;
-          const portraitSha = await getFileSha(path);
-          uploads.push(
-            uploadAsset(
-              path,
-              p.base64,
-              portraitSha || undefined,
-              `Add portrait ${p.key} for ${id}`,
-            ),
-          );
-        }
+      for (const upload of portraitUploads) {
+        const portraitSha = await getFileSha(upload.path);
+        uploads.push(
+          uploadAsset(
+            upload.path,
+            upload.base64,
+            portraitSha || undefined,
+            `Add portrait ${upload.key} for ${id}`,
+          ),
+        );
       }
       for (const upload of abilityUploads) {
         const assetSha = await getFileSha(upload.path);

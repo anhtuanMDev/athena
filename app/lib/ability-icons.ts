@@ -124,6 +124,24 @@ export function iconForSave(entries: ImageEntry[], stored: unknown, dir: string,
 }
 
 /**
+ * A hero's portrait from its upload field's entries, and the pictures to upload
+ * for it: an ability icon's rules (iconForSave) under the hero's folder
+ * (`recordDir`, "overwatch/heroes/ana"), named portrait.png for a lone "main"
+ * picture, else portrait_<key>.png. So a portrait nobody touched is saved
+ * exactly as stored (an outside URL, another file name or a ?v= included),
+ * and a new picture's extension comes from its file name alone. Without
+ * entries the portrait is undefined: the URL typed in the form stands; with
+ * entries but no picture left, there is none.
+ */
+export function portraitForSave(entries: ImageEntry[], stored: unknown, recordDir: string): { portrait: unknown; uploads: (IconUpload & { key: string })[] } {
+  if (entries.length === 0) return { portrait: undefined, uploads: [] };
+  const { icon, uploads } = iconForSave(entries, stored, recordDir, "portrait");
+  // iconForSave uploads the new pictures in their entries' order; their keys name them in commit messages.
+  const added = entries.filter((e) => e.base64);
+  return { portrait: icon, uploads: uploads.map((upload, i) => ({ ...upload, key: added[i].key })) };
+}
+
+/**
  * Where an ability list's new pictures go, under a record's own folder:
  * "abilities" keeps the folder it always had; any other list gets its own, so
  * the same ability id in two lists never shares a file.

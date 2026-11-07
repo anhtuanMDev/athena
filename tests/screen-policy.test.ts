@@ -221,7 +221,8 @@ describe("asset headers", () => {
 });
 
 // A hand-made manifest in the shape worker B generates (zms tools/generate-primitives.js):
-// keys athena doesn't read (routeStops, linkHosts, imageHosts, blockedProps) are ignored.
+// keys athena doesn't read (linkHosts, imageHosts, blockedProps) are ignored; routeStops
+// is read for the screen preview's route timeline.
 const manifestWithPolicy = {
   $policy: {
     limits: { screensPerGame: 40, blocksPerScreen: 30, tabs: 4, listItems: 80, smallList: 8, text: 1000, routeStops: 9 },
@@ -236,7 +237,7 @@ const manifestWithPolicy = {
 describe("the app's policy, from the block manifest", () => {
   it("is today's app values when the manifest has none", () => {
     assert.deepEqual(policy.APP_POLICY, {
-      limits: { screensPerGame: 50, blocksPerScreen: 60, tabs: 5, listItems: 100, smallList: 12, text: 2000 },
+      limits: { screensPerGame: 50, blocksPerScreen: 60, tabs: 5, listItems: 100, smallList: 12, text: 2000, routeStops: 6 },
       appScreens: ["app:settings"],
     });
     for (const raw of [undefined, null, "x", {}, { screen_header: manifestWithPolicy.screen_header }, { $policy: "x" }, { $policy: [] }]) {
@@ -246,7 +247,7 @@ describe("the app's policy, from the block manifest", () => {
 
   it("reads the limits and app screens, and ignores the rest", () => {
     assert.deepEqual(policy.appPolicy(manifestWithPolicy), {
-      limits: { screensPerGame: 40, blocksPerScreen: 30, tabs: 4, listItems: 80, smallList: 8, text: 1000 },
+      limits: { screensPerGame: 40, blocksPerScreen: 30, tabs: 4, listItems: 80, smallList: 8, text: 1000, routeStops: 9 },
       appScreens: ["app:settings", "app:search"],
     });
   });
