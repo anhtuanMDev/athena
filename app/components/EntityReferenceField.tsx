@@ -1,6 +1,7 @@
 import React, { forwardRef, useId, useState, useMemo } from "react";
 import { useData } from "~/lib/use-data";
 import { isLoadableReference } from "~/lib/categories";
+import { pickerKeys, pickerOption } from "~/lib/reference-labels";
 import { useCategories } from "~/lib/categories-context";
 import { useParams } from "react-router";
 
@@ -39,9 +40,9 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
       if (match && !endpoint.includes("data/directory") && !endpoint.includes("enums/")) {
         const gameMatch = match[1];
         const subpath = match[2];
-        const valKey = referenceValueKey || "id";
-        const labelKey = referenceLabelKey || "name";
-        endpoint = `/api/data/directory?game=${gameMatch}&subpath=${subpath}&includeContent=true&keysOnly=${valKey},${labelKey}`;
+        // Only the keys a label needs, a template's included (pickerKeys); all of them when that can't be said.
+        const keys = pickerKeys(referenceValueKey || "id", referenceLabelKey || "name");
+        endpoint = `/api/data/directory?game=${gameMatch}&subpath=${subpath}&includeContent=true${keys ? `&keysOnly=${encodeURIComponent(keys.join(","))}` : ""}`;
       }
       
       const res = await fetch(endpoint);
@@ -66,22 +67,7 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
         }
       }
       
-      return arr.map((r: unknown) => {
-        const record = r as Record<string, unknown>;
-        let labelValue = "";
-        const labelKey = referenceLabelKey || "name";
-        
-        if (labelKey.includes("{")) {
-          labelValue = labelKey.replace(/{([^}]+)}/g, (_, g) => String(record[g] || ""));
-        } else {
-          labelValue = String(record[labelKey] || record.name || record.id || "");
-        }
-
-        return {
-          id: String(record[referenceValueKey || "id"] || record.id || ""),
-          name: labelValue,
-        };
-      });
+      return arr.map((r: unknown) => pickerOption(r as Record<string, unknown>, referenceValueKey || "id", referenceLabelKey || "name"));
     }, [game, referenceApiEndpoint, referenceValueKey, referenceLabelKey, categories.map((c) => c.folder).join()], "EntityReferenceField-21");
 
     const options = (entities as {id: string, name: string}[]) || [];

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { abilityIcons, abilityKey, abilityLists, applyAbilityIcons, iconForSave, iconKeyProblem, portraitForSave, withAbilityKeys } from "../app/lib/ability-icons";
+import { abilityIcons, abilityKey, abilityLists, abilityPicturesChanged, applyAbilityIcons, iconEntries, iconForSave, iconKeyProblem, picturesChanged, portraitForSave, withAbilityKeys } from "../app/lib/ability-icons";
 import { asStored } from "../app/lib/as-stored";
 import { computeDiff } from "../app/lib/diff";
 import { heroRecordSchema } from "../app/lib/record-schema";
@@ -168,5 +168,31 @@ describe("a hero's portrait when saved", () => {
     assert.deepEqual(portraitForSave([{ id: "x", key: "main" }], stored, DIR), { portrait: undefined, uploads: [] });
     // No entries at all: the portrait is the URL typed in the form instead.
     assert.deepEqual(portraitForSave([], stored, DIR), { portrait: undefined, uploads: [] });
+  });
+});
+
+describe("whether an editor's pictures were changed (a save of pictures alone)", () => {
+  const loaded = iconEntries({ "2d": "/api/assets/overwatch/heroes/ana/portrait_2d.webp", "3d": "/api/assets/overwatch/heroes/ana/portrait_3d.webp" });
+  const [twoD, threeD] = loaded;
+  it("is yes for a new picture, one removed, or one under another key", () => {
+    assert.equal(picturesChanged([{ ...twoD, id: "new", base64: "AAAA", previewUrl: "data:image/png;base64,AAAA", name: "x.png" }, threeD], loaded), true);
+    assert.equal(picturesChanged([threeD], loaded), true);
+    assert.equal(picturesChanged([{ ...twoD, previewUrl: undefined }, threeD], loaded), true);
+    assert.equal(picturesChanged([{ ...twoD, key: "splash" }, threeD], loaded), true);
+  });
+
+  it("is no for the pictures as loaded, in any order, or with empty entries added", () => {
+    assert.equal(picturesChanged(loaded, loaded), false);
+    // The entries' ids are new each time they're made from the record.
+    assert.equal(picturesChanged(iconEntries({ "3d": threeD.previewUrl, "2d": twoD.previewUrl }), loaded), false);
+    assert.equal(picturesChanged([...loaded, { id: "empty", key: "main" }], loaded), false);
+  });
+
+  it("is yes when any ability's icons changed, and no when none did", () => {
+    const icons = { "abilities:stored-0": iconEntries("/api/assets/overwatch/heroes/ana/abilities/sleep-dart.png") };
+    assert.equal(abilityPicturesChanged(icons, icons), false);
+    assert.equal(abilityPicturesChanged({ ...icons, "abilities:new-1": [{ id: "n", key: "main", base64: "AAAA", previewUrl: "data:," }] }, icons), true);
+    assert.equal(abilityPicturesChanged({}, icons), true);
+    assert.equal(abilityPicturesChanged({ "abilities:stored-0": [] }, icons), true);
   });
 });

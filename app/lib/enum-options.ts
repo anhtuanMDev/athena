@@ -58,6 +58,16 @@ export function enumOptions(file: unknown): EnumOptionView[] {
   });
 }
 
+/**
+ * A field's options as the app reads them (zms findEnumOption): its global
+ * enum's, found by globalEnumId among `enums` (a game's enum files), else its
+ * own. None when the enum isn't there: a value then shows as stored.
+ */
+export function fieldOptions(field: { globalEnumId?: string; options?: unknown }, enums: readonly unknown[]): EnumOptionView[] {
+  if (field.globalEnumId) return enumOptions(enums.find((e) => isObject(e) && e.id === field.globalEnumId));
+  return Array.isArray(field.options) ? field.options.filter((o): o is string => typeof o === "string").map((o) => ({ id: o, name: o })) : [];
+}
+
 /** The option a stored value names: by id, else by name in any case, as the app matches it. */
 export function findEnumOption(options: readonly EnumOptionView[], value: unknown): EnumOptionView | undefined {
   const id = typeof value === "string" ? value : typeof value === "number" ? String(value) : undefined;

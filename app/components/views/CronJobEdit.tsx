@@ -4,6 +4,7 @@ import { CronJobSchema, type CronJob } from "~/schemas/cron";
 import { type DynamicSchemaFile } from "~/schemas/dynamic-schema";
 import { getFile, updateFile, listDirectory, isConflictError } from "~/lib/github";
 import { dismissImport, runImport, type ImportDraft, type ImportState } from "~/lib/imports";
+import { deferralText, pendingDeferral, readRunLog, type RunLog } from "~/lib/importer/run-log";
 import { Button } from "~/components/ui/button";
 import { clearDataCache, useData } from "~/lib/use-data";
 import { assertSafeGameSlug } from "~/lib/safe-path";
@@ -23,16 +24,20 @@ export default function CronJobEdit() {
 
   const { data: loaderData, loading, error: loadError } = useData(async () => {
     if (!id) throw new Error("Cron Job ID missing");
-    const [cronFile, schemaFiles, syncFile, drafts] = await Promise.all([
+    // The syncs folder rather than the job's state alone (still one request): the runs' logs
+    // there say whether a run left this job for later (run-log.ts).
+    const [cronFile, schemaFiles, syncs, drafts] = await Promise.all([
       getFile<CronJob>(`data/${game}/cron_jobs/${id}.json`),
       listDirectory<DynamicSchemaFile>(game!, "schemas", true),
-      getFile<ImportState>(`data/${game}/syncs/${id}.json`).catch(() => null),
+      listDirectory<unknown>(game!, "syncs", true).catch((): unknown[] => []),
       listDirectory<ImportDraft>(game!, `imports/${id}`, true).catch(() => []),
     ]);
     if (!cronFile) throw new Error("Cron Job not found");
     // A hand-edited or half-written draft file shouldn't take the page down.
     const readable = drafts.filter((d) => typeof d?.record?.id === "string" && d.source && Array.isArray(d.problems));
-    return { cron: cronFile.content, sha: cronFile.sha, schemas: schemaFiles, sync: syncFile?.content, drafts: readable };
+    const sync = syncs.find((s): s is ImportState => !!s && typeof s === "object" && (s as ImportState).id === id);
+    const deferral = pendingDeferral(cronFile.content, sync, syncs.map(readRunLog).filter((log): log is RunLog => log !== null));
+    return { cron: cronFile.content, sha: cronFile.sha, schemas: schemaFiles, sync, deferral, drafts: readable };
   }, [game, id], "CronJobEdit-20");
 
   const [settings, setSettings] = useState<JobSettings | null>(null);
@@ -140,7 +145,7 @@ export default function CronJobEdit() {
   );
   if (!loaderData || !settings) return null;
 
-  const { sync, drafts } = loaderData;
+  const { sync, deferral, drafts } = loaderData;
   const schema = loaderData.schemas.find((s) => s.id === settings.schema_id);
   const titleField = labelFieldOf(schema);
 
@@ -183,10 +188,13 @@ export default function CronJobEdit() {
           </div>
         )}
 
-        {sync && (sync.last_sync || sync.last_error) && (
+        {(deferral || (sync && (sync.last_sync || sync.last_error))) && (
           <div className="bg-surface-raised border border-border p-4 rounded-xl flex flex-col gap-2">
             <h3 className="font-bold text-ink text-sm">Latest Run</h3>
-            {sync.last_sync && (
+            {deferral && (
+              <p className="text-sm text-amber-800 dark:text-amber-300">{deferralText(deferral, (at) => new Date(at).toLocaleString())}</p>
+            )}
+            {sync?.last_sync && (
               <p className="text-sm text-green-700 dark:text-green-400">
                 <strong>Succeeded:</strong> {new Date(sync.last_sync).toLocaleString()}
                 {sync.last_result
@@ -194,7 +202,7 @@ export default function CronJobEdit() {
                   : ""}
               </p>
             )}
-            {sync.last_error && sync.last_sync_attempt && sync.last_sync_attempt !== sync.last_sync && (
+            {sync?.last_error && sync.last_sync_attempt && sync.last_sync_attempt !== sync.last_sync && (
               <div className="text-sm text-red-700 dark:text-red-400">
                 <strong>Error:</strong> {sync.last_error}
                 <p className="opacity-75 text-xs mt-1">

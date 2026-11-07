@@ -9,7 +9,7 @@ import { checkLoginAttempts, recordLoginAttempt } from "../../app/lib/login-atte
 import { SESSION_TTL_SECONDS, createSessionToken, readSessionVersion, revokeSessions, verifySessionToken } from "../../app/lib/session";
 import { SourceError } from "../../app/lib/importer/fetch-source";
 import { RepoError, githubRepo } from "../../app/lib/importer/repo";
-import { deletionConflict, deletionRequest, isOwnedAsset, recordAssetDir } from "../../app/lib/record-assets";
+import { deletionConflict, deletionRequest, isOwnedAsset, prunePlan, pruneRequest, recordAssetDir, type ScannedRecord } from "../../app/lib/record-assets";
 import { assertSafeEntityId, assertSafeGameSlug } from "../../app/lib/safe-path";
 import {
   ImportError,
@@ -20,7 +20,7 @@ import {
 } from "../../app/lib/importer/run";
 import { CATEGORIES_PATH, DEFAULT_CATEGORIES, needsCategories, readCategories } from "../../app/lib/categories";
 import { githubReader, readJsonFolderCounted, readJsonTogether, type RepoReader } from "../../app/lib/mobile-payload";
-import { graphqlStatus } from "../../app/lib/github-graphql";
+import { GraphqlUnavailable, graphqlStatus } from "../../app/lib/github-graphql";
 import { templateFieldsByCategory } from "../../app/lib/notify-template";
 import { pushAfterWrite, readServiceAccount, type PushEnv } from "../../app/lib/push";
 
@@ -181,8 +181,12 @@ export async function onRequest(
       return await handleRecordAssets(context);
     if (path === "data/delete-record" && request.method === "POST")
       return await handleDeleteRecord(context);
+    if (path === "data/prune-assets" && request.method === "POST")
+      return await handlePruneAssets(context);
     if (path === "data/directory" && request.method === "GET")
       return await handleListDirectory(context);
+    if (path === "data/folders" && request.method === "GET")
+      return await handleListFolders(context);
     if (path === "data/games" && request.method === "GET")
       return await handleListGames(request, env);
     if (path === "data/dashboard" && request.method === "GET")
@@ -515,6 +519,86 @@ async function handleDeleteRecord(context: PagesFunctionContext): Promise<Respon
   return json({ ok: true });
 }
 
+/** Files GraphQL can't give whole (too big, or not UTF-8) that a prune reads through REST before giving up. */
+const PRUNE_REST_READS = 10;
+
+/**
+ * Every JSON file of a game's data and of data/_meta, as at commit `head`, in
+ * one GraphQL request; or why they can't be read (then nothing is removed).
+ * `paths` are the repository's files at that commit.
+ */
+async function recordsAt(env: Env, head: string, game: string, paths: string[]): Promise<ScannedRecord[] | string> {
+  const json = paths.filter((p) => (p.startsWith(`data/${game}/`) || p.startsWith("data/_meta/")) && p.endsWith(".json"));
+  const dirs = [...new Set(json.map((p) => p.slice(0, p.lastIndexOf("/"))))];
+  // Pinned at `head`: what's checked is exactly what the commit below applies to.
+  const reader = githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, head, { token: env.GITHUB_TOKEN });
+  let texts: { path: string; text?: string }[];
+  try {
+    texts = (await reader.readMany!(dirs, [])).folders.flatMap((folder) => folder ?? []);
+  } catch (err) {
+    if (err instanceof GraphqlUnavailable) return "couldn't check what uses it (GitHub GraphQL is unavailable)";
+    throw err;
+  }
+  const whole = texts.filter((t) => t.text === undefined);
+  if (whole.length > PRUNE_REST_READS) return "couldn't check what uses it (too many files to read one by one)";
+  for (const t of whole) t.text = await reader.read(t.path);
+  return texts.map(({ path, text }) => {
+    let content: unknown = text;
+    try {
+      content = JSON.parse(text!);
+    } catch {
+      // A file that isn't valid JSON is searched as text: it may still point at a picture.
+    }
+    return { folder: path, id: path.slice(path.lastIndexOf("/") + 1, -".json".length), content };
+  });
+}
+
+// After a save, the files of the record's own folder the save stopped
+// pointing at (record-assets.ts droppedAssets): those that no JSON file of the
+// game or of data/_meta points at, the saved record included, are deleted in
+// one commit, on the commit everything was read at. Whatever can't be checked
+// is kept and said so; the save itself is done already, so this never fails it.
+// 8 GitHub requests: the snapshot (3), the records (1 GraphQL), the commit (4).
+async function handlePruneAssets(context: PagesFunctionContext): Promise<Response> {
+  await requireAuth(context);
+  const request = pruneRequest(await context.request.json().catch(() => ({})));
+  if (typeof request === "string") return json({ error: request }, 400);
+  for (const path of request.paths) assertSafeFilePath(path);
+  const { game, folder, id } = request;
+  const dir = recordAssetDir(game, folder, id);
+  const repo = githubRepo(context.env);
+  const kept = (paths: string[], why: string) => json({ removed: [], kept: paths.map((path) => ({ path, why })) });
+  let snapshot: { head: string; files: Record<string, string> };
+  try {
+    snapshot = await repo.snapshot([`data/${game}/`, "data/_meta/", dir]);
+  } catch (err) {
+    if (err instanceof RepoError && err.status === 503) return kept(request.paths, "couldn't check what uses it (the data repository is too big to list)");
+    throw err;
+  }
+  // Files already gone need nothing.
+  const files = request.paths.filter((path) => snapshot.files[path]).map((path) => ({ path, sha: snapshot.files[path] }));
+  if (files.length === 0) return json({ removed: [], kept: [] });
+  const records = await recordsAt(context.env, snapshot.head, game, Object.keys(snapshot.files));
+  if (typeof records === "string") return kept(files.map((f) => f.path), records);
+  const plan = prunePlan(dir, files, records);
+  if (plan.remove.length > 0) {
+    try {
+      await repo.commitOn(
+        snapshot.head,
+        plan.remove.map((f) => ({ path: f.path, content: null })),
+        `Remove ${plan.remove.length} replaced picture${plan.remove.length === 1 ? "" : "s"} of ${folder} ${id}`,
+      );
+    } catch (err) {
+      // 422: the branch moved since it was read, so the check may be out of date.
+      if (err instanceof RepoError && err.status === 422) return kept(files.map((f) => f.path), "the data changed meanwhile");
+      throw err;
+    }
+    // One purge for the pictures (they share the mobile assets version); the rest expire (asset-headers.ts).
+    triggerCachePurge(context, plan.remove[0].path);
+  }
+  return json({ removed: plan.remove.map((f) => f.path), kept: plan.keep.map((k) => ({ path: k.path, why: `used by ${k.usedBy.join(", ")}` })) });
+}
+
 // Import jobs (app/lib/importer): preview a mapping, run a job now, and the
 // reviewer's answers to a draft. Each write is one commit; a published record
 // refreshes the mobile caches like any other save.
@@ -662,6 +746,49 @@ async function handleListDirectory(
     console.error("handleListDirectory error:", err);
     return json([], 200, { "X-Incomplete": "all" });
   }
+}
+
+/** Folders data/folders reads at once: what one page needs together, and no more. */
+const MAX_FOLDERS = 4;
+
+// Several folders of a game at once, as data/directory reads one (with
+// includeContent), for a page that needs them together, such as a list's
+// schemas and enums: one GitHub request for them all when the token can use
+// GraphQL. X-Incomplete counts the records left out ("all" when a folder
+// couldn't even be listed).
+async function handleListFolders(context: PagesFunctionContext): Promise<Response> {
+  await requireAuth(context);
+  const url = new URL(context.request.url);
+  const game = url.searchParams.get("game") ?? "";
+  const subpaths = (url.searchParams.get("subpaths") ?? "").split(",");
+  if (!game || subpaths.some((s) => !s) || subpaths.length > MAX_FOLDERS || new Set(subpaths).size !== subpaths.length) {
+    return json({ error: `game and 1 to ${MAX_FOLDERS} different subpaths are required` }, 400);
+  }
+  for (const subpath of subpaths) assertSafeFilePath(`data/${game}/${subpath}/dummy.json`);
+  const dirs = subpaths.map((subpath) => `data/${game}/${subpath}`);
+  const together = readJsonTogether(dataReader(context.env), dirs, []);
+  let left = 0;
+  let unlisted = false;
+  const folders = await Promise.all(
+    dirs.map((dir) =>
+      together.folder(dir).then(
+        ({ files, unread }) => {
+          const items = files.map((file) => file.content).filter(Boolean);
+          left += unread + files.length - items.length;
+          return items;
+        },
+        (err) => {
+          console.error(`handleListFolders: ${dir} couldn't be listed:`, err);
+          unlisted = true;
+          return [];
+        },
+      ),
+    ),
+  );
+  return json(Object.fromEntries(subpaths.map((subpath, i) => [subpath, folders[i]])), 200, {
+    "Cache-Control": "no-store",
+    ...((unlisted || left > 0) && { "X-Incomplete": unlisted ? "all" : String(left) }),
+  });
 }
 
 async function handleListGames(request: Request, env: Env): Promise<Response> {

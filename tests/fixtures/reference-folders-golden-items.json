@@ -1,0 +1,85 @@
+{
+  "description": "Second golden for screenReferenceFolders: how item.* bindings resolve, and a list block's items binding. Same rule as reference-folders-golden.json, plus item.* resolution. Each case is its own screen; fields of data.* come from the screen's source schemas.",
+  "rule": "item.* on a list block: against the entries of the list field when items is data.X; otherwise against the fields of the block's own source, else the screen's source. item.* on a block that doesn't repeat over items: with those same source fields (the block's source, else the screen's). A list block's items binding (data.X) counts, with its sub-fields' references, like any other binding.",
+  "categories": [
+    { "category": "hero", "folder": "heroes", "label": "Heroes" },
+    { "category": "map", "folder": "maps", "label": "Maps" },
+    { "category": "mode", "folder": "modes", "label": "Modes" },
+    { "category": "item", "folder": "items", "label": "Items" },
+    { "category": "patch", "folder": "patches", "label": "Patches" },
+    { "category": "news", "folder": "news", "label": "News" }
+  ],
+  "schemas": [
+    {
+      "id": "mode-golden",
+      "name": "Golden mode",
+      "category": "mode",
+      "fields": [
+        { "key": "title", "label": "Title", "type": "string" },
+        { "key": "spotlight", "label": "Spotlight", "type": "reference", "referenceApiEndpoint": "/api/{game}/news", "referenceValueKey": "id", "referenceLabelKey": "title" },
+        {
+          "key": "rules",
+          "label": "Rules",
+          "type": "object_array",
+          "subFields": [
+            { "key": "rule", "label": "Rule", "type": "string" },
+            { "key": "item", "label": "Item", "type": "reference", "referenceApiEndpoint": "/api/{game}/items", "referenceValueKey": "id", "referenceLabelKey": "name" },
+            { "key": "hero", "label": "Hero", "type": "reference", "referenceApiEndpoint": "/api/{game}/heroes", "referenceValueKey": "id", "referenceLabelKey": "name" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "map-golden",
+      "name": "Golden map",
+      "category": "map",
+      "fields": [
+        { "key": "name", "label": "Name", "type": "string" },
+        { "key": "spotlight", "label": "Spotlight", "type": "reference", "referenceApiEndpoint": "/api/{game}/heroes", "referenceValueKey": "id", "referenceLabelKey": "name" }
+      ]
+    }
+  ],
+  "max": 3,
+  "cases": [
+    {
+      "name": "list over a list field",
+      "why": "itemTitle comes before items (key order), and item.hero resolves against the rules entries: heroes, then items brings its sub-fields (items; heroes again). Against the screen's source (no 'hero' field) it would be items, heroes.",
+      "screen": {
+        "type": "detail",
+        "source": { "category": "mode" },
+        "blocks": [{ "id": "rules", "type": "item_list", "props": { "title": "Rules", "itemTitle": "item.hero", "items": "data.rules" } }]
+      },
+      "expected": ["heroes", "items"]
+    },
+    {
+      "name": "list with its own source",
+      "why": "item.spotlight resolves against the block's source (map: heroes), not the screen's (mode: news).",
+      "screen": {
+        "type": "detail",
+        "source": { "category": "mode" },
+        "blocks": [{ "id": "maps", "type": "record_grid", "props": { "title": "Maps", "source": { "category": "map" }, "itemLabel": "item.spotlight" } }]
+      },
+      "expected": ["heroes"]
+    },
+    {
+      "name": "list without items or a source of its own",
+      "why": "item.spotlight falls back to the screen's source (mode: news).",
+      "screen": {
+        "type": "detail",
+        "source": { "category": "mode" },
+        "blocks": [{ "id": "grid", "type": "record_grid", "props": { "title": "Same", "itemLabel": "item.spotlight" } }]
+      },
+      "expected": ["news"]
+    },
+    {
+      "name": "item.* on a block that doesn't repeat",
+      "why": "detail_header doesn't repeat over items; item.spotlight resolves with the source fields (the screen's: mode, news). Ignoring it would give none.",
+      "screen": {
+        "type": "detail",
+        "source": { "category": "mode" },
+        "blocks": [{ "id": "header", "type": "detail_header", "props": { "title": "item.spotlight" } }]
+      },
+      "expected": ["news"]
+    }
+  ]
+}

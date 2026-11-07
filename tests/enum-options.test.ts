@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { enumOptions, enumParamText, findEnumOption } from "../app/lib/enum-options";
+import { enumOptions, enumParamText, fieldOptions, findEnumOption } from "../app/lib/enum-options";
 
 // The role enum as zero-backend stores it: params typed as text and numbers, suffixes with spaces.
 const ROLE = {
@@ -70,5 +70,15 @@ describe("enum options, as the app reads them", () => {
     const mapTypes = JSON.parse(readFileSync(new URL("./fixtures/overwatch/enums/map-types.json", import.meta.url), "utf8"));
     assert.equal(findEnumOption(enumOptions(mapTypes), "push")?.name, "Push");
     assert.equal(findEnumOption(enumOptions(mapTypes), "flashpoint")?.name, "Flashpoint");
+  });
+
+  it("gives a field its global enum's options, else its own, as the app does", () => {
+    const enums = [ROLE, { id: "other", options: ["x"] }];
+    assert.deepEqual(fieldOptions({ globalEnumId: "role" }, enums).map((o) => o.name), ["Damage", "Support", "Tank", "Flex"]);
+    assert.deepEqual(fieldOptions({ options: ["Easy", "Hard"] }, enums), [{ id: "Easy", name: "Easy" }, { id: "Hard", name: "Hard" }]);
+    // The enum isn't there (yet): no options, so the value shows as stored.
+    assert.deepEqual(fieldOptions({ globalEnumId: "sub-role" }, enums), []);
+    assert.deepEqual(fieldOptions({ globalEnumId: "role" }, []), []);
+    assert.deepEqual(fieldOptions({}, enums), []);
   });
 });

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ChevronRight, ImageOff } from "lucide-react";
 import { enumParamText, findEnumOption, type EnumOptionView } from "~/lib/enum-options";
+import { isReferenceField } from "~/lib/reference-labels";
 import {
   bindingPath,
   bindingScope,
@@ -28,6 +29,11 @@ export interface PreviewContext {
   dataFields: FieldOption[];
   /** Fields "item.<path>" reads in a list block, for units and custom suffixes. */
   itemFieldsFor: (block: ScreenBlock) => FieldOption[];
+  /**
+   * A reference's record, as the app shows it: its label, and whether the app
+   * would open it (field_section linkReferences); none when the app shows the id.
+   */
+  reference: (field: FieldOption, id: string) => { label: string; linked: boolean } | undefined;
   screenSource?: RecordSource;
   /** Stages a route timeline shows (the app's routeStops limit). */
   routeStops: number;
@@ -38,6 +44,13 @@ function resolvePath(data: unknown, path: string): unknown {
     (acc, key) => (acc && typeof acc === "object" ? (acc as Record_)[key] : undefined),
     data,
   );
+}
+
+/** A bound value as the app's bindings resolve it: a reference by its record's label, an enum value by its option's name. */
+function named(ctx: PreviewContext, field: FieldOption | undefined, value: unknown): unknown {
+  if (typeof value !== "string" && typeof value !== "number") return value;
+  if (field && isReferenceField(field)) return ctx.reference(field, String(value))?.label ?? value;
+  return findEnumOption(ctx.enumOptions(field), value)?.name ?? value;
 }
 
 /** A bound value with its unit or the record's custom suffix, as the app shows it (F3). */
@@ -73,11 +86,7 @@ function makeReader(block: ScreenBlock, spec: PrimitiveSpec | undefined, ctx: Pr
       const scopeData = bindingScope(prop) === "item" ? item : ctx.data;
       // "item.<path>" is a field of the list's entries, "data.<path>" one of the screen's data.
       const fields = bindingScope(prop) === "item" ? ctx.itemFieldsFor(block) : ctx.dataFields;
-      value = resolvePath(scopeData, bindingPath(prop));
-      if (typeof value === "string" || typeof value === "number") {
-        const option = findEnumOption(ctx.enumOptions(fields.find((f) => f.key === bindingPath(prop))), value);
-        if (option) value = option.name;
-      }
+      value = named(ctx, fields.find((f) => f.key === bindingPath(prop)), resolvePath(scopeData, bindingPath(prop)));
       value = withUnit(fields, scopeData, bindingPath(prop), value);
     }
     if (value !== undefined && value !== null && value !== "") return value;
@@ -93,6 +102,28 @@ function makeReader(block: ScreenBlock, spec: PrimitiveSpec | undefined, ctx: Pr
     return isBinding(prop) ? <MissingValue path={prop} /> : null;
   };
   return { raw, show };
+}
+
+/** A reference value's ids: one, or each of a list; null when it's neither (then it shows as any other value). */
+function referenceIds(value: unknown): string[] | null {
+  const scalar = (v: unknown) => typeof v === "string" || typeof v === "number";
+  if (scalar(value)) return [String(value)];
+  return Array.isArray(value) && value.every(scalar) ? value.map(String) : null;
+}
+
+/**
+ * A reference as field_section shows it: its label, as a chip in a list. One
+ * the app opens looks like a link; it's a span, as the block preview is a
+ * button (a link inside it would be a control within a control).
+ */
+function ReferenceValue({ text, linked, chip }: { text: string; linked: boolean; chip: boolean }) {
+  const look = chip ? "rounded-full bg-surface-raised px-2.5 py-0.5 text-xs font-semibold" : "text-sm";
+  return (
+    <span className={`${look} ${linked ? "inline-flex items-center gap-0.5 text-primary-ink underline underline-offset-2" : ""}`}>
+      {text}
+      {linked && <ChevronRight aria-hidden="true" className="size-3 shrink-0" />}
+    </span>
+  );
 }
 
 function PreviewImage({ src, className }: { src: string | null; className: string }) {
@@ -338,7 +369,8 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
         <div className="space-y-2">
           <SectionTitle>{show("title")}</SectionTitle>
           {rows.map((row, i) => {
-            const value = isBinding(row.value) ? withUnit(ctx.dataFields, ctx.data, bindingPath(row.value), resolvePath(ctx.data, bindingPath(row.value))) : row.value;
+            const bound = isBinding(row.value) ? bindingPath(row.value) : undefined;
+            const value = bound !== undefined ? withUnit(ctx.dataFields, ctx.data, bound, named(ctx, ctx.dataFields.find((f) => f.key === bound), resolvePath(ctx.data, bound))) : row.value;
             return (
               <div key={i} className="flex items-center gap-2">
                 <span className="flex size-7 items-center justify-center rounded-full border border-border font-mono text-[0.75rem] text-ink-muted">{row.icon ? row.icon.slice(0, 2) : "·"}</span>
@@ -362,11 +394,22 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
       const field = path === undefined ? undefined : ctx.dataFields.find((f) => f.key === path);
       const value = path === undefined ? undefined : resolvePath(ctx.data, path);
       const option = field?.type === "enum" ? findEnumOption(ctx.enumOptions(field), value) : undefined;
+      // A reference, or a list of them, by its records' labels (the id when there's none), as chips for a list.
+      const ids = field && isReferenceField(field) ? referenceIds(value) : null;
+      // The manifest's default is the text "false"; a binding gives the record's own value.
+      const linking = [true, "true"].includes(raw("linkReferences") as boolean | string);
       const title = raw("title");
       return (
         <div className="space-y-2">
           <p className="text-[0.75rem] font-semibold uppercase tracking-widest opacity-80">{title ? show("title") : field ? field.label : path}</p>
-          {option ? (
+          {ids ? (
+            <div className={Array.isArray(value) ? "flex flex-wrap gap-1.5" : ""}>
+              {ids.map((id, i) => {
+                const found = ctx.reference(field!, id);
+                return <ReferenceValue key={i} text={found?.label ?? id} linked={linking && !!found?.linked} chip={Array.isArray(value)} />;
+              })}
+            </div>
+          ) : option ? (
             <div className="space-y-1.5">
               <span className="inline-flex items-center gap-1.5">
                 {option.icon && <PreviewImage src={assetUrl(option.icon)} className="size-5 rounded" />}

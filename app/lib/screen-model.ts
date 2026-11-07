@@ -1,5 +1,6 @@
 import { DEFAULT_CATEGORIES, type Category } from "./categories";
 import { APP_POLICY, BLOCKED_PROP, BOUND_LINK, isAllowedLink, isAppScreen, type AppLimits, type AppPolicy } from "./screen-policy";
+import { referenceFolders } from "./reference-labels";
 
 // App screens under data/<game>/screens/<id>.json and the tab list in
 // data/<game>/navigation.json, rendered by the mobile app (zms). Schemas only
@@ -82,6 +83,10 @@ export interface FieldOption {
   subFields?: FieldOption[];
   /** Each record may give its own unit, in "<key>_suffix" next to the value (see valueWithUnit). */
   hasCustomSuffix?: boolean;
+  /** reference / reference_list: where the ids point, and which keys are the id and the label (reference-labels.ts). */
+  referenceApiEndpoint?: string;
+  referenceValueKey?: string;
+  referenceLabelKey?: string;
 }
 
 export interface SchemaInfo {
@@ -431,6 +436,46 @@ export function valueWithUnit(field: FieldOption | undefined, value: unknown, co
 }
 
 /** Fields "item.<path>" can bind to in a list block: entries of its bound list field, else its records. */
+/** Every binding ("data.<path>", "item.<path>") in a prop's value, nested ones (info_list rows) included, in order. */
+function bindingsIn(value: unknown, out: string[] = []): string[] {
+  if (isBinding(value)) out.push(value);
+  else if (Array.isArray(value)) for (const entry of value) bindingsIn(entry, out);
+  else if (value && typeof value === "object") for (const entry of Object.values(value)) bindingsIn(entry, out);
+  return out;
+}
+
+/**
+ * The folders a screen's references point into, whose records the app loads
+ * to label them (zms: at most `max` a screen): blocks in file order, all tabs,
+ * visible ones only; within a block, props in key order, arrays by index,
+ * depth-first; each bound field gives its referenceFolders (sub-fields in
+ * schema order); the first occurrence wins. "item." resolves as the app
+ * resolves it, on any block (itemFieldsFor): a list's entries when its items
+ * are "data.<list>", else the block's own source, else the screen's. The
+ * golden fixtures shared with zms (tests/fixtures/reference-folders-golden*.json) pin this.
+ */
+export function screenReferenceFolders(
+  screen: ScreenFile,
+  dataFields: FieldOption[],
+  schemas: SchemaInfo[],
+  categories: readonly Pick<Category, "folder">[],
+  max: number,
+  recordsOf?: (category: string) => Record<string, unknown>[],
+): string[] {
+  const folders: string[] = [];
+  for (const block of screen.blocks) {
+    if (block.visible === false) continue;
+    let itemFields: FieldOption[] | undefined;
+    for (const binding of Object.values(block.props).flatMap((value) => bindingsIn(value))) {
+      const fields = bindingScope(binding) === "item" ? (itemFields ??= itemFieldsFor(block, screen, dataFields, schemas, recordsOf)) : dataFields;
+      const field = fields.find((f) => f.key === bindingPath(binding));
+      if (!field) continue;
+      for (const folder of referenceFolders(field, categories, max)) if (!folders.includes(folder)) folders.push(folder);
+    }
+  }
+  return folders.slice(0, max);
+}
+
 export function itemFieldsFor(
   block: ScreenBlock,
   screen: ScreenFile,
@@ -735,7 +780,8 @@ export function starterScreens(schema: SchemaInfo, categories: Categories = DEFA
   const image = imageField(fields);
   const enumField = schema.fields.find((f) => f.type === "enum");
   const numbers = schema.fields.filter((f) => f.type === "number").slice(0, 4);
-  // References hold ids, which the app shows as they are, so starters leave them out.
+  // Lists of references stay out of starters: the app shows them by their records' labels,
+  // but labels at most 3 reference folders a screen (screenReferenceFolders), so which to add is the author's choice.
   const lists = schema.fields.filter((f) => isListField(f) && f.type !== "reference_list").slice(0, 3);
   const text = summaryField(schema.fields);
   const block = (type: string, props: Record<string, unknown>, extra: Partial<ScreenBlock> = {}): ScreenBlock => ({

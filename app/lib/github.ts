@@ -1,7 +1,7 @@
 import { clearDataCache } from "~/lib/use-data";
 import type { PushResult } from "~/lib/push";
 import type { Game } from "~/schemas/game";
-import type { AssetFile, DeletionRequest, Listing } from "~/lib/record-assets";
+import { droppedAssets, pruneNote, recordAssetDir, type AssetFile, type DeletionRequest, type Listing, type PruneResult } from "~/lib/record-assets";
 
 export interface GitHubFile<T = unknown> {
   sha: string;
@@ -119,6 +119,17 @@ export async function listDirectory<T = string>(game: string, subpath: string, i
 }
 
 /**
+ * Up to 4 folders of a game, with their records, in one request (one GitHub
+ * request when the server can use GraphQL): each folder's records by its
+ * subpath, as listDirectory(…, true) gives them, and whether all were read.
+ */
+export async function listFolders<T = unknown>(game: string, subpaths: string[]): Promise<{ folders: Record<string, T[]>; complete: boolean }> {
+  const { data, headers } = await apiResponse<Record<string, T[]>>("GET", `data/folders?game=${encodeURIComponent(game)}&subpaths=${encodeURIComponent(subpaths.join(","))}`);
+  const folders = Object.fromEntries(subpaths.map((s) => [s, Array.isArray(data?.[s]) ? data[s] : []]));
+  return { folders, complete: !headers.get("X-Incomplete") };
+}
+
+/**
  * A folder's records, and whether every one of them could be read: the server
  * leaves out those it couldn't, and says so (X-Incomplete). For checks that
  * must see them all, such as what uses a record before it's deleted.
@@ -138,6 +149,23 @@ export async function getRecordAssets(game: string, folder: string, id: string):
 /** Deletes a record and those of its pictures, in one commit (see record-assets.ts). */
 export async function deleteRecord(request: DeletionRequest): Promise<void> {
   await api("POST", "data/delete-record", request);
+}
+
+/**
+ * After a record's save: removes the files of its own folder the save stopped
+ * pointing at (`stored` is the record as loaded, `saved` as saved), unless
+ * another record, or the saved one, still uses them (POST data/prune-assets).
+ * Never throws: the save is done, so a file that couldn't be removed is only
+ * said. Null when the save left no file behind (no request).
+ */
+export async function pruneReplacedAssets(game: string, folder: string, id: string, stored: unknown, saved: unknown): Promise<{ message: string; kept: boolean } | null> {
+  const paths = droppedAssets(stored, saved, recordAssetDir(game, folder, id));
+  if (paths.length === 0) return null;
+  try {
+    return pruneNote(await api<PruneResult>("POST", "data/prune-assets", { game, folder, id, paths }));
+  } catch {
+    return pruneNote({ removed: [], kept: paths.map((path) => ({ path, why: "couldn't check what uses it" })) });
+  }
 }
 
 /** One enum file of a game, e.g. map-types (GET /api/{game}/enums/{id}: one GitHub read). */

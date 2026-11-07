@@ -678,6 +678,12 @@
       "title": {
         "type": "string",
         "required": false
+      },
+      "linkReferences": {
+        "type": "boolean",
+        "required": false,
+        "default": "false",
+        "description": "References open their record, when exactly one detail screen shows its category. Off by default."
       }
     }
   },

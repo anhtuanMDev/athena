@@ -2,11 +2,30 @@ import type { DiffEntry } from "~/lib/diff";
 
 interface DiffViewProps {
   diffs: DiffEntry[];
+  /** Pictures the save uploads (public/assets paths): a save may change pictures alone. */
+  uploads?: string[];
 }
 
-export function DiffView({ diffs }: DiffViewProps) {
+export function DiffView({ diffs, uploads = [] }: DiffViewProps) {
+  const pictures = uploads.length > 0 && (
+    <div className="space-y-1">
+      <h3 className="text-sm font-semibold text-ink">Pictures to upload ({uploads.length})</h3>
+      <ul className="space-y-0.5 text-xs text-ink-muted">
+        {uploads.map((path) => (
+          <li key={path}>
+            <code>{path.replace(/^public\//, "")}</code>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
   if (diffs.length === 0) {
-    return <p className="text-sm text-ink-muted">No changes detected.</p>;
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-ink-muted">{uploads.length > 0 ? "The record itself is unchanged." : "No changes detected."}</p>
+        {pictures}
+      </div>
+    );
   }
 
   return (
@@ -50,6 +69,7 @@ export function DiffView({ diffs }: DiffViewProps) {
           </div>
         ))}
       </div>
+      {pictures}
     </div>
   );
 }

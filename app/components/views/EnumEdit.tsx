@@ -16,7 +16,7 @@ import { useData } from "~/lib/use-data";
 import { DiffView } from "~/components/DiffView";
 import { computeDiff } from "~/lib/diff";
 import type { DiffEntry } from "~/lib/diff";
-import { isConflictError, updateFile, getFile, getFileSha, uploadAsset } from "~/lib/github";
+import { isConflictError, updateFile, getFile, getFileSha, pruneReplacedAssets, uploadAsset } from "~/lib/github";
 import { ImageUploadField } from "~/components/ImageUploadField";
 import { clearDataCache } from "~/lib/use-data";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
@@ -299,12 +299,14 @@ function EditEnumForm({
   id: string;
 }) {
   const navigate = useNavigate();
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess, error: toastError, warning: toastWarning } = useToast();
 
   const [preview, setPreview] = useState<{
     diffs: DiffEntry[];
     enumJson: string;
     sha: string;
+    /** The option icons the save uploads. */
+    uploads: string[];
   } | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -356,19 +358,21 @@ function EditEnumForm({
       const parsed = EnumSchema.parse(formData);
       
       // Merge upload changes into parsed preview so diff is correct
+      const uploads: string[] = [];
       for (const indexStr of Object.keys(iconUploads)) {
         const index = parseInt(indexStr);
         const upload = iconUploads[index];
         const option = parsed.options[index];
         const ext = upload.name.split(".").pop();
         option.icon = `/api/assets/${game}/enums/${id}/${option.id}.${ext}`;
+        uploads.push(`public/assets/${game}/enums/${id}/${option.id}.${ext}`);
       }
 
       // The enum's keys the form doesn't edit stay as they are, and what the
       // form filled in for keys it had no value for doesn't count as an edit.
       const saved = asStored(enumData, keepUnknownKeys(enumData, parsed, EnumSchema), EnumSchema);
       const diffs = computeDiff(enumData, saved);
-      setPreview({ diffs, enumJson: JSON.stringify(saved), sha });
+      setPreview({ diffs, enumJson: JSON.stringify(saved), sha, uploads });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error";
       setSubmitError(msg);
@@ -419,13 +423,21 @@ function EditEnumForm({
       if (uploads.length > 0) await Promise.all(uploads);
 
       // What was reviewed is what's saved (its icon URLs included): parsing it again would undo asStored.
-      await updateFile(
-        `data/${game}/enums/${id}.json`,
-        parsedData,
-        sha,
-        `Update enum: ${parsed.data.name}`,
-      );
-      toastSuccess(`Enum ${parsed.data.name} updated successfully!`);
+      // An icon replaced under its own name leaves the enum as it was: nothing to save then.
+      if (preview.diffs.length > 0) {
+        await updateFile(
+          `data/${game}/enums/${id}.json`,
+          parsedData,
+          sha,
+          `Update enum: ${parsed.data.name}`,
+        );
+      }
+      // Option icons the save replaced or dropped (their folder is public/assets/{game}/enums/{id}/):
+      // removed when nothing uses them (never fails the save).
+      const pruned = await pruneReplacedAssets(game, "enums", id, enumData, parsedData);
+      const done = `Enum ${parsed.data.name} updated successfully!`;
+      if (pruned?.kept) toastWarning(`${done} ${pruned.message}`);
+      else toastSuccess(pruned ? `${done} ${pruned.message}` : done);
       navigate(`/${game}/enums`);
     } catch (err) {
       if (isConflictError(err)) {
@@ -447,7 +459,7 @@ function EditEnumForm({
         <h2 className="text-xl font-bold text-ink tracking-tight">
           Review Changes
         </h2>
-        <DiffView diffs={preview.diffs} />
+        <DiffView diffs={preview.diffs} uploads={preview.uploads} />
         {submitError && (
           <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">
             {submitError}
@@ -468,7 +480,7 @@ function EditEnumForm({
           <Button
             type="submit"
             variant="default"
-            disabled={submittingCommit || preview.diffs.length === 0}
+            disabled={submittingCommit || (preview.diffs.length === 0 && preview.uploads.length === 0)}
           >
             {submittingCommit ? "Saving to GitHub..." : "Commit Changes"}
           </Button>
@@ -491,7 +503,7 @@ function EditEnumForm({
         <Button
           type="submit"
           variant="default"
-          disabled={!isDirty || !isValid || submitting}
+          disabled={!(isDirty || Object.keys(iconUploads).length > 0) || !isValid || submitting}
         >
           {submitting ? "Processing..." : "Review Changes"}
         </Button>
@@ -643,7 +655,7 @@ function EditEnumForm({
         <Button
           type="submit"
           variant="default"
-          disabled={!isDirty || !isValid || submitting}
+          disabled={!(isDirty || Object.keys(iconUploads).length > 0) || !isValid || submitting}
         >
           {submitting ? "Processing..." : "Review Changes"}
         </Button>

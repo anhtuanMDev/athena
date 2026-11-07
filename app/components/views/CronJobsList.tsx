@@ -4,6 +4,7 @@ import { ButtonLink } from "~/components/ui/button";
 import { listDirectory } from "~/lib/github";
 import { useData } from "~/lib/use-data";
 import { type CronJob } from "~/schemas/cron";
+import { deferralText, pendingDeferral, readRunLog, type RunLog } from "~/lib/importer/run-log";
 import { Clock } from "lucide-react";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
@@ -14,18 +15,20 @@ export default function CronJobsList() {
     try {
       const crons = await listDirectory<CronJob>(game!, "cron_jobs", true);
       const syncs = await listDirectory<any>(game!, "syncs", true).catch(() => []);
-      
+
       const syncMap: Record<string, any> = {};
       syncs.forEach(s => {
         if (s && s.id) syncMap[s.id] = s;
       });
+      // The runs' logs come in the same listing (syncs/_run-<kind>.json): what they left for later.
+      const runLogs = syncs.map(readRunLog).filter((log): log is RunLog => log !== null);
 
       // Draft counts: one listing per job (names only), so a reviewer sees where work waits.
       const pending = await Promise.all(
         crons.map((job) => listDirectory<string>(game!, `imports/${job.id}`).then((ids) => ids.length).catch(() => 0)),
       );
 
-      return crons.map((job, i) => ({ ...job, _sync: syncMap[job.id], _pending: pending[i] }));
+      return crons.map((job, i) => ({ ...job, _sync: syncMap[job.id], _pending: pending[i], _deferral: pendingDeferral(job, syncMap[job.id], runLogs) }));
     } catch (e) {
       return [];
     }
@@ -122,6 +125,12 @@ export default function CronJobsList() {
                 {job._pending > 0 && (
                   <p className="mb-4 text-sm font-semibold text-amber-700 dark:text-amber-400">
                     {job._pending} waiting for review
+                  </p>
+                )}
+
+                {job._deferral && (
+                  <p className="mb-4 text-xs p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800/50 dark:bg-amber-900/30 dark:text-amber-200">
+                    {deferralText(job._deferral, (at) => new Date(at).toLocaleString())}
                   </p>
                 )}
 

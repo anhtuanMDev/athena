@@ -23,6 +23,7 @@ import {
   getFileSha,
   isConflictError,
   listDirectory,
+  pruneReplacedAssets,
   updateFile,
   uploadAsset,
 } from "~/lib/github";
@@ -30,7 +31,7 @@ import { assertSafeEntityId, assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
 import { heroRecordSchema } from "~/lib/record-schema";
 import { keepUnknownKeys } from "~/lib/unknown-keys";
-import { abilityIcons as loadAbilityIcons, abilityLists, applyAbilityIcons, iconKeyProblem, portraitForSave, withAbilityKeys } from "~/lib/ability-icons";
+import { abilityIcons as loadAbilityIcons, abilityLists, abilityPicturesChanged, applyAbilityIcons, iconKeyProblem, picturesChanged, portraitForSave, withAbilityKeys } from "~/lib/ability-icons";
 import { asStored } from "~/lib/as-stored";
 import {
   type DynamicField,
@@ -211,7 +212,7 @@ function EditHeroFormInner({
   onImportSuccess: (data: Record<string, unknown>) => void;
 }) {
   const navigate = useNavigate();
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess, error: toastError, warning: toastWarning } = useToast();
 
   const [preview, setPreview] = useState<{
     diffs: DiffEntry[];
@@ -238,6 +239,10 @@ function EditHeroFormInner({
   const [abilityIcons, setAbilityIcons] = useState<
     Record<string, ImageEntry[]>
   >(() => loadAbilityIcons(initData, lists));
+  // The pictures as loaded: they live outside the form, so changing them is an edit of its own.
+  const [loadedPortraits] = useState(portraits);
+  const [loadedAbilityIcons] = useState(abilityIcons);
+  const picturesEdited = picturesChanged(portraits, loadedPortraits) || abilityPicturesChanged(abilityIcons, loadedAbilityIcons);
 
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>(
     (initData.schema_id as string) || schemas[0]?.id || "",
@@ -549,13 +554,20 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
       if (uploads.length > 0) await Promise.all(uploads);
 
       // What was reviewed is what's saved: parsing it again would undo asStored.
-      await updateFile(
-        `data/${game}/heroes/${id}.json`,
-        parsedData,
-        sha,
-        `Update hero: ${parsed.data.name || id}`,
-      );
-      toastSuccess(`Hero ${parsed.data.name || id} updated successfully!`);
+      // A picture replaced under its own name leaves the record as it was: nothing to save then.
+      if (preview.diffs.length > 0) {
+        await updateFile(
+          `data/${game}/heroes/${id}.json`,
+          parsedData,
+          sha,
+          `Update hero: ${parsed.data.name || id}`,
+        );
+      }
+      // Pictures the save replaced or dropped: removed when nothing uses them (never fails the save).
+      const pruned = await pruneReplacedAssets(game, "heroes", id, hero, parsedData);
+      const done = `Hero ${parsed.data.name || id} updated successfully!`;
+      if (pruned?.kept) toastWarning(`${done} ${pruned.message}`);
+      else toastSuccess(pruned ? `${done} ${pruned.message}` : done);
       navigate(`/${game}/heroes`);
     } catch (err) {
       if (isConflictError(err)) {
@@ -577,7 +589,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
         <h2 className="text-xl font-bold text-ink tracking-tight">
           Review Changes
         </h2>
-        <DiffView diffs={preview.diffs} />
+        <DiffView diffs={preview.diffs} uploads={[...(preview.portraitUploads ?? []), ...(preview.abilityUploads ?? [])].map((u) => u.path)} />
         {submitError && (
           <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">
             {submitError}
@@ -590,7 +602,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
           <input type="hidden" name="_heroJson" value={preview.heroJson} />
           <Button
             type="submit"
-            disabled={submittingCommit || preview.diffs.length === 0}
+            disabled={submittingCommit || (preview.diffs.length === 0 && (preview.portraitUploads?.length ?? 0) + (preview.abilityUploads?.length ?? 0) === 0)}
             className="shadow-lg w-40"
           >
             {submittingCommit ? "Committing..." : "Confirm Commit"}
@@ -631,7 +643,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
         </Button>
         <Button
           type="submit"
-          disabled={submitting || !isDirty}
+          disabled={submitting || !(isDirty || picturesEdited)}
           className="shadow-lg"
         >
           {submitting ? "Processing..." : "Preview Changes"}
@@ -760,7 +772,7 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
             </Button>
             <Button
               type="submit"
-              disabled={submitting || !isDirty}
+              disabled={submitting || !(isDirty || picturesEdited)}
               className="shadow-lg"
             >
               {submitting ? "Processing..." : "Preview Changes"}
