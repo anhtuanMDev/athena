@@ -26,12 +26,13 @@ jobs:
         with:
           persist-credentials: false
 
-      # Exact Node, the same as local development: a floating "24" would pick
-      # up releases only days old. Bump it to a release at least 14 days old,
-      # together with zero-backend's data workflow.
+      # .node-version holds an exact Node: Cloudflare Pages builds the admin
+      # with it, so CI tests what production runs, and zero-backend's data
+      # workflow reads it too. A floating "24" would pick up releases only
+      # days old; bump it to a release at least 14 days old.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24.21.0
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: |
             package-lock.json
