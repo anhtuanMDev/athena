@@ -9,4 +9,4 @@
 diff.txt
 .wrangler/
 workers/cron/node_modules/
-workers/cron/package-lock.json
+# workers/cron/package-lock.json is committed: it pins the wrangler that deploys the cron Worker.
