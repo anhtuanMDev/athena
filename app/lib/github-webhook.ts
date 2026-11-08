@@ -4,7 +4,7 @@
 // bumps the mobile cache versions (see mobile-cache-version.ts). The webhook
 // bumps them instead, for the payloads the pushed files feed.
 
-import { MOBILE_ASSETS_VERSION_KEY, MOBILE_INIT_VERSION_KEY, mobileDataVersionKey, mobileVersionKeyForPath } from "./mobile-cache-version";
+import { MOBILE_ASSETS_VERSION_KEY, MOBILE_INIT_VERSION_KEY, bumpCacheVersion, mobileDataVersionKey, mobileVersionKeyForPath } from "./mobile-cache-version";
 import { assertSafeGameSlug } from "./safe-path";
 
 /** The parts of GitHub's push payload the webhook reads. */
@@ -73,9 +73,44 @@ export function versionKeysToBump(paths: string[] | undefined, games: string[], 
       return false;
     }
   });
+  // Once each: KV takes one write a second per key, so a repeated game or
+  // folder would fail its own second write.
   return [
-    MOBILE_INIT_VERSION_KEY,
-    MOBILE_ASSETS_VERSION_KEY,
-    ...safeGames.flatMap((game) => folders.map((folder) => mobileDataVersionKey(game, folder))),
+    ...new Set([
+      MOBILE_INIT_VERSION_KEY,
+      MOBILE_ASSETS_VERSION_KEY,
+      ...safeGames.flatMap((game) => folders.map((folder) => mobileDataVersionKey(game, folder))),
+    ]),
   ];
+}
+
+/** KV takes one write a second per key; a refused key is tried again after this. */
+export const SAME_KEY_RETRY_MS = 1100;
+
+/**
+ * Bumps each of `keys`, returning those that still failed. An admin save bumps
+ * a key moments before GitHub delivers the same commit's push, and KV refuses
+ * a second write to a key within a second (429), so a refused key is tried
+ * once more after SAME_KEY_RETRY_MS. One key failing never stops the others,
+ * and every failure is logged.
+ */
+export async function bumpVersions(
+  kv: Parameters<typeof bumpCacheVersion>[0],
+  keys: string[],
+  wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+): Promise<string[]> {
+  const attempt = (key: string, log: (message: string, err: unknown) => void) =>
+    bumpCacheVersion(kv, key).then(
+      () => true,
+      (err: unknown) => {
+        log(`Couldn't bump ${key}`, err);
+        return false;
+      },
+    );
+  const first = await Promise.all(keys.map((key) => attempt(key, (message, err) => console.warn(`${message}; trying again in a second:`, err))));
+  const refused = keys.filter((_, i) => !first[i]);
+  if (refused.length === 0) return [];
+  await wait(SAME_KEY_RETRY_MS);
+  const second = await Promise.all(refused.map((key) => attempt(key, (message, err) => console.error(`${message} twice; its payloads stay cached until the next bump:`, err))));
+  return refused.filter((_, i) => !second[i]);
 }

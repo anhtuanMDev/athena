@@ -65,11 +65,14 @@ interface MemoCache {
 
 /**
  * A mobile payload's cache version: from this data center's memo, else from
- * KV. A failed KV read gives "0" and isn't kept, so the next request tries
- * again. Admin session versions don't go through a memo: signing out must
- * take effect at once.
+ * KV. A failed KV read gives null and isn't kept, so the next request tries
+ * again: the caller then can't tell which payload is current, and must not
+ * cache one under a version (it would be kept for a year, under whatever
+ * version stood in). Without KV bound nothing can bump a version, so "0" is
+ * the only one there is. Admin session versions don't go through a memo:
+ * signing out must take effect at once.
  */
-export async function readCacheVersion(kv: VersionStore | undefined, memo: MemoCache, key: string): Promise<string> {
+export async function readCacheVersion(kv: VersionStore | undefined, memo: MemoCache, key: string): Promise<string | null> {
   const memoKey = new Request(`https://api.internal/cache-version/${encodeURIComponent(key)}`);
   const kept = await memo.match(memoKey).catch(() => undefined);
   if (kept) return kept.text();
@@ -79,7 +82,7 @@ export async function readCacheVersion(kv: VersionStore | undefined, memo: MemoC
     version = (await kv.get(key)) ?? "0";
   } catch (err) {
     console.error("Cache version read failed:", err);
-    return "0";
+    return null;
   }
   const entry = new Response(version, { headers: { "Cache-Control": `max-age=${VERSION_MEMO_SECONDS}` } });
   await memo.put(memoKey, entry).catch((err) => console.error("Cache version memo failed:", err));

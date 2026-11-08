@@ -76,7 +76,19 @@ Inside `functions/api/[[path]].ts` within the `triggerCachePurge()` function:
   * An entity file (`data/<game>/<heroes|maps|modes|patches|items>/<id>.json`) bumps the version for that game and folder in `/mobile/data`.
   * Every data center then misses once and refetches (KV changes can take up to about 60 seconds to reach every location). Commits made outside the dashboard (GitHub web edits, merged PRs, the cron worker) do not bump a version.
 * **Assets (`/api/assets/...`):** When images are uploaded or modified, the corresponding asset cache key is purged (in the current data center only).
-* **Individual Entity Files (`/api/data/file`):** When an entity (like a hero or map) is edited, the cache for fetching that specific file in the web admin is purged.
-* **`/mobile/data` parameters:** `game` must be a game slug and `entity` one of `heroes`, `maps`, `modes`, `patches`, `items`; anything else returns 400, so internal folders such as `cron_jobs` are not served.
+  What each data center last saw of that picture (a 404, or its hash) is forgotten there too; elsewhere it's fetched again within a minute.
+* **`/mobile/data` parameters:** `game` must be an active game of `games.json` (else 404) and `entity` a configured category's folder (else 400), so internal folders such as `cron_jobs` are not served. Both lists are read at most once a minute per data center, before any KV read, so made-up values cost neither KV reads nor GitHub requests.
 
 This architecture ensures the mobile app always receives the latest structural blueprints the next time it boots up, while optimizing GitHub API consumption.
+
+## 8. What a `/mobile/*` response tells the app
+
+Every response is `Cache-Control: no-store`; the app keeps its own copy (MMKV). Two headers on a 200 say when it isn't one to replace that copy with (`app/lib/mobile-response.ts`):
+
+* **`X-Incomplete: <n>`**: the payload was built with `n` (≥ 1) files left out, files that couldn't be read or parsed, plus one when the picture versions (the repo tree) couldn't be read (picture URLs then go out without `?v=`), and for `/mobile/init` one when `categories.json` couldn't be read (the built-in categories stand in). The body has its usual shape. The server keeps it a minute at most. Absent: nothing was left out. Never `all`: a folder that can't be listed fails the build instead.
+* **`X-Stale: 1`**: the last complete payload this data center built, served because the current one couldn't be built (GitHub down, its quota spent, too many subrequests) or because KV couldn't say which version is current. The body is complete; it may be older than the app's copy. Never for a game that is no longer active, as far as `games.json` can be read.
+* Never both. The app replaces its copy only with a 200 carrying neither; with either, it uses the body only when it has no copy, and a later clean 200 replaces it.
+
+Other statuses: 400 (missing or malformed parameters, a folder that isn't a category's), 404 (a game that isn't active, `/mobile/data`), 500 (the build failed and no complete payload was built here before), 503 with `Retry-After: 60` (`games.json` can't be read and no list of games was kept here). On any of them the app keeps what it has.
+
+A build killed by the Workers CPU limit can't answer at all, stale or not: the app keeps its copy then too.

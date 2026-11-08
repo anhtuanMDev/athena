@@ -53,6 +53,19 @@ export async function gitBlobSha(bytes: Uint8Array): Promise<string> {
   return Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * How long a data center remembers what raw.githubusercontent.com last served
+ * for a path: its hash, or that it's missing. Within that time a missing
+ * picture, or a ?v= that isn't its hash, is answered without fetching it
+ * again: each fetch costs a subrequest and hashing the whole file, and anyone
+ * can make up paths' versions.
+ */
+export const ASSET_SEEN_SECONDS = 60;
+const MISSING = "missing";
+
+/** Where that is kept for `path` ("assets/…", as in the request URL). An upload forgets it in its own data center. */
+export const assetSeenKey = (path: string) => `https://api.internal/asset-seen/${path}`;
+
 export interface AssetCache {
   match(key: string): Promise<Response | undefined>;
   put(key: string, response: Response): Promise<void>;
@@ -69,6 +82,10 @@ export interface AssetCache {
  * serve the old file), and the app shows its fallback art meanwhile. Asking
  * GitHub's API instead would let anyone spend the admin token's API quota, or
  * KV writes to cap that, on the Workers Free plan.
+ *
+ * A missing picture or a mismatch isn't fetched again for ASSET_SEEN_SECONDS,
+ * which delays a replaced picture by that much at most; neither is ever kept
+ * by the client (404, or 503 no-store).
  */
 export async function serveAsset({
   path,
@@ -97,6 +114,12 @@ export async function serveAsset({
       headers: { "Retry-After": RETRY_AFTER_SECONDS, "Cache-Control": ASSET_CACHE.unavailable },
     });
 
+  const notFound = () => new Response("Asset not found", { status: 404 });
+  const seenKey = assetSeenKey(path);
+  // Best effort: a record that can't be written only costs a fetch next time.
+  const remember = (seen: string) =>
+    cache.put(seenKey, new Response(seen, { headers: { "Cache-Control": `max-age=${ASSET_SEEN_SECONDS}` } })).catch((err) => console.error("Asset record failed:", err));
+
   const cached = await cache.match(key);
   if (cached) {
     const etag = cached.headers.get("ETag") ?? "";
@@ -104,11 +127,22 @@ export async function serveAsset({
     return respond(cached.body, etag, ASSET_CACHE.revalidate, ifNoneMatch === etag ? 304 : 200);
   }
 
+  const seen = await cache.match(seenKey).then((entry) => entry?.text(), () => undefined);
+  if (seen === MISSING) return notFound();
+  // Any version but the hash this path just served, however many are tried.
+  if (version && seen !== undefined && !seen.startsWith(version)) return unavailable();
+
   const upstream = await fetchAsset();
-  if (!upstream.ok) return new Response("Asset not found", { status: 404 });
+  if (upstream.status === 404) {
+    await remember(MISSING);
+    return notFound();
+  }
+  // Another failure (raw's 5xx, a rate limit) may pass: asked again next time.
+  if (!upstream.ok) return unavailable();
   const bytes = new Uint8Array(await upstream.arrayBuffer());
   const sha = await gitBlobSha(bytes);
   const etag = `"${sha}"`;
+  await remember(sha);
 
   if (version) {
     if (!sha.startsWith(version)) return unavailable();

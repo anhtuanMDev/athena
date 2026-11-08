@@ -88,7 +88,10 @@ The mobile API is part of this project (`functions/mobile/init.ts`,
 `functions/mobile/data.ts`). Its payloads are cached in each data center's
 `caches.default` for a year (a minute when some files couldn't be read), under keys
 that carry a version kept in KV; every admin save bumps the right version, so the app
-sees a change within about two minutes (§7.7).
+sees a change within about two minutes (§7.7). A payload missing files says so in
+`X-Incomplete`; when one can't be built, or KV can't be read, the last complete one is
+served marked `X-Stale`. Only active games are served. The contract with the app is in
+`MOBILE_API_CONTEXT.md` §8.
 
 ---
 
@@ -136,7 +139,6 @@ admin's "Run now" doesn't use it: it goes through the session-authed
 app/routes/
   home.tsx                           /           - redirects to /dashboard
   login.tsx                          /login      - password gate
-  logout.tsx                         /logout     - POSTs /api/auth/logout, back to /login
 
   _admin.tsx                         layout: session check + sidebar shell
   _admin.dashboard.tsx               /dashboard  - games and record counts
@@ -158,6 +160,7 @@ app/routes/
 the games for the sidebar (`app/components/SidebarNav.tsx`): Dashboard, Activity, Games,
 Categories, then for each game players see (anything but `active: false`,
 `app/lib/games.ts`) its configured categories, Schemas, App Screens, Enums and Cron Jobs.
+Its Logout button signs out (`POST /api/auth/logout`); no page does, so no link can.
 
 The API (`functions/api/[[path]].ts`, one `onRequest` with a route table):
 
@@ -189,8 +192,11 @@ anything else: JSON 404
   cache, then exponential backoff and 429 with `retryAfter` (`app/lib/login-attempts.ts`).
 - **Session end:** a 401 from any API call fires `AUTH_EXPIRED`, which opens
   `ReauthModal` (sign in again in place) while `has_session` is set, else goes to
-  `/login`. `/logout` with a valid session replaces the KV session version, which ends
-  every session at once (`app/lib/session.ts`).
+  `/login`. Signing out with a valid session replaces the KV session version, which ends
+  every session at once (`app/lib/session.ts`). This browser is always signed out; when
+  KV can't end the others, the answer is 200 with a `warning` the sidebar shows.
+- **Other origins:** a POST, PUT, PATCH or DELETE whose `Sec-Fetch-Site` isn't
+  `same-origin` (or, without it, whose `Origin` isn't the admin's) gets a 403.
 
 ### 6.2 `/dashboard`
 

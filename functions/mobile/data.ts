@@ -1,7 +1,8 @@
 import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
 import { MOBILE_ASSETS_VERSION_KEY, mobileDataVersionKey, readCacheVersion } from "../../app/lib/mobile-cache-version";
-import { CACHE_CONTROL, buildDataPayload, githubReader, servedFolders } from "../../app/lib/mobile-payload";
+import { activeGames, buildDataPayload, githubReader, servedFolders } from "../../app/lib/mobile-payload";
+import { servePayload } from "../../app/lib/mobile-response";
 import { assertSafeEntityType, assertSafeGameSlug } from "../../app/lib/safe-path";
 
 export interface Env {
@@ -37,59 +38,42 @@ export async function onRequest(context: any): Promise<Response> {
     if (err instanceof Response) return json({ error: await err.text() }, 400);
     throw err;
   }
-  // And only configured categories, checked before any KV read, so made-up
-  // folder names can't make version reads or reach GitHub.
+  // And only configured categories of active games, checked before any KV
+  // read, so made-up names can't make version reads or reach GitHub: each list
+  // costs at most one GitHub read a minute in a data center (mobile-payload.ts).
   // The folder through GraphQL when the token allows: one GitHub request whatever it holds.
   const reader = githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH ?? "main", { token: env.GITHUB_TOKEN });
-  if (!(await servedFolders((caches as any).default, reader)).includes(entity)) {
+  const cache = (caches as any).default;
+  const [folders, games] = await Promise.all([servedFolders(cache, reader), activeGames(cache, reader)]);
+  if (!folders.includes(entity)) {
     return json({ error: `Invalid entity type: ${entity}` }, 400);
   }
+  if (games === null) {
+    return json({ error: "The list of games can't be read right now." }, 503, { "Retry-After": "60" });
+  }
+  if (!games.includes(game)) {
+    return json({ error: `Unknown game: ${game}` }, 404);
+  }
 
-  const cache = (caches as any).default;
   const internalOrigin = "https://api.internal";
   // Read through this data center's memo, so KV reads don't grow with players.
   const [version, assetsVersion] = await Promise.all([
     readCacheVersion(env.RATE_LIMIT_KV, cache, mobileDataVersionKey(game, entity)),
     readCacheVersion(env.RATE_LIMIT_KV, cache, MOBILE_ASSETS_VERSION_KEY),
   ]);
-  const cacheKey = new Request(
-    `${internalOrigin}/mobile/data?game=${game}&entity=${entity}&v=${encodeURIComponent(version)}&a=${encodeURIComponent(assetsVersion)}`,
-  );
-
-  const cached = await cache.match(cacheKey);
-  if (cached) {
-    const response = new Response(cached.body, {
-      status: cached.status,
-      statusText: cached.statusText,
-      headers: new Headers(cached.headers),
-    });
-    response.headers.set("Cache-Control", "no-store");
-    return response;
-  }
-
-  try {
+  const payload = `game=${game}&entity=${entity}`;
+  return servePayload({
+    cache,
+    key:
+      version === null || assetsVersion === null
+        ? null
+        : `${internalOrigin}/mobile/data?${payload}&v=${encodeURIComponent(version)}&a=${encodeURIComponent(assetsVersion)}`,
+    unconfirmedKey: `${internalOrigin}/mobile/unconfirmed/data?${payload}`,
+    lastGoodKey: `${internalOrigin}/mobile/last-good/data?${payload}`,
     // A missing folder has no records; a file that can't be read is left out
     // on its own, and the list is then cached only briefly.
-    const { payload, partial } = await buildDataPayload(reader, `data/${game}/${entity}`);
-    const cacheableResponse = json(payload, 200, {
-      "Cache-Control": partial ? CACHE_CONTROL.partial : CACHE_CONTROL.complete,
-    });
-
-    if (context.waitUntil) {
-      context.waitUntil(cache.put(cacheKey, cacheableResponse.clone()));
-    } else {
-      await cache.put(cacheKey, cacheableResponse.clone());
-    }
-
-    const clientResponse = new Response(cacheableResponse.body, {
-      status: cacheableResponse.status,
-      headers: new Headers(cacheableResponse.headers)
-    });
-    clientResponse.headers.set("Cache-Control", "no-store");
-
-    return clientResponse;
-  } catch (err: any) {
-    console.error("Mobile data API error:", err);
-    return json({ error: err.message }, 500);
-  }
+    build: () => buildDataPayload(reader, `data/${game}/${entity}`),
+    waitUntil: context.waitUntil && ((promise) => context.waitUntil(promise)),
+    label: "Mobile data API",
+  });
 }

@@ -84,6 +84,25 @@ describe("which requests run a Function", () => {
   });
 });
 
+describe("signing out", () => {
+  // Signing out ends every admin session (app/lib/session.ts). A page that did
+  // it when opened let any site sign every admin out with a link, so it's a
+  // button in the sidebar only: no route, link or redirect leads to /logout.
+  const APP = new URL("../app/", import.meta.url);
+  const sources = (dir: URL): { file: string; text: string }[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      if (entry.isDirectory()) return sources(new URL(`${entry.name}/`, dir));
+      return /\.tsx?$/.test(entry.name) ? [{ file: new URL(entry.name, dir).pathname, text: readFileSync(new URL(entry.name, dir), "utf8") }] : [];
+    });
+
+  it("has no page of its own", () => {
+    const routes = readFileSync(new URL("routes.ts", APP), "utf8");
+    assert.doesNotMatch(routes, /route\(\s*["'`]logout/);
+    assert.equal(existsSync(new URL("routes/logout.tsx", APP)), false);
+    for (const { file, text } of sources(APP)) assert.doesNotMatch(text, /(?<!\/auth)\/logout\b/, file);
+  });
+});
+
 describe("the routing rules' matcher", () => {
   it("matches the way Pages does", () => {
     assert.ok(matches("/api/*", "/api/auth/check"));

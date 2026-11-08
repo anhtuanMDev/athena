@@ -210,15 +210,34 @@ async function assetHashes(reader: RepoReader): Promise<{ hashes: Map<string, st
   }
 }
 
-/** The /mobile/init payload: active games with their schemas, enums, screens and navigation. */
-export async function buildInitPayload(reader: RepoReader): Promise<{ payload: Record<string, unknown>; partial: boolean }> {
+const GAMES_PATH = "data/_meta/games.json";
+type GameEntry = { slug?: string; id?: string; active?: unknown };
+
+/**
+ * The games players see in games.json's text: all but those marked `active:
+ * false`, and the id the app knows each by (its slug, else its id). The one
+ * rule for /mobile/init and for which games /mobile/data serves. Throws when
+ * the file isn't a list of games.
+ */
+function activeGamesIn(text: string): { games: GameEntry[]; ids: string[] } {
+  const games: GameEntry[] = JSON.parse(text).games ?? [];
+  const active = games.filter(isGameActive);
+  return { games: active, ids: active.map((game) => String(game.slug || game.id)) };
+}
+
+/**
+ * The /mobile/init payload: active games with their schemas, enums, screens
+ * and navigation. `leftOut` counts the files left out (the picture versions as
+ * one), the app's X-Incomplete; `games`, the ids of the games it lists.
+ */
+export async function buildInitPayload(
+  reader: RepoReader,
+): Promise<{ payload: Record<string, unknown>; partial: boolean; leftOut: number; games: string[] }> {
   const assets = assetHashes(reader);
   // games.json; without it there is nothing to show.
-  const games: { slug?: string; id?: string; active?: unknown }[] = JSON.parse(await reader.read("data/_meta/games.json")).games ?? [];
-  const activeGames = games.filter(isGameActive);
+  const { games: activeGames, ids } = activeGamesIn(await reader.read(GAMES_PATH));
   // Every game's folders and navigation, and the categories, in one request when the reader can.
   const dirs = (gameId: string) => [`data/${gameId}/schemas`, `data/${gameId}/enums`, `data/${gameId}/screens`];
-  const ids = activeGames.map((game) => String(game.slug || game.id));
   const together = readJsonTogether(reader, ids.flatMap(dirs), [...ids.map((id) => `data/${id}/navigation.json`), CATEGORIES_PATH]);
   // The app's category list. Missing: the built-in ones; unreadable: those, cached briefly.
   const categoriesFile = together.file(CATEGORIES_PATH).catch((err) => {
@@ -230,8 +249,8 @@ export async function buildInitPayload(reader: RepoReader): Promise<{ payload: R
   const enums: Record<string, unknown[]> = {};
   const screens: Record<string, unknown[]> = {};
   const navigation: Record<string, unknown> = {};
-  // Set when a file was left out, so this payload is only cached briefly.
-  let partial = false;
+  // Files left out: this payload is then only cached briefly, and says so.
+  let leftOut = 0;
 
   // A missing folder is empty; a file that can't be read is left out on its own.
   await Promise.all(
@@ -251,7 +270,7 @@ export async function buildInitPayload(reader: RepoReader): Promise<{ payload: R
       // store it, so the app gets it from the name.
       screens[gameId] = screenFiles.files.map((f) => ({ ...(f.content as object), id: f.name }));
       navigation[gameId] = navFile.content;
-      partial ||= schemaFiles.partial || enumFiles.partial || screenFiles.partial || navFile.partial;
+      leftOut += schemaFiles.unread + enumFiles.unread + screenFiles.unread + (navFile.partial ? 1 : 0);
     }),
   );
 
@@ -271,7 +290,8 @@ export async function buildInitPayload(reader: RepoReader): Promise<{ payload: R
     },
     hashes,
   );
-  return { payload, partial: partial || noHashes || noCategories };
+  leftOut += (noHashes ? 1 : 0) + (noCategories ? 1 : 0);
+  return { payload, partial: leftOut > 0, leftOut, games: ids };
 }
 
 /** How long a data center keeps the list of folders /mobile/data serves. */
@@ -295,10 +315,53 @@ export async function servedFolders(
   return folders;
 }
 
-/** The /mobile/data payload: the records of one folder. */
-export async function buildDataPayload(reader: RepoReader, dir: string): Promise<{ payload: unknown[]; partial: boolean }> {
-  const [{ files, partial }, { hashes, partial: noHashes }] = await Promise.all([readJsonFolder(reader, dir), assetHashes(reader)]);
-  return { payload: versionAssets(files.map((f) => f.content), hashes), partial: partial || noHashes };
+/** How long a data center keeps the list of games /mobile/data serves. */
+const GAMES_MEMO_SECONDS = 60;
+/** How long the list read last is kept, for when games.json can't be read: as long as a complete payload. */
+const GAMES_KEPT_SECONDS = 31536000;
+
+/**
+ * The ids of the games /mobile/data serves (active ones), kept
+ * GAMES_MEMO_SECONDS in this data center's cache like servedFolders: a request
+ * for any other game is refused before it costs a KV read or reaches GitHub,
+ * and a game turned off stops being served within that time.
+ *
+ * When games.json can't be read (GitHub down, a hand edit that broke it), the
+ * list read last stands in, so stale payloads can still be served for the
+ * games that were active then. With none, null: nobody can tell which games
+ * are served. Either is kept for the minute too, so a broken games.json can't
+ * make every request ask GitHub again.
+ */
+export async function activeGames(
+  cache: { match(request: Request): Promise<Response | undefined>; put(request: Request, response: Response): Promise<void> },
+  reader: RepoReader,
+): Promise<string[] | null> {
+  const key = new Request("https://api.internal/mobile/active-games");
+  const lastKey = new Request("https://api.internal/mobile/last-good/active-games");
+  const entry = (games: string[] | null, seconds: number) => new Response(JSON.stringify(games), { headers: { "Cache-Control": `max-age=${seconds}` } });
+  const kept = await cache.match(key).catch(() => undefined);
+  if (kept) return kept.json();
+  let games: string[] | null;
+  try {
+    games = activeGamesIn(await reader.read(GAMES_PATH)).ids;
+    await cache.put(lastKey, entry(games, GAMES_KEPT_SECONDS)).catch((err) => console.error("Games list copy failed:", err));
+  } catch (err) {
+    console.error("games.json couldn't be read; using the list read last:", err);
+    const last = await cache.match(lastKey).catch(() => undefined);
+    games = last ? await last.json() : null;
+  }
+  await cache.put(key, entry(games, GAMES_MEMO_SECONDS)).catch((err) => console.error("Games memo failed:", err));
+  return games;
+}
+
+/**
+ * The /mobile/data payload: the records of one folder. `leftOut` counts the
+ * files left out (the picture versions as one), the app's X-Incomplete.
+ */
+export async function buildDataPayload(reader: RepoReader, dir: string): Promise<{ payload: unknown[]; partial: boolean; leftOut: number }> {
+  const [{ files, unread }, { hashes, partial: noHashes }] = await Promise.all([readJsonFolderCounted(reader, dir), assetHashes(reader)]);
+  const leftOut = unread + (noHashes ? 1 : 0);
+  return { payload: versionAssets(files.map((f) => f.content), hashes), partial: leftOut > 0, leftOut };
 }
 
 /**

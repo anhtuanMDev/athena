@@ -11,7 +11,7 @@ export const SESSION_TTL_SECONDS = 60 * 60 * 8;
 const CLOCK_SKEW_MS = 60_000;
 export const SESSION_VERSION_KEY = "session:version";
 
-interface SessionClaims {
+export interface SessionClaims {
   iat: number;
   exp: number;
   v: string;
@@ -52,28 +52,33 @@ export async function createSessionToken(secret: string, version: string, now = 
   return `${payload}.${toBase64Url(new Uint8Array(signature))}`;
 }
 
-/** Whether `token` was signed with `secret`, hasn't expired, and was issued under the current session `version`. */
-export async function verifySessionToken(token: string, secret: string, version: string, now = Date.now()): Promise<boolean> {
+/**
+ * The claims of `token` when it was signed with `secret` and is within its
+ * lifetime, else null. This needs no KV read, so a forged or expired cookie is
+ * turned away before one (the version is checked after, against KV).
+ */
+export async function sessionClaims(token: string, secret: string, now = Date.now()): Promise<SessionClaims | null> {
   const parts = token.split(".");
-  if (parts.length !== 2) return false;
+  if (parts.length !== 2) return null;
   const [payload, signature] = parts.map(fromBase64Url);
-  if (!payload || !signature) return false;
+  if (!payload || !signature) return null;
   // subtle.verify compares in constant time.
-  if (!(await crypto.subtle.verify("HMAC", await hmacKey(secret, "verify"), signature, encoder.encode(parts[0])))) return false;
+  if (!(await crypto.subtle.verify("HMAC", await hmacKey(secret, "verify"), signature, encoder.encode(parts[0])))) return null;
   let claims: Partial<SessionClaims>;
   try {
     claims = JSON.parse(new TextDecoder().decode(payload));
   } catch {
-    return false;
+    return null;
   }
-  return (
-    typeof claims.iat === "number" &&
-    typeof claims.exp === "number" &&
-    claims.iat <= now + CLOCK_SKEW_MS &&
-    now < claims.exp &&
-    claims.exp - claims.iat <= SESSION_TTL_SECONDS * 1000 &&
-    claims.v === version
-  );
+  const { iat, exp, v } = claims;
+  if (typeof iat !== "number" || typeof exp !== "number" || typeof v !== "string") return null;
+  if (iat > now + CLOCK_SKEW_MS || now >= exp || exp - iat > SESSION_TTL_SECONDS * 1000) return null;
+  return { iat, exp, v };
+}
+
+/** Whether `token` was signed with `secret`, hasn't expired, and was issued under the current session `version`. */
+export async function verifySessionToken(token: string, secret: string, version: string, now = Date.now()): Promise<boolean> {
+  return (await sessionClaims(token, secret, now))?.v === version;
 }
 
 /**

@@ -164,11 +164,13 @@ describe("picture versions", () => {
     assert.equal(init.partial, false);
     assert.deepEqual((init.payload.games as { slug: string; icon: string }[]).map((g) => [g.slug, g.icon]), [["ow", `/api/assets/overwatch/heroes/ana/portrait_2d.webp${v}`]]);
     const data = await buildDataPayload(memoryReader(files, {}, hashes).reader, "data/ow/heroes");
-    assert.deepEqual(data, { payload: [{ id: "ana", portrait: `/api/assets/overwatch/heroes/ana/portrait_2d.webp${v}` }], partial: false });
+    assert.deepEqual(data, { payload: [{ id: "ana", portrait: `/api/assets/overwatch/heroes/ana/portrait_2d.webp${v}` }], partial: false, leftOut: 0 });
 
     const offline = await buildDataPayload(memoryReader(files, {}, new Error("tree unavailable")).reader, "data/ow/heroes");
-    assert.deepEqual(offline, { payload: [{ id: "ana", portrait: "/api/assets/overwatch/heroes/ana/portrait_2d.webp" }], partial: true });
-    assert.equal((await buildInitPayload(memoryReader(files, {}, new Error("tree unavailable")).reader)).partial, true);
+    // The picture versions count as one input left out (the app's X-Incomplete).
+    assert.deepEqual(offline, { payload: [{ id: "ana", portrait: "/api/assets/overwatch/heroes/ana/portrait_2d.webp" }], partial: true, leftOut: 1 });
+    const offlineInit = await buildInitPayload(memoryReader(files, {}, new Error("tree unavailable")).reader);
+    assert.deepEqual([offlineInit.partial, offlineInit.leftOut, offlineInit.games], [true, 1, ["ow"]]);
   });
 
   it("use git's blob hash, as the repo tree lists it", async () => {
