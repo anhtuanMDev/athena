@@ -8,11 +8,13 @@ import {
   isBinding,
   normalizeSource,
   routeLayout,
+  valueView,
   valueWithUnit,
   type FieldOption,
   type PrimitiveSpec,
   type RecordSource,
   type ScreenBlock,
+  type ValueView,
 } from "~/lib/screen-model";
 
 // A sketch of what each app block receives, not the app's own styling.
@@ -124,6 +126,60 @@ function ReferenceValue({ text, linked, chip }: { text: string; linked: boolean;
       {linked && <ChevronRight aria-hidden="true" className="size-3 shrink-0" />}
     </span>
   );
+}
+
+/** Entries a list shows before "N more": the preview is a sketch, as with other lists' first ones. */
+const PREVIEW_ENTRIES = 4;
+
+/**
+ * A field's value as field_section shows it (valueView, zms FieldValue): a
+ * list of entries as cards, each sub-field a label and its value, references
+ * by their records' labels.
+ */
+function FieldValuePreview({ view }: { view: ValueView }) {
+  switch (view.kind) {
+    case "text":
+      return <ReferenceValue text={view.text} linked={!!view.linked} chip={false} />;
+    case "chips":
+      return (
+        <div className="flex flex-wrap gap-1.5">
+          {view.chips.map((chip, i) => (
+            <ReferenceValue key={i} text={chip.text} linked={chip.linked} chip />
+          ))}
+        </div>
+      );
+    case "pairs":
+      return (
+        <div className="space-y-0.5 text-xs">
+          {view.pairs.map((pair, i) => (
+            <p key={i}>{pair}</p>
+          ))}
+        </div>
+      );
+    case "entries":
+      return (
+        <div className="space-y-2">
+          {view.entries.slice(0, PREVIEW_ENTRIES).map((entry, i) => (
+            <div key={i} className="space-y-1.5 rounded-md border border-border bg-surface-raised p-2.5">
+              {entry.title && <p className="text-sm font-bold">{entry.title}</p>}
+              {entry.subtitle && <p className="text-[0.75rem] font-semibold uppercase text-primary-ink">{entry.subtitle}</p>}
+              {entry.text && <p className="text-xs text-ink-muted">{entry.text}</p>}
+              {entry.rows.map((row, j) => (
+                <div key={j} className="flex gap-3 text-xs">
+                  <span className="w-28 shrink-0 text-ink-muted">{row.label}</span>
+                  <div className="min-w-0 flex-1">
+                    <FieldValuePreview view={row.value} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+          {view.entries.length > PREVIEW_ENTRIES && (
+            <p className="text-xs text-ink-muted">and {view.entries.length - PREVIEW_ENTRIES} more</p>
+          )}
+        </div>
+      );
+  }
 }
 
 function PreviewImage({ src, className }: { src: string | null; className: string }) {
@@ -398,11 +454,24 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
       const ids = field && isReferenceField(field) ? referenceIds(value) : null;
       // The manifest's default is the text "false"; a binding gives the record's own value.
       const linking = [true, "true"].includes(raw("linkReferences") as boolean | string);
+      // A list of entries (a patch's hero changes) as the app shows it, the references inside by their labels too.
+      const entries =
+        field && Array.isArray(value) && !referenceIds(value)
+          ? valueView(field, value, {
+              reference: (f, id) => {
+                const found = ctx.reference(f, id);
+                return found && { label: found.label, linked: linking && found.linked };
+              },
+              enumName: (f, v) => findEnumOption(ctx.enumOptions(f), v)?.name,
+            })
+          : null;
       const title = raw("title");
       return (
         <div className="space-y-2">
           <p className="text-[0.75rem] font-semibold uppercase tracking-widest opacity-80">{title ? show("title") : field ? field.label : path}</p>
-          {ids ? (
+          {entries ? (
+            <FieldValuePreview view={entries} />
+          ) : ids ? (
             <div className={Array.isArray(value) ? "flex flex-wrap gap-1.5" : ""}>
               {ids.map((id, i) => {
                 const found = ctx.reference(field!, id);

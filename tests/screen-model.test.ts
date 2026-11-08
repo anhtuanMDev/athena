@@ -16,6 +16,7 @@ import {
 import { validateScreenFile } from "../app/lib/screen-policy";
 import * as policyLib from "../app/lib/screen-policy";
 import { DEFAULT_CATEGORIES } from "../app/lib/categories";
+import { referenceLabels } from "../app/lib/reference-labels";
 // P2 additions, imported as a namespace so each missing rule fails its own test.
 import * as model from "../app/lib/screen-model";
 
@@ -397,5 +398,131 @@ describe("the screen preview, as the app draws it", () => {
     assert.deepEqual(data.maps, []);
     // No entry for the game: nothing to bind to, as in the app.
     assert.ok(!("game" in model.homeData(undefined, {}, DEFAULT_CATEGORIES)));
+  });
+});
+
+// ─── Lists of entries (object_array, abilities, weapon) ─────────────────
+const fixtureFile = (path: string) => JSON.parse(readFileSync(new URL(`./fixtures/overwatch/${path}.json`, import.meta.url), "utf8"));
+const patchSchema: SchemaInfo = fixtureFile("schemas/patch-base-patch-attributes");
+const heroSchema: SchemaInfo = fixtureFile("schemas/hero-hero");
+const heroRecords: Record<string, unknown>[] = [fixtureFile("heroes/ana"), fixtureFile("heroes/baptiste")];
+const fieldOf = (schema: SchemaInfo, key: string) => schema.fields.find((f) => f.key === key)!;
+
+describe("a field_section's list of entries, as the app shows it (zms FieldValue)", () => {
+  // The preview's lookups (ScreenEdit): a hero by its record's label, an enum value by its option's name.
+  const names = (linked = false): model.ValueNames => ({
+    reference: (field, id) => {
+      const label = referenceLabels(heroRecords, field).get(id);
+      return label === undefined ? undefined : { label, linked };
+    },
+    enumName: (field, value) => (field.options?.includes(String(value)) ? String(value) : undefined),
+  });
+
+  it("titles each entry by its first text sub-field, and shows the rest as rows, a hero by its name", () => {
+    const value = [
+      {
+        hero: "ana",
+        ability_or_system_name: "Biotic Rifle",
+        developer_comment: "",
+        changes: [{ attribute: "Damage", previous_value: "70", new_value: "75" }],
+      },
+      { hero: "nobody", ability_or_system_name: "Sleep Dart" },
+    ];
+    assert.deepEqual(model.valueView(fieldOf(patchSchema, "hero_balance_changes"), value, names()), {
+      kind: "entries",
+      entries: [
+        {
+          title: "Biotic Rifle",
+          rows: [
+            { label: "Hero", value: { kind: "text", text: "Ana Amary", linked: false } },
+            {
+              label: "Changes",
+              value: {
+                kind: "entries",
+                entries: [
+                  {
+                    title: "Damage",
+                    rows: [
+                      { label: "Previous Value", value: { kind: "text", text: "70" } },
+                      { label: "New Value", value: { kind: "text", text: "75" } },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+        // A reference with no record shows its id, as in the app.
+        { title: "Sleep Dart", rows: [{ label: "Hero", value: { kind: "text", text: "nobody", linked: false } }] },
+      ],
+    });
+  });
+
+  it("links the entries' references where the section links them, and names enum values by their option", () => {
+    const view = model.valueView(fieldOf(patchSchema, "bug_fixes"), [{ category: "UI", description: "Fixed a menu.", related_hero: "baptiste" }], names(true));
+    assert.deepEqual(view, {
+      kind: "entries",
+      entries: [
+        {
+          title: "Fixed a menu.",
+          rows: [
+            { label: "Category", value: { kind: "chips", chips: [{ text: "UI", linked: false }] } },
+            { label: "Related Hero", value: { kind: "text", text: "Baptiste", linked: true } },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("shows an ability's name, type and description, then its params in the record's units", () => {
+    const value = [{ name: "Biotic Rifle", type: "Weapon", description: "Heals allies.", icon: "a.png", params: { cooldown: 1.25, cooldown_suffix: "s", is_removed: false, keybind: "" } }];
+    assert.deepEqual(model.valueView(fieldOf(heroSchema, "abilities"), value, names()), {
+      kind: "entries",
+      entries: [
+        {
+          title: "Biotic Rifle",
+          subtitle: "Weapon",
+          text: "Heals allies.",
+          rows: [
+            { label: "Cooldown", value: { kind: "text", text: "1.25 s" } },
+            { label: "Removed From Game", value: { kind: "text", text: "No" } },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("shows nothing for an empty list", () => {
+    assert.equal(model.valueView(fieldOf(patchSchema, "bug_fixes"), [], names()), null);
+  });
+});
+
+describe("text bound to a list of entries", () => {
+  const realManifest = normalizeManifest(fixtureFile("../mobile_primitives"));
+  const issuesOf = (schema: SchemaInfo, category: string, blocks: ScreenFile["blocks"]) => {
+    const s: ScreenFile = { type: "detail", source: { category }, blocks };
+    return validateScreen(s, realManifest, sourceFields([schema], s.source), [schema], [])
+      .filter((i) => i.kind === "list-as-text")
+      .map((i) => [i.level, i.sectionId, i.prop, /field_section/.test(i.message)]);
+  };
+
+  it("is a warning pointing to field_section, for item., data. and info row bindings alike", () => {
+    const blocks: ScreenFile["blocks"] = [
+      { id: "list", type: "item_list", props: { items: "data.hero_balance_changes", itemTitle: "item.ability_or_system_name", itemText: "item.changes" } },
+      { id: "header", type: "detail_header", props: { title: "data.hero_balance_changes" } },
+      { id: "info", type: "info_list", props: { rows: [{ label: "Changes", value: "data.general_changes" }, { label: "Title", value: "data.title" }] } },
+      // Where a list of entries belongs: a list block's items, and a field section.
+      { id: "section", type: "field_section", props: { field: "data.hero_balance_changes" } },
+    ];
+    assert.deepEqual(issuesOf(patchSchema, "patch", blocks), [
+      ["warning", "list", "itemText", true],
+      ["warning", "header", "title", true],
+      ["warning", "info", "rows", true],
+    ]);
+  });
+
+  it("counts abilities as a list of entries too", () => {
+    const blocks: ScreenFile["blocks"] = [{ id: "stats", type: "stat_row", props: { stat1Label: "Kit", stat1Value: "data.abilities" } }];
+    assert.deepEqual(issuesOf(heroSchema, "hero", blocks), [["warning", "stats", "stat1Value", true]]);
   });
 });

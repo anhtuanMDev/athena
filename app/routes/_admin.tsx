@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import Drawer from "@mui/material/Drawer";
 import { checkSession } from "~/lib/auth";
 import { getFile, listGames } from "~/lib/github";
+import { sidebarGames } from "~/lib/games";
 import { CATEGORIES_PATH, DEFAULT_CATEGORIES, normalizeCategories } from "~/lib/categories";
 import { CategoriesProvider } from "~/lib/categories-context";
 import { SidebarNav } from "~/components/SidebarNav";
@@ -18,8 +19,8 @@ export default function AdminLayout() {
   const { data: games, loading, error } = useData(async () => {
     const ok = await checkSession();
     if (!ok) throw new Error("unauthorized");
-    const allGames = await listGames();
-    return allGames.filter((g) => g.active).map((g) => ({ slug: g.slug, name: g.name, icon: g.icon }));
+    // Every game players see: one without an `active` flag too, as the app shows it.
+    return sidebarGames(await listGames());
   }, [], "_admin-13");
 
   const [categoriesVersion, setCategoriesVersion] = useState(0);

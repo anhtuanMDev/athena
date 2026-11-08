@@ -18,6 +18,7 @@ import type { Game } from "~/schemas/game";
 import { GameSchema } from "~/schemas/game";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { keepUnknownKeys } from "~/lib/unknown-keys";
+import { isGameActive } from "~/lib/games";
 import {
   LIGHT_BASE,
   MIN_CONTRAST,
@@ -100,7 +101,7 @@ export default function GamesList() {
           success !== colorField(originalGame.success) ||
           border !== colorField(originalGame.border) ||
           JSON.stringify(lightToSave(light) ?? {}) !== JSON.stringify(lightToSave(lightFromGame(originalGame.light)) ?? {}) ||
-          active !== originalGame.active
+          active !== isGameActive(originalGame)
         : false;
 
   const darkPalette: Record<PaletteKey, string> = {
@@ -176,7 +177,8 @@ export default function GamesList() {
     setBorder(colorField(game.border));
     setLight(lightFromGame(game.light));
     setPaletteTab("dark");
-    setActive(game.active);
+    // A game without the flag is shown in the app: unchecked, a save would hide it.
+    setActive(isGameActive(game));
     setFormErrors(null);
     setOriginalGame(game);
     setModalMode("edit");
@@ -376,9 +378,9 @@ export default function GamesList() {
                   </h2>
                 </div>
                 <span
-                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${game.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${isGameActive(game) ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}
                 >
-                  {game.active ? "Active" : "Inactive"}
+                  {isGameActive(game) ? "Active" : "Inactive"}
                 </span>
               </div>
             </CardHeader>
