@@ -2,9 +2,8 @@ import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
 import { decodeUtf8Base64 } from "../../../app/lib/utf8-base64";
 import { DEFAULT_CATEGORIES, readCategories } from "../../../app/lib/categories";
-import { bumpCacheVersion } from "../../../app/lib/mobile-cache-version";
 import { githubReader } from "../../../app/lib/mobile-payload";
-import { changedPaths, isPushTo, verifyGithubSignature, versionKeysToBump, type PushEvent } from "../../../app/lib/github-webhook";
+import { bumpVersions, changedPaths, isPushTo, verifyGithubSignature, versionKeysToBump, type PushEvent } from "../../../app/lib/github-webhook";
 
 // POST /api/webhooks/github — GitHub calls this after each push to the data
 // repo and the mobile caches the pushed files feed are refreshed, as an admin
@@ -81,8 +80,14 @@ export async function onRequestPost(context: { request: Request; env: Env }): Pr
     }
   }
   const keys = versionKeysToBump(paths, games, folders);
-  await Promise.all(keys.map((key) => bumpCacheVersion(env.RATE_LIMIT_KV, key)));
+  // Every key is tried, whichever fail (bumpVersions).
+  const failed = await bumpVersions(env.RATE_LIMIT_KV, keys);
+  const refreshed = keys.filter((key) => !failed.includes(key));
   // A failed delivery shows in GitHub's webhook log, where it can be redelivered.
-  if (gamesError) return json({ refreshed: keys, error: `Couldn't read games.json: ${gamesError}` }, 502);
-  return json({ refreshed: keys });
+  const errors = [
+    ...(gamesError ? [`Couldn't read games.json: ${gamesError}`] : []),
+    ...(failed.length > 0 ? [`Couldn't refresh ${failed.join(", ")}.`] : []),
+  ];
+  if (errors.length > 0) return json({ refreshed, ...(failed.length > 0 && { failed }), error: errors.join(" ") }, 502);
+  return json({ refreshed });
 }

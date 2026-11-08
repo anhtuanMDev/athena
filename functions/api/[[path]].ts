@@ -4,9 +4,9 @@ import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
 import { jsonFileText } from "../../app/lib/json-file";
 import { bumpCacheVersion, mobileVersionKeyForPath } from "../../app/lib/mobile-cache-version";
 import { APP_POLICY, dataWriteProblems, needsAppPolicy, readAppPolicy } from "../../app/lib/screen-policy";
-import { ASSET_VERSION, serveAsset } from "../../app/lib/asset-headers";
+import { ASSET_VERSION, assetSeenKey, serveAsset } from "../../app/lib/asset-headers";
 import { checkLoginAttempts, recordLoginAttempt } from "../../app/lib/login-attempts";
-import { SESSION_TTL_SECONDS, createSessionToken, readSessionVersion, revokeSessions, verifySessionToken } from "../../app/lib/session";
+import { SESSION_TTL_SECONDS, createSessionToken, readSessionVersion, revokeSessions, sessionClaims } from "../../app/lib/session";
 import { SourceError } from "../../app/lib/importer/fetch-source";
 import { RepoError, githubRepo } from "../../app/lib/importer/repo";
 import { deletionConflict, deletionRequest, isOwnedAsset, prunePlan, pruneRequest, recordAssetDir, type ScannedRecord } from "../../app/lib/record-assets";
@@ -59,10 +59,14 @@ async function verifySession(request: Request, env: Env): Promise<boolean> {
   }
   const value = getSessionCookie(request);
   if (!value) return false;
+  // The signature and lifetime first: a junk, forged or expired cookie then
+  // costs no KV read (100,000 a day on Workers Free, which sessions need).
+  const claims = await sessionClaims(value, env.SESSION_SECRET);
+  if (!claims) return false;
   // Fails closed when the session version can't be read (KV unbound or failing):
   // a session that may have been signed out must not count.
   const version = await readSessionVersion(env.RATE_LIMIT_KV);
-  return version !== null && (await verifySessionToken(value, env.SESSION_SECRET, version));
+  return version !== null && claims.v === version;
 }
 
 async function createSessionCookie(
@@ -137,9 +141,10 @@ function triggerCachePurge(context: PagesFunctionContext, path: string) {
     const assetPath = path.slice("public/assets/".length);
     const encodedAssetPath = assetPath.split('/').map(encodeURIComponent).join('/');
     urlsToPurge.push(`${internalOrigin}/api/assets/${encodedAssetPath}`);
+    // And what this data center last saw of it (a 404, an older hash), so the
+    // new picture shows here at once; elsewhere within a minute.
+    urlsToPurge.push(assetSeenKey(`assets/${encodedAssetPath}`));
   }
-
-  urlsToPurge.push(`${internalOrigin}/api/data/file?path=${encodeURIComponent(path)}`);
 
   // Mobile payloads are cached in every data center, so they are invalidated by
   // bumping the version in their cache key rather than by cache.delete().
@@ -157,6 +162,23 @@ function triggerCachePurge(context: PagesFunctionContext, path: string) {
   }
 }
 
+/** Methods that change something: only the admin's own pages may send them. */
+const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+// Whether a request was sent by a page of another origin. Browsers send
+// Sec-Fetch-Site with every request (older ones at least Origin with these
+// methods); a request with neither isn't from a browser page (curl, tests), so
+// it carries no admin's cookie by accident. SameSite=Lax already keeps the
+// cookie off cross-site POSTs; this also covers same-site origins (another
+// subdomain of a custom domain) and requests that need no session, such as
+// signing in.
+function fromAnotherOrigin(request: Request): boolean {
+  const site = request.headers.get("Sec-Fetch-Site");
+  if (site !== null) return site !== "same-origin";
+  const origin = request.headers.get("Origin");
+  return origin !== null && origin !== new URL(request.url).origin;
+}
+
 export async function onRequest(
   context: PagesFunctionContext,
 ): Promise<Response> {
@@ -165,6 +187,9 @@ export async function onRequest(
   const path = url.pathname.replace(/^\/api\//, "").replace(/\/$/, "");
 
   try {
+    if (WRITE_METHODS.has(request.method) && fromAnotherOrigin(request)) {
+      return json({ error: "Changes can only be made from the admin itself." }, 403);
+    }
     if (path === "auth/login" && request.method === "POST")
       return await handleLogin(request, env);
     if (path === "auth/logout" && request.method === "POST")
@@ -280,6 +305,10 @@ async function handleLogin(request: Request, env: Env): Promise<Response> {
 
 // Signing out ends every admin session (see app/lib/session.ts), but only for
 // a request that has one, so a cross-site or anonymous POST can't sign anyone out.
+// This browser is always signed out (a shared computer must be): ending the
+// others needs a KV write, which can fail (1,000 a day on Workers Free), and a
+// retry would then find no cookie and end nothing. So a failure is a warning
+// that says what to do, not an error that asks for a retry.
 async function handleLogout(request: Request, env: Env): Promise<Response> {
   const headers = { "Content-Type": "application/json", "Set-Cookie": destroySessionCookie() };
   if (await verifySession(request, env).catch(() => false)) {
@@ -287,7 +316,8 @@ async function handleLogout(request: Request, env: Env): Promise<Response> {
       await revokeSessions(env.RATE_LIMIT_KV!);
     } catch (err) {
       console.error("Session revocation failed:", err);
-      return new Response(JSON.stringify({ error: "Signed out here, but other sessions couldn't be ended. Try again." }), { status: 500, headers });
+      const warning = "Signed out here, but other sessions couldn't be ended. Sign in and sign out again later to end them.";
+      return new Response(JSON.stringify({ ok: true, warning }), { status: 200, headers });
     }
   }
   return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
@@ -397,22 +427,35 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
     // The new sha lets an editor keep saving without reloading the file.
     return json({ ok: true, sha: result.data.content?.sha ?? null, ...(push && { push }) });
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      "status" in err &&
-      ((err as { status: number }).status === 409 ||
-        (err as { status: number }).status === 422)
-    ) {
-      return json(
-        {
-          error: `Conflict on ${body.path}: file already exists or was modified.`,
-          conflict: true,
-        },
-        409,
-      );
-    }
+    const refused = refusedWrite(err, body.path);
+    if (refused) return refused;
     throw err;
   }
+}
+
+/** GitHub's reason for refusing a request, on one line, without the link to its docs. */
+function githubMessage(err: unknown): string {
+  const data = (err as { response?: { data?: { message?: unknown } } } | null)?.response?.data;
+  const message = typeof data?.message === "string" ? data.message : err instanceof Error ? err.message : "";
+  return message.replace(/\s*-\s*https:\/\/docs\.github\.com\S*\s*$/, "").replace(/\s+/g, " ").trim().slice(0, 300);
+}
+
+// A contents write GitHub refused, as the editor should hear it. 409: the file
+// changed since its sha was read. 422 is any request GitHub can't take: "sha"
+// wasn't supplied means the file was created meanwhile, and another sha
+// problem that it changed or went: conflicts too, to reload. The rest (too
+// large, invalid) need a different change, not a reload, so they aren't
+// conflicts and say what GitHub said.
+function refusedWrite(err: unknown, path: string): Response | null {
+  const status = (err as { status?: unknown } | null)?.status;
+  const conflict = (error: string) => json({ error: `Conflict on ${path}: ${error}`, conflict: true }, 409);
+  if (status === 409) return conflict("the file was modified since it was loaded.");
+  if (status !== 422) return null;
+  const message = githubMessage(err);
+  if (/"sha" wasn't supplied/i.test(message)) return conflict("the file already exists.");
+  if (/\bsha\b/i.test(message)) return conflict("the file was modified or removed since it was loaded.");
+  if (/too (large|big)|exceeds/i.test(message)) return json({ error: `${path} is too large for GitHub: ${message}` }, 413);
+  return json({ error: `GitHub refused ${path}: ${message || "the request isn't valid"}` }, 400);
 }
 
 async function handleDeleteFile(context: PagesFunctionContext): Promise<Response> {

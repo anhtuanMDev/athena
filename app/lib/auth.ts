@@ -17,11 +17,19 @@ export async function login(password: string): Promise<void> {
   }
 }
 
-export async function logout(): Promise<void> {
-  await fetch("/api/auth/logout", { method: "POST" });
+/**
+ * Signs this browser out and ends every admin session (see app/lib/session.ts).
+ * Returns the server's warning when only this browser was signed out; throws
+ * when it couldn't sign out at all (an error answer, or no answer).
+ */
+export async function logout(): Promise<string | undefined> {
+  const res = await fetch("/api/auth/logout", { method: "POST" });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; warning?: string };
+  if (!res.ok) throw new Error(data.error ?? `Couldn't sign out (${res.status}). Try again.`);
   if (typeof window !== "undefined") {
     localStorage.removeItem("has_session");
   }
+  return data.warning;
 }
 
 export async function checkSession(): Promise<boolean> {

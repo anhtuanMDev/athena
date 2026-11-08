@@ -1,4 +1,4 @@
-import { Link, useParams, useLocation } from "react-router";
+import { Link, useParams, useLocation, useNavigate } from "react-router";
 import {
   LayoutDashboard,
   Activity,
@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import React, { useState } from "react";
 import { CATEGORY_ICON_COMPONENTS } from "~/components/CategoryIcon";
+import { useToast } from "~/components/ToastProvider";
+import { logout } from "~/lib/auth";
 import { useCategories } from "~/lib/categories-context";
 
 interface NavItem {
@@ -41,6 +43,25 @@ export function SidebarNav({
 
   const isActive = (href: string) =>
     location.pathname === href || location.pathname.startsWith(href + "/");
+
+  // Signing out ends every admin session, so it's this button alone: no page
+  // does it when opened, which any site could link to.
+  const navigate = useNavigate();
+  const { error: toastError, warning: toastWarning } = useToast();
+  const [signingOut, setSigningOut] = useState(false);
+  const signOut = async () => {
+    setSigningOut(true);
+    try {
+      // Signed out here either way; a warning says other sessions weren't
+      // ended. The toast lives in root.tsx, so it stays up on the login page.
+      const warning = await logout();
+      navigate("/login");
+      if (warning) toastWarning(warning);
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : "Couldn't sign out. Try again.");
+      setSigningOut(false);
+    }
+  };
 
   return (
     <aside className="w-64 h-full bg-surface border-r border-border flex flex-col relative z-10">
@@ -103,15 +124,15 @@ export function SidebarNav({
         ))}
       </nav>
       <div className="p-4 border-t border-border">
-        <form action="/logout" method="post">
-          <button
-            type="submit"
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-ink-muted hover:text-danger-ink hover:bg-danger/10 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          >
-            <LogOut className="w-4 h-4" aria-hidden="true" />
-            Logout
-          </button>
-        </form>
+        <button
+          type="button"
+          onClick={signOut}
+          disabled={signingOut}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-ink-muted hover:text-danger-ink hover:bg-danger/10 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-60"
+        >
+          <LogOut className="w-4 h-4" aria-hidden="true" />
+          {signingOut ? "Signing out…" : "Logout"}
+        </button>
       </div>
     </aside>
   );

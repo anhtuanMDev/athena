@@ -285,10 +285,12 @@ describe("GET /mobile/data", () => {
       return null;
     },
   };
+  // games.json lists overwatch, which /mobile/data then serves.
   const serve = (config: unknown) => {
     globalThis.fetch = async (input: RequestInfo | URL) => {
       github.push(String(input));
-      const content = Buffer.from(JSON.stringify(config)).toString("base64");
+      const games = String(input).includes("games.json");
+      const content = Buffer.from(JSON.stringify(games ? { games: [{ slug: "overwatch" }] } : config)).toString("base64");
       return new Response(JSON.stringify({ type: "file", encoding: "base64", content, path: CATEGORIES_PATH, name: "categories.json" }), {
         headers: { "Content-Type": "application/json" },
       });

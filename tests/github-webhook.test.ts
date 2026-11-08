@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { describe, it } from "node:test";
 
-import { changedPaths, isPushTo, verifyGithubSignature, versionKeysToBump } from "../app/lib/github-webhook";
+import { SAME_KEY_RETRY_MS, bumpVersions, changedPaths, isPushTo, verifyGithubSignature, versionKeysToBump } from "../app/lib/github-webhook";
 import { MOBILE_ASSETS_VERSION_KEY, MOBILE_INIT_VERSION_KEY, mobileDataVersionKey } from "../app/lib/mobile-cache-version";
 import { DEFAULT_CATEGORIES } from "../app/lib/categories";
 
@@ -76,12 +76,79 @@ describe("changedPaths and versionKeysToBump", () => {
     assert.equal(changedPaths(push(Array.from({ length: 2048 }, () => ({ added: [], modified: [], removed: [] })))), undefined);
   });
 
+  it("names each key once, even when games.json or the categories repeat one", () => {
+    const keys = versionKeysToBump(undefined, ["overwatch", "overwatch"], [...FOLDERS, "heroes"]);
+    assert.deepEqual(keys, [...new Set(keys)]);
+    assert.ok(keys.includes(mobileDataVersionKey("overwatch", "heroes")));
+  });
+
   it("refreshes every payload of every valid game when the files are unknown", () => {
     const keys = versionKeysToBump(undefined, ["overwatch", "../evil", "Bad Slug"], FOLDERS);
     assert.equal(keys[0], MOBILE_INIT_VERSION_KEY);
     assert.ok(keys.includes(mobileDataVersionKey("overwatch", "maps")));
     assert.ok(keys.includes(MOBILE_ASSETS_VERSION_KEY));
     assert.ok(keys.every((key) => key === MOBILE_INIT_VERSION_KEY || key === MOBILE_ASSETS_VERSION_KEY || key.includes(":overwatch:")));
+  });
+});
+
+describe("bumpVersions", () => {
+  /** A KV refusing writes to `refused` keys `times` times each, as KV does a second write to a key within a second (429). */
+  const refusing = (refused: string[], times: number) => {
+    const writes: string[] = [];
+    const left = new Map(refused.map((key) => [key, times]));
+    return {
+      writes,
+      kv: {
+        async get() {
+          return null;
+        },
+        async put(key: string) {
+          writes.push(key);
+          const n = left.get(key) ?? 0;
+          if (n > 0) {
+            left.set(key, n - 1);
+            throw new Error("KV PUT failed: 429 Too Many Requests");
+          }
+        },
+      },
+    };
+  };
+  const quiet = async <T>(run: () => Promise<T>) => {
+    const [error, warn] = [console.error, console.warn];
+    const logged: string[] = [];
+    console.error = console.warn = (...args: unknown[]) => void logged.push(args.map(String).join(" "));
+    try {
+      return { result: await run(), logged };
+    } finally {
+      [console.error, console.warn] = [error, warn];
+    }
+  };
+
+  it("writes each key once when KV takes them", async () => {
+    const { kv, writes } = refusing([], 0);
+    const waits: number[] = [];
+    assert.deepEqual(await bumpVersions(kv, ["a", "b"], async (ms) => void waits.push(ms)), []);
+    assert.deepEqual(writes, ["a", "b"]);
+    assert.deepEqual(waits, []);
+  });
+
+  it("tries a refused key once more, a second later, and logs the refusal", async () => {
+    const { kv, writes } = refusing(["b"], 1);
+    const waits: number[] = [];
+    const { result, logged } = await quiet(() => bumpVersions(kv, ["a", "b"], async (ms) => void waits.push(ms)));
+    assert.deepEqual(result, []);
+    assert.deepEqual(writes, ["a", "b", "b"]);
+    assert.deepEqual(waits, [SAME_KEY_RETRY_MS]);
+    assert.ok(SAME_KEY_RETRY_MS >= 1000);
+    assert.equal(logged.length, 1);
+  });
+
+  it("returns the keys still refused, logging each failure", async () => {
+    const { kv, writes } = refusing(["b", "c"], 2);
+    const { result, logged } = await quiet(() => bumpVersions(kv, ["a", "b", "c"], async () => {}));
+    assert.deepEqual(result, ["b", "c"]);
+    assert.deepEqual(writes, ["a", "b", "c", "b", "c"]);
+    assert.equal(logged.length, 4);
   });
 });
 
@@ -128,6 +195,54 @@ describe("POST /api/webhooks/github", () => {
     });
     assert.equal(huge.status, 413);
     assert.equal(store.size, 0);
+  });
+
+  it("survives KV refusing a key once (an admin save bumped it a moment before), still refreshing every key", async () => {
+    const store = new Map<string, string>();
+    let refusals = 1;
+    const kv = {
+      get: async (k: string) => store.get(k) ?? null,
+      put: async (k: string, v: string) => {
+        if (k === MOBILE_INIT_VERSION_KEY && refusals-- > 0) throw new Error("KV PUT failed: 429 Too Many Requests");
+        store.set(k, v);
+      },
+    };
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+      const body = JSON.stringify(push([{ added: ["data/overwatch/screens/maps.json", "data/overwatch/heroes/ana.json"], modified: [], removed: [] }]));
+      const res = await deliver(envWith(kv), body);
+      assert.equal(res.status, 200);
+      assert.deepEqual(await res.json(), { refreshed: [MOBILE_INIT_VERSION_KEY, mobileDataVersionKey("overwatch", "heroes")] });
+      assert.ok(store.has(MOBILE_INIT_VERSION_KEY));
+    } finally {
+      console.warn = warn;
+    }
+  });
+
+  it("still bumps the other keys, and fails the delivery for redelivery, when KV keeps refusing one", async () => {
+    const store = new Map<string, string>();
+    const kv = {
+      get: async (k: string) => store.get(k) ?? null,
+      put: async (k: string, v: string) => {
+        if (k === MOBILE_INIT_VERSION_KEY) throw new Error("KV PUT failed: 429 Too Many Requests");
+        store.set(k, v);
+      },
+    };
+    const [error, warn] = [console.error, console.warn];
+    console.error = console.warn = () => {};
+    try {
+      const body = JSON.stringify(push([{ added: ["data/overwatch/screens/maps.json", "data/overwatch/heroes/ana.json"], modified: [], removed: [] }]));
+      const res = await deliver(envWith(kv), body);
+      assert.equal(res.status, 502);
+      const answer = (await res.json()) as { refreshed: string[]; failed: string[]; error: string };
+      assert.deepEqual(answer.refreshed, [mobileDataVersionKey("overwatch", "heroes")]);
+      assert.deepEqual(answer.failed, [MOBILE_INIT_VERSION_KEY]);
+      assert.match(answer.error, /cache_version:mobile_init/);
+      assert.deepEqual([...store.keys()], [mobileDataVersionKey("overwatch", "heroes")]);
+    } finally {
+      [console.error, console.warn] = [error, warn];
+    }
   });
 
   it("still refreshes the screens and pictures, and reports a failure, when games.json can't be read", async () => {

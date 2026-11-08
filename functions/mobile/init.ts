@@ -1,7 +1,8 @@
 import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
 import { MOBILE_ASSETS_VERSION_KEY, MOBILE_INIT_VERSION_KEY, readCacheVersion } from "../../app/lib/mobile-cache-version";
-import { CACHE_CONTROL, buildInitPayload, githubReader } from "../../app/lib/mobile-payload";
+import { activeGames, buildInitPayload, githubReader } from "../../app/lib/mobile-payload";
+import { servePayload } from "../../app/lib/mobile-response";
 
 export interface Env {
   RATE_LIMIT_KV?: KVNamespace;
@@ -27,51 +28,23 @@ export async function onRequest(context: any): Promise<Response> {
     readCacheVersion(env.RATE_LIMIT_KV, cache, MOBILE_INIT_VERSION_KEY),
     readCacheVersion(env.RATE_LIMIT_KV, cache, MOBILE_ASSETS_VERSION_KEY),
   ]);
+  // Every game's folders through GraphQL when the token allows: one GitHub request for them all.
+  const reader = githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH ?? "main", { token: env.GITHUB_TOKEN });
   // init_v4: screens and navigation replace layouts; the new name drops payloads cached in the old shape.
-  const cacheKey = new Request(`${internalOrigin}/mobile/init_v4?v=${encodeURIComponent(version)}&a=${encodeURIComponent(assetsVersion)}`);
-
-  const cached = await cache.match(cacheKey);
-  if (cached) {
-    const response = new Response(cached.body, {
-      status: cached.status,
-      statusText: cached.statusText,
-      headers: new Headers(cached.headers),
-    });
-    // Ensure the client doesn't cache it, only the worker
-    response.headers.set("Cache-Control", "no-store");
-    return response;
-  }
-
-  const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
-  const owner = env.GITHUB_OWNER;
-  const repo = env.GITHUB_REPO;
-  const branch = env.GITHUB_BRANCH ?? "main";
-
-  try {
-    // Every game's folders through GraphQL when the token allows: one GitHub request for them all.
-    const { payload: responseData, partial } = await buildInitPayload(githubReader(octokit, owner, repo, branch, { token: env.GITHUB_TOKEN }));
-
-    const cacheableResponse = json(responseData, 200, {
-      "Cache-Control": partial ? CACHE_CONTROL.partial : CACHE_CONTROL.complete, // Cache for Workers Cache API
-    });
-
-    if (context.waitUntil) {
-      context.waitUntil(cache.put(cacheKey, cacheableResponse.clone()));
-    } else {
-      await cache.put(cacheKey, cacheableResponse.clone());
-    }
-
-    // Return to client without Edge caching, so we always hit the Workers Cache API
-    // which allows our triggerCachePurge to actually work
-    const clientResponse = new Response(cacheableResponse.body, {
-      status: cacheableResponse.status,
-      headers: new Headers(cacheableResponse.headers)
-    });
-    clientResponse.headers.set("Cache-Control", "no-store");
-
-    return clientResponse;
-  } catch (err: any) {
-    console.error("Mobile init API error:", err);
-    return json({ error: err.message }, 500);
-  }
+  return servePayload({
+    cache,
+    key: version === null || assetsVersion === null ? null : `${internalOrigin}/mobile/init_v4?v=${encodeURIComponent(version)}&a=${encodeURIComponent(assetsVersion)}`,
+    unconfirmedKey: `${internalOrigin}/mobile/unconfirmed/init_v4`,
+    lastGoodKey: `${internalOrigin}/mobile/last-good/init_v4`,
+    build: () => buildInitPayload(reader),
+    // A game turned off since the stored payload was built must not come back
+    // with it. When games.json can't be read either, the list read last
+    // decides, and with none the stored payload is the latest word there is.
+    gamesAllowed: async (games) => {
+      const active = await activeGames(cache, reader);
+      return active === null || games.every((game) => active.includes(game));
+    },
+    waitUntil: context.waitUntil && ((promise) => context.waitUntil(promise)),
+    label: "Mobile init API",
+  });
 }
