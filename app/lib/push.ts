@@ -10,6 +10,7 @@
  * access token never reach a log, a reply or an error message.
  */
 import { CATEGORIES_PATH, normalizeCategories } from "./categories";
+import { isGameActive } from "./games";
 import { renderNotification } from "./notify-template";
 
 /** At most this many pushes per game in any hour, whatever admins publish. */
@@ -213,7 +214,7 @@ async function pushNewRecord(write: PushWrite, env: PushEnv, deps: PushDeps): Pr
   const category = (categoriesFile === null ? [] : normalizeCategories(categoriesFile).categories).find((c) => c.folder === folder);
   if (!category?.notify) return skipped(`${category?.label ?? folder} has no notification set up on the Categories page.`);
   const listed = readGames(await readJson(env.read, "data/_meta/games.json")).find((g) => g.slug === game);
-  if (!listed || listed.active === false) return skipped("This game is hidden in the app, so players weren't notified.");
+  if (!listed || !isGameActive(listed)) return skipped("This game is hidden in the app, so players weren't notified.");
   if (record.id !== id) return skipped("The record's id doesn't match its file name.");
   const { title, body } = renderNotification(category.notify, record);
   if (!title) return skipped("The notification's title came out empty for this record.");

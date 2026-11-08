@@ -1,5 +1,6 @@
 import type { Octokit } from "@octokit/rest";
 import { CATEGORIES_PATH, DEFAULT_CATEGORIES, appCategory, normalizeCategories, readCategories } from "./categories";
+import { isGameActive } from "./games";
 import { decodeUtf8Base64 } from "./utf8-base64";
 import { GraphqlUnavailable, SYMLINK_MODE, readObjects, usableText, type GraphqlObject } from "./github-graphql";
 
@@ -214,7 +215,7 @@ export async function buildInitPayload(reader: RepoReader): Promise<{ payload: R
   const assets = assetHashes(reader);
   // games.json; without it there is nothing to show.
   const games: { slug?: string; id?: string; active?: unknown }[] = JSON.parse(await reader.read("data/_meta/games.json")).games ?? [];
-  const activeGames = games.filter((g) => g.active !== false);
+  const activeGames = games.filter(isGameActive);
   // Every game's folders and navigation, and the categories, in one request when the reader can.
   const dirs = (gameId: string) => [`data/${gameId}/schemas`, `data/${gameId}/enums`, `data/${gameId}/screens`];
   const ids = activeGames.map((game) => String(game.slug || game.id));

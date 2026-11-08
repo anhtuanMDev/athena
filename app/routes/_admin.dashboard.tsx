@@ -2,6 +2,7 @@ import { getDashboardData, getGithubStatus } from "~/lib/github";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Link } from "react-router";
 import { useData } from "~/lib/use-data";
+import { isGameActive } from "~/lib/games";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { useCategories } from "~/lib/categories-context";
 
@@ -81,8 +82,8 @@ export default function Dashboard() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-ink" style={game.primary ? { color: game.primary } : {}}>{game.name}</h2>
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${game.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
-                  {game.active ? "Active" : "Inactive"}
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${isGameActive(game) ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
+                  {isGameActive(game) ? "Active" : "Inactive"}
                 </span>
               </div>
               {game.developer && <p className="text-sm text-ink-muted">{game.developer}</p>}

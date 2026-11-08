@@ -4,6 +4,7 @@
  * for new items (app/lib/importer); a reviewer publishes them from the admin.
  */
 import { CATEGORIES_PATH } from "../../../app/lib/categories";
+import { isGameActive } from "../../../app/lib/games";
 import { githubRepo, runRepo, type GitHubEnv } from "../../../app/lib/importer/repo";
 import { importCost, importPaths, normalizeJob, runImport } from "../../../app/lib/importer/run";
 import { leavesAnything, readRunLog, runLogPath, type RunLog } from "../../../app/lib/importer/run-log";
@@ -80,7 +81,7 @@ function gameList(file: unknown): GameEntry[] {
     if (typeof game === "string") return [{ slug: game, active: true }];
     const g = (game ?? {}) as { slug?: unknown; id?: unknown; active?: unknown };
     const slug = g.slug ?? g.id;
-    return typeof slug === "string" ? [{ slug, active: g.active !== false }] : [];
+    return typeof slug === "string" ? [{ slug, active: isGameActive(g) }] : [];
   });
 }
 

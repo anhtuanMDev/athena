@@ -1,6 +1,6 @@
 import { DEFAULT_CATEGORIES, type Category } from "./categories";
 import { APP_POLICY, BLOCKED_PROP, BOUND_LINK, isAllowedLink, isAppScreen, type AppLimits, type AppPolicy } from "./screen-policy";
-import { referenceFolders } from "./reference-labels";
+import { isReferenceField, referenceFolders } from "./reference-labels";
 
 // App screens under data/<game>/screens/<id>.json and the tab list in
 // data/<game>/navigation.json, rendered by the mobile app (zms). Schemas only
@@ -115,7 +115,8 @@ export interface ScreenIssue {
     | "over-limit"
     | "not-favoritable"
     | "long-text"
-    | "empty-screen";
+    | "empty-screen"
+    | "list-as-text";
   message: string;
 }
 
@@ -435,6 +436,116 @@ export function valueWithUnit(field: FieldOption | undefined, value: unknown, co
   return numeric && field.unit ? `${value} ${field.unit}` : value;
 }
 
+// ─── A field's value as field_section shows it (zms FieldValue) ─────────
+
+/** Fields whose value is a list of entries: a field_section shows them; as text the app reads "[object Object]". */
+const ENTRY_LISTS = ["object_array", "abilities", "weapon"];
+
+export function isEntryList(field: { type: string } | undefined): boolean {
+  return !!field && ENTRY_LISTS.includes(field.type);
+}
+
+/** How the preview names references and enum values (ScreenEdit's lookups, the app's rules). */
+export interface ValueNames {
+  /** A reference's record label, and whether the section opens it; none when the app shows the id. */
+  reference: (field: FieldOption, id: string) => { label: string; linked: boolean } | undefined;
+  /** An enum value's option name; none when the app shows the value. */
+  enumName: (field: FieldOption, value: unknown) => string | undefined;
+}
+
+/** One entry of a list (zms ObjectList): its title, a kit entry's type and description, then a row per sub-field with a value. */
+export interface EntryView {
+  title?: string;
+  subtitle?: string;
+  text?: string;
+  rows: { label: string; value: ValueView }[];
+}
+
+export type ValueView =
+  | { kind: "text"; text: string; linked?: boolean }
+  | { kind: "chips"; chips: { text: string; linked: boolean }[] }
+  | { kind: "entries"; entries: EntryView[] }
+  | { kind: "pairs"; pairs: string[] };
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
+/** What the app leaves out (zms isEmptyValue): an empty object too. */
+const isBlank = (value: unknown) => isEmptyValue(value) || (isPlainObject(value) && Object.keys(value).length === 0);
+/** A record's own unit for `key` ("cooldown_suffix"), which the app never shows as a value of its own. */
+const isSuffixKey = (entry: Record<string, unknown>, key: string) => key.endsWith("_suffix") && Object.hasOwn(entry, key.slice(0, -"_suffix".length));
+
+/** A scalar as the app writes it (zms formatScalar): Yes/No, numbers to two decimals, with the unit or the record's own. */
+function scalarText(field: FieldOption, raw: unknown, container: unknown): string {
+  const value = field.type === "number" && typeof raw === "string" && raw.trim() !== "" && Number.isFinite(Number(raw)) ? Number(raw) : raw;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return String(valueWithUnit(field, Number.isInteger(value) ? value : Number(value.toFixed(2)), container));
+  if (typeof value === "string") return String(valueWithUnit(field, value, container));
+  return JSON.stringify(value);
+}
+
+/**
+ * A field's value as the app's field_section shows it (zms FieldValue): a
+ * reference by its record's label, an enum value by its option's name, a list
+ * of scalars as chips, a list of entries as entries whose sub-fields show the
+ * same way. Null when the app shows nothing. `container` holds the value (the
+ * record or an entry), where its own unit sits.
+ */
+export function valueView(field: FieldOption, value: unknown, names: ValueNames, container?: unknown): ValueView | null {
+  if (isBlank(value)) return null;
+  const reference = (id: unknown) => (isReferenceField(field) ? names.reference(field, String(id)) : undefined);
+  if (Array.isArray(value)) {
+    if (value.every((v) => typeof v === "string" || typeof v === "number")) {
+      return {
+        kind: "chips",
+        chips: value.map((v) => {
+          if (field.globalEnumId) return { text: names.enumName(field, v) ?? String(v), linked: false };
+          const target = reference(v);
+          return { text: target?.label ?? String(v), linked: !!target?.linked };
+        }),
+      };
+    }
+    return { kind: "entries", entries: value.map((item) => entryView(field, item, names)) };
+  }
+  if (field.type === "enum") return { kind: "chips", chips: [{ text: names.enumName(field, value) ?? String(value), linked: false }] };
+  if (isPlainObject(value)) {
+    const pairs = Object.entries(value).filter(([key, v]) => !isBlank(v) && !isSuffixKey(value, key));
+    return { kind: "pairs", pairs: pairs.map(([key, v]) => `${key}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`) };
+  }
+  if (isReferenceField(field)) {
+    const target = reference(value);
+    return { kind: "text", text: target?.label ?? String(value), linked: !!target?.linked };
+  }
+  return { kind: "text", text: scalarText(field, value, container) };
+}
+
+/** Rows for the sub-fields of `entry` that have a value (zms EntryRows). */
+function entryRows(fields: FieldOption[], entry: Record<string, unknown>, names: ValueNames): EntryView["rows"] {
+  return fields.flatMap((sub) => {
+    const value = valueView(sub, entry[sub.key], names, entry);
+    return value ? [{ label: sub.label ?? sub.key, value }] : [];
+  });
+}
+
+function entryView(field: FieldOption, item: unknown, names: ValueNames): EntryView {
+  if (!isPlainObject(item)) return { title: String(item), rows: [] };
+  const subFields = field.subFields ?? [];
+  const view: EntryView = { rows: [] };
+  // An ability or weapon: its name, type and description, then its sub-fields from params (zms KitEntry).
+  if (field.type === "abilities" || field.type === "weapon") {
+    const text = (key: string) => (typeof item[key] === "string" && item[key] !== "" ? (item[key] as string) : undefined);
+    if (text("name")) view.title = text("name");
+    if (text("type")) view.subtitle = text("type");
+    if (text("description")) view.text = text("description");
+    view.rows = entryRows(subFields, isPlainObject(item.params) ? item.params : {}, names);
+    return view;
+  }
+  // The first text sub-field reads as the entry's title (a tip, an alias…).
+  const titleField = subFields.find((f) => f.type === "string");
+  const title = titleField ? (item[titleField.key] ?? item.name) : item.name;
+  if (!isBlank(title)) view.title = String(title);
+  view.rows = entryRows(subFields.filter((f) => f !== titleField), item, names);
+  return view;
+}
+
 /** Fields "item.<path>" can bind to in a list block: entries of its bound list field, else its records. */
 /** Every binding ("data.<path>", "item.<path>") in a prop's value, nested ones (info_list rows) included, in order. */
 function bindingsIn(value: unknown, out: string[] = []): string[] {
@@ -602,7 +713,8 @@ export function validateScreen(
       }
     }
 
-    const itemKnown = spec?.list ? new Set(itemFieldsFor(block, screen, dataFields, schemas, recordsOf).map((f) => f.key)) : null;
+    const itemFields = spec?.list ? itemFieldsFor(block, screen, dataFields, schemas, recordsOf) : null;
+    const itemKnown = itemFields ? new Set(itemFields.map((f) => f.key)) : null;
     /** Whether `binding` ("data.<path>", "item.<path>") names a field this block can read. */
     const checkBinding = (name: string, binding: string) => {
       const path = bindingPath(binding);
@@ -614,6 +726,18 @@ export function validateScreen(
         }
       } else if (dataKnown.size > 0 && !isKnownPath(path, dataKnown)) {
         add({ prop: name, kind: "unknown-field", message: `${name} is bound to "${path}", which this screen's data doesn't have.` });
+      }
+    };
+    /**
+     * A list of entries bound where the app shows it as text, which reads
+     * "[object Object]": only a list block's items and a field section show one.
+     */
+    const checkText = (name: string, binding: string, what: string) => {
+      if (name === "items" || (block.type === "field_section" && name === "field")) return;
+      const path = bindingPath(binding);
+      const field = (bindingScope(binding) === "item" ? itemFields ?? [] : dataFields).find((f) => f.key === path);
+      if (isEntryList(field)) {
+        add({ prop: name, kind: "list-as-text", message: `${what} is bound to "${path}", a list of entries, which the app shows as "[object Object]": show it with a field_section block.` }, "warning");
       }
     };
     /** Where `action` leads, if the app can't follow it: a screen it doesn't have, or a link it won't open. */
@@ -645,7 +769,10 @@ export function validateScreen(
         continue;
       }
       if (spec && !spec.props[name]) ignored.push(name);
-      if (isBinding(value)) checkBinding(name, value);
+      if (isBinding(value)) {
+        checkBinding(name, value);
+        checkText(name, value, name);
+      }
       // The app cuts longer text short (zms policy.ts clampText).
       for (const { path, text } of textsIn(value, name)) {
         if (text.length > limits.text) {
@@ -672,6 +799,7 @@ export function validateScreen(
           if (isBinding(row?.value) && dataKnown.size > 0 && !isKnownPath(bindingPath(row.value), dataKnown)) {
             add({ prop: name, kind: "unknown-field", message: `Row "${row.label ?? ""}" is bound to "${bindingPath(row.value)}", which this screen's data doesn't have.` });
           }
+          if (isBinding(row?.value)) checkText(name, row.value, `Row "${row.label ?? ""}"`);
         }
       }
       const action = value && typeof value === "object" ? (value as ScreenAction) : undefined;
