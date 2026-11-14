@@ -8,6 +8,9 @@ import worker from "../workers/cron/src/index";
 // contents and git data APIs, GraphQL reads), DNS over HTTPS and the jobs'
 // sources, all behind one fetch. It counts every call, as Workers counts an
 // invocation's subrequests, and refuses the 51st, as the Workers Free plan does.
+// Its branch moves only by fast-forward, as GitHub's does, and files can be
+// read at any commit it made; `before` lands another writer's commit (the
+// admin's) just before a request.
 
 const LIMIT = 50;
 const DAY = 86_400_000;
@@ -26,11 +29,24 @@ function fakeWorld(initial: Record<string, string>, sources: Record<string, stri
   let head = 1;
   let used = 0;
   let refused = 0;
-  const pending = new Map<string, { path: string; text: string | null }[]>();
+  /** The files at each commit (c1, c2…), as reads at a commit see them. */
+  const snapshots = new Map([[1, new Map(files)]]);
+  const at = (ref: string) => (ref === "main" ? files : snapshots.get(Number(ref.slice(1))) ?? new Map<string, string>());
+  const trees = new Map<string, { path: string; text: string | null }[]>();
+  const made = new Map<string, { tree: string; parent: string; message: string }>();
+  const hooks: { when: string; run: () => void }[] = [];
+  const land = (changes: { path: string; text: string | null }[]) => {
+    for (const change of changes) {
+      if (change.text === null) files.delete(change.path);
+      else files.set(change.path, change.text);
+    }
+    head++;
+    snapshots.set(head, new Map(files));
+  };
   const sha = (text: string) => createHash("sha1").update(text).digest("hex");
-  const children = (dir: string) => {
+  const children = (dir: string, ref = "main") => {
     const names = new Map<string, "blob" | "tree">();
-    for (const path of files.keys()) {
+    for (const path of at(ref).keys()) {
       if (!path.startsWith(`${dir}/`)) continue;
       const rest = path.slice(dir.length + 1);
       names.set(rest.split("/")[0], rest.includes("/") ? "tree" : "blob");
@@ -38,12 +54,13 @@ function fakeWorld(initial: Record<string, string>, sources: Record<string, stri
     return [...names];
   };
   const blob = (text: string) => ({ oid: sha(text), byteSize: Buffer.byteLength(text), isBinary: false, isTruncated: false, text });
-  const object = (path: string) => {
-    if (files.has(path)) return blob(files.get(path)!);
-    const entries = children(path);
+  const object = (ref: string, path: string) => {
+    const there = at(ref);
+    if (there.has(path)) return blob(there.get(path)!);
+    const entries = children(path, ref);
     if (entries.length === 0) return null;
     return {
-      entries: entries.map(([name, type]) => ({ name, type, mode: type === "tree" ? 16384 : 33188, object: type === "tree" ? {} : blob(files.get(`${path}/${name}`)!) })),
+      entries: entries.map(([name, type]) => ({ name, type, mode: type === "tree" ? 16384 : 33188, object: type === "tree" ? {} : blob(there.get(`${path}/${name}`)!) })),
     };
   };
 
@@ -55,6 +72,9 @@ function fakeWorld(initial: Record<string, string>, sources: Record<string, stri
     used++;
     const url = new URL(input instanceof Request ? input.url : String(input));
     const method = init?.method ?? "GET";
+    const call = `${method} ${url.pathname.replace(/^\/repos\/o\/r/, "")}`;
+    const hook = hooks.findIndex((h) => call.startsWith(h.when));
+    if (hook >= 0) hooks.splice(hook, 1)[0].run();
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     if (url.hostname === "cloudflare-dns.com") {
       return Response.json({ Answer: url.searchParams.get("type") === "A" ? [{ type: 1, data: "93.184.216.34" }] : [] });
@@ -65,35 +85,39 @@ function fakeWorld(initial: Record<string, string>, sources: Record<string, stri
       if (!options.graphql) return Response.json({ message: "Bad credentials" }, { status: 401 });
       const repository: Record<string, unknown> = {};
       for (const [name, value] of Object.entries(body.variables as Record<string, string>)) {
-        if (/^[pl]\d+$/.test(name)) repository[name] = object(value.slice(value.indexOf(":") + 1));
+        if (name === "commit") repository.commit = { tree: { oid: `t${value.slice(1)}` } };
+        if (/^[pl]\d+$/.test(name)) repository[name] = object(value.slice(0, value.indexOf(":")), value.slice(value.indexOf(":") + 1));
       }
       return Response.json({ data: { repository } });
     }
     const route = url.pathname.replace(/^\/repos\/o\/r/, "");
     if (method === "GET" && route.startsWith("/contents/")) {
       const path = decodeURIComponent(route.slice("/contents/".length));
-      if (files.has(path)) return Response.json({ type: "file", content: Buffer.from(files.get(path)!).toString("base64") });
+      const ref = url.searchParams.get("ref") ?? "main";
+      if (at(ref).has(path)) return Response.json({ type: "file", content: Buffer.from(at(ref).get(path)!).toString("base64") });
       if (options.failLists?.includes(path)) return Response.json({ message: "Server Error" }, { status: 500 });
-      const entries = children(path);
+      const entries = children(path, ref);
       if (entries.length === 0) return Response.json({ message: "Not Found" }, { status: 404 });
       return Response.json(entries.map(([name, type]) => ({ name, type: type === "tree" ? "dir" : "file" })));
     }
     if (method === "GET" && route === "/git/ref/heads/main") return Response.json({ object: { sha: `c${head}` } });
-    if (method === "GET" && route.startsWith("/git/commits/")) return Response.json({ tree: { sha: `t${head}` } });
+    if (method === "GET" && route.startsWith("/git/commits/")) return Response.json({ tree: { sha: `t${route.slice("/git/commits/c".length)}` } });
     if (method === "POST" && route === "/git/trees") {
-      pending.set("tree", body.tree.map((t: { path: string; sha?: null; content?: string }) => ({ path: t.path, text: t.sha === null ? null : t.content! })));
-      return Response.json({ sha: "tree" });
+      // Every tree here is made on the head's (base_tree), so a commit of it only lands there.
+      const id = `tree${trees.size + 1}`;
+      trees.set(id, body.tree.map((t: { path: string; sha?: null; content?: string }) => ({ path: t.path, text: t.sha === null ? null : t.content! })));
+      return Response.json({ sha: id });
     }
     if (method === "POST" && route === "/git/commits") {
-      commits.push({ message: body.message, paths: pending.get(body.tree)!.map((c) => c.path) });
-      return Response.json({ sha: "commit" });
+      const id = `commit${made.size + 1}`;
+      made.set(id, { tree: body.tree, parent: body.parents[0], message: body.message });
+      return Response.json({ sha: id });
     }
     if (method === "PATCH" && route === "/git/refs/heads/main") {
-      for (const change of pending.get("tree")!) {
-        if (change.text === null) files.delete(change.path);
-        else files.set(change.path, change.text);
-      }
-      head++;
+      const commit = made.get(body.sha)!;
+      if (commit.parent !== `c${head}`) return Response.json({ message: "Update is not a fast forward" }, { status: 422 });
+      commits.push({ message: commit.message, paths: trees.get(commit.tree)!.map((c) => c.path) });
+      land(trees.get(commit.tree)!);
       return Response.json({ object: { sha: `c${head}` } });
     }
     throw new Error(`unexpected ${method} ${url.href}`);
@@ -105,6 +129,9 @@ function fakeWorld(initial: Record<string, string>, sources: Record<string, stri
     commits,
     used: () => used,
     refused: () => refused,
+    /** Another writer's commit of `path` (the admin's), just before the next request that starts with `when` ("PATCH /git/refs"). */
+    before: (when: string, path: string, edit: (text: string | undefined) => string) =>
+      void hooks.push({ when, run: () => land([{ path, text: edit(files.get(path)) }]) }),
     reset: () => {
       used = 0;
       refused = 0;
@@ -283,7 +310,9 @@ describe("a scheduled import run on the Workers Free plan", () => {
     assert.ok(world.used() <= LIMIT);
     assert.deepEqual(result.lost, []);
     assert.deepEqual(result.unchecked, []);
-    assert.ok(result.ran.length >= 2, `ran ${result.ran.length}`);
+    // Through REST the run's commit reads each job's state again (2 tries, so 2
+    // requests a job), so one job runs where two did before that.
+    assert.ok(result.ran.length >= 1, `ran ${result.ran.length}`);
     assert.equal(result.ran.length + result.deferred.length, 20);
     assert.ok(!logs.some((l) => /not recorded/.test(l)));
   });
@@ -369,4 +398,43 @@ describe("a scheduled import run on the Workers Free plan", () => {
     assert.deepEqual(outcomes(world, 2, "overwatch"), { ran: [1, 2], deferred: [], unchecked: [], lost: [] });
     assert.ok(logs.some((l) => /alpha/.test(l)));
   });
+});
+
+describe("a scheduled run while the admin writes too", () => {
+  const STATE = (n: number) => `data/overwatch/syncs/job-${n}.json`;
+  const dismiss = (id: string) => (text: string | undefined) => {
+    const state = JSON.parse(text!);
+    return JSON.stringify({ ...state, dismissed: [...state.dismissed, id] });
+  };
+
+  it("keeps a dismissal made while the run fetches the job's source, and doesn't draft it", async () => {
+    const { files, sources } = repoWith(1);
+    const world = fakeWorld(files, sources, { graphql: true });
+    // The reviewer dismisses the new item (from the job's preview) while the run fetches the feed.
+    world.before("GET /feed.json", STATE(1), dismiss("job-1-new"));
+    await scheduled(world);
+    const state = JSON.parse(world.files.get(STATE(1))!);
+    assert.deepEqual(state.dismissed, ["job-1-dismissed", "job-1-new"]);
+    assert.ok(!world.files.has("data/overwatch/imports/job-1/job-1-new.json"));
+    assert.deepEqual(state.last_result, { found: 4, added: 0, skipped: 4 });
+    assert.equal(world.commits.length, 1);
+  });
+
+  for (const graphql of [true, false]) {
+    it(`works its one commit out again when the admin commits first, within 50 subrequests${graphql ? "" : ", through REST"}`, async () => {
+      const { files, sources } = repoWith(3);
+      const world = fakeWorld(files, sources, { graphql });
+      world.before("PATCH /git/refs", STATE(2), dismiss("job-2-new"));
+      await scheduled(world);
+      assert.equal(world.refused(), 0);
+      assert.equal(world.commits.length, 1, "the run's one commit");
+      const state = JSON.parse(world.files.get(STATE(2))!);
+      assert.deepEqual(state.dismissed, ["job-2-dismissed", "job-2-new"]);
+      assert.ok(!world.files.has("data/overwatch/imports/job-2/job-2-new.json"));
+      for (const n of [1, 3]) assert.ok(world.files.has(`data/overwatch/imports/job-${n}/job-${n}-new.json`), `job-${n}`);
+      // Through GraphQL: 3 reads, 3 per job, and the commit twice (5 requests each).
+      if (graphql) assert.equal(world.used(), 3 + 3 * 3 + 2 * 5);
+      else assert.ok(world.used() <= LIMIT);
+    });
+  }
 });

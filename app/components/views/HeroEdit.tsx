@@ -20,12 +20,10 @@ import type { DiffEntry } from "~/lib/diff";
 import { computeDiff } from "~/lib/diff";
 import {
   getFile,
-  getFileSha,
   isConflictError,
   listDirectory,
   pruneReplacedAssets,
-  updateFile,
-  uploadAsset,
+  saveRecord,
 } from "~/lib/github";
 import { assertSafeEntityId, assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
@@ -526,43 +524,18 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
         return;
       }
 
-      const uploads = [];
-      for (const upload of preview.portraitUploads ?? []) {
-        const portraitSha = await getFileSha(upload.path);
-        uploads.push(
-          uploadAsset(
-            upload.path,
-            upload.base64,
-            portraitSha || undefined,
-            `Update portrait ${upload.key} for ${id}`,
-          ),
-        );
-      }
-      if (preview.abilityUploads) {
-        for (const upload of preview.abilityUploads) {
-          const assetSha = await getFileSha(upload.path);
-          uploads.push(
-            uploadAsset(
-              upload.path,
-              upload.base64,
-              assetSha || undefined,
-              upload.message,
-            ),
-          );
-        }
-      }
-      if (uploads.length > 0) await Promise.all(uploads);
-
-      // What was reviewed is what's saved: parsing it again would undo asStored.
-      // A picture replaced under its own name leaves the record as it was: nothing to save then.
-      if (preview.diffs.length > 0) {
-        await updateFile(
-          `data/${game}/heroes/${id}.json`,
-          parsedData,
-          sha,
-          `Update hero: ${parsed.data.name || id}`,
-        );
-      }
+      // The hero and its new pictures in one commit (saveRecord). What was reviewed is
+      // what's saved: parsing it again would undo asStored. A picture replaced under its
+      // own name leaves the record as it was: then only the pictures are saved.
+      await saveRecord({
+        game,
+        folder: "heroes",
+        id,
+        sha,
+        ...(preview.diffs.length > 0 && { content: parsedData }),
+        message: `Update hero: ${parsed.data.name || id}`,
+        pictures: [...(preview.portraitUploads ?? []), ...(preview.abilityUploads ?? [])],
+      });
       // Pictures the save replaced or dropped: removed when nothing uses them (never fails the save).
       const pruned = await pruneReplacedAssets(game, "heroes", id, hero, parsedData);
       const done = `Hero ${parsed.data.name || id} updated successfully!`;

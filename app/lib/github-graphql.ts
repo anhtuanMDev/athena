@@ -143,6 +143,28 @@ ${names.length > 0 ? OBJECT : ""}${names.length > 0 && lists.length > 0 ? "\n" :
   return [...names.map((n) => objectOf(repository[n] ?? null)), ...lists.map((n) => objectOf(repository[n] ?? null, false))];
 }
 
+/**
+ * What is at each of `paths` at the commit `sha`, and that commit's root tree
+ * (null when GitHub doesn't know the commit yet), in one request: what an
+ * import's write needs to make its commit on exactly what it read
+ * (importer/repo.ts edit).
+ */
+export async function readAtCommit(target: GraphqlTarget, sha: string, paths: string[]): Promise<{ tree: string | null; objects: GraphqlObject[] }> {
+  const names = paths.map((_, i) => `p${i}`);
+  const text = `query AthenaReadAt($owner: String!, $name: String!, $commit: GitObjectID!${names.map((n) => `, $${n}: String!`).join("")}) {
+  repository(owner: $owner, name: $name) {
+    commit: object(oid: $commit) { ... on Commit { tree { oid } } }
+${names.map((n) => `    ${n}: object(expression: $${n}) { ...Item }`).join("\n")}
+  }
+}
+${names.length > 0 ? OBJECT : ""}`;
+  const variables = Object.fromEntries([["commit", sha], ...paths.map((path, i) => [names[i], `${sha}:${path}`])]);
+  const repository = await query(target, "AthenaReadAt", text, variables);
+  const commit = repository.commit;
+  if (commit !== null && commit !== undefined && !(isObject(commit) && isObject(commit.tree) && typeof commit.tree.oid === "string")) throw malformed();
+  return { tree: isObject(commit) && isObject(commit.tree) ? String(commit.tree.oid) : null, objects: names.map((n) => objectOf(repository[n] ?? null)) };
+}
+
 /** Whether GraphQL answers with the server's token: what /api/github/status reports. */
 export async function graphqlStatus(target: GraphqlTarget): Promise<boolean> {
   try {

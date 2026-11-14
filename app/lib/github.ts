@@ -103,8 +103,69 @@ export async function updateFile(path: string, content: unknown, sha: string, me
   return res.sha ?? null;
 }
 
+/** One picture, as a commit of its own: only the games page's icon still uploads this way (the editors use saveRecord). */
 export async function uploadAsset(path: string, base64Content: string, sha?: string, message?: string): Promise<void> {
   await api("POST", "data/file", { path, content: base64Content, isBase64: true, sha, message });
+}
+
+/** A picture a save adds or replaces: where it goes in the data repo, and its bytes as base64. */
+export interface PictureUpload {
+  path: string;
+  base64: string;
+}
+
+/** A record's save, for saveRecord. */
+export interface RecordSave {
+  game: string;
+  /** A category's folder ("heroes"), or "enums". */
+  folder: string;
+  id: string;
+  /** The record file's sha as loaded; null for a new record. */
+  sha: string | null;
+  /** The record to write; left out, the record stays as it is and only the pictures are saved. */
+  content?: unknown;
+  message: string;
+  /** Asks the server to tell players about a new record. */
+  notify?: boolean;
+  /** The pictures the save adds or replaces, all in the record's own folder. */
+  pictures: PictureUpload[];
+}
+
+/**
+ * Pictures uploaded at once. They don't conflict (each is only a blob), and
+ * a few at a time keeps a save quick without a burst of GitHub's
+ * content-creating requests, which it limits.
+ */
+const UPLOADS_AT_ONCE = 3;
+
+/**
+ * Saves a record and its new or replaced pictures in one commit, so it lands
+ * whole or not at all and the app's caches are refreshed once. Each picture
+ * goes up first as a blob (POST data/picture), which commits nothing, a few
+ * at a time; then one request commits them with the record (POST
+ * data/save-record), as long as the record is still at `sha`. A picture that
+ * can't be uploaded saves nothing. Resolves to the record file's sha.
+ */
+export async function saveRecord(save: RecordSave): Promise<{ sha: string | null; push?: PushResult }> {
+  const { game, folder, id, pictures, notify, ...record } = save;
+  const uploaded: unknown[] = new Array(pictures.length);
+  let next = 0;
+  let failed = false;
+  const uploader = async () => {
+    while (!failed && next < pictures.length) {
+      const i = next++;
+      try {
+        uploaded[i] = await api("POST", "data/picture", { game, folder, id, path: pictures[i].path, base64: pictures[i].base64 });
+      } catch (err) {
+        // The others stop taking pictures: nothing will be saved.
+        failed = true;
+        throw err;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(UPLOADS_AT_ONCE, pictures.length) }, uploader));
+  const res = await api<{ sha?: string | null; push?: PushResult }>("POST", "data/save-record", { game, folder, id, ...record, ...(notify && { notify: true }), pictures: uploaded });
+  return { sha: res.sha ?? null, push: res.push };
 }
 
 export async function deleteFile(path: string, sha: string, message?: string): Promise<void> {

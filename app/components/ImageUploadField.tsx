@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { Upload, X } from "lucide-react";
+import { PICTURE_ACCEPT, pictureFileProblem } from "~/lib/picture-rules";
 
 interface ImageUploadFieldProps {
   label: string;
@@ -15,17 +16,29 @@ export function ImageUploadField({ label, onFileSelect, defaultPreview, classNam
   }
 
   const [preview, setPreview] = useState<string | null>(initialPreview);
+  /** Why the file just picked can't be uploaded: said here at once, and the file isn't taken. */
+  const [problem, setProblem] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const refuse = (why: string) => {
+      setProblem(why);
+      if (fileInput.current) fileInput.current.value = "";
+    };
+    // Too large is known before reading it.
+    const tooLarge = pictureFileProblem(file);
+    if (tooLarge) return refuse(tooLarge);
 
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target?.result as string;
+      const base64 = result.split(",")[1] ?? "";
+      const wrongType = pictureFileProblem(file, base64);
+      if (wrongType) return refuse(wrongType);
+      setProblem(null);
       setPreview(result);
-      const base64 = result.split(",")[1];
       onFileSelect({ name: file.name, base64 });
     };
     reader.readAsDataURL(file);
@@ -66,12 +79,17 @@ export function ImageUploadField({ label, onFileSelect, defaultPreview, classNam
         <div className="flex-1">
           <input
             type="file"
-            accept="image/*"
+            accept={PICTURE_ACCEPT}
             ref={fileInput}
             onChange={handleFileChange}
             className="hidden"
           />
           {!preview && <p className="text-xs text-ink-muted">PNG, JPG or WEBP (Max 2MB)</p>}
+          {problem && (
+            <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
+              {problem}
+            </p>
+          )}
         </div>
       </div>
     </div>

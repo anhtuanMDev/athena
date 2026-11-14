@@ -105,7 +105,7 @@ served marked `X-Stale`. Only active games are served. The contract with the app
 | Forms              | `react-hook-form` + Zod (`zodResolver`, `onChange` validation) where an editor needs it                   | Zod schemas double as form validation and data contract validation.                                                                                                 |
 | UI State Management| Custom `EmptyState` and `LoadErrorState` components                                                      | Standardizes the presentation of 404/not-found and backend error states across all modules.                                                                         |
 | GitHub integration | Pages Functions only: `@octokit/rest`, plain `fetch` to REST, and GraphQL (`app/lib/github-graphql.ts`)  | Never reference the token in browser code. The cron Worker uses `fetch` only (`app/lib/importer/repo.ts`).                                                          |
-| Auth               | One admin password (bcrypt hash) and an HMAC-signed session cookie, with a session version in KV         | Single-admin tool - a hashed password in an env var is enough; GitHub OAuth is the upgrade path if you add collaborators later (see §9).                            |
+| Auth               | One admin passphrase (a PBKDF2 verifier) and an HMAC-signed session cookie, with a session version in KV | Single-admin tool - a hashed password in an env var is enough; GitHub OAuth is the upgrade path if you add collaborators later (see §9).                            |
 | Deployment         | Cloudflare Pages (static `build/client` + Functions), a separate cron Worker                              | Same platform as the mobile API - one dashboard, and KV for sessions and cache versions.                                                                            |
 | Diffing            | Hand-rolled recursive diff (`app/lib/diff.ts`)                                                           | Powers the "review before commit" screen (§7.3). It compares values; arrays are compared whole.                                                                     |
 
@@ -119,7 +119,7 @@ Pages Functions (`wrangler.toml` lists them; values are set in Cloudflare):
 | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
 | `GITHUB_TOKEN`                                   | Fine-grained PAT, scoped to **only** the data repo, `contents: read & write` permission. Nothing broader.            |
 | `GITHUB_OWNER` / `GITHUB_REPO` / `GITHUB_BRANCH` | The data repo. `GITHUB_BRANCH` defaults to `main`.                                                                   |
-| `ADMIN_PASSWORD_HASH`                            | bcrypt hash for the login gate (v1 auth).                                                                            |
+| `ADMIN_PASSWORD_HASH`                            | The sign-in's verifier, `pbkdf2-sha256:<iterations>:<salt>:<hash>`, from `npm run admin-password` (§6.1). A bcrypt hash set before still works, with a warning in the logs, until it's replaced. |
 | `SESSION_SECRET`                                 | Session token signing secret.                                                                                        |
 | `COOKIE_SECURE`                                  | `"false"` drops the cookie's `Secure` flag (local dev over http); anything else keeps it.                           |
 | `GITHUB_WEBHOOK_SECRET`                          | Verifies the data repo's push webhook (`functions/api/webhooks/github.ts`). Without it the webhook answers 503.      |
@@ -168,6 +168,7 @@ The API (`functions/api/[[path]].ts`, one `onRequest` with a route table):
 auth/login (POST) · auth/logout (POST) · auth/check (GET)
 data/file (GET, POST, DELETE) · data/directory (GET) · data/folders (GET, up to 4 subpaths)
 data/games · data/dashboard · data/commits (GET)
+data/picture (POST) · data/save-record (POST)
 data/record-assets (GET) · data/delete-record (POST) · data/prune-assets (POST)
 imports/preview · imports/run · imports/publish · imports/dismiss (POST)
 push/status · github/status (GET) · {game}/enums/{id} (GET)
@@ -188,6 +189,17 @@ anything else: JSON 404
   sets the `__admin_session` cookie (HttpOnly, SameSite=Lax, 8 hours, Secure unless
   `COOKIE_SECURE` is `"false"`). The page sets a `has_session` flag in localStorage and
   goes to `/dashboard`; it also redirects there if you're already signed in.
+- **The check** (`app/lib/password.ts`): PBKDF2-SHA256 through Web Crypto, 20,000
+  iterations by default (10,000 to 100,000 accepted; 100,000 is Cloudflare's production
+  cap), a 16-byte salt, compared in constant time. Web Crypto's CPU counts toward the
+  10 ms a request gets: 20,000 iterations took about 1 ms in local workerd, where bcrypt
+  at cost 10 took about 50 ms. The passphrase is long and random, which is what keeps it
+  safe from offline guessing. A value it can't check answers 500 and isn't counted as a
+  failed attempt. `npm run admin-password` (`tools/admin-password.ts`) makes the
+  verifier on your own computer: it asks for the passphrase twice without showing it
+  (or `-- --generate` makes a 24-character one and shows it once), and prints only the
+  verifier. Set it as the secret `ADMIN_PASSWORD_HASH` (Production and Preview), then
+  redeploy: Pages applies secrets to deployments made after them.
 - **Limits:** 5 failed attempts per IP per 15 minutes, counted in the data center's
   cache, then exponential backoff and 429 with `retryAfter` (`app/lib/login-attempts.ts`).
 - **Session end:** a 401 from any API call fires `AUTH_EXPIRED`, which opens
@@ -214,7 +226,14 @@ anything else: JSON 404
 - **Logic note:** this rewrites a _list_ file rather than a one-record file - the page
   reads the current file, changes the array, and writes the whole file back.
   `categories.json` (§6.10) and `data/<game>/navigation.json` (§6.14) are written the
-  same way.
+  same way. The form checks everything (the schema, a taken slug) before it uploads an
+  icon, so a refused save leaves no picture behind.
+- **Slugs don't change.** A slug names the game's data (`data/<slug>/`), which nothing
+  moves, so the form shows it read-only once the game exists. The API refuses a
+  games.json write that drops or renames a game whose `data/<slug>/` exists (one read:
+  games.json and the `data/` listing in one GraphQL request, or two through REST;
+  `app/lib/games-guard.ts`), and refuses deleting games.json at all. A game listed before
+  it has any data has no folder yet, and can be removed.
 
 ### 6.4 `/:game/schemas` (list/new/edit/delete)
 
@@ -308,13 +327,22 @@ anything else: JSON 404
   and the job's state under `data/<game>/syncs/<job>.json` (`app/lib/importer/run.ts`).
   A reviewer opens a draft at `/:game/cron/:id/review/:draft` (`ImportDraftReview`) and
   publishes or dismisses it. The admin uses `POST /api/imports/{preview,run,publish,dismiss}`.
+- **Writers at the same time.** The cron Worker, "Run now", publish and dismiss each read
+  a job's files, then commit, and a run fetches its source in between. Their writes are
+  edits (`app/lib/importer/repo.ts`): the changes are worked out from the files as they
+  are on the head the commit goes on (one GraphQL request for the head's tree and files),
+  and when GitHub refuses the ref update because the branch moved, worked out again on
+  the new head: 3 tries in the Function, 2 in the cron Worker, then a 409. So a dismissal
+  made during a run stays, and its id isn't drafted; a run's results survive a dismissal;
+  publishing never writes over a record saved meanwhile.
 - **The cron Worker** (`workers/cron`) runs the schedules (`0 * * * *`, `0 0 * * *`,
   `0 0 * * SUN`) and `POST /trigger?game=&job=` (which ignores `active`). It shares
   `app/lib/importer/*` with the Function.
-- **Run budget:** 50 subrequests per invocation on Workers Free, 10 kept for the commit,
-  8 per job. Active games' jobs go first, and the order rotates between runs. Reads go
-  through GraphQL when the token allows (`runRepo`), and the jobs' writes go out in one
-  commit.
+- **Run budget:** 50 subrequests per invocation on Workers Free, 10 kept for the commit
+  (2 tries of 5), 10 per job through REST (3 for its source, 5 reads, and its state read
+  again at each of the commit's tries). Active games' jobs go first, and the order rotates
+  between runs. Reads go through GraphQL when the token allows (`runRepo`), and the jobs'
+  writes go out in one commit.
 - **Run log:** what a run had no room for goes to `data/<game>/syncs/_run-<kind>.json`
   (`{ run, at, deferred[], unchecked[] }`, `app/lib/importer/run-log.ts`), written in the
   run's commit, only when there is something to say. The next run of that kind takes
@@ -398,7 +426,9 @@ Where implemented, the flow is:
    write is rejected and you're told to refresh and re-apply the edit.
 5. **Creation concurrency:** a create sends no `sha`; if the file already exists, GitHub
    answers 409 or 422, which the Function maps to `409 { conflict: true }` and
-   `app/lib/github.ts` turns into a `ConflictError`.
+   `app/lib/github.ts` turns into a `ConflictError`. Deletes map the same way, and a
+   file already gone is a conflict too. Saves with pictures (§7.5) check the record's
+   `sha`, or that a new one doesn't exist, themselves.
 
 ### 7.4 Environment variable handling
 
@@ -411,12 +441,44 @@ Cloudflare dashboard.
 
 - A record's pictures live in its own folder,
   `public/assets/<game>/<folder>/<id>/` (portrait, ability icons, an enum's option
-  icons), and records point at them as `/api/assets/…`. Uploads are separate base64
-  writes made at commit time; the diff view lists them.
+  icons), and records point at them as `/api/assets/…`. The diff view lists a save's
+  uploads.
+- **A save with pictures is one commit** (`saveRecord`, `app/lib/github.ts`). The hero,
+  mode and enum editors, new and edit, send each new or replaced picture on its own to
+  `POST /api/data/picture` (3 at a time). That keeps it as a git blob, which commits
+  nothing and moves no branch, so uploads can't conflict, and returns
+  `{path, sha, token}`. The token is an HMAC of the path and blob sha with the session
+  secret (`pictureToken`, `app/lib/session.ts`; its message can't be a session's). Then
+  `POST /api/data/save-record` takes `{game, folder, id, sha, content?, message, notify?,
+  pictures: [{path, sha, token}]}` (0-50 pictures, all in the record's own folder; no
+  `content` saves the pictures alone) and commits the record and the blobs together on
+  the head it checked, where the record must still be at `sha` (null: a new record whose
+  file mustn't exist). A record's `id` must be its file's name. Folders whose files
+  need checks that read other files (schemas, screens, navigation) are refused. A
+  branch that moved before the ref update is checked and committed on once more; a
+  second move, a changed or deleted record, or a taken id is a 409 conflict. After the
+  commit: one KV bump per mobile version (not per picture), the cached copies of at
+  most 12 pictures (replaced ones first; the rest expire within 5 minutes), and a new
+  record's push. A save makes at most 47 of the 50 subrequests (`handleSaveRecord`), an
+  upload 2. The games page's icon still goes through `POST data/file` (one picture,
+  then `games.json`). Tests: `tests/record-save.test.ts`.
+- **Picture rules** (`app/lib/picture-rules.ts`): PNG, JPEG or WebP (by their first
+  bytes; nothing in the data repo is a GIF, and an SVG can carry script), at most 2 MiB,
+  named after their type (`.png`, `.jpg`/`.jpeg`, `.webp`). The server checks them from
+  the base64 as sent, without decoding the file: the size from its length, the type from
+  its first 16 characters (413, or 415). The same rules apply to pictures sent to
+  `data/file`, and the upload fields refuse such files as soon as they're picked. A new
+  picture's file extension comes from its type, not its file name. Bodies are read only
+  up to a limit (a picture's, 1 MiB for a save, 3 MiB for `data/file`), so a larger one
+  is refused (413) before it is parsed.
+- **Enum option icons** are picked per option and kept by the form's key for the option
+  (useFieldArray's field id, `app/lib/enum-icons.ts`), which follows it when options are
+  added above it or removed.
 - `GET /api/assets/*` needs no session: it proxies `raw.githubusercontent.com` with the
   type from the file name and a sandboxing CSP (`app/lib/asset-headers.ts`). Mobile
   payloads add `?v=<blob sha>`, so those URLs are immutable.
-- **Prune after save:** the hero, mode (same id only) and enum editors call
+- **Prune after save** (its own commit, only when a save stopped using a picture): the
+  hero, mode (same id only) and enum editors call
   `pruneReplacedAssets` after a successful save. It sends the files of the record's own
   folder the save stopped pointing at (`droppedAssets`, 1-50 paths) to
   `POST /api/data/prune-assets`, which takes a snapshot of the game's data, `_meta` and
@@ -519,10 +581,10 @@ athena/
       github-graphql.ts      # GraphQL folder reads (§7.1)
       mobile-payload.ts      # /mobile payloads and the RepoReader they use
       mobile-cache-version.ts# cache versions (§7.7)
-      session.ts, login-attempts.ts, auth.ts
+      session.ts, login-attempts.ts, auth.ts, password.ts
       importer/              # fetch-source, map, run, repo, run-log (shared with workers/cron)
       screen-model.ts, screen-policy.ts, reference-labels.ts, enum-options.ts
-      categories.ts, games.ts, record-schema.ts, record-assets.ts, push.ts
+      categories.ts, games.ts, games-guard.ts, record-schema.ts, record-assets.ts, push.ts
       diff.ts, safe-path.ts, csp-hashes.ts, asset-headers.ts
     components/
       views/                 # page views (HeroesList, RecordEditor, ScreenEdit, …)
@@ -536,6 +598,7 @@ athena/
   workers/cron/              # the cron Worker (own package.json and wrangler.toml)
   public/_headers, public/_routes.json
   tools/validate-data.ts     # the data repo's validator (§11)
+  tools/admin-password.ts    # makes ADMIN_PASSWORD_HASH (npm run admin-password, §6.1)
   tests/                     # node --test suites (npm test)
   .github/workflows/ci.yml
   .node-version, wrangler.toml, .env.example, DESIGN.md
@@ -563,7 +626,7 @@ npm run pages:dev    # build + wrangler pages dev (local CF preview)
 npm run pages:deploy # build + wrangler pages deploy
 ```
 
-The `nodejs_compat` flag is enabled (bcryptjs, @octokit/rest). The cron Worker deploys
+The `nodejs_compat` flag is enabled (@octokit/rest, and bcryptjs for a bcrypt `ADMIN_PASSWORD_HASH` set before §6.1's verifier). The cron Worker deploys
 on its own: `cd workers/cron && npm run deploy` (its wrangler is pinned in its
 `package-lock.json`).
 
@@ -585,7 +648,8 @@ and `npm run build` with `DOTENV_CONFIG_PATH=/dev/null`. There is no deploy job.
 `tools/validate-data.ts <data-repo>` checks a checkout of the data repo with the
 admin's own rules: every `data/**/*.json` parses; screens, navigation, schemas and
 `categories.json` pass `validateDataFile` under the manifest's policy; the manifest has
-the expected shape; tabs match the game's screens. It imports no npm package and exits
+the expected shape; tabs match the game's screens; every game folder (`data/<slug>/`,
+not `_meta` or another `_` folder) is a game games.json lists. It imports no npm package and exits
 0 (clean), 1 (problems) or 2 (no folder). The data repo's
 `.github/workflows/validate-data.yml` checks out athena at `main` and runs it on every
 change. Tests: `tests/validate-data.test.ts`.

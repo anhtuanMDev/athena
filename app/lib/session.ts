@@ -100,3 +100,26 @@ export async function readSessionVersion(kv: VersionStore | undefined): Promise<
 export async function revokeSessions(kv: VersionStore): Promise<void> {
   await kv.put(SESSION_VERSION_KEY, crypto.randomUUID());
 }
+
+// ─── Picture tokens ─────────────────────────────────────────────────────
+// A picture for a save is uploaded on its own first (POST /api/data/picture),
+// which checks it and keeps it as a blob; the save that commits it (POST
+// /api/data/save-record) gets only its blob's sha. The token the upload
+// returns is the server's word that this blob, at this path, passed those
+// checks, so the save needs no GitHub request to trust it. It's signed with
+// the session secret, over a message no session's can be: a session signs its
+// base64url payload, which never holds a line break.
+
+const pictureMessage = (path: string, sha: string) => encoder.encode(`picture\n${path}\n${sha}`);
+
+/** The token for the picture whose blob is `sha`, uploaded for `path`. */
+export async function pictureToken(secret: string, path: string, sha: string): Promise<string> {
+  return toBase64Url(new Uint8Array(await crypto.subtle.sign("HMAC", await hmacKey(secret, "sign"), pictureMessage(path, sha))));
+}
+
+/** Whether `token` is the server's for the blob `sha` uploaded for `path` (pictureToken). */
+export async function isPictureToken(token: string, secret: string, path: string, sha: string): Promise<boolean> {
+  const signature = fromBase64Url(token);
+  if (!signature) return false;
+  return crypto.subtle.verify("HMAC", await hmacKey(secret, "verify"), signature, pictureMessage(path, sha));
+}

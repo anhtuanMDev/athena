@@ -81,12 +81,14 @@ describe("JSON files as the data repo stores them", () => {
   });
 
   it("an import's commit writes exactly what an admin save does", async () => {
-    await githubRepo({ GITHUB_TOKEN: "none", GITHUB_OWNER: "o", GITHUB_REPO: "r" }).commit([{ path: "data/overwatch/modes/push.json", content: MODE }], "Import");
+    const changes = [{ path: "data/overwatch/modes/push.json", content: MODE }];
+    await githubRepo({ GITHUB_TOKEN: "none", GITHUB_OWNER: "o", GITHUB_REPO: "r" }).edit({ reads: [], changes: () => changes, message: "Import" });
     assert.deepEqual(written, [{ path: "data/overwatch/modes/push.json", text: STORED }]);
   });
 
   it("a picture is stored as the bytes it was sent as", async () => {
-    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString("base64");
+    // A PNG's whole signature: anything less isn't taken as a picture (picture-rules.ts).
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]).toString("base64");
     assert.equal((await save({ path: "public/assets/overwatch/x.png", content: png, isBase64: true })).status, 200);
     assert.equal(Buffer.from(written[0].text, "latin1").toString("base64"), png);
   });

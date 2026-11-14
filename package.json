@@ -9,7 +9,8 @@
     "typecheck": "react-router typegen && tsc",
     "pages:dev": "npm run build && npx wrangler pages dev",
     "pages:deploy": "npm run build && npx wrangler pages deploy",
-    "test": "node --import ./tests/resolve-ts.mjs --test tests/*.test.ts"
+    "test": "node --import ./tests/resolve-ts.mjs --test tests/*.test.ts",
+    "admin-password": "node --import ./tests/resolve-ts.mjs tools/admin-password.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

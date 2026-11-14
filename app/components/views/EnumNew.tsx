@@ -4,7 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate, useParams } from "react-router";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useToast } from "~/components/ToastProvider";
-import { createFile, uploadAsset } from "~/lib/github";
+import { saveRecord } from "~/lib/github";
+import { applyOptionIcons, type PickedIcon } from "~/lib/enum-icons";
 import { ImageUploadField } from "~/components/ImageUploadField";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { FormField } from "~/components/FormField";
@@ -225,7 +226,8 @@ export default function EnumNew() {
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [iconUploads, setIconUploads] = useState<Record<number, { name: string; base64: string }>>({});
+  /** Icons picked for options, by each option's key in the form (applyOptionIcons). */
+  const [iconUploads, setIconUploads] = useState<Record<string, PickedIcon>>({});
 
   const methods = useForm<GlobalEnum>({
     resolver: zodResolver(EnumSchema),
@@ -275,35 +277,9 @@ export default function EnumNew() {
         );
       }
 
-      // Upload Icons
-      const uploads = [];
-      for (const indexStr of Object.keys(iconUploads)) {
-        const index = parseInt(indexStr);
-        const upload = iconUploads[index];
-        const option = data.options[index];
-        
-        const ext = upload.name.split(".").pop();
-        const uploadPath = `public/assets/${game}/enums/${data.id}/${option.id}.${ext}`;
-        
-        uploads.push(
-          uploadAsset(
-            uploadPath,
-            upload.base64,
-            undefined,
-            `Upload icon for enum ${data.id} option ${option.id}`
-          )
-        );
-        
-        option.icon = `/api/${uploadPath.replace("public/", "")}`;
-      }
-
-      if (uploads.length > 0) await Promise.all(uploads);
-
-      await createFile(
-        `data/${game}/enums/${data.id}.json`,
-        data,
-        `Add enum: ${data.name}`,
-      );
+      // The enum and its icons in one commit; the server refuses it if the id is taken.
+      const pictures = applyOptionIcons(data.options, fields.map((f) => f.id), iconUploads, game!, data.id);
+      await saveRecord({ game: game!, folder: "enums", id: data.id, sha: null, content: data, message: `Add enum: ${data.name}`, pictures });
       toastSuccess(`Enum ${data.name} created successfully!`);
       navigate(`/${game}/enums`);
     } catch (err) {
@@ -453,12 +429,12 @@ export default function EnumNew() {
                                 label="Icon (Optional)"
                                 defaultPreview={field.value}
                                 onFileSelect={(file) => {
+                                  // By the option's own key, which follows it when options are added or removed above it.
+                                  const key = fields[index].id;
                                   if (file) {
-                                    setIconUploads((prev) => ({ ...prev, [index]: file }));
+                                    setIconUploads((prev) => ({ ...prev, [key]: file }));
                                   } else {
-                                    const newUploads = { ...iconUploads };
-                                    delete newUploads[index];
-                                    setIconUploads(newUploads);
+                                    setIconUploads(({ [key]: _, ...rest }) => rest);
                                     field.onChange("");
                                   }
                                 }}

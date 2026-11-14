@@ -5,8 +5,11 @@ import {
   SESSION_TTL_SECONDS,
   SESSION_VERSION_KEY,
   createSessionToken,
+  isPictureToken,
+  pictureToken,
   readSessionVersion,
   revokeSessions,
+  sessionClaims,
   verifySessionToken,
 } from "../app/lib/session";
 
@@ -102,5 +105,39 @@ describe("session versions", () => {
       async put() {},
     };
     assert.equal(await readSessionVersion(failing), null);
+  });
+});
+
+// A picture uploaded through the admin (POST /api/data/picture) comes back
+// with a token: the server's word that the blob at that sha passed the picture
+// rules for that path. The save that commits it checks the token, with the
+// same secret as sessions, so neither kind may ever pass for the other.
+describe("picture tokens", () => {
+  const PATH = "public/assets/overwatch/heroes/ana/portrait.png";
+  const SHA = "0123456789abcdef0123456789abcdef01234567";
+
+  it("vouch for one blob at one path, under one secret", async () => {
+    const token = await pictureToken(SECRET, PATH, SHA);
+    assert.equal(await isPictureToken(token, SECRET, PATH, SHA), true);
+    assert.equal(await isPictureToken(token, SECRET, PATH.replace("ana", "baptiste"), SHA), false);
+    assert.equal(await isPictureToken(token, SECRET, PATH, SHA.replace("0", "f")), false);
+    assert.equal(await isPictureToken(token, "another-secret", PATH, SHA), false);
+    for (const junk of ["", "x", "%%%", `${token}.`, token.slice(1)]) assert.equal(await isPictureToken(junk, SECRET, PATH, SHA), false, junk);
+  });
+
+  it("can't pass as a session, and a session, or either half of one, can't pass as a picture token", async () => {
+    const session = await createSessionToken(SECRET, "v1", NOW);
+    const picture = await pictureToken(SECRET, PATH, SHA);
+    assert.equal(await sessionClaims(picture, SECRET, NOW), null);
+    assert.equal(await verifySessionToken(picture, SECRET, "v1", NOW), false);
+    // Not even as a session whose payload is the picture's path and sha.
+    assert.equal(await sessionClaims(`${Buffer.from(`picture\n${PATH}\n${SHA}`).toString("base64url")}.${picture}`, SECRET, NOW), null);
+
+    const [payload, signature] = session.split(".");
+    for (const token of [session, payload, signature]) {
+      assert.equal(await isPictureToken(token, SECRET, PATH, SHA), false, token);
+      // Nor for a "path" that is the session's own signed payload.
+      assert.equal(await isPictureToken(token, SECRET, payload, ""), false, token);
+    }
   });
 });

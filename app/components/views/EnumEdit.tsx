@@ -16,7 +16,9 @@ import { useData } from "~/lib/use-data";
 import { DiffView } from "~/components/DiffView";
 import { computeDiff } from "~/lib/diff";
 import type { DiffEntry } from "~/lib/diff";
-import { isConflictError, updateFile, getFile, getFileSha, pruneReplacedAssets, uploadAsset } from "~/lib/github";
+import { isConflictError, getFile, pruneReplacedAssets, saveRecord } from "~/lib/github";
+import { applyOptionIcons, type PickedIcon } from "~/lib/enum-icons";
+import type { IconUpload } from "~/lib/ability-icons";
 import { ImageUploadField } from "~/components/ImageUploadField";
 import { clearDataCache } from "~/lib/use-data";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
@@ -306,12 +308,13 @@ function EditEnumForm({
     enumJson: string;
     sha: string;
     /** The option icons the save uploads. */
-    uploads: string[];
+    pictures: IconUpload[];
   } | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submittingCommit, setSubmittingCommit] = useState(false);
-  const [iconUploads, setIconUploads] = useState<Record<number, { name: string; base64: string }>>({});
+  /** Icons picked for options, by each option's key in the form (applyOptionIcons). */
+  const [iconUploads, setIconUploads] = useState<Record<string, PickedIcon>>({});
 
   const defaultValues = useMemo(() => {
     return { ...enumData };
@@ -357,22 +360,14 @@ function EditEnumForm({
 
       const parsed = EnumSchema.parse(formData);
       
-      // Merge upload changes into parsed preview so diff is correct
-      const uploads: string[] = [];
-      for (const indexStr of Object.keys(iconUploads)) {
-        const index = parseInt(indexStr);
-        const upload = iconUploads[index];
-        const option = parsed.options[index];
-        const ext = upload.name.split(".").pop();
-        option.icon = `/api/assets/${game}/enums/${id}/${option.id}.${ext}`;
-        uploads.push(`public/assets/${game}/enums/${id}/${option.id}.${ext}`);
-      }
+      // The picked icons go into the preview, so its diff shows their URLs.
+      const pictures = applyOptionIcons(parsed.options, fields.map((f) => f.id), iconUploads, game, id);
 
       // The enum's keys the form doesn't edit stay as they are, and what the
       // form filled in for keys it had no value for doesn't count as an edit.
       const saved = asStored(enumData, keepUnknownKeys(enumData, parsed, EnumSchema), EnumSchema);
       const diffs = computeDiff(enumData, saved);
-      setPreview({ diffs, enumJson: JSON.stringify(saved), sha, uploads });
+      setPreview({ diffs, enumJson: JSON.stringify(saved), sha, pictures });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error";
       setSubmitError(msg);
@@ -396,42 +391,18 @@ function EditEnumForm({
         return;
       }
 
-      // Upload Icons
-      const uploads = [];
-      for (const indexStr of Object.keys(iconUploads)) {
-        const index = parseInt(indexStr);
-        const upload = iconUploads[index];
-        const option = parsed.data.options[index];
-        
-        const ext = upload.name.split(".").pop();
-        const uploadPath = `public/assets/${game}/enums/${id}/${option.id}.${ext}`;
-        
-        const assetSha = await getFileSha(uploadPath).catch(() => undefined);
-        
-        uploads.push(
-          uploadAsset(
-            uploadPath,
-            upload.base64,
-            assetSha || undefined,
-            `Update icon for enum ${id} option ${option.id}`
-          )
-        );
-        
-        option.icon = `/api/${uploadPath.replace("public/", "")}`;
-      }
-
-      if (uploads.length > 0) await Promise.all(uploads);
-
-      // What was reviewed is what's saved (its icon URLs included): parsing it again would undo asStored.
-      // An icon replaced under its own name leaves the enum as it was: nothing to save then.
-      if (preview.diffs.length > 0) {
-        await updateFile(
-          `data/${game}/enums/${id}.json`,
-          parsedData,
-          sha,
-          `Update enum: ${parsed.data.name}`,
-        );
-      }
+      // The enum and its new icons in one commit (saveRecord). What was reviewed is what's
+      // saved (its icon URLs included): parsing it again would undo asStored. An icon
+      // replaced under its own name leaves the enum as it was: then only the icons are saved.
+      await saveRecord({
+        game,
+        folder: "enums",
+        id,
+        sha,
+        ...(preview.diffs.length > 0 && { content: parsedData }),
+        message: `Update enum: ${parsed.data.name}`,
+        pictures: preview.pictures,
+      });
       // Option icons the save replaced or dropped (their folder is public/assets/{game}/enums/{id}/):
       // removed when nothing uses them (never fails the save).
       const pruned = await pruneReplacedAssets(game, "enums", id, enumData, parsedData);
@@ -459,7 +430,7 @@ function EditEnumForm({
         <h2 className="text-xl font-bold text-ink tracking-tight">
           Review Changes
         </h2>
-        <DiffView diffs={preview.diffs} uploads={preview.uploads} />
+        <DiffView diffs={preview.diffs} uploads={preview.pictures.map((p) => p.path)} />
         {submitError && (
           <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">
             {submitError}
@@ -480,7 +451,7 @@ function EditEnumForm({
           <Button
             type="submit"
             variant="default"
-            disabled={submittingCommit || (preview.diffs.length === 0 && preview.uploads.length === 0)}
+            disabled={submittingCommit || (preview.diffs.length === 0 && preview.pictures.length === 0)}
           >
             {submittingCommit ? "Saving to GitHub..." : "Commit Changes"}
           </Button>
@@ -616,12 +587,12 @@ function EditEnumForm({
                           label="Icon (Optional)"
                           defaultPreview={field.value}
                           onFileSelect={(file) => {
+                            // By the option's own key, which follows it when options are added or removed above it.
+                            const key = fields[index].id;
                             if (file) {
-                              setIconUploads((prev) => ({ ...prev, [index]: file }));
+                              setIconUploads((prev) => ({ ...prev, [key]: file }));
                             } else {
-                              const newUploads = { ...iconUploads };
-                              delete newUploads[index];
-                              setIconUploads(newUploads);
+                              setIconUploads(({ [key]: _, ...rest }) => rest);
                               field.onChange("");
                             }
                           }}

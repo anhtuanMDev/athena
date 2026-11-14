@@ -291,3 +291,112 @@ export function deletionConflict(request: DeletionRequest, snapshot: Snapshot): 
   const same = now.length === confirmed.length && now.every((p, i) => p === confirmed[i]) && request.remove.every((f) => snapshot.files[f.path] === f.sha);
   return same ? null : "The record's pictures changed since you opened this page. Reload it.";
 }
+
+// ─── A save with its pictures ───────────────────────────────────────────
+// A record's save and its new or replaced pictures land in one commit. Each
+// picture is uploaded first, on its own, as a blob (pictureRequest), which
+// commits nothing; the save then commits the record and the pictures by their
+// blobs' shas (saveRequest). Both take only pictures of the record's own
+// folder, as deletes and prunes do.
+
+/** A record of a game: where its file and its pictures' folder are. */
+interface RecordRef {
+  game: string;
+  folder: string;
+  id: string;
+}
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
+
+/** `b`'s record, or why it isn't one. */
+function recordRef(b: Record<string, unknown>): RecordRef | string {
+  const { game, folder, id } = b;
+  if (typeof game !== "string" || !SAFE_SLUG.test(game)) return "Invalid game.";
+  if (typeof folder !== "string" || !isRecordFolder(folder)) return "Invalid folder.";
+  if (typeof id !== "string" || !SAFE_ENTITY_ID.test(id)) return "Invalid id.";
+  return { game, folder, id };
+}
+
+/** Why `path` can't be one of the record's pictures, or null: it must be a file of its own folder. */
+function picturePathProblem(path: string, record: RecordRef): string | null {
+  const dir = recordAssetDir(record.game, record.folder, record.id);
+  return isOwnedAsset(path, dir) ? null : `${path} isn't in ${dir}, the record's own folder.`;
+}
+
+/** A picture to upload for a record's save: where it goes, and its bytes as base64. */
+export interface PictureRequest extends RecordRef {
+  path: string;
+  base64: string;
+}
+
+/** `body` as a picture upload, or why it isn't one (a 400). Its bytes are the picture rules' to check (picture-rules.ts). */
+export function pictureRequest(body: unknown): PictureRequest | string {
+  const b = isPlainObject(body) ? body : {};
+  const record = recordRef(b);
+  if (typeof record === "string") return record;
+  if (typeof b.path !== "string") return "Name the picture's path.";
+  const outside = picturePathProblem(b.path, record);
+  if (outside) return outside;
+  if (typeof b.base64 !== "string") return "Send the picture as base64.";
+  return { ...record, path: b.path, base64: b.base64 };
+}
+
+/** A picture a save commits: its path, the blob its upload made, and the token the upload gave for it. */
+export interface SavedPicture {
+  path: string;
+  sha: string;
+  token: string;
+}
+
+/** What a save asks the server to commit: the record, its pictures, or both. */
+export interface SaveRequest extends RecordRef {
+  /** The record file's sha as the editor loaded it; null for a new record, whose file mustn't exist yet. */
+  sha: string | null;
+  /** The record to write; undefined when the save changes pictures alone (the record must still be at `sha`). */
+  content?: Record<string, unknown>;
+  message: string;
+  notify?: boolean;
+  pictures: SavedPicture[];
+}
+
+/** Pictures one save can commit: a record's, with room to spare. */
+export const MAX_SAVE_PICTURES = 50;
+const BLOB_SHA = /^[0-9a-f]{40}$/;
+/** What a picture's file may be called: what the picture rules take (picture-rules.ts). */
+const PICTURE_FILE = /\.(png|jpe?g|webp)$/i;
+
+/** `body` as a save, or why it isn't one (a 400). The pictures' tokens are the server's to check. */
+export function saveRequest(body: unknown): SaveRequest | string {
+  const b = isPlainObject(body) ? body : {};
+  const record = recordRef(b);
+  if (typeof record === "string") return record;
+  const { content, message, notify } = b;
+  const sha = b.sha === null || (typeof b.sha === "string" && BLOB_SHA.test(b.sha)) ? b.sha : undefined;
+  if (sha === undefined) return "Invalid sha.";
+  if (content !== undefined && !isPlainObject(content)) return "The record must be an object.";
+  // The file's name is the record's id: the app and the push both go by it.
+  if (content !== undefined && content.id !== record.id) return `The record's id must be "${record.id}", its file's name.`;
+  if (content === undefined && sha === null) return "A new record needs its content.";
+  if (message !== undefined && (typeof message !== "string" || !message.trim())) return "Invalid commit message.";
+  if (notify !== undefined && typeof notify !== "boolean") return "Invalid notify.";
+  const list = b.pictures ?? [];
+  if (!Array.isArray(list) || list.length > MAX_SAVE_PICTURES) return `Save 0 to ${MAX_SAVE_PICTURES} pictures at once.`;
+  const pictures: SavedPicture[] = [];
+  for (const p of list) {
+    if (!isPlainObject(p) || typeof p.path !== "string" || typeof p.sha !== "string" || !BLOB_SHA.test(p.sha) || typeof p.token !== "string") return "Invalid pictures.";
+    const outside = picturePathProblem(p.path, record);
+    if (outside) return outside;
+    if (!PICTURE_FILE.test(p.path)) return `${p.path}: only PNG, JPEG and WebP pictures can be saved.`;
+    pictures.push({ path: p.path, sha: p.sha, token: p.token });
+  }
+  if (new Set(pictures.map((p) => p.path)).size !== pictures.length) return "A picture is listed twice.";
+  if (content === undefined && pictures.length === 0) return "Nothing to save.";
+  return {
+    ...record,
+    sha,
+    ...(content !== undefined && { content }),
+    message: typeof message === "string" ? message : `Update ${record.folder}: ${record.id}`,
+    ...(notify !== undefined && { notify }),
+    pictures,
+  };
+}

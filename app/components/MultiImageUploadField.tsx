@@ -1,6 +1,7 @@
 import { Plus, Upload, X } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { iconKeyProblem } from "~/lib/ability-icons";
+import { PICTURE_ACCEPT, pictureFileProblem } from "~/lib/picture-rules";
 
 export interface ImageEntry {
   id: string;
@@ -90,21 +91,34 @@ function ImageRow({
   onRemove: () => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
+  /** Why the file just picked can't be uploaded: said here at once, and the file isn't taken. */
+  const [fileProblem, setFileProblem] = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const refuse = (why: string) => {
+      setFileProblem(why);
+      if (fileInput.current) fileInput.current.value = "";
+    };
+    // Too large is known before reading it.
+    const tooLarge = pictureFileProblem(file);
+    if (tooLarge) return refuse(tooLarge);
 
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target?.result as string;
-      const base64 = result.split(",")[1];
+      const base64 = result.split(",")[1] ?? "";
+      const wrongType = pictureFileProblem(file, base64);
+      if (wrongType) return refuse(wrongType);
+      setFileProblem(null);
       onUpdate({ name: file.name, base64, previewUrl: result });
     };
     reader.readAsDataURL(file);
   };
 
   const handleClear = () => {
+    setFileProblem(null);
     onUpdate({ name: undefined, base64: undefined, previewUrl: undefined });
     if (fileInput.current) fileInput.current.value = "";
   };
@@ -124,6 +138,11 @@ function ImageRow({
         {problem && (
           <p id={`${entry.id}-key-problem`} className="mt-1 text-xs text-red-600 dark:text-red-400">
             {problem}
+          </p>
+        )}
+        {fileProblem && (
+          <p role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">
+            {fileProblem}
           </p>
         )}
       </div>
@@ -156,7 +175,7 @@ function ImageRow({
       )}
       <input
         type="file"
-        accept="image/*"
+        accept={PICTURE_ACCEPT}
         ref={fileInput}
         onChange={handleFileChange}
         className="hidden"

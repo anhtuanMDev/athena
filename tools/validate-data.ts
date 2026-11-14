@@ -4,7 +4,8 @@
 // what the write API gives it: the categories, the schemas' template fields
 // and the app's policy from the block manifest. Tabs are also checked against
 // the game's screens, as the screen editor does. The manifest must have the
-// shape the admin and the app rely on (manifestProblems).
+// shape the admin and the app rely on (manifestProblems). Every game folder
+// (data/{slug}/) must be a game games.json lists.
 //
 //   node --import ./tests/resolve-ts.mjs tools/validate-data.ts <data-repo>
 //
@@ -16,6 +17,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { CATEGORIES_PATH, parseCategories } from "../app/lib/categories";
+import { gameSlugs } from "../app/lib/games-guard";
 import { templateFieldsByCategory } from "../app/lib/notify-template";
 import { APP_POLICY, MANIFEST_PATH, appPolicy, manifestProblems, validateDataFile, validateNavigationFile } from "../app/lib/screen-policy";
 
@@ -98,6 +100,17 @@ export function validateDataRepo(root: string): { files: number; checked: number
       ? validateNavigationFile(content, screenTypes(navigation[1]), policy)
       : validateDataFile(path, content, categories, templateFields, policy);
     for (const message of messages) problems.push({ path, message });
+  }
+
+  // A game's folder games.json doesn't list (a game renamed or dropped and its
+  // data left behind) is data nothing shows. Folders starting with "_" (_meta)
+  // aren't games; a game listed before it has any data has no folder yet.
+  if (parsed.has(GAMES_PATH)) {
+    const listed = new Set(gameSlugs(games));
+    for (const entry of readdirSync(join(root, "data"), { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith("_") || listed.has(entry.name)) continue;
+      problems.push({ path: `data/${entry.name}`, message: `no game in ${GAMES_PATH} has the slug "${entry.name}", so the admin and the app never show this data.` });
+    }
   }
 
   // The screen editor stops at the app's limit of screens per game.

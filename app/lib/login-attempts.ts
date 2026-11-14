@@ -2,7 +2,7 @@
 // instead of KV: on the Workers Free plan KV takes 1,000 writes a day, and
 // every wrong password would spend one. The trade-off: an attacker spread over
 // many data centers gets MAX_ATTEMPTS in each, still with exponential backoff
-// after that, against a bcrypt hash.
+// after that, against a long random passphrase (app/lib/password.ts).
 
 export const MAX_ATTEMPTS = 5;
 export const WINDOW_MS = 15 * 60 * 1000;

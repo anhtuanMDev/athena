@@ -25,8 +25,14 @@ const PERIOD_MS: Record<string, number> = { hourly: 3_600_000, daily: 86_400_000
 
 /** Subrequests an invocation may make on the Workers Free plan. */
 const SUBREQUEST_LIMIT = 50;
-/** Kept for the run's one commit (5 REST requests, importer/repo.ts) and its retry when the branch moved meanwhile. */
-const COMMIT_RESERVE = 2 * 5;
+/** Tries at the run's one commit: once more when the admin committed meanwhile (importer/repo.ts edit). */
+const COMMIT_ATTEMPTS = 2;
+/**
+ * Kept for the run's commit, 5 requests a try (importer/repo.ts edit). Through
+ * REST, it also reads each job's state again on each try; importCost counts
+ * those with the job.
+ */
+const COMMIT_RESERVE = COMMIT_ATTEMPTS * 5;
 const GAMES_PATH = "data/_meta/games.json";
 
 function timingSafeEqual(a: string, b: string): boolean {
@@ -91,8 +97,8 @@ function rotated<T>(items: T[], run: number): T[] {
   return [...items.slice(start), ...items.slice(0, start)];
 }
 
-/** The most subrequests one job's run can make through REST: its source's 3, and 5 reads (importCost). */
-const ONE_JOB = 8;
+/** The most subrequests one job's run can make through REST: its source's 3, 5 reads, and its state again at each of the commit's tries (importCost). */
+const ONE_JOB = 3 + 5 + COMMIT_ATTEMPTS;
 
 /**
  * Runs the jobs `wanted` picks, within one invocation's subrequests (50 on the
@@ -102,7 +108,9 @@ const ONE_JOB = 8;
  *   games and categories, then every game's jobs, schemas and run log, then the
  *   due jobs' states and folders, a request each. A job then costs its
  *   source's 3 requests (DNS and the fetch), and the run one commit for all of
- *   them. Through REST, each read is a request of its own, made once.
+ *   them, made on the jobs' states as they are then, so a reviewer's
+ *   dismissals meanwhile stay. Through REST, each read is a request of its
+ *   own, made once, and the commit reads each job's state again.
  * - Active games go first: their job files are read, and their jobs run,
  *   before an inactive game's job files are read (games that aren't live yet
  *   may still prepare their data). Through REST, reading a job file costs a
@@ -124,7 +132,7 @@ async function runJobs(env: Env, wanted: JobFilter, run: number, kind: string): 
     return fetch(input, init);
   };
   const budget = SUBREQUEST_LIMIT - COMMIT_RESERVE;
-  const repo = runRepo(githubRepo(env, counted));
+  const repo = runRepo(githubRepo(env, counted, { editAttempts: COMMIT_ATTEMPTS }));
   const now = new Date();
   /** Whether reading `path` fits, keeping `reserve` too; a file read already (prefetched) costs nothing. */
   const fits = (path: string, reserve = 0) => {

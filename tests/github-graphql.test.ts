@@ -373,21 +373,32 @@ describe("an import run's reads (importer/repo.ts runRepo)", () => {
     assert.equal(warnings.length, 1);
   });
 
-  it("holds the run's commits and makes them as one: a lone one under its own message", async () => {
-    const made: { changes: FileChange[]; message: string }[] = [];
-    const base: DataRepo = { list: async () => [], read: async () => null, commit: async (changes, message) => void made.push({ changes, message }) };
+  it("holds the run's edits and makes them as one, worked out on the head it commits on: a lone one under its own message", async () => {
+    const made: { reads: string[]; changes: FileChange[]; message: string }[] = [];
+    // The head the commit goes on: each held edit sees the files as they are there.
+    const head = new Map<string, unknown>([["s/b", { n: 1 }]]);
+    const base: DataRepo = {
+      list: async () => [],
+      read: async () => null,
+      edit: async ({ reads, changes, message }) => void made.push({ reads, changes: changes(new Map(reads.map((p) => [p, head.get(p) ?? null]))), message }),
+    };
     const repo = runRepo(base);
-    const change = (path: string) => ({ path, content: { id: path } });
-    await repo.commit([change("a")], "Import 1 draft(s) from a");
+    const change = (path: string, content: unknown = { id: path }) => ({ path, content });
+    const plain = (changes: FileChange[], message: string) => repo.edit({ reads: [], changes: () => changes, message });
+    await plain([change("a")], "Import 1 draft(s) from a");
     await repo.flush();
-    await repo.commit([change("b"), change("b2")], "Import run: b (nothing new)");
-    await repo.commit([change("c")], "Import run failed: c");
+    await repo.edit({ reads: ["s/b"], changes: (current) => [change("b"), change("s/b", current.get("s/b"))], message: "Import run: b (nothing new)" });
+    await plain([change("c")], "Import run failed: c");
     assert.equal(made.length, 1);
-    await repo.flush();
+    await repo.flush({ changes: [change("log")], message: "Import run log (daily): nothing left for later" });
     await repo.flush();
     assert.deepEqual(made, [
-      { changes: [change("a")], message: "Import 1 draft(s) from a" },
-      { changes: [change("b"), change("b2"), change("c")], message: "Import run: 2 jobs\n\nImport run: b (nothing new)\nImport run failed: c" },
+      { reads: [], changes: [change("a")], message: "Import 1 draft(s) from a" },
+      {
+        reads: ["s/b"],
+        changes: [change("b"), change("s/b", { n: 1 }), change("c"), change("log")],
+        message: "Import run: 2 jobs\n\nImport run: b (nothing new)\nImport run failed: c\nImport run log (daily): nothing left for later",
+      },
     ]);
   });
 });
