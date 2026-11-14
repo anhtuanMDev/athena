@@ -71,8 +71,9 @@ export async function onRequest(context: any): Promise<Response> {
     unconfirmedKey: `${internalOrigin}/mobile/unconfirmed/data?${payload}`,
     lastGoodKey: `${internalOrigin}/mobile/last-good/data?${payload}`,
     // A missing folder has no records; a file that can't be read is left out
-    // on its own, and the list is then cached only briefly.
-    build: () => buildDataPayload(reader, `data/${game}/${entity}`),
+    // on its own, and the list is then cached only briefly. The picture
+    // hashes read under this assets version are kept for the next builds.
+    build: () => buildDataPayload(reader, `data/${game}/${entity}`, { cache, version: assetsVersion }),
     waitUntil: context.waitUntil && ((promise) => context.waitUntil(promise)),
     label: "Mobile data API",
   });

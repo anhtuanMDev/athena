@@ -36,7 +36,8 @@ export async function onRequest(context: any): Promise<Response> {
     key: version === null || assetsVersion === null ? null : `${internalOrigin}/mobile/init_v4?v=${encodeURIComponent(version)}&a=${encodeURIComponent(assetsVersion)}`,
     unconfirmedKey: `${internalOrigin}/mobile/unconfirmed/init_v4`,
     lastGoodKey: `${internalOrigin}/mobile/last-good/init_v4`,
-    build: () => buildInitPayload(reader),
+    // The picture hashes read under this assets version are kept for the next builds.
+    build: () => buildInitPayload(reader, { cache, version: assetsVersion }),
     // A game turned off since the stored payload was built must not come back
     // with it. When games.json can't be read either, the list read last
     // decides, and with none the stored payload is the latest word there is.

@@ -14,6 +14,7 @@ import type { DynamicSchemaFile } from "~/schemas/dynamic-schema";
 import { useToast } from "~/components/ToastProvider";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { EmptyState } from "~/components/ui/EmptyState";
+import { RawEditSkeleton } from "~/components/views/ViewSkeletons";
 
 /** Problems with `parsed` as a record of `type`, checked as its category's editor checks it; empty when it can be saved. */
 function recordProblems(type: string, schemas: DynamicSchemaFile[], parsed: unknown, categories: readonly Category[]): string[] {
@@ -110,7 +111,7 @@ export default function RawEditor() {
     }
   }
 
-  if (loading) return <div>Loading…</div>;
+  if (loading) return <RawEditSkeleton />;
   if (loadError) {
     const isNotFound = String(loadError).includes("NOT_FOUND") || loadError === "NOT_FOUND";
     if (isNotFound) {

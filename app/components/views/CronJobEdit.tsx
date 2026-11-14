@@ -14,6 +14,7 @@ import { useToast } from "~/components/ToastProvider";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { CronJobInstructions } from "~/components/views/CronJobInstructions";
 import { ImportJobSettings, labelFieldOf, pruneMappings, settingsOf, type JobSettings } from "~/components/views/ImportJobSettings";
+import { PanelsSkeleton } from "~/components/views/ViewSkeletons";
 
 export default function CronJobEdit() {
   const { game, "*": splat } = useParams();
@@ -127,13 +128,7 @@ export default function CronJobEdit() {
   }
 
   if (loading && !loaderData) {
-    return (
-      <div className="w-full py-8 space-y-6 animate-pulse motion-reduce:animate-none">
-        <div className="h-10 w-64 bg-border rounded-lg"></div>
-        <div className="h-32 bg-border rounded-xl"></div>
-        <div className="h-64 bg-border rounded-xl"></div>
-      </div>
-    );
+    return <PanelsSkeleton />;
   }
 
   if (loadError) return (

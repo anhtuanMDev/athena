@@ -1,48 +1,80 @@
+import { lazy, Suspense, type ReactNode } from "react";
 import { useParams } from "react-router";
 import { PanelTransition } from "~/components/PanelTransition";
 import { CATEGORY_ICON_COMPONENTS } from "~/components/CategoryIcon";
 import { useCategories } from "~/lib/categories-context";
+import {
+  CardGridSkeleton,
+  DeleteSkeleton,
+  EntityListSkeleton,
+  EnumFormSkeleton,
+  FieldsFormSkeleton,
+  LIST_SKELETONS,
+  PanelsSkeleton,
+  RawEditSkeleton,
+  RecordListSkeleton,
+  ScreenEditSkeleton,
+  ScreensListSkeleton,
+  SplitFormSkeleton,
+  TallPanelSkeleton,
+} from "~/components/views/ViewSkeletons";
+
+// Each view's code loads when it's first opened, not with the route: the
+// editors' forms, the screen editor and the schema builders came to 400 kB
+// that every game page loaded, a list included. Meanwhile a view shows its
+// own loading placeholder (ViewSkeletons.tsx), so the page looks the same
+// while its code and then its data load. A chunk gone after a deploy reloads
+// the page once (chunk-reload.ts).
 
 // Heroes
-import EntityDelete from "~/components/views/EntityDelete";
-import HeroEdit from "~/components/views/HeroEdit";
-import HeroesList from "~/components/views/HeroesList";
-import HeroNew from "~/components/views/HeroNew";
+const EntityDelete = lazy(() => import("~/components/views/EntityDelete"));
+const HeroEdit = lazy(() => import("~/components/views/HeroEdit"));
+const HeroesList = lazy(() => import("~/components/views/HeroesList"));
+const HeroNew = lazy(() => import("~/components/views/HeroNew"));
 
 // Maps
-import MapEdit from "~/components/views/MapEdit";
-import MapNew from "~/components/views/MapNew";
-import MapsList from "~/components/views/MapsList";
+const MapEdit = lazy(() => import("~/components/views/MapEdit"));
+const MapNew = lazy(() => import("~/components/views/MapNew"));
+const MapsList = lazy(() => import("~/components/views/MapsList"));
 
 // Modes
-import ModeEdit from "~/components/views/ModeEdit";
-import ModeNew from "~/components/views/ModeNew";
-import ModesList from "~/components/views/ModesList";
+const ModeEdit = lazy(() => import("~/components/views/ModeEdit"));
+const ModeNew = lazy(() => import("~/components/views/ModeNew"));
+const ModesList = lazy(() => import("~/components/views/ModesList"));
 
 // Enums
-import EnumEdit from "~/components/views/EnumEdit";
-import EnumNew from "~/components/views/EnumNew";
-import EnumsList from "~/components/views/EnumsList";
+const EnumEdit = lazy(() => import("~/components/views/EnumEdit"));
+const EnumNew = lazy(() => import("~/components/views/EnumNew"));
+const EnumsList = lazy(() => import("~/components/views/EnumsList"));
 
 // Misc
-import DynamicSchemaEdit from "~/components/views/DynamicSchemaEdit";
-import DynamicSchemaNew from "~/components/views/DynamicSchemaNew";
-import DynamicSchemasList from "~/components/views/DynamicSchemasList";
-import RawEdit from "~/RawEdit";
+const DynamicSchemaEdit = lazy(() => import("~/components/views/DynamicSchemaEdit"));
+const DynamicSchemaNew = lazy(() => import("~/components/views/DynamicSchemaNew"));
+const DynamicSchemasList = lazy(() => import("~/components/views/DynamicSchemasList"));
+const RawEdit = lazy(() => import("~/RawEdit"));
 
 // Cron Jobs
-import CronJobEdit from "~/components/views/CronJobEdit";
-import CronJobNew from "~/components/views/CronJobNew";
-import CronJobsList from "~/components/views/CronJobsList";
-import ImportDraftReview from "~/components/views/ImportDraftReview";
+const CronJobEdit = lazy(() => import("~/components/views/CronJobEdit"));
+const CronJobNew = lazy(() => import("~/components/views/CronJobNew"));
+const CronJobsList = lazy(() => import("~/components/views/CronJobsList"));
+const ImportDraftReview = lazy(() => import("~/components/views/ImportDraftReview"));
 
 // Every other category (news, patches, items…): records edited in their schema's own form
-import RecordEditor from "~/components/views/RecordEditor";
-import RecordList from "~/components/views/RecordList";
+const RecordEditor = lazy(() => import("~/components/views/RecordEditor"));
+const RecordList = lazy(() => import("~/components/views/RecordList"));
 
 // App screens
-import ScreenEdit from "~/components/views/ScreenEdit";
-import ScreensList from "~/components/views/ScreensList";
+const ScreenEdit = lazy(() => import("~/components/views/ScreenEdit"));
+const ScreensList = lazy(() => import("~/components/views/ScreensList"));
+
+/** A view in the panel, its own placeholder shown until its code is in (none for a form that shows at once). */
+function View({ fallback = null, children }: { fallback?: ReactNode; children: ReactNode }) {
+  return (
+    <PanelTransition>
+      <Suspense fallback={fallback}>{children}</Suspense>
+    </PanelTransition>
+  );
+}
 
 /** Folders with editors of their own; every other configured category gets RecordList and RecordEditor. */
 const BUILT_IN_EDITORS = ["heroes", "maps", "modes"];
@@ -60,26 +92,26 @@ export default function GameDashboardRouter() {
   if (entity === "schemas") {
     if (!idOrAction)
       return (
-        <PanelTransition>
+        <View fallback={<CardGridSkeleton />}>
           <DynamicSchemasList />
-        </PanelTransition>
+        </View>
       );
     if (idOrAction === "new")
       return (
-        <PanelTransition>
+        <View>
           <DynamicSchemaNew />
-        </PanelTransition>
+        </View>
       );
     if (subAction === "delete")
       return (
-        <PanelTransition>
+        <View fallback={<DeleteSkeleton />}>
           <EntityDelete entityType="schemas" />
-        </PanelTransition>
+        </View>
       );
     return (
-      <PanelTransition>
+      <View fallback={<PanelsSkeleton />}>
         <DynamicSchemaEdit />
-      </PanelTransition>
+      </View>
     );
   }
 
@@ -89,20 +121,20 @@ export default function GameDashboardRouter() {
   if (form) {
     if (!idOrAction)
       return (
-        <PanelTransition>
+        <View fallback={<RecordListSkeleton />}>
           <RecordList key={entity} {...form} />
-        </PanelTransition>
+        </View>
       );
     if (subAction === "delete")
       return (
-        <PanelTransition>
+        <View fallback={<DeleteSkeleton />}>
           <EntityDelete entityType={entity} />
-        </PanelTransition>
+        </View>
       );
     return (
-      <PanelTransition>
+      <View fallback={<TallPanelSkeleton />}>
         <RecordEditor key={entity} {...form} />
-      </PanelTransition>
+      </View>
     );
   }
 
@@ -110,93 +142,96 @@ export default function GameDashboardRouter() {
   if (entity === "cron") {
     if (!idOrAction)
       return (
-        <PanelTransition>
+        <View fallback={<CardGridSkeleton />}>
           <CronJobsList />
-        </PanelTransition>
+        </View>
       );
     if (idOrAction === "new")
       return (
-        <PanelTransition>
+        <View>
           <CronJobNew />
-        </PanelTransition>
+        </View>
       );
     if (subAction === "delete")
       return (
-        <PanelTransition>
+        <View fallback={<DeleteSkeleton />}>
           <EntityDelete entityType="cron_jobs" />
-        </PanelTransition>
+        </View>
       );
     if (subAction === "review" && parts[3])
       return (
-        <PanelTransition>
+        <View fallback={<TallPanelSkeleton />}>
           <ImportDraftReview />
-        </PanelTransition>
+        </View>
       );
     return (
-      <PanelTransition>
+      <View fallback={<PanelsSkeleton />}>
         <CronJobEdit />
-      </PanelTransition>
+      </View>
     );
   }
 
   // Route: /:game/raw/:type/:id
   if (entity === "raw")
     return (
-      <PanelTransition>
+      <View fallback={<RawEditSkeleton />}>
         <RawEdit />
-      </PanelTransition>
+      </View>
     );
 
   // Route: /:game/screens/:id
   if (entity === "screens") {
     if (!idOrAction) {
       return (
-        <PanelTransition>
+        <View fallback={<ScreensListSkeleton />}>
           <ScreensList />
-        </PanelTransition>
+        </View>
       );
     }
     return (
-      <PanelTransition>
+      <View fallback={<ScreenEditSkeleton />}>
         <ScreenEdit />
-      </PanelTransition>
+      </View>
     );
   }
 
-  const renderContent = () => {
+  // A view, and the placeholder it shows while loading.
+  const renderContent = (): [ReactNode, ReactNode] => {
     switch (entity) {
       case "heroes":
-        if (!idOrAction) return <HeroesList />;
-        if (idOrAction === "new") return <HeroNew />;
-        if (subAction === "delete") return <EntityDelete entityType="heroes" />;
-        return <HeroEdit />;
+        if (!idOrAction) return [<HeroesList />, <EntityListSkeleton {...LIST_SKELETONS.heroes} />];
+        if (idOrAction === "new") return [<HeroNew />, <SplitFormSkeleton />];
+        if (subAction === "delete") return [<EntityDelete entityType="heroes" />, <DeleteSkeleton />];
+        return [<HeroEdit />, <SplitFormSkeleton />];
 
       case "maps":
-        if (!idOrAction) return <MapsList />;
-        if (idOrAction === "new") return <MapNew />;
-        if (subAction === "delete") return <EntityDelete entityType="maps" />;
-        return <MapEdit />;
+        if (!idOrAction) return [<MapsList />, <EntityListSkeleton {...LIST_SKELETONS.maps} />];
+        if (idOrAction === "new") return [<MapNew />, <FieldsFormSkeleton />];
+        if (subAction === "delete") return [<EntityDelete entityType="maps" />, <DeleteSkeleton />];
+        return [<MapEdit />, <FieldsFormSkeleton />];
 
       case "modes":
-        if (!idOrAction) return <ModesList />;
-        if (idOrAction === "new") return <ModeNew />;
-        if (subAction === "delete") return <EntityDelete entityType="modes" />;
-        return <ModeEdit />;
+        if (!idOrAction) return [<ModesList />, <EntityListSkeleton {...LIST_SKELETONS.modes} />];
+        if (idOrAction === "new") return [<ModeNew />, <SplitFormSkeleton />];
+        if (subAction === "delete") return [<EntityDelete entityType="modes" />, <DeleteSkeleton />];
+        return [<ModeEdit />, <SplitFormSkeleton />];
 
       case "enums":
-        if (!idOrAction) return <EnumsList />;
-        if (idOrAction === "new") return <EnumNew />;
-        if (subAction === "delete") return <EntityDelete entityType="enums" />;
-        return <EnumEdit />;
+        if (!idOrAction) return [<EnumsList />, <EntityListSkeleton {...LIST_SKELETONS.enums} />];
+        if (idOrAction === "new") return [<EnumNew />, null];
+        if (subAction === "delete") return [<EntityDelete entityType="enums" />, <DeleteSkeleton />];
+        return [<EnumEdit />, <EnumFormSkeleton />];
 
       default:
-        return (
+        return [
           <div className="flex flex-col items-center justify-center py-24 text-ink-muted">
             <p>Select a category from the sidebar to manage {params.game}.</p>
-          </div>
-        );
+          </div>,
+          null,
+        ];
     }
   };
 
-  return <PanelTransition>{renderContent()}</PanelTransition>;
+  const [content, fallback] = renderContent();
+  return <View fallback={fallback}>{content}</View>;
 }

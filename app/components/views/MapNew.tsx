@@ -21,6 +21,7 @@ import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer"
 
 import type { Control, UseFormSetValue, FieldValues } from "react-hook-form";
 import { slugify } from "~/lib/slug";
+import { FieldsFormSkeleton } from "~/components/views/ViewSkeletons";
 function AutoGenerateId({ control, setValue }: { control: Control<FieldValues>, setValue: UseFormSetValue<FieldValues> }) {
   const nameValue = useWatch({ control, name: "name" });
   
@@ -117,16 +118,7 @@ export default function NewMap() {
   };
 
   if (loading) {
-    return (
-      <div className="w-full space-y-6 animate-pulse motion-reduce:animate-none">
-        <div className="h-10 w-48 bg-border rounded-lg"></div>
-        <div className="space-y-4 bg-surface p-6 rounded-xl border border-border">
-          <div className="h-12 bg-border rounded-lg"></div>
-          <div className="h-12 bg-border rounded-lg"></div>
-          <div className="h-12 bg-border rounded-lg"></div>
-        </div>
-      </div>
-    );
+    return <FieldsFormSkeleton />;
   }
 
   if (fetchError)

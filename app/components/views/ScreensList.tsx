@@ -24,6 +24,7 @@ import {
   type ScreenType,
 } from "~/lib/screen-model";
 import { useCategories } from "~/lib/categories-context";
+import { ScreensListSkeleton } from "~/components/views/ViewSkeletons";
 
 const iconButtonClass =
   "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-40 pointer-coarse:size-11";
@@ -99,12 +100,7 @@ export default function ScreensList() {
   };
 
   if (loading && !data) {
-    return (
-      <div className="space-y-4 py-8" aria-busy="true">
-        <div className="h-9 w-64 animate-pulse rounded-lg bg-border motion-reduce:animate-none" />
-        <div className="h-40 animate-pulse rounded-xl bg-border motion-reduce:animate-none" />
-      </div>
-    );
+    return <ScreensListSkeleton />;
   }
   if (error || !data) {
     return <LoadErrorState title="Couldn't load app screens" error={error ?? new Error("No data returned.")} onBack={() => window.history.back()} />;

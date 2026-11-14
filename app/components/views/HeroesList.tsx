@@ -1,13 +1,14 @@
 import { Link, useParams } from "react-router";
 import { useEntityList } from "~/lib/use-entity-list";
 import { DataTable, type Column } from "~/components/DataTable";
-import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
+import { EntityListSkeleton, LIST_SKELETONS } from "~/components/views/ViewSkeletons";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus, Copy } from "lucide-react";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { useToast } from "~/components/ToastProvider";
-import { listFolders } from "~/lib/github";
+import { listDirectory, listFolders } from "~/lib/github";
+import { copyText } from "~/lib/clipboard";
 import { useData } from "~/lib/use-data";
 import { useCategories } from "~/lib/categories-context";
 import { cellText, fieldOf, keyColumns, schemaColumns, schemaForRecord, type ColumnSchema } from "~/lib/record-columns";
@@ -20,7 +21,7 @@ interface HeroRow {
   tags?: string[];
 }
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 /** Keys the list shows otherwise, or that are too long for a cell, when the heroes' schema can't be read. */
 const EXCLUDE = ["id", "name", "game", "kit", "weapon", "abilities", "schema_id", "real_name", "bio", "portrait"];
@@ -70,13 +71,28 @@ const baseColumns: Column<any>[] = [
 
 export default function HeroesIndex() {
   const { game } = useParams();
-  const { success } = useToast();
+  const { success, error: toastError } = useToast();
   assertSafeGameSlug(game!);
+  // What the list shows of each hero (shape=summary): its lists of abilities,
+  // perks and the like are most of a filled-in hero, and no cell shows them.
   const {
     data: heroes,
     loading,
     error,
-  } = useEntityList<HeroRow>(game!, "heroes");
+  } = useEntityList<HeroRow>(game!, "heroes", "summary");
+  const [copying, setCopying] = useState(false);
+  // The list holds summaries, so "Copy JSON" reads the whole heroes when clicked.
+  const copyHeroes = async () => {
+    setCopying(true);
+    try {
+      await copyText(listDirectory<unknown>(game!, "heroes", true).then((all) => JSON.stringify(all.filter(Boolean), null, 2)));
+      success("Heroes JSON copied to clipboard!");
+    } catch {
+      toastError("The heroes' JSON couldn't be copied. Try again.");
+    } finally {
+      setCopying(false);
+    }
+  };
 
   // The hero schemas and the game's enums, in one request (data/folders): the
   // columns are the schema's, and enum values show by name, as in the app.
@@ -124,7 +140,7 @@ export default function HeroesIndex() {
       />
     );
 
-  if (loading) return <EntityListSkeleton columns={6} rows={8} />;
+  if (loading) return <EntityListSkeleton {...LIST_SKELETONS.heroes} />;
 
   return (
     <div className="space-y-8">
@@ -141,12 +157,8 @@ export default function HeroesIndex() {
           <Button
             variant="outline"
             className="gap-2"
-            onClick={() => {
-              if (heroes) {
-                navigator.clipboard.writeText(JSON.stringify(heroes, null, 2));
-                success("Heroes JSON copied to clipboard!");
-              }
-            }}
+            disabled={copying}
+            onClick={copyHeroes}
           >
             <Copy className="w-4 h-4" />
             Copy JSON

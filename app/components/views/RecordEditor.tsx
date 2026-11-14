@@ -17,6 +17,7 @@ import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useCategories } from "~/lib/categories-context";
 import { useData } from "~/lib/use-data";
 import type { DynamicSchemaFile } from "~/schemas/dynamic-schema";
+import { TallPanelSkeleton } from "~/components/views/ViewSkeletons";
 
 /**
  * Creates a record, or edits one (/:game/{folder}/:id), of a category without
@@ -38,12 +39,7 @@ export default function RecordEditor({ category, noun, icon }: { category: strin
   }, [game, category, id], "RecordEditor");
 
   if (loading) {
-    return (
-      <div className="w-full py-8 space-y-6 animate-pulse motion-reduce:animate-none">
-        <div className="h-10 w-64 bg-border rounded-lg"></div>
-        <div className="h-96 bg-border rounded-xl"></div>
-      </div>
-    );
+    return <TallPanelSkeleton />;
   }
   if (error) return <LoadErrorState title={`Can't Open This ${noun}`} error={error} onBack={() => navigate(`/${game}/${folder}`)} />;
   if (!data) return null;

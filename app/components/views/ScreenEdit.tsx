@@ -7,7 +7,7 @@ import { Button } from "~/components/ui/button";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { BlockPreview, type PreviewContext } from "~/components/layout-editor/BlockPreview";
 import { PropControl, SourceInput, inputBaseClass, inputClass, type PropContext } from "~/components/layout-editor/PropControl";
-import { getFile, isConflictError, listDirectory, listGames, updateFile } from "~/lib/github";
+import { getFile, isConflictError, listDirectory, listGames, listSummaries, updateFile } from "~/lib/github";
 import { enumOptions as optionsOf } from "~/lib/enum-options";
 import { APP_POLICY, MANIFEST_PATH, appPolicy, validateScreenFile } from "~/lib/screen-policy";
 import { useData } from "~/lib/use-data";
@@ -25,6 +25,7 @@ import {
   isBinding,
   itemFieldsFor,
   normalizeManifest,
+  normalizeSource,
   previewRecords,
   readScreen,
   recordLabel,
@@ -39,6 +40,7 @@ import {
   type ScreenFile,
   type ScreenIssue,
 } from "~/lib/screen-model";
+import { ScreenEditSkeleton } from "~/components/views/ViewSkeletons";
 
 interface EnumFile {
   id: string;
@@ -122,10 +124,17 @@ export default function ScreenEdit() {
       ]);
       if (!file) throw new Error(`Screen "${id}" was not found in data/${game}/screens.`);
       const categories = [...new Set(schemas.map((s) => s.category))];
+      // The screen's own category whole (a detail screen shows a record in
+      // full); the others as their lists show them (shape=summary), which is
+      // all their labels and list previews read, and spares the page the
+      // bulk of every other category's records.
+      const wholeCategory = normalizeSource((file.content as { source?: unknown } | null)?.source)?.category;
       const recordLists = await Promise.all(
         categories.map(async (category) => {
           const folder = folderFor(category, configured);
-          const records = folder ? await listDirectory<Record<string, unknown>>(game!, folder, true).catch(() => []) : [];
+          const load = (folder: string) =>
+            category === wholeCategory ? listDirectory<Record<string, unknown>>(game!, folder, true) : listSummaries<Record<string, unknown>>(game!, folder);
+          const records = folder ? await load(folder).catch(() => []) : [];
           return [category, Array.isArray(records) ? records : []] as const;
         }),
       );
@@ -141,6 +150,7 @@ export default function ScreenEdit() {
         // The app's limits and own screens; today's when the manifest has none.
         policy: appPolicy(manifestFile?.content),
         records: Object.fromEntries(recordLists) as Record<string, Record<string, unknown>[]>,
+        wholeCategory,
         game: games.find((g) => g.slug === game) as Record<string, unknown> | undefined,
       };
     },
@@ -183,16 +193,31 @@ export default function ScreenEdit() {
   const schemas = loaded?.schemas ?? [];
   const icons = useMemo(() => iconOptions(manifest), [manifest]);
   const policy = loaded?.policy;
+
+  // A screen moved to another category while it's edited shows that
+  // category's records whole too, once they're read; summaries until then.
+  const sourceCategory = screen?.source?.category;
+  const otherWholeFolder = loaded && sourceCategory && sourceCategory !== loaded.wholeCategory ? folderFor(sourceCategory, configured) : null;
+  const { data: otherWhole } = useData(
+    async () => (otherWholeFolder ? listDirectory<Record<string, unknown>>(game!, otherWholeFolder, true).catch(() => null) : null),
+    [game, otherWholeFolder],
+    `${game}-screen-whole-records`,
+  );
+  const records = useMemo<Record<string, Record<string, unknown>[]>>(() => {
+    const read = loaded?.records ?? {};
+    return sourceCategory && otherWholeFolder && Array.isArray(otherWhole) ? { ...read, [sourceCategory]: otherWhole } : read;
+  }, [loaded, sourceCategory, otherWholeFolder, otherWhole]);
+
   // What the app lists for a source: its schema's records, sorted, and capped at its list size.
   const recordsFor = useCallback(
     (source: RecordSource | undefined) =>
       source && loaded
-        ? previewRecords(loaded.records[source.category] ?? [], source, loaded.schemas.filter((s) => s.category === source.category), loaded.policy.limits)
+        ? previewRecords(records[source.category] ?? [], source, loaded.schemas.filter((s) => s.category === source.category), loaded.policy.limits)
         : [],
-    [loaded],
+    [loaded, records],
   );
 
-  const detailRecords = screen?.type === "detail" && screen.source ? loaded?.records[screen.source.category] ?? [] : [];
+  const detailRecords = screen?.type === "detail" && screen.source ? records[screen.source.category] ?? [] : [];
   const sample = detailRecords[Math.min(sampleIndex, detailRecords.length - 1)] ?? null;
 
   const dataFields: FieldOption[] = useMemo(() => {
@@ -202,7 +227,7 @@ export default function ScreenEdit() {
     return screen.source ? [...sourceFields(schemas, screen.source), ...fields] : fields;
   }, [screen, schemas, detailRecords, configured]);
 
-  const homeData = useMemo(() => appHomeData(loaded?.game, loaded?.records ?? {}, configured), [loaded, configured]);
+  const homeData = useMemo(() => appHomeData(loaded?.game, records, configured), [loaded, records, configured]);
 
   // An enum field's options as the app reads them, descriptions and params included (field_section shows them).
   const enumOptions = useCallback(
@@ -214,7 +239,7 @@ export default function ScreenEdit() {
     [loaded],
   );
 
-  const recordsOf = useCallback((category: string) => loaded?.records[category] ?? [], [loaded]);
+  const recordsOf = useCallback((category: string) => records[category] ?? [], [records]);
   const issues = useMemo(
     () =>
       screen && policy
@@ -240,8 +265,8 @@ export default function ScreenEdit() {
       if (!folder || !category || !referenceFoldersShown.includes(folder)) return undefined;
       let found = built.get(field);
       if (!found) {
-        const records = loaded?.records[category] ?? [];
-        found = { labels: referenceLabels(records, field), records: referenceRecords(records, field) };
+        const shown = records[category] ?? [];
+        found = { labels: referenceLabels(shown, field), records: referenceRecords(shown, field) };
         built.set(field, found);
       }
       const label = found.labels.get(id);
@@ -251,7 +276,7 @@ export default function ScreenEdit() {
       const linked = typeof target === "string" && target !== "" && !!detailScreenFor([...(loaded?.otherScreens ?? []), screen], category);
       return { label, linked };
     };
-  }, [configured, referenceFoldersShown, loaded, screen]);
+  }, [configured, referenceFoldersShown, loaded, records, screen]);
   const visibleIssues = (list: ScreenIssue[]) => list.filter((i) => attemptedSave || i.kind !== "required");
   const jsonErrorList = Object.entries(jsonErrors);
   // The same structural check the write API runs, so a save never fails there unexpectedly.
@@ -413,20 +438,7 @@ export default function ScreenEdit() {
   }, []);
 
   if (loading && !loaded) {
-    return (
-      <div className="w-full space-y-6 py-8" aria-busy="true">
-        <div className="h-4 w-28 rounded bg-border" />
-        <div className="h-9 w-80 max-w-full animate-pulse rounded-lg bg-border motion-reduce:animate-none" />
-        <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_375px]">
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-14 animate-pulse rounded-xl bg-border motion-reduce:animate-none" />
-            ))}
-          </div>
-          <div className="hidden h-[640px] animate-pulse rounded-2xl bg-border motion-reduce:animate-none xl:block" />
-        </div>
-      </div>
-    );
+    return <ScreenEditSkeleton />;
   }
 
   if (loadError || !loaded || !screen) {

@@ -3,6 +3,7 @@ import { CATEGORIES_PATH, DEFAULT_CATEGORIES, appCategory, normalizeCategories, 
 import { isGameActive } from "./games";
 import { decodeUtf8Base64 } from "./utf8-base64";
 import { GraphqlUnavailable, SYMLINK_MODE, readObjects, usableText, type GraphqlObject } from "./github-graphql";
+import { octokitHeaders, readRepoTree } from "./github-tree";
 
 // Reading the data repo for /mobile/init and /mobile/data. Files are edited by
 // hand as well as by the admin, and GitHub can fail a request now and then, so
@@ -25,7 +26,7 @@ export interface RepoReader {
   /** A file's text; rejects with a `status` of 404 when it doesn't exist. */
   read(path: string): Promise<string>;
   /** The git blob hash of every file under public/assets, by its path below that folder. */
-  assets(): Promise<Map<string, string>>;
+  assets(): Promise<AssetHashes>;
   /**
    * The .json files of several folders, and several files, in one request
    * (GitHub GraphQL): null for one that doesn't exist; a file without text is
@@ -33,6 +34,16 @@ export interface RepoReader {
    * then list() and read() do it all.
    */
   readMany?(folders: string[], files: string[]): Promise<{ folders: (FileText[] | null)[]; files: (FileText | null)[] }>;
+}
+
+/**
+ * The pictures' hashes, and whether GitHub cut the tree short: the pictures
+ * it left out then go out unversioned, as they always did, but such a list
+ * is never kept for later builds.
+ */
+export interface AssetHashes {
+  hashes: Map<string, string>;
+  truncated: boolean;
 }
 
 /** A file and, when it came with it, its text. */
@@ -182,17 +193,20 @@ function assetFile(value: string): string | undefined {
   }
 }
 
+/** A string with its picture's version when it is exactly the path of a picture in `hashes`. */
+function versionString(value: string, hashes: Map<string, string>): string {
+  const file = assetFile(value);
+  const hash = file === undefined ? undefined : hashes.get(file);
+  return hash ? `${value}?v=${hash.slice(0, VERSION_LENGTH)}` : value;
+}
+
 /**
  * `value` with every string that is exactly the path of a picture in `hashes`
  * given that picture's version. Other strings, including text that merely
  * mentions a path, unknown paths and other sites' URLs, are left as they are.
  */
 export function versionAssets<T>(value: T, hashes: Map<string, string>): T {
-  if (typeof value === "string") {
-    const file = assetFile(value);
-    const hash = file === undefined ? undefined : hashes.get(file);
-    return (hash ? `${value}?v=${hash.slice(0, VERSION_LENGTH)}` : value) as T;
-  }
+  if (typeof value === "string") return versionString(value, hashes) as T;
   if (Array.isArray(value)) return value.map((entry) => versionAssets(entry, hashes)) as T;
   if (value && typeof value === "object") {
     return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, versionAssets(entry, hashes)])) as T;
@@ -200,14 +214,93 @@ export function versionAssets<T>(value: T, hashes: Map<string, string>): T {
   return value;
 }
 
-/** The asset hashes, or none (pictures then go out unversioned) and a partial payload when they can't be read. */
-async function assetHashes(reader: RepoReader): Promise<{ hashes: Map<string, string>; partial: boolean }> {
+/**
+ * versionAssets done in place, for a payload the build has just parsed and
+ * owns: the same rule for each string, without copying every object and
+ * list. On 80 filled heroes the copies cost 3.3 ms of workerd's CPU; this
+ * costs 0.6 ms.
+ */
+export function versionAssetsInPlace(value: unknown, hashes: Map<string, string>): void {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const entry: unknown = value[i];
+      if (typeof entry === "string") {
+        if (mayBeAsset(entry)) value[i] = versionString(entry, hashes);
+      } else if (entry && typeof entry === "object") versionAssetsInPlace(entry, hashes);
+    }
+  } else if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    // A parsed record has only its own keys: for…in reads them without a list of them.
+    for (const key in record) {
+      const entry = record[key];
+      if (typeof entry === "string") {
+        if (mayBeAsset(entry)) record[key] = versionString(entry, hashes);
+      } else if (entry && typeof entry === "object") versionAssetsInPlace(entry, hashes);
+    }
+  }
+}
+
+/** Whether a string can start "/api/assets/" or "assets/": most of a record's text can't, and is passed over at once. */
+const mayBeAsset = (value: string) => {
+  const first = value.charCodeAt(0);
+  return first === 47 || first === 97;
+};
+
+/**
+ * Where a data center keeps the picture hashes it read, for the next builds
+ * under the same assets version (the init payload and every folder's share
+ * them): a cold build then skips the tree, one GitHub request and its parse.
+ */
+export interface AssetHashesMemo {
+  cache: { match(request: Request): Promise<Response | undefined>; put(request: Request, response: Response): Promise<void> };
+  /** The assets version the payload is built under (mobile-cache-version.ts); null when KV couldn't say. */
+  version: string | null;
+}
+
+/**
+ * How long the kept hashes are used. A save through the admin, or a push the
+ * webhook sees, moves the assets version and so leaves them behind at once;
+ * a picture pushed with neither would otherwise keep its old version until
+ * the next such save. An hour bounds that, and still covers the bursts of
+ * cold builds a save sets off.
+ */
+const ASSET_HASHES_MEMO_SECONDS = 3600;
+
+const assetHashesKey = (version: string) => new Request(`https://api.internal/mobile/asset-hashes?a=${encodeURIComponent(version)}`);
+
+/** The kept hashes are [path, hash] pairs: cheaper to write and read than an object keyed by 1,600 paths. */
+const isPairList = (value: unknown): value is [string, string][] =>
+  Array.isArray(value) && value.every((pair) => Array.isArray(pair) && pair.length === 2 && typeof pair[0] === "string" && typeof pair[1] === "string");
+
+/**
+ * The asset hashes, or none (pictures then go out unversioned) and a partial
+ * payload when they can't be read. With a memo, those kept under the same
+ * assets version are used; only a complete read is kept, and nothing is kept
+ * or used while the version is unknown.
+ */
+async function assetHashes(reader: RepoReader, memo?: AssetHashesMemo): Promise<{ hashes: Map<string, string>; partial: boolean }> {
+  const key = memo && memo.version !== null ? assetHashesKey(memo.version) : null;
+  if (memo && key) {
+    const kept = await memo.cache.match(key).catch(() => undefined);
+    const pairs: unknown = kept ? await kept.json().catch(() => undefined) : undefined;
+    if (isPairList(pairs)) return { hashes: new Map(pairs), partial: false };
+  }
+  let read: AssetHashes;
   try {
-    return { hashes: await reader.assets(), partial: false };
+    read = await reader.assets();
   } catch (err) {
     console.error("Couldn't read the asset hashes:", err);
     return { hashes: new Map(), partial: true };
   }
+  if (memo && key && !read.truncated) {
+    // Only the part of each hash a URL carries, so the kept list stays small.
+    const pairs = Array.from(read.hashes, ([path, hash]) => [path, hash.slice(0, VERSION_LENGTH)]);
+    const entry = new Response(JSON.stringify(pairs), {
+      headers: { "Content-Type": "application/json", "Cache-Control": `max-age=${ASSET_HASHES_MEMO_SECONDS}` },
+    });
+    await memo.cache.put(key, entry).catch((err) => console.error("Picture hashes memo failed:", err));
+  }
+  return { hashes: read.hashes, partial: false };
 }
 
 const GAMES_PATH = "data/_meta/games.json";
@@ -229,11 +322,13 @@ function activeGamesIn(text: string): { games: GameEntry[]; ids: string[] } {
  * The /mobile/init payload: active games with their schemas, enums, screens
  * and navigation. `leftOut` counts the files left out (the picture versions as
  * one), the app's X-Incomplete; `games`, the ids of the games it lists.
+ * `assetsMemo`: where the picture hashes are kept between builds.
  */
 export async function buildInitPayload(
   reader: RepoReader,
+  assetsMemo?: AssetHashesMemo,
 ): Promise<{ payload: Record<string, unknown>; partial: boolean; leftOut: number; games: string[] }> {
-  const assets = assetHashes(reader);
+  const assets = assetHashes(reader, assetsMemo);
   // games.json; without it there is nothing to show.
   const { games: activeGames, ids } = activeGamesIn(await reader.read(GAMES_PATH));
   // Every game's folders and navigation, and the categories, in one request when the reader can.
@@ -276,20 +371,19 @@ export async function buildInitPayload(
 
   const { hashes, partial: noHashes } = await assets;
   const { content: categories, partial: noCategories } = await categoriesFile;
-  const payload = versionAssets(
-    {
-      games: activeGames,
-      // The app has no use for the admin's notify settings.
-      categories: (categories === null ? [...DEFAULT_CATEGORIES] : normalizeCategories(categories).categories).map(appCategory),
-      schemas,
-      enums,
-      screens,
-      navigation,
-      // App builds from before screens require this key; layouts are no longer served.
-      layouts: {},
-    },
-    hashes,
-  );
+  const payload = {
+    games: activeGames,
+    // The app has no use for the admin's notify settings.
+    categories: (categories === null ? [...DEFAULT_CATEGORIES] : normalizeCategories(categories).categories).map(appCategory),
+    schemas,
+    enums,
+    screens,
+    navigation,
+    // App builds from before screens require this key; layouts are no longer served.
+    layouts: {},
+  };
+  // Everything in it was parsed or made by this build (appCategory copies), so it is versioned in place.
+  versionAssetsInPlace(payload, hashes);
   leftOut += (noHashes ? 1 : 0) + (noCategories ? 1 : 0);
   return { payload, partial: leftOut > 0, leftOut, games: ids };
 }
@@ -357,18 +451,27 @@ export async function activeGames(
 /**
  * The /mobile/data payload: the records of one folder. `leftOut` counts the
  * files left out (the picture versions as one), the app's X-Incomplete.
+ * `assetsMemo`: where the picture hashes are kept between builds.
  */
-export async function buildDataPayload(reader: RepoReader, dir: string): Promise<{ payload: unknown[]; partial: boolean; leftOut: number }> {
-  const [{ files, unread }, { hashes, partial: noHashes }] = await Promise.all([readJsonFolderCounted(reader, dir), assetHashes(reader)]);
+export async function buildDataPayload(
+  reader: RepoReader,
+  dir: string,
+  assetsMemo?: AssetHashesMemo,
+): Promise<{ payload: unknown[]; partial: boolean; leftOut: number }> {
+  const [{ files, unread }, { hashes, partial: noHashes }] = await Promise.all([readJsonFolderCounted(reader, dir), assetHashes(reader, assetsMemo)]);
   const leftOut = unread + (noHashes ? 1 : 0);
-  return { payload: versionAssets(files.map((f) => f.content), hashes), partial: leftOut > 0, leftOut };
+  // The records were parsed for this build alone, so they are versioned in place.
+  const payload = files.map((f) => f.content);
+  versionAssetsInPlace(payload, hashes);
+  return { payload, partial: leftOut > 0, leftOut };
 }
 
 /**
  * A RepoReader over the GitHub contents API; with `graphql` (the token), it
  * reads folders through GraphQL too (readMany). After GraphQL fails once, the
  * reader uses REST alone, so a token that can't use it costs one request per
- * reader (one per Function invocation), and one line in the log.
+ * reader (one per Function invocation), and one line in the log. With the
+ * token it also reads the repo tree without Octokit's parse (github-tree.ts).
  */
 export function githubReader(octokit: Octokit, owner: string, repo: string, ref: string, graphql?: { token: string; fetcher?: typeof fetch }): RepoReader {
   let graphqlDown = false;
@@ -415,12 +518,17 @@ export function githubReader(octokit: Octokit, owner: string, repo: string, ref:
     },
     async assets() {
       // One call for the whole tree; blob hashes are git's content hashes.
-      const { data } = await octokit.git.getTree({ owner, repo, tree_sha: ref, recursive: "true" });
+      // Without the token at hand (a reader made for REST reads only), Octokit reads it.
+      const data = graphql
+        ? await readRepoTree({ token: graphql.token, owner, repo, fetcher: graphql.fetcher, headers: octokitHeaders(octokit) }, ref)
+        : (await octokit.git.getTree({ owner, repo, tree_sha: ref, recursive: "true" })).data;
       if (data.truncated) console.error("The repo tree is truncated: some pictures go out without a version.");
       const prefix = "public/assets/";
-      return new Map(
-        data.tree.filter((entry) => entry.type === "blob" && entry.path?.startsWith(prefix) && entry.sha).map((entry) => [entry.path!.slice(prefix.length), entry.sha!]),
-      );
+      const hashes = new Map<string, string>();
+      for (const entry of data.tree) {
+        if (entry.type === "blob" && entry.path?.startsWith(prefix) && entry.sha) hashes.set(entry.path.slice(prefix.length), entry.sha);
+      }
+      return { hashes, truncated: data.truncated };
     },
   };
 }

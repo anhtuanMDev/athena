@@ -11,6 +11,7 @@ import { useToast } from "~/components/ToastProvider";
 import { getCategoryDirectory, type SchemaCategory } from "~/schemas/dynamic-schema";
 import { useCategories } from "~/lib/categories-context";
 import { deletionPlan, dependents, recordAssetDir, scanRecords, type DeletionPlan, type Listing } from "~/lib/record-assets";
+import { DeleteSkeleton } from "~/components/views/ViewSkeletons";
 
 interface EntityBase {
   id: string;
@@ -154,11 +155,7 @@ export default function EntityDelete({ entityType }: { entityType: string }) {
   }
 
   if (loading) {
-    return (
-      <div className="max-w-md mx-auto py-12 animate-pulse motion-reduce:animate-none">
-        <div className="h-64 bg-border rounded-xl"></div>
-      </div>
-    );
+    return <DeleteSkeleton />;
   }
   
   if (!data?.fileData) {
