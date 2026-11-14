@@ -98,7 +98,11 @@ export async function signJwt(account: ServiceAccount, audience: string, nowMs: 
   return `${unsigned}.${base64url(new Uint8Array(signature))}`;
 }
 
-/** The FCM v1 send body. Data values are strings: zms opens the record from them. */
+/**
+ * The FCM v1 send body. Data values are strings: zms opens the record from
+ * them. iOS plays no sound for a push that doesn't name one, so the APNs part
+ * asks for the default; on Android the app's channel decides.
+ */
 export function fcmMessage(notification: { title: string; body: string }, data: PushData) {
   return {
     message: {
@@ -106,6 +110,7 @@ export function fcmMessage(notification: { title: string; body: string }, data: 
       notification: notification.body ? { title: notification.title, body: notification.body } : { title: notification.title },
       data: { game: data.game, category: data.category, folder: data.folder, id: data.id },
       android: { notification: { channel_id: ANDROID_CHANNEL_ID } },
+      apns: { payload: { aps: { sound: "default" } } },
     },
   };
 }

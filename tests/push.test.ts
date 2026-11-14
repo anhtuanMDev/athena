@@ -322,8 +322,11 @@ describe("the push", () => {
         notification: { title: "T", body: "B" },
         data: { game: "overwatch", category: "news", folder: "news", id: "season-21" },
         android: { notification: { channel_id: "default" } },
+        apns: { payload: { aps: { sound: "default" } } },
       },
     });
+    // iOS plays no sound for a push that doesn't name one; Android's channel has its own.
+    assert.equal(message.message.apns.payload.aps.sound, "default");
     assert.equal(PUSH_TOPIC, "all_users");
     assert.equal(ANDROID_CHANNEL_ID, "default");
     // FCM refuses these data keys.
