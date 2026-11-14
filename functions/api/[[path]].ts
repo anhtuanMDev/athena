@@ -22,7 +22,7 @@ import {
   publishDraft,
   runImport,
 } from "../../app/lib/importer/run";
-import { CATEGORIES_PATH, DEFAULT_CATEGORIES, needsCategories, readCategories } from "../../app/lib/categories";
+import { CATEGORIES_PATH, DEFAULT_CATEGORIES, readCategories, readsCategories } from "../../app/lib/categories";
 import { githubReader, readJsonFolderCounted, readJsonTogether, type RepoReader } from "../../app/lib/mobile-payload";
 import { GraphqlUnavailable, graphqlStatus } from "../../app/lib/github-graphql";
 import { templateFieldsByCategory } from "../../app/lib/notify-template";
@@ -465,8 +465,8 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
     const problem = pictureProblem(body.path, body.content);
     if (problem) return json({ error: problem.error }, problem.status);
   }
-  // A schema's references must name configured categories, which only then need reading.
-  const categories = needsCategories(body.path)
+  // A schema's references and a screen's sources must name configured categories, which only then need reading.
+  const categories = readsCategories(body.path)
     ? await readCategories((path) => githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH ?? "main").read(path))
     : DEFAULT_CATEGORIES;
   // Screens and navigation drive the mobile app; reject unsafe or unreadable ones
@@ -896,6 +896,9 @@ async function handlePushStatus(context: PagesFunctionContext): Promise<Response
   return json({ configured }, 200, { "Cache-Control": "no-store" });
 }
 
+/** A JSON object: not null, not a list. */
+const isJsonObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+
 async function handleListDirectory(
   context: PagesFunctionContext,
 ): Promise<Response> {
@@ -935,7 +938,10 @@ async function handleListDirectory(
       // One GitHub request for the whole folder when the token can use GraphQL
       // (mobile-payload.ts readJsonTogether), else one per file, as before.
       const { files, unread } = await readJsonFolderCounted(dataReader(env), dir);
-      const payload = files.map((file) => shown(file.content)).filter(Boolean);
+      // A screen's id is its file's name, as /mobile/init gives it: the screen
+      // editor needs every screen's to check where actions lead.
+      const named = (file: { name: string; content: unknown }) => (subpath === "screens" && isJsonObject(file.content) ? { ...file.content, id: file.name } : file.content);
+      const payload = files.map((file) => shown(named(file))).filter(Boolean);
       // Records that couldn't be read are left out; X-Incomplete says how many, so a
       // check that must see them all (the delete page's) knows it didn't.
       const left = unread + files.length - payload.length;

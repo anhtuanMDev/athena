@@ -73,7 +73,8 @@ describe("saving an edited record", () => {
   it("keeps a game's banner when the Games editor saves it, and drops a light palette the form emptied", () => {
     const stored = { slug: "overwatch", name: "Overwatch 2", active: true, banner: "/api/assets/games/ow-banner.png", primary: "#F99E1A", light: { primary: "#000000" } };
     // The Games editor parses its own fields only; an emptied light palette is left out (lightToSave).
-    const edited = GameSchema.parse({ slug: "overwatch", name: "Overwatch 2", active: true, primary: "#FFFFFF" });
+    const dark = JSON.parse(readFileSync(new URL("./fixtures/palette-cases.json", import.meta.url), "utf8")).dark;
+    const edited = GameSchema.parse({ slug: "overwatch", name: "Overwatch 2", developer: "", active: true, ...dark, primary: "#FFFFFF" });
     const saved = keepUnknownKeys(stored, edited, GameSchema);
     assert.equal(saved.banner, "/api/assets/games/ow-banner.png");
     assert.equal(saved.primary, "#FFFFFF");

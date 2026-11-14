@@ -3,11 +3,21 @@
 // The admin's editor checks this to warn early, and the write API
 // (functions/api) checks it again so a tampered client can't save past it.
 // The mobile app enforces its own copy of the link policy
-// (zms: src/content/policy.ts) — keep LINK_HOSTS in sync.
+// (zms: src/content/policy.ts) — keep LINK_HOSTS in sync. Ids, colors and
+// picture hosts are the contract's (contract.ts); what a screen holds that the
+// app won't show is screen-content-rules.ts', records and games.json are
+// data-file-rules.ts'.
 
-import { CATEGORIES_PATH, DEFAULT_CATEGORIES, needsCategories, normalizeCategories, referenceEndpoints, type Category } from "./categories";
+import { manifestPictureProblems, manifestPictures } from "./app-pictures";
+import { CATEGORIES_PATH, DEFAULT_CATEGORIES, SCREEN_FILE, needsCategories, normalizeCategories, referenceEndpoints, type Category } from "./categories";
+import { BOUND_LINK, IMAGE_HOSTS, IMAGE_VARIANTS, SCREEN_ID } from "./contract";
+import { dataFileProblems } from "./data-file-rules";
 import { notifyTemplateProblems } from "./notify-template";
+import { accentProblems, blockContentProblems, homeDataCategories, screenSourceProblems } from "./screen-content-rules";
+import { httpsHost } from "./url-host";
 import { decodeUtf8Base64 } from "./utf8-base64";
+
+import type { BlockContentCheck, ScreenCategories } from "./screen-content-rules";
 
 export const LINK_HOSTS = [
   "playoverwatch.com",
@@ -46,6 +56,10 @@ export interface AppPolicy {
   limits: AppLimits;
   /** Screens the app provides itself, which tabs and actions may open (zms model.ts APP_SCREENS). */
   appScreens: string[];
+  /** Hosts the app loads pictures from besides the API's own /api/assets (zms policy.ts IMAGE_HOSTS). */
+  imageHosts: string[];
+  /** The variant a map of pictures ({ "main": …, "2d": … }) shows: the first of these it has (zms model.ts imageOf). */
+  imageVariants: string[];
 }
 
 /**
@@ -56,31 +70,22 @@ export interface AppPolicy {
 export const APP_POLICY: AppPolicy = {
   limits: { screensPerGame: 50, blocksPerScreen: 60, tabs: 5, listItems: 100, smallList: 12, text: 2000, routeStops: 6 },
   appScreens: ["app:settings"],
+  imageHosts: [...IMAGE_HOSTS],
+  imageVariants: [...IMAGE_VARIANTS],
 };
 
 /** The block manifest, generated from the app's source. */
 export const MANIFEST_PATH = "data/_meta/mobile_primitives.json";
 
 const SCREEN_TYPES = ["home", "list", "detail", "page"];
-const SCREEN_ID = /^[a-z0-9][a-z0-9-]*$/;
 const APP_SCREEN = /^app:[a-z]+$/;
 const BLOCK_TYPE = /^[a-z0-9_]+$/;
 const BLOCK_ID = /^[A-Za-z0-9_-]{1,64}$/;
-const CATEGORY = /^[a-z0-9_-]+$/;
 /** Props the app never accepts from a file: styles and callbacks. */
 export const BLOCKED_PROP = /^(style|on[A-Z].*|children|ref|key)$/;
 
 /** The host of an https URL, or undefined for anything else (other schemes, credentials, IPs). */
-export function httpsHost(url: unknown): string | undefined {
-  if (typeof url !== "string" || url.length > 2048) return undefined;
-  const match = /^https:\/\/([^/?#\s]+)(?:[/?#]|$)/i.exec(url.trim());
-  if (!match) return undefined;
-  const authority = match[1].toLowerCase();
-  if (authority.includes("@")) return undefined;
-  const host = authority.replace(/:443$/, "");
-  if (!/^[a-z0-9.-]+$/.test(host) || /^[0-9.]+$/.test(host)) return undefined;
-  return host;
-}
+export { httpsHost };
 
 /** Whether the app will open this link (https, on an allowed site or its subdomains). */
 export function isAllowedLink(url: unknown): boolean {
@@ -92,9 +97,10 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
- * The app's policy from a parsed block manifest: its "$policy" limits and app
- * screens, each malformed value replaced by APP_POLICY's. The manifest's other
- * policy keys (link and image hosts…) are the app's business and are ignored.
+ * The app's policy from a parsed block manifest: its "$policy" limits, app
+ * screens, picture hosts and picture variants, each malformed value replaced
+ * by APP_POLICY's. Its link hosts and blocked props are the admin's own
+ * (manifestProblems checks they match).
  */
 export function appPolicy(manifest: unknown): AppPolicy {
   const raw = isObject(manifest) && isObject(manifest.$policy) ? manifest.$policy : {};
@@ -107,7 +113,7 @@ export function appPolicy(manifest: unknown): AppPolicy {
   const appScreens = Array.isArray(raw.appScreens)
     ? [...new Set(raw.appScreens.filter((s): s is string => typeof s === "string" && APP_SCREEN.test(s)))]
     : [...APP_POLICY.appScreens];
-  return { limits, appScreens };
+  return { limits, appScreens, ...manifestPictures(raw) };
 }
 
 /**
@@ -136,6 +142,7 @@ export function manifestProblems(raw: unknown): string[] {
     const hosts = given.linkHosts;
     const sameHosts = Array.isArray(hosts) && hosts.length === LINK_HOSTS.length && LINK_HOSTS.every((host) => hosts.includes(host));
     if (!sameHosts) errors.push(`"$policy.linkHosts" must be the admin's link hosts (LINK_HOSTS in app/lib/screen-policy.ts): ${LINK_HOSTS.join(", ")}.`);
+    errors.push(...manifestPictureProblems(given.imageHosts));
     if (given.blockedProps !== BLOCKED_PROP.source) {
       errors.push(`"$policy.blockedProps" must be the admin's ${BLOCKED_PROP.source} (BLOCKED_PROP in app/lib/screen-policy.ts).`);
     }
@@ -182,19 +189,18 @@ export async function readAppPolicy(read: (path: string) => Promise<string>): Pr
   }
 }
 
-const SCREEN_PATH = /^data\/[^/]+\/screens\/[^/]+\.json$/;
 const NAVIGATION_PATH = /^data\/[^/]+\/navigation\.json$/;
 
 /** Whether checking a write to `path` needs the app's policy: screens and navigation. */
-export const needsAppPolicy = (path: string) => SCREEN_PATH.test(path) || NAVIGATION_PATH.test(path);
+export const needsAppPolicy = (path: string): boolean => SCREEN_FILE.test(path) || NAVIGATION_PATH.test(path);
 
 /** Whether `screen` is one the app provides itself ("app:settings"). */
 export function isAppScreen(screen: string, policy: AppPolicy = APP_POLICY): boolean {
   return policy.appScreens.includes(screen);
 }
 
-/** A link read from a record: "data.<field>" on the screen's record, "item.<field>" on each entry of a list block. */
-export const BOUND_LINK = /^(data|item)\.[A-Za-z0-9_.]+$/;
+/** A link read from a record: "data.<field>" on the screen's record, "item.<field>" on each entry of a list block (contract.ts). */
+export { BOUND_LINK };
 
 /** Every `url` inside a value, with the path to it, for checking links nested in props. */
 function findUrls(value: unknown, path: string, out: { path: string; url: unknown }[] = []) {
@@ -208,9 +214,8 @@ function findUrls(value: unknown, path: string, out: { path: string; url: unknow
   return out;
 }
 
-/** Problems that make a screen file unsafe or unreadable for the app; empty when it can be saved. */
-export function validateScreenFile(raw: unknown, policy: AppPolicy = APP_POLICY): string[] {
-  if (!isObject(raw)) return ["A screen must be a JSON object."];
+/** A screen's own keys: its size, type, title and appearance. */
+function screenKeyProblems(raw: Record<string, unknown>): string[] {
   const errors: string[] = [];
   if (JSON.stringify(raw).length > LIMITS.screenSize) errors.push("The screen file is too large.");
   if (!SCREEN_TYPES.includes(raw.type as string)) errors.push(`type must be one of ${SCREEN_TYPES.join(", ")}.`);
@@ -220,42 +225,72 @@ export function validateScreenFile(raw: unknown, policy: AppPolicy = APP_POLICY)
   if (raw.appearance !== undefined && raw.appearance !== "light" && raw.appearance !== "dark") {
     errors.push("appearance must be light or dark.");
   }
-  if (raw.source !== undefined && (!isObject(raw.source) || !CATEGORY.test(String(raw.source.category ?? "")))) {
-    errors.push("source must name a category.");
+  return errors;
+}
+
+/** What the checks of a screen's blocks share. */
+interface BlocksCheck extends BlockContentCheck {
+  /** The ids of the blocks checked so far. */
+  ids: Set<string>;
+  policy: AppPolicy;
+}
+
+/** A block's id, type, visibility and tab. */
+function blockShapeProblems(block: Record<string, unknown>, where: string, ids: Set<string>): string[] {
+  const errors: string[] = [];
+  if (typeof block.id !== "string" || !BLOCK_ID.test(block.id)) errors.push(`${where} needs an id of letters, numbers, - or _.`);
+  else if (ids.has(block.id)) errors.push(`${where} repeats the id "${block.id}".`);
+  else ids.add(block.id);
+  if (typeof block.type !== "string" || !BLOCK_TYPE.test(block.type)) errors.push(`${where} has an invalid type.`);
+  if (block.visible !== undefined && typeof block.visible !== "boolean") errors.push(`${where}: visible must be true or false.`);
+  if (block.tab !== undefined && typeof block.tab !== "string") errors.push(`${where}: tab must be text.`);
+  return errors;
+}
+
+/** What a block's props hold that the app won't take, open or show. */
+function blockPropProblems(block: { props: Record<string, unknown> }, where: string, check: BlocksCheck): string[] {
+  const errors: string[] = [];
+  for (const name of Object.keys(block.props)) {
+    if (BLOCKED_PROP.test(name)) errors.push(`${where}: "${name}" isn't allowed in screen files.`);
   }
-  if (raw.accent !== undefined && (typeof raw.accent !== "string" || !/^(#[0-9a-fA-F]{3,8}|data\.[a-z0-9_.]+)$/.test(raw.accent))) {
-    errors.push('accent must be a hex color such as #FF8200, or "data.<field>".');
+  for (const { path, url } of findUrls(block.props, "props")) {
+    // A bound link ("data.url", "item.url") comes from a record; the app checks
+    // what it resolves to against the same list before opening it.
+    if (url !== "" && !BOUND_LINK.test(String(url)) && !isAllowedLink(url)) {
+      errors.push(`${where} links to ${String(url)} (${path}), which isn't an allowed https site.`);
+    }
   }
+  return [...errors, ...blockContentProblems(block.props, where, check)];
+}
+
+/** Problems with one block of a screen. */
+function blockProblems(block: unknown, i: number, check: BlocksCheck): string[] {
+  const where = `Block ${i + 1}`;
+  if (!isObject(block)) {
+    return [`${where} must be an object.`];
+  }
+  const errors = blockShapeProblems(block, where, check.ids);
+  if (!isObject(block.props)) {
+    return [...errors, `${where} needs props as an object.`];
+  }
+  return [...errors, ...blockPropProblems({ props: block.props }, where, check)];
+}
+
+/**
+ * Problems that make a screen file unsafe or unreadable for the app; empty
+ * when it can be saved. With `categories` (categories.json), also what the
+ * app can't show for them (screen-content-rules.ts).
+ */
+export function validateScreenFile(raw: unknown, policy: AppPolicy = APP_POLICY, categories?: ScreenCategories): string[] {
+  if (!isObject(raw)) return ["A screen must be a JSON object."];
+  const homeData = homeDataCategories(raw.type, categories);
+  const errors = [...screenKeyProblems(raw), ...screenSourceProblems(raw.source, categories), ...accentProblems(raw.accent, homeData)];
   if (!Array.isArray(raw.blocks)) return [...errors, "blocks must be a list."];
   if (raw.blocks.length > policy.limits.blocksPerScreen) errors.push(`A screen can have at most ${policy.limits.blocksPerScreen} blocks.`);
 
-  const ids = new Set<string>();
+  const check: BlocksCheck = { ids: new Set<string>(), policy, categories, homeData };
   raw.blocks.forEach((block, i) => {
-    const where = `Block ${i + 1}`;
-    if (!isObject(block)) {
-      errors.push(`${where} must be an object.`);
-      return;
-    }
-    if (typeof block.id !== "string" || !BLOCK_ID.test(block.id)) errors.push(`${where} needs an id of letters, numbers, - or _.`);
-    else if (ids.has(block.id)) errors.push(`${where} repeats the id "${block.id}".`);
-    else ids.add(block.id);
-    if (typeof block.type !== "string" || !BLOCK_TYPE.test(block.type)) errors.push(`${where} has an invalid type.`);
-    if (block.visible !== undefined && typeof block.visible !== "boolean") errors.push(`${where}: visible must be true or false.`);
-    if (block.tab !== undefined && typeof block.tab !== "string") errors.push(`${where}: tab must be text.`);
-    if (!isObject(block.props)) {
-      errors.push(`${where} needs props as an object.`);
-      return;
-    }
-    for (const name of Object.keys(block.props)) {
-      if (BLOCKED_PROP.test(name)) errors.push(`${where}: "${name}" isn't allowed in screen files.`);
-    }
-    for (const { path, url } of findUrls(block.props, "props")) {
-      // A bound link ("data.url", "item.url") comes from a record; the app checks
-      // what it resolves to against the same list before opening it.
-      if (url !== "" && !BOUND_LINK.test(String(url)) && !isAllowedLink(url)) {
-        errors.push(`${where} links to ${String(url)} (${path}), which isn't an allowed https site.`);
-      }
-    }
+    errors.push(...blockProblems(block, i, check));
   });
   return errors;
 }
@@ -298,7 +333,7 @@ export function validateNavigationFile(raw: unknown, screenTypes?: Record<string
   return errors;
 }
 
-type Categories = readonly Pick<Category, "folder">[];
+type Categories = readonly Pick<Category, "category" | "folder">[];
 
 /**
  * Problems with a schema file: reference fields, nested ones included, that
@@ -330,7 +365,9 @@ export function validateSchemaFile(raw: unknown, categories: Categories = DEFAUL
  * no rules here. categories.json must pass its normalizer untouched, and its
  * notification templates may only use `templateFields` (by category, from
  * notify-template.ts); without them, only the built-in fields. Screens and
- * navigation follow the app's `policy` (readAppPolicy), as the editors do.
+ * navigation follow the app's `policy` (readAppPolicy), as the editors do;
+ * screens' sources and "data." also follow `categories`. games.json and
+ * records follow data-file-rules.ts.
  */
 export function validateDataFile(
   path: string,
@@ -339,14 +376,16 @@ export function validateDataFile(
   templateFields: Record<string, string[]> = {},
   policy: AppPolicy = APP_POLICY,
 ): string[] {
-  if (SCREEN_PATH.test(path)) return validateScreenFile(content, policy);
+  if (SCREEN_FILE.test(path)) {
+    return validateScreenFile(content, policy, categories);
+  }
   if (NAVIGATION_PATH.test(path)) return validateNavigationFile(content, undefined, policy);
   if (needsCategories(path)) return validateSchemaFile(content, categories);
   if (path === CATEGORIES_PATH) {
     const normalized = normalizeCategories(content);
     return [...normalized.problems, ...notifyTemplateProblems(normalized.categories, templateFields)];
   }
-  return [];
+  return dataFileProblems(path, content, policy);
 }
 
 /**

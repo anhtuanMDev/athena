@@ -4,8 +4,11 @@
 // what `light` leaves out as below, so the admin shows and checks what
 // players will see.
 
-import type { Game } from "~/schemas/game";
+import { DARK_BASE } from "./colors";
+import { HEX_COLOR } from "./contract";
 import { contrastRatio } from "./contrast";
+
+import type { Game } from "~/schemas/game";
 
 export type PaletteKey = keyof NonNullable<Game["light"]>;
 export type Palette = Record<PaletteKey, string>;
@@ -45,6 +48,8 @@ export const LIGHT_BASE: Palette = {
   success: "#10B981",
   border: "#E2E8F0",
 };
+/** The dark base the app draws a top-level color from when the game's isn't a hex color (colors.ts). */
+export { DARK_BASE };
 /** Light colors the app takes from the top-level palette when `light` leaves them out. */
 export const BRAND_KEYS: PaletteKey[] = ["primary", "secondary", "onPrimary"];
 
@@ -61,8 +66,8 @@ export const CONTRAST_PAIRS: [PaletteKey, PaletteKey][] = [
 ];
 export const MIN_CONTRAST = 4.5;
 
-export const isHex = (value: unknown): value is string =>
-  typeof value === "string" && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
+/** A color that counts: text whose trimmed value is a hex color (contract.ts), used trimmed. */
+export const isHex = (value: unknown): value is string => typeof value === "string" && HEX_COLOR.test(value.trim());
 
 /** A color as games.json holds it, which people also edit by hand: text as is, anything else empty. */
 export const colorField = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -83,15 +88,18 @@ export function lightFromGame(raw: unknown): Partial<Palette> {
 }
 
 /**
- * The colors a tab is drawn with: the dark palette as entered, or, given
- * `light`, the light one with each color it leaves out filled in as the app
- * does (brand colors from the top level, the rest from the light base).
- * An empty or invalid color counts as left out.
+ * The colors a tab is drawn with, as the app draws them (palette-cases.json):
+ * the dark palette as entered, each empty or invalid color from the dark base;
+ * or, given `light`, the light one with each color it leaves out filled in
+ * (brand colors from the top level when they're valid, the rest from the light
+ * base).
  */
 export function effectivePalette(dark: Partial<Palette>, light?: Partial<Palette>): Palette {
   return Object.fromEntries(
     PALETTE_KEYS.map((key) => {
-      if (!light) return [key, isHex(dark[key]) ? dark[key].trim() : LIGHT_BASE[key]];
+      if (!light) {
+        return [key, isHex(dark[key]) ? dark[key].trim() : DARK_BASE[key]];
+      }
       if (isHex(light[key])) return [key, light[key].trim()];
       return [key, BRAND_KEYS.includes(key) && isHex(dark[key]) ? dark[key].trim() : LIGHT_BASE[key]];
     }),

@@ -73,10 +73,12 @@ describe("JSON files as the data repo stores them", () => {
 
   it("an admin save, new or edited, ends with a newline", async () => {
     assert.equal((await save({ path: "data/overwatch/modes/push.json", content: MODE, sha: "old-sha" })).status, 200);
-    assert.equal((await save({ path: "data/overwatch/modes/new.json", content: MODE })).status, 200);
+    // A new record (no sha): its file is named by its id, as the write API checks.
+    const created = await save({ path: "data/overwatch/modes/push.json", content: MODE });
+    assert.equal(created.status, 200);
     assert.deepEqual(written, [
       { path: "data/overwatch/modes/push.json", text: STORED },
-      { path: "data/overwatch/modes/new.json", text: STORED },
+      { path: "data/overwatch/modes/push.json", text: STORED },
     ]);
   });
 

@@ -24,6 +24,16 @@ function recordProblems(type: string, schemas: DynamicSchemaFile[], parsed: unkn
   return result.success ? [] : result.error.issues.map((i) => `${i.path.join(".") || "record"}: ${i.message}`);
 }
 
+/**
+ * Why a record's file can't hold `parsed`: its id is its file's name, as the
+ * write API checks (data-file-rules.ts recordFileProblems), which the app opens
+ * it by.
+ */
+function fileNameProblems(parsed: unknown, fileName: string): string[] {
+  const isNamed = typeof parsed === "object" && parsed !== null && "id" in parsed && parsed.id === fileName;
+  return isNamed ? [] : [`The record's id must be "${fileName}", its file's name.`];
+}
+
 export default function RawEditor() {
   const { game, "*": splat } = useParams();
   const type = splat?.split("/")[1];
@@ -36,6 +46,7 @@ export default function RawEditor() {
   assertSafeEntityId(id!);
 
   const path = `data/${game}/${type}/${id}.json`;
+  const fileName = id ?? "";
 
   const { data: loaderData, loading, error: loadError } = useData(async () => {
     const [file, schemas] = await Promise.all([getFile(path), listDirectory<DynamicSchemaFile>(game!, "schemas", true)]);
@@ -71,6 +82,11 @@ export default function RawEditor() {
       setError(`Validation failed for ${type}: ${problems.join("; ")}`);
       return;
     }
+    const nameProblems = fileNameProblems(parsed, fileName);
+    if (nameProblems.length > 0) {
+      setError(`Validation failed: ${nameProblems.join("; ")}`);
+      return;
+    }
 
     const resultDiffs = computeDiff(loaderData.content, parsed);
     setDiffs(resultDiffs);
@@ -92,6 +108,12 @@ export default function RawEditor() {
     const problems = recordProblems(type!, loaderData.schemas, parsed, categories);
     if (problems.length > 0) {
       setError(`Validation failed for ${type} on commit: ${problems.join("; ")}`);
+      toastError("Validation failed on commit!");
+      return;
+    }
+    const nameProblems = fileNameProblems(parsed, fileName);
+    if (nameProblems.length > 0) {
+      setError(`Validation failed on commit: ${nameProblems.join("; ")}`);
       toastError("Validation failed on commit!");
       return;
     }

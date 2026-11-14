@@ -16,6 +16,7 @@ import {
   iconOptions,
   normalizeManifest,
   readScreen,
+  starterSchemas,
   starterScreens,
   type NavTab,
   type NavigationFile,
@@ -417,9 +418,9 @@ export default function ScreensList() {
         <div className="mt-4 flex flex-wrap gap-2">
           <select aria-label="Schema" value={starterSchema} onChange={(e) => setStarterSchema(e.target.value)} className={`${inputBaseClass} w-auto min-w-56`}>
             <option value="">Choose a schema…</option>
-            {data.schemas.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.category})
+            {starterSchemas(data.schemas, categories).map((schema) => (
+              <option key={schema.id} value={schema.id}>
+                {schema.name} ({schema.category})
               </option>
             ))}
           </select>

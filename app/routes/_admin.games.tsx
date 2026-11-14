@@ -20,7 +20,6 @@ import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { keepUnknownKeys } from "~/lib/unknown-keys";
 import { isGameActive, withSavedGame } from "~/lib/games";
 import {
-  LIGHT_BASE,
   MIN_CONTRAST,
   PALETTE_KEYS,
   PALETTE_LABELS,
@@ -32,6 +31,9 @@ import {
   lightToSave,
   type PaletteKey,
 } from "~/lib/game-palette";
+
+/** What a dark color's field says when it isn't a hex color: all 14 are required. */
+const darkColorHelp = (value: string): string => (value.trim() === "" ? "Required" : "Not a hex color");
 
 export default function GamesList() {
   const { data, loading, error } = useData(
@@ -113,15 +115,16 @@ export default function GamesList() {
     onSecondary: setOnSecondary, onBackground: setOnBackground, onSurface: setOnSurface,
     error: setErrorColor, warning: setWarning, success: setSuccess, border: setBorder,
   };
-  // What the app draws each tab with: empty light colors as the app fills them in.
+  // What the app draws each tab with: empty colors as the app fills them in.
   const lightFallbacks = effectivePalette(darkPalette, {});
+  const darkFallbacks = effectivePalette({});
   const warnings = {
     dark: contrastWarnings(effectivePalette(darkPalette)),
     light: contrastWarnings(effectivePalette(darkPalette, light)),
   };
   const paletteRows = PALETTE_KEYS.map((key) =>
     paletteTab === "dark"
-      ? { key, value: darkPalette[key], set: setDark[key], fallback: LIGHT_BASE[key] }
+      ? { key, value: darkPalette[key], set: setDark[key], fallback: darkFallbacks[key] }
       : { key, value: light[key] ?? "", set: (value: string) => setLight((l) => ({ ...l, [key]: value })), fallback: lightFallbacks[key] },
   );
 
@@ -183,6 +186,9 @@ export default function GamesList() {
     setModalMode("edit");
   }
 
+  /** The form's error for `field`, if any. */
+  const errorOf = (field: string): string | undefined => (formErrors && Object.hasOwn(formErrors, field) ? formErrors[field][0] : undefined);
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSubmitting(true);
@@ -200,20 +206,8 @@ export default function GamesList() {
         name,
         developer,
         icon: iconUrl,
-        primary,
-        secondary,
-        accent,
-        background,
-        surface,
-        surfaceVariant,
-        onPrimary,
-        onSecondary,
-        onBackground,
-        onSurface,
-        error: errorColor,
-        warning,
-        success,
-        border,
+        // The 14 dark colors, trimmed: each is required (the app leaves out a game without them).
+        ...Object.fromEntries(PALETTE_KEYS.map((key) => [key, darkPalette[key].trim()])),
         light: lightToSave(light),
         active,
       });
@@ -224,6 +218,15 @@ export default function GamesList() {
         if (fieldErrors.light) {
           setPaletteTab("light");
           setFormErrors({ ...fieldErrors, _form: ["A light color isn't a hex color such as #1A2B3C."] });
+          return;
+        }
+        const darkErrors = PALETTE_KEYS.filter((key) => fieldErrors[key]);
+        if (darkErrors.length > 0) {
+          setPaletteTab("dark");
+          setFormErrors({
+            ...fieldErrors,
+            _form: [`Every dark color is needed, as a hex color such as #FF8200 or #F80: the app draws the game with all 14. Check ${darkErrors.map((key) => PALETTE_LABELS[key]).join(", ")}.`],
+          });
           return;
         }
         setFormErrors(fieldErrors);
@@ -451,10 +454,12 @@ export default function GamesList() {
                           value={slug}
                           // The slug names the game's data folder; nothing moves it, so it can't change.
                           slotProps={{ htmlInput: { readOnly: modalMode === "edit" } }}
+                          error={errorOf("slug") !== undefined}
                           helperText={
-                            modalMode === "edit"
+                            errorOf("slug") ??
+                            (modalMode === "edit"
                               ? `Can't be changed: it names the game's data (data/${slug}/).`
-                              : "Can't be changed once the game is added: it names the game's data folder."
+                              : "Can't be changed once the game is added: it names the game's data folder.")
                           }
                           onChange={(e) =>
                             setSlug(
@@ -468,6 +473,8 @@ export default function GamesList() {
                           name="name"
                           label="Name"
                           placeholder="e.g. Overwatch 2"
+                          error={errorOf("name") !== undefined}
+                          helperText={errorOf("name")}
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                         />
@@ -501,6 +508,8 @@ export default function GamesList() {
                               label="Icon URL"
                               placeholder="https://..."
                               required={false}
+                              error={errorOf("icon") !== undefined}
+                              helperText={errorOf("icon")}
                               value={icon}
                               onChange={(e) => {
                                 setIcon(e.target.value);
@@ -637,7 +646,9 @@ export default function GamesList() {
                                 required={false}
                                 value={value}
                                 onChange={(e) => set(e.target.value)}
-                                error={value.trim() !== "" && !isHex(value)}
+                                // Dark colors are all required; a light one may be left empty.
+                                error={paletteTab === "dark" ? !isHex(value) : value.trim() !== "" && !isHex(value)}
+                                helperText={paletteTab === "dark" && !isHex(value) ? darkColorHelp(value) : undefined}
                                 slotProps={paletteTab === "light" ? { inputLabel: { shrink: true } } : undefined}
                               />
                             </div>

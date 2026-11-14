@@ -101,6 +101,19 @@ describe("a folder listed as summaries", () => {
     }
   });
 
+  void it("gives each screen its file's name as its id, as /mobile/init does (R3)", async () => {
+    files["data/overwatch/screens/hero-detail.json"] = JSON.stringify({ type: "detail", source: { category: "hero" }, blocks: [] });
+    files["data/overwatch/screens/home.json"] = JSON.stringify({ id: "stale", type: "home", blocks: [] });
+    const res = await get(directoryPath("overwatch", "screens", { includeContent: true }));
+    assert.deepEqual(res.body, [
+      { type: "detail", source: { category: "hero" }, blocks: [], id: "hero-detail" },
+      { id: "home", type: "home", blocks: [] },
+    ]);
+    // Records keep what they hold.
+    const heroes = await get(directoryPath("overwatch", "heroes", { includeContent: true }));
+    assert.deepEqual((heroes.body as { id: string }[]).map((record) => record.id), ["ana", "baptiste"]);
+  });
+
   it("leaves keysOnly as it was, and refuses another shape or both at once", async () => {
     const keys = await get(directoryPath("overwatch", "heroes", { includeContent: true, keysOnly: ["id", "abilities"] }));
     assert.deepEqual(keys.body, [{ id: "ana", abilities: ANA.abilities }, { id: "baptiste" }]);

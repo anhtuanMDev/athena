@@ -9,6 +9,7 @@ import {
   sourceFields,
   starterScreens,
   validateScreen,
+  type AppContext,
   type PrimitiveManifest,
   type SchemaInfo,
   type ScreenFile,
@@ -356,14 +357,16 @@ describe("values with their unit or custom suffix (F3, as the app shows them)", 
 describe("the app's block manifest (zms npm run primitives, as in zero-backend)", () => {
   const raw = JSON.parse(readFileSync(new URL("./fixtures/mobile_primitives.json", import.meta.url), "utf8"));
 
-  it("gives the app's limits and screens, ignoring its other policy keys", () => {
-    // linkHosts, imageHosts and blockedProps are the app's own business; routeStops is the preview's too.
+  void it("gives the app's limits, screens and picture hosts, ignoring its other policy keys", () => {
+    // linkHosts and blockedProps are the admin's own (manifestProblems); routeStops is the preview's too.
     for (const key of ["routeStops", "linkHosts", "imageHosts", "blockedProps"]) {
       assert.ok(key in raw.$policy || key in raw.$policy.limits, key);
     }
     assert.deepEqual(policyLib.appPolicy(raw), {
       limits: { screensPerGame: 50, blocksPerScreen: 60, tabs: 5, listItems: 100, smallList: 12, text: 2000, routeStops: 6 },
       appScreens: ["app:settings"],
+      imageHosts: ["blz-contentstack-images.akamaized.net", "bnetcmsus-a.akamaihd.net"],
+      imageVariants: ["main", "default", "2d", "portrait", "icon"],
     });
   });
 
@@ -524,5 +527,145 @@ describe("text bound to a list of entries", () => {
   it("counts abilities as a list of entries too", () => {
     const blocks: ScreenFile["blocks"] = [{ id: "stats", type: "stat_row", props: { stat1Label: "Kit", stat1Value: "data.abilities" } }];
     assert.deepEqual(issuesOf(heroSchema, "hero", blocks), [["warning", "stats", "stat1Value", true]]);
+  });
+});
+
+// ─── R3: the contract with the app ──────────────────────────────────────
+
+void describe("actions that open a detail screen (F9)", () => {
+  const appManifest = normalizeManifest(fixtureFile("../mobile_primitives"));
+  const fixtureDir = new URL("./fixtures/overwatch/schemas/", import.meta.url);
+  const gameSchemas = readdirSync(fixtureDir).map((name) => JSON.parse(readFileSync(new URL(name, fixtureDir), "utf8")) as SchemaInfo);
+  const screens = [
+    { id: "home", type: "home" },
+    { id: "heroes", type: "list", source: { category: "hero" } },
+    { id: "maps", type: "list", source: { category: "map" } },
+    { id: "hero-detail", type: "detail", source: { category: "hero" } },
+    { id: "news-detail", type: "detail", source: { category: "news" } },
+  ];
+  const issuesOf = (checked: ScreenFile, id: string, dataFields = homeFields()) =>
+    validateScreen(checked, appManifest, dataFields, gameSchemas, screens.map((x) => x.id), () => [], { categories: DEFAULT_CATEGORIES, screens, screenId: id })
+      .filter((i) => i.kind === "wrong-record")
+      .map((i) => `${i.level} ${i.sectionId}.${String(i.prop)}: ${i.message}`);
+
+  void it("needs a list of that category's records: the app opens the tapped one", () => {
+    const maps: ScreenFile = {
+      type: "list",
+      source: { category: "map" },
+      blocks: [{ id: "grid", type: "record_grid", props: { itemLabel: "item.name", action: { screen: "hero-detail" } } }],
+    };
+    assert.deepEqual(issuesOf(maps, "maps"), [
+      'error grid.action: action opens "hero-detail", which shows a "hero" record, but this block lists "map" records: the app would find none.',
+    ]);
+
+    const home: ScreenFile = {
+      type: "home",
+      blocks: [
+        { id: "promo", type: "promo_card", props: { title: "Hi", buttonLabel: "Go", action: { screen: "hero-detail" } } },
+        { id: "tiles", type: "shortcut_grid", props: { items: [{ label: "Heroes", screen: "heroes" }, { label: "Ana", screen: "hero-detail" }] } },
+        { id: "news", type: "record_grid", props: { itemLabel: "item.title", source: { category: "news" }, action: { screen: "news-detail" } } },
+        { id: "picks", type: "featured_carousel", props: { itemTitle: "item.name", source: { category: "hero" }, action: { screen: "hero-detail" } } },
+        { id: "hidden", type: "promo_card", visible: false, props: { title: "Hi", action: { screen: "news-detail" } } },
+        { id: "settings", type: "promo_card", props: { title: "Hi", action: { screen: "app:settings" } } },
+      ],
+    };
+    assert.deepEqual(issuesOf(home, "home"), [
+      'error promo.action: action opens "hero-detail", a detail screen: only a list of "hero" records can open it, with the record that was tapped.',
+      'error tiles.items: Tile 2 opens "hero-detail", a detail screen: only a list of "hero" records can open it, with the record that was tapped.',
+      'warning hidden.action: action opens "news-detail", a detail screen: only a list of "news" records can open it, with the record that was tapped.',
+    ]);
+
+    // On a detail screen: a list of the screen's own category may open it again, another category's may not.
+    const detail: ScreenFile = {
+      type: "detail",
+      source: { category: "hero" },
+      blocks: [
+        { id: "related", type: "record_grid", props: { itemLabel: "item.name", action: { screen: "hero-detail" } } },
+        { id: "where", type: "record_grid", props: { itemLabel: "item.name", source: { category: "map" }, action: { screen: "hero-detail" } } },
+      ],
+    };
+    assert.deepEqual(issuesOf(detail, "hero-detail", sourceFields(gameSchemas, detail.source)), [
+      'error where.action: action opens "hero-detail", which shows a "hero" record, but this block lists "map" records: the app would find none.',
+    ]);
+  });
+
+  void it("says nothing without the game's screens, as before", () => {
+    const promo: ScreenFile = { type: "home", blocks: [{ id: "promo", type: "promo_card", props: { title: "Hi", action: { screen: "hero-detail" } } }] };
+    const plain = validateScreen(promo, appManifest, homeFields(), gameSchemas, ["hero-detail"]);
+    assert.deepEqual(plain.filter((i) => i.kind === "wrong-record"), []);
+  });
+});
+
+void describe("a second detail screen of a category (C9)", () => {
+  const screens = [{ id: "hero-detail", type: "detail", source: { category: "hero" } }];
+  const lore: ScreenFile = { type: "detail", source: { category: "hero" }, blocks: [{ id: "t", type: "text", props: { text: "Lore" } }] };
+  const kindsOf = (app: AppContext) =>
+    validateScreen(lore, manifest, fields, schemas, ["hero-detail", "hero-lore"], () => [], app).filter((i) => i.kind === "second-detail");
+
+  void it("is a warning: notifications and reference links then open neither", () => {
+    const found = kindsOf({ screens: [...screens, { id: "hero-lore", type: "detail", source: { category: "hero" } }], screenId: "hero-lore" });
+    assert.deepEqual(
+      found.map((i) => [i.level, i.message]),
+      [["warning", 'The detail screen "hero-detail" shows "hero" records too: notifications and reference links open neither of them. List blocks can still open either.']],
+    );
+    assert.deepEqual(kindsOf({ screens, screenId: "hero-detail" }), []);
+  });
+});
+
+void describe("a screen's categories, as categories.json configures them (C5)", () => {
+  const withSkin = [...schemas, { id: "skin-base", name: "Skin", category: "skin", fields: [] }];
+  void it("must be configured, not only have a schema", () => {
+    const skins: ScreenFile = { type: "list", source: { category: "skin" }, blocks: [{ id: "g", type: "record_grid", props: { itemLabel: "item.name", source: { category: "skin" } } }] };
+    const appManifest = normalizeManifest(fixtureFile("../mobile_primitives"));
+    const found = validateScreen(skins, appManifest, fields, withSkin, ["home"], () => [], { categories: DEFAULT_CATEGORIES }).filter((i) => i.kind === "unknown-category");
+    assert.deepEqual(
+      found.map((i) => [i.level, i.sectionId, i.message]),
+      [
+        ["error", "", 'The screen lists category "skin", which isn\'t in categories.json: the app shows nothing for it.'],
+        ["error", "g", 'source lists category "skin", which isn\'t in categories.json: the app shows nothing for it.'],
+      ],
+    );
+  });
+
+  void it("offers starters only for configured categories", () => {
+    assert.deepEqual(model.starterSchemas(withSkin, DEFAULT_CATEGORIES).map((schema) => schema.id), ["hero-hero"]);
+  });
+});
+
+void describe("what data. reads on each kind of screen (C4)", () => {
+  const { screenDataFields } = model;
+
+  void it("is the game and the folders on list screens; the source's fields only feed the filter chips", () => {
+    assert.equal(typeof screenDataFields, "function", "screen-model exports screenDataFields");
+    const list = screenDataFields({ type: "list", source: { category: "hero" }, blocks: [] }, { schemas, categories: DEFAULT_CATEGORIES });
+    assert.deepEqual(list.data.map((field) => field.key), homeFields(DEFAULT_CATEGORIES).map((field) => field.key));
+    assert.ok(list.filter.some((field) => field.key === "role"));
+    const detail = screenDataFields({ type: "detail", source: { category: "hero" }, blocks: [] }, { schemas, categories: DEFAULT_CATEGORIES });
+    assert.ok(detail.data.some((field) => field.key === "role"));
+    const listScreen: ScreenFile = { type: "list", source: { category: "hero" }, blocks: [{ id: "t", type: "text", props: { text: "data.role" } }] };
+    const issues = validateScreen(listScreen, manifest, list.data, schemas, ["home"]).filter((i) => i.kind === "unknown-field");
+    assert.equal(issues.length, 1);
+  });
+});
+
+void describe("pictures and colours in a block (F3, C7)", () => {
+  const appManifest = normalizeManifest(fixtureFile("../mobile_primitives"));
+  void it("are flagged on their prop", () => {
+    const home: ScreenFile = {
+      type: "home",
+      blocks: [
+        { id: "promo", type: "promo_card", props: { title: "Hi", image: "https://i.imgur.com/a.png" } },
+        { id: "text", type: "text", props: { text: "Hi", color: "teal" } },
+        { id: "ok", type: "promo_card", props: { title: "Hi", image: "/api/assets/a.webp" } },
+      ],
+    };
+    const found = validateScreen(home, appManifest, homeFields(), schemas, ["home"]).filter((i) => ["foreign-picture", "bad-color"].includes(i.kind));
+    assert.deepEqual(
+      found.map((i) => [i.level, i.sectionId, i.prop, i.kind]),
+      [
+        ["error", "promo", "image", "foreign-picture"],
+        ["error", "text", "color", "bad-color"],
+      ],
+    );
   });
 });

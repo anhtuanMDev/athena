@@ -44,7 +44,7 @@ The Home tab is a pager of every active game's home screen: swiping left or righ
 ## 4. List Screens (e.g., Heroes, Modes)
 
 * **API Call:** `GET /mobile/data?game={gameId}&entity={folder}` (e.g., `game=overwatch&entity=heroes`). The folder comes from the screen's `source.category`: `hero` → `heroes`, `map` → `maps`, `mode` → `modes`, `patch` → `patches`, `item` → `items`.
-* **Flow:** The endpoint returns every record in that folder. A record's `schema_id` names its schema; records without one use the category's first schema. A `source.schema` narrows a list to one schema.
+* **Flow:** The endpoint returns every record in that folder. A record whose `id` isn't text gets its file name as its id, as screens do. A record's `schema_id` names its schema; records without one use the category's first schema. A `source.schema` narrows a list to one schema.
 * **MMKV Strategy: `STORE FULLY`** under a key like `data_overwatch_heroes`, read instantly offline and refreshed in the background.
 
 ## 5. Detail Screens

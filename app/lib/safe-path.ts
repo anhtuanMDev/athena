@@ -1,7 +1,10 @@
 import { isCategoryFolderFormat } from "./categories";
+import { GAME_SLUG, RECORD_ID } from "./contract";
 
-export const SAFE_SLUG = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
-export const SAFE_ENTITY_ID = /^(?!.*\.\.)[a-z0-9][a-z0-9.-]*[a-z0-9]$|^[a-z0-9]$/;
+// The contract's slug and record id (contract.ts): a path the API takes names
+// a game and a record the app can show.
+export const SAFE_SLUG = GAME_SLUG;
+export const SAFE_ENTITY_ID = RECORD_ID;
 
 export function assertSafeGameSlug(slug: string): void {
   if (!SAFE_SLUG.test(slug)) {

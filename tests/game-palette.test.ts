@@ -12,10 +12,15 @@ import {
   lightToSave,
   type Palette,
 } from "../app/lib/game-palette";
+import * as gamePalette from "../app/lib/game-palette";
 import { GameSchema } from "../app/schemas/game";
 
 // zms checks its screenPalette against the same file, so the editor shows the colors the app draws.
-const fixture: { dark: Palette; cases: { name: string; light: Partial<Palette>; expected: Palette }[] } = JSON.parse(
+const fixture: {
+  dark: Palette;
+  cases: { name: string; light: Partial<Palette>; expected: Palette }[];
+  darkPaletteCases: { name: string; appearance: "dark" | "light"; dark: Partial<Palette>; light?: unknown; expected: Palette }[];
+} = JSON.parse(
   readFileSync(new URL("./fixtures/palette-cases.json", import.meta.url), "utf8"),
 );
 
@@ -39,9 +44,32 @@ describe("the light palette the editor shows", () => {
     assert.equal(palette.surface, LIGHT_BASE.surface);
   });
 
-  it("shows the dark tab as entered, empty colors as the editor's defaults", () => {
+  void it("shows the dark tab as entered, empty colors as the app's dark base", () => {
     assert.deepEqual(effectivePalette(fixture.dark), fixture.dark);
-    assert.equal(effectivePalette({ ...fixture.dark, surface: "" }).surface, LIGHT_BASE.surface);
+    assert.equal(effectivePalette({ ...fixture.dark, surface: "" }).surface, gamePalette.DARK_BASE.surface);
+  });
+});
+
+void describe("the top-level colors the app draws (F10)", () => {
+  void it("are the app's, case by case: each invalid one from the dark base, brand colors on light screens only when valid", () => {
+    const base = gamePalette.DARK_BASE;
+    assert.ok(base, "game-palette exports DARK_BASE");
+    for (const { name, appearance, dark, light, expected } of fixture.darkPaletteCases) {
+      const merged = { ...fixture.dark, ...dark };
+      const palette = appearance === "dark" ? effectivePalette(merged) : effectivePalette(merged, lightFromGame(light));
+      assert.deepEqual(palette, expected, name);
+    }
+  });
+
+  void it("must all be set on a game, as hex colors, with a developer", () => {
+    const game = { slug: "overwatch", name: "Overwatch 2", developer: "", active: true, ...fixture.dark };
+    assert.equal(GameSchema.safeParse(game).success, true);
+    for (const value of ["", "orange", "#12345", " #FFFFFF"]) {
+      assert.equal(GameSchema.safeParse({ ...game, background: value }).success, false, value);
+    }
+    const without = (key: string) => Object.fromEntries(Object.entries(game).filter(([name]) => name !== key));
+    assert.equal(GameSchema.safeParse(without("primary")).success, false);
+    assert.equal(GameSchema.safeParse(without("developer")).success, false);
   });
 });
 
@@ -53,7 +81,7 @@ describe("saving a light palette", () => {
   });
 
   it("is checked with the game: any part of a palette, hex colors only", () => {
-    const game = { slug: "overwatch", name: "Overwatch 2", active: true };
+    const game = { slug: "overwatch", name: "Overwatch 2", developer: "Blizzard", active: true, ...fixture.dark };
     assert.equal(GameSchema.safeParse(game).success, true);
     assert.equal(GameSchema.safeParse({ ...game, light: { background: "#FFF7ED" } }).success, true);
     assert.equal(GameSchema.safeParse({ ...game, light: { background: "orange" } }).success, false);
@@ -74,7 +102,7 @@ describe("a hand-edited games.json", () => {
 
   it("keeps invalid text so it blocks the save, and saves the rest clean", () => {
     const light = lightFromGame({ primary: 5, background: "#FFF7ED", warning: "orange", glow: "#fff" });
-    const game = { slug: "overwatch", name: "Overwatch 2", active: true, secondary: colorField(5) };
+    const game = { slug: "overwatch", name: "Overwatch 2", developer: "", active: true, ...fixture.dark };
     assert.equal(GameSchema.safeParse({ ...game, light: lightToSave(light) }).success, false);
     const fixed = lightToSave({ ...light, warning: "#B45309" });
     assert.deepEqual(fixed, { background: "#FFF7ED", warning: "#B45309" });
@@ -86,7 +114,7 @@ describe("a hand-edited games.json", () => {
     const palette = effectivePalette(dark, lightFromGame({ primary: 5, secondary: "#0F766E" }));
     assert.equal(palette.primary, fixture.dark.primary);
     assert.equal(palette.secondary, "#0F766E");
-    assert.equal(effectivePalette(dark).secondary, LIGHT_BASE.secondary);
+    assert.equal(effectivePalette(dark).secondary, gamePalette.DARK_BASE.secondary);
     assert.ok(Array.isArray(contrastWarnings(palette)));
   });
 });

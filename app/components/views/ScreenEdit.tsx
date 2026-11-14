@@ -20,7 +20,6 @@ import {
   folderFor,
   formProps,
   homeData as appHomeData,
-  homeFields,
   iconOptions,
   isBinding,
   itemFieldsFor,
@@ -29,8 +28,9 @@ import {
   previewRecords,
   readScreen,
   recordLabel,
+  screenDataFields,
   screenReferenceFolders,
-  sourceFields,
+  screenRefsOf,
   validateScreen,
   type FieldOption,
   type PrimitiveManifest,
@@ -89,12 +89,6 @@ function summarizeProps(block: ScreenBlock): string {
 /** Folders whose records label a screen's references, as the app loads at most (zms's screen scope). */
 const MAX_REFERENCE_FOLDERS = 3;
 
-/** `items` without one entry equal to `item` (the same JSON). */
-function withoutOne(items: unknown[], item: unknown): unknown[] {
-  const text = JSON.stringify(item);
-  const at = items.findIndex((entry) => JSON.stringify(entry) === text);
-  return at === -1 ? items : items.filter((_, i) => i !== at);
-}
 
 function tabsOf(screen: ScreenFile): string[] {
   const bar = screen.blocks.find((b) => b.type === "tab_bar" && b.visible !== false);
@@ -145,7 +139,9 @@ export default function ScreenEdit() {
         enums,
         screenIds: screenNames.filter((n) => typeof n === "string"),
         // This screen as saved is replaced by the one being edited (see `reference`).
-        otherScreens: withoutOne(screenFiles, file.content),
+        otherScreens: screenRefsOf(screenFiles).filter((ref) => ref.id !== id),
+        // Every screen of the game by id (the listing names them), this one included.
+        screens: screenRefsOf(screenFiles),
         manifest: normalizeManifest(manifestFile?.content),
         // The app's limits and own screens; today's when the manifest has none.
         policy: appPolicy(manifestFile?.content),
@@ -192,7 +188,8 @@ export default function ScreenEdit() {
   const manifest: PrimitiveManifest | null = loaded?.manifest ?? null;
   const schemas = loaded?.schemas ?? [];
   const icons = useMemo(() => iconOptions(manifest), [manifest]);
-  const policy = loaded?.policy;
+  // The app's policy, and where this screen's actions lead: the game's screens, this one by its id (F9).
+  const policy = useMemo(() => (loaded ? { ...loaded.policy, screens: loaded.screens, screenId: id } : undefined), [loaded, id]);
 
   // A screen moved to another category while it's edited shows that
   // category's records whole too, once they're read; summaries until then.
@@ -220,12 +217,12 @@ export default function ScreenEdit() {
   const detailRecords = screen?.type === "detail" && screen.source ? records[screen.source.category] ?? [] : [];
   const sample = detailRecords[Math.min(sampleIndex, detailRecords.length - 1)] ?? null;
 
-  const dataFields: FieldOption[] = useMemo(() => {
-    if (!screen) return [];
-    if (screen.type === "detail") return sourceFields(schemas, screen.source, detailRecords);
-    const fields = homeFields(configured);
-    return screen.source ? [...sourceFields(schemas, screen.source), ...fields] : fields;
-  }, [screen, schemas, detailRecords, configured]);
+  // What "data." reads here, as the app gives it: the record on detail screens, the game
+  // and the folders elsewhere, whose source's fields only feed the filter chips (C4).
+  const { data: dataFields, filter: chipFields } = useMemo<{ data: FieldOption[]; filter: FieldOption[] }>(
+    () => (screen ? screenDataFields(screen, { schemas, categories: configured, records: detailRecords }) : { data: [], filter: [] }),
+    [screen, schemas, detailRecords, configured],
+  );
 
   const homeData = useMemo(() => appHomeData(loaded?.game, records, configured), [loaded, records, configured]);
 
@@ -280,7 +277,7 @@ export default function ScreenEdit() {
   const visibleIssues = (list: ScreenIssue[]) => list.filter((i) => attemptedSave || i.kind !== "required");
   const jsonErrorList = Object.entries(jsonErrors);
   // The same structural check the write API runs, so a save never fails there unexpectedly.
-  const fileErrors = useMemo(() => (screen && policy ? validateScreenFile(screen, policy) : []), [screen, policy]);
+  const fileErrors = useMemo(() => (screen && policy ? validateScreenFile(screen, policy, configured) : []), [screen, policy, configured]);
   const errorCount = issues.filter((i) => i.level === "error").length;
   // File errors mostly repeat the editor's own checks: list and count them only when those pass.
   const listedFileErrors = errorCount > 0 ? [] : fileErrors;
@@ -464,6 +461,7 @@ export default function ScreenEdit() {
     reference,
     screenSource: screen.source,
     routeStops: (policy ?? APP_POLICY).limits.routeStops,
+    pictures: policy ?? APP_POLICY,
   };
   const summaryIssues = visibleIssues(issues).filter((i) => i.level === "error");
   const screenIssues = visibleIssues(issues).filter((i) => !i.sectionId);
@@ -719,6 +717,7 @@ export default function ScreenEdit() {
                 const strayProps = Object.keys(block.props).filter((n) => spec && !formNames.has(n));
                 const context: PropContext = {
                   dataFields,
+                  chipFields,
                   itemFields: spec?.list ? itemFieldsFor(block, screen, dataFields, schemas, recordsOf) : null,
                   schemas,
                   screenIds: loaded.screenIds,

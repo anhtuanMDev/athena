@@ -247,6 +247,14 @@ describe("mapping a news list", () => {
     assert.equal(odd.record.url, undefined);
   });
 
+  void it("makes http links https, the only links the app opens (R3)", () => {
+    const page = NEWS_PAGE.replace('href="/news/24295392/season-4-midcycle"', 'href="http://news.blizzard.com/en-us/article/1"');
+    const [article] = mapDocument(page, newsJob, NEWS_FIELDS);
+    assert.equal(article.record.url, "https://news.blizzard.com/en-us/article/1");
+    const [relative] = mapDocument(NEWS_PAGE, { ...newsJob, api_endpoint: "http://overwatch.blizzard.com/en-us/news/" }, NEWS_FIELDS);
+    assert.equal(relative.record.url, "https://overwatch.blizzard.com/news/24295392/season-4-midcycle");
+  });
+
   it("publishes news into its own folder", () => {
     assert.equal(recordFolder("news"), "news");
   });

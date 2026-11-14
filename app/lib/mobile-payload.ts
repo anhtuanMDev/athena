@@ -1,5 +1,6 @@
 import type { Octokit } from "@octokit/rest";
 import { CATEGORIES_PATH, DEFAULT_CATEGORIES, appCategory, normalizeCategories, readCategories } from "./categories";
+import { ASSET_VERSION_LENGTH } from "./contract";
 import { isGameActive } from "./games";
 import { decodeUtf8Base64 } from "./utf8-base64";
 import { GraphqlUnavailable, SYMLINK_MODE, readObjects, usableText, type GraphqlObject } from "./github-graphql";
@@ -178,8 +179,8 @@ export async function readJsonFile(reader: RepoReader, path: string): Promise<{ 
   }
 }
 
-/** Characters of a picture's content hash in its URL: enough to tell versions apart. */
-const VERSION_LENGTH = 12;
+/** Characters of a picture's content hash in its URL: enough to tell versions apart (the app checks the length). */
+const VERSION_LENGTH = ASSET_VERSION_LENGTH;
 
 /** The file under public/assets an asset path names ("/api/assets/x.webp", "assets/x.webp"), as stored in the data. */
 function assetFile(value: string): string | undefined {
@@ -448,6 +449,9 @@ export async function activeGames(
   return games;
 }
 
+const hasTextId = (record: Record<string, unknown>): boolean => typeof record.id === "string" && record.id !== "";
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+
 /**
  * The /mobile/data payload: the records of one folder. `leftOut` counts the
  * files left out (the picture versions as one), the app's X-Incomplete.
@@ -461,7 +465,9 @@ export async function buildDataPayload(
   const [{ files, unread }, { hashes, partial: noHashes }] = await Promise.all([readJsonFolderCounted(reader, dir), assetHashes(reader, assetsMemo)]);
   const leftOut = unread + (noHashes ? 1 : 0);
   // The records were parsed for this build alone, so they are versioned in place.
-  const payload = files.map((f) => f.content);
+  // A record without a text id gets its file's name, as a screen does (buildInitPayload):
+  // the app opens a record by its id, and the admin names its file by it.
+  const payload = files.map((file) => (isRecord(file.content) && !hasTextId(file.content) ? { ...file.content, id: file.name } : file.content));
   versionAssetsInPlace(payload, hashes);
   return { payload, partial: leftOut > 0, leftOut };
 }

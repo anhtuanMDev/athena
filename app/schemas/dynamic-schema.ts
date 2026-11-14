@@ -1,4 +1,6 @@
 import { z } from "zod";
+
+import { FIELD_KEY } from "~/lib/contract";
 import { KitItemSchema } from "~/schemas/hero";
 
 export const FieldTypeSchema = z.enum(["string", "number", "boolean", "list", "enum", "abilities", "weapon", "object_array", "reference", "reference_list"]);
@@ -20,7 +22,7 @@ export type DynamicField = {
 };
 
 export const DynamicFieldSchema: z.ZodType<DynamicField> = z.lazy(() => z.object({
-  key: z.string().min(1).regex(/^[a-z0-9_]+$/, "Keys must be lowercase alphanumeric and underscores"),
+  key: z.string().min(1).regex(FIELD_KEY, "Keys must be lowercase alphanumeric and underscores"),
   label: z.string().min(1),
   type: FieldTypeSchema,
   unit: z.string().optional(),

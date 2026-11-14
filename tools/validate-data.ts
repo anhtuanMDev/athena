@@ -1,36 +1,54 @@
 // Checks a checkout of the data repo (zero-backend) with this admin's own
 // rules, for that repo's CI. Every data/**/*.json must parse. Screens,
-// navigation, schemas and categories.json must pass validateDataFile, given
-// what the write API gives it: the categories, the schemas' template fields
-// and the app's policy from the block manifest. Tabs are also checked against
-// the game's screens, as the screen editor does. The manifest must have the
-// shape the admin and the app rely on (manifestProblems). Every game folder
-// (data/{slug}/) must be a game games.json lists.
+// navigation, schemas, categories.json, games.json and records must pass
+// validateDataFile, given what the write API gives it: the categories, the
+// schemas' template fields and the app's policy from the block manifest. Tabs
+// are also checked against the game's screens, as the screen editor does. The
+// manifest must have the shape the admin and the app rely on
+// (manifestProblems). Every game folder (data/{slug}/) must be a game
+// games.json lists. What a single file can't show (pictures that don't
+// exist, references, enum values, actions to detail screens) is checked
+// across files (data-cross-checks.ts, data-picture-checks.ts); some of it as
+// warnings.
 //
 //   node --import ./tests/resolve-ts.mjs tools/validate-data.ts <data-repo>
 //
 // It imports no npm package, so the data repo's CI runs it with Node alone.
-// Exits 0 when there's nothing to report, 1 with problems, 2 without a folder.
+// Exits 0 when there's no error (warnings don't fail it), 1 with errors, 2
+// without a folder.
 
 import { lstatSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { CATEGORIES_PATH, parseCategories } from "../app/lib/categories";
+import { CATEGORIES_PATH, isCategoryFolderFormat, parseCategories } from "../app/lib/categories";
+import { GAME_SLUG } from "../app/lib/contract";
 import { gameSlugs } from "../app/lib/games-guard";
 import { templateFieldsByCategory } from "../app/lib/notify-template";
 import { APP_POLICY, MANIFEST_PATH, appPolicy, manifestProblems, validateDataFile, validateNavigationFile } from "../app/lib/screen-policy";
+
+import { crossFileProblems } from "./data-cross-checks";
+import { assetFiles } from "./data-picture-checks";
 
 export interface Problem {
   /** Relative to the repo, with "/" separators. */
   path: string;
   message: string;
+  /** An error fails the check; a warning is reported and doesn't. Without one, an error. */
+  level?: "error" | "warning";
 }
 
 const GAMES_PATH = "data/_meta/games.json";
-const GAME_SLUG = /^[a-z0-9-]+$/;
-/** The files the admin's rules cover; every other JSON file only has to parse. */
-const RULED = /^data\/(_meta\/categories\.json|[^/]+\/(navigation\.json|screens\/[^/]+\.json|schemas\/[^/]+\.json))$/;
+/** The files the admin's rules cover by their path alone; every other JSON file only has to parse. */
+const RULED = /^data\/(_meta\/(categories|games)\.json|[^/]+\/(navigation\.json|screens\/[^/]+\.json|schemas\/[^/]+\.json))$/;
+/** A file of a game's folder: data/{game}/{folder}/{id}.json. */
+const RECORD_FILE = /^data\/([^/_][^/]*)\/([^/]+)\/[^/]+\.json$/;
+
+/** Whether `path` is a record's file: one of a record folder, whose own rules validateDataFile has (its id). */
+function isRecordFile(path: string): boolean {
+  const folder = RECORD_FILE.exec(path)?.[2];
+  return folder !== undefined && isCategoryFolderFormat(folder);
+}
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -93,7 +111,9 @@ export function validateDataRepo(root: string): { files: number; checked: number
 
   let checked = 0;
   for (const [path, content] of parsed) {
-    if (!RULED.test(path)) continue;
+    if (!RULED.test(path) && !isRecordFile(path)) {
+      continue;
+    }
     checked++;
     const navigation = /^data\/([^/]+)\/navigation\.json$/.exec(path);
     const messages = navigation
@@ -101,6 +121,10 @@ export function validateDataRepo(root: string): { files: number; checked: number
       : validateDataFile(path, content, categories, templateFields, policy);
     for (const message of messages) problems.push({ path, message });
   }
+
+  // Across files, game by game: records against schemas, enums and each other;
+  // screens against the game's screens; pictures against public/assets.
+  problems.push(...crossFileProblems({ parsed, assets: assetFiles(root), categories, policy, manifest }, slugs));
 
   // A game's folder games.json doesn't list (a game renamed or dropped and its
   // data left behind) is data nothing shows. Folders starting with "_" (_meta)
@@ -134,21 +158,47 @@ export function validateDataRepo(root: string): { files: number; checked: number
 // line of its own: the Actions runner reads any line that begins with "::" as
 // a workflow command.
 
-/** A problem as one log line: control characters and line separators (newlines included) are written as escapes. */
-export function problemLine({ path, message }: Problem): string {
-  return `${path}: ${message}`.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, (c) =>
-    c === "\n" ? "\\n" : c === "\r" ? "\\r" : `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
-  );
+const isWarning = (problem: Problem): boolean => problem.level === "warning";
+
+const HEX = 16;
+/** Hex digits of a \u escape. */
+const ESCAPE_DIGITS = 4;
+
+/** A control character or line separator as a log line writes it: \n, \r, else \uXXXX. */
+function escapedChar(char: string): string {
+  if (char === "\n") {
+    return "\\n";
+  }
+  if (char === "\r") {
+    return "\\r";
+  }
+  return `\\u${char.charCodeAt(0).toString(HEX).padStart(ESCAPE_DIGITS, "0")}`;
 }
 
-/** A problem as a GitHub Actions error annotation on its file, escaped as the runner expects. */
-export function problemAnnotation({ path, message }: Problem): string {
+/** A problem as one log line, a warning marked as one: control characters and line separators (newlines included) are written as escapes. */
+export function problemLine({ path, message, level }: Problem): string {
+  const marker = level === "warning" ? "warning: " : "";
+  return `${marker}${path}: ${message}`.replaceAll(/[\p{Cc}\p{Zl}\p{Zp}]/gu, escapedChar);
+}
+
+/** A problem as a GitHub Actions annotation on its file (an error, or a warning), escaped as the runner expects. */
+export function problemAnnotation({ path, message, level }: Problem): string {
   const data = (s: string) => s.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
   const property = (s: string) => data(s).replace(/:/g, "%3A").replace(/,/g, "%2C");
-  return `::error file=${property(path)}::${data(message)}`;
+  return `::${level === "warning" ? "warning" : "error"} file=${property(path)}::${data(message)}`;
 }
 
-/** Checks the repo at args[0] and writes the result; the exit code. */
+const counted = (count: number, noun: string): string => `${String(count)} ${noun}${count === 1 ? "" : "s"}`;
+
+/** The summary line's count: errors and warnings, else "no problems". */
+function summary(problems: Problem[]): string {
+  const warnings = problems.filter(isWarning).length;
+  const errors = problems.length - warnings;
+  const parts = [...(errors > 0 ? [counted(errors, "error")] : []), ...(warnings > 0 ? [counted(warnings, "warning")] : [])];
+  return parts.length > 0 ? parts.join(" and ") : "no problems";
+}
+
+/** Checks the repo at args[0] and writes the result; the exit code: 1 with errors, warnings alone don't fail. */
 export function run(args: string[], write: (line: string) => void, annotate: boolean): number {
   if (args.length !== 1) {
     write("Usage: node --import ./tests/resolve-ts.mjs tools/validate-data.ts <data-repo>");
@@ -156,9 +206,8 @@ export function run(args: string[], write: (line: string) => void, annotate: boo
   }
   const { files, checked, problems } = validateDataRepo(args[0]);
   for (const problem of problems) write(annotate ? problemAnnotation(problem) : problemLine(problem));
-  const count = problems.length === 0 ? "no problems" : `${problems.length} problem${problems.length === 1 ? "" : "s"}`;
-  write(`Checked ${files} JSON files (${checked} by the admin's rules): ${count}.`);
-  return problems.length === 0 ? 0 : 1;
+  write(`Checked ${String(files)} JSON files (${String(checked)} by the admin's rules): ${summary(problems)}.`);
+  return problems.some((problem) => !isWarning(problem)) ? 1 : 0;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

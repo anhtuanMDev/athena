@@ -227,9 +227,13 @@ anything else: JSON 404
 ### 6.3 `/games` (list, create, edit)
 
 - **Data:** `data/_meta/games.json`.
-- **Form:** validated against `GameSchema` (`app/schemas/game.ts`): the dark palette, an
+- **Form:** validated against `GameSchema` (`app/schemas/game.ts`): a developer (text, may
+  be empty), all 14 dark colors as hex (the app leaves out a game without them), an
   optional `light` palette (contrast warnings from `app/lib/game-palette.ts` and
-  `contrast.ts`), `active`. Keys the form doesn't know are kept (`keepUnknownKeys`).
+  `contrast.ts`), `active`, and an icon the app loads (an upload, or a URL on its
+  picture hosts). Keys the form doesn't know are kept (`keepUnknownKeys`). The write API
+  and the data validator check games.json the same way (`gamesFileProblems`,
+  `app/lib/screen-policy.ts`).
 - **Logic note:** this rewrites a _list_ file rather than a one-record file - the page
   reads the current file, changes the array, and writes the whole file back.
   `categories.json` (§6.10) and `data/<game>/navigation.json` (§6.14) are written the
@@ -374,6 +378,17 @@ anything else: JSON 404
 - `field_section`'s `linkReferences` (a boolean prop, default off): a reference opens its
   record when the record has an id and exactly one detail screen shows its category
   (`detailScreenFor`, `app/lib/reference-labels.ts`); the preview draws those as links.
+  A second detail screen of a category is a warning: notifications and reference links
+  then open neither.
+- **The contract with the app** (`app/lib/contract.ts`, the same values as zms
+  `src/content/policy.ts`; `tests/fixtures/contract-cases.json` is run by both): ids,
+  slugs, colors (#RGB or #RRGGBB), picture hosts and variants, reserved folders, the push
+  topic. The editor and the write API refuse a literal picture the app won't load, a
+  color that isn't hex, and a source whose category isn't in categories.json; "data."
+  on home, list and page screens reads only `data.game` and the category folders (a
+  record's fields are "item." in a list block); an action may open a detail screen only
+  from a list of that screen's category's records (`detailActionProblem`). The preview
+  shows the variant the app picks and marks pictures it won't load.
 
 ### 6.15 `/:game/enums` (list/new/edit/delete)
 
@@ -671,11 +686,16 @@ and `npm run build` with `DOTENV_CONFIG_PATH=/dev/null`. There is no deploy job.
 ### The data validator
 
 `tools/validate-data.ts <data-repo>` checks a checkout of the data repo with the
-admin's own rules: every `data/**/*.json` parses; screens, navigation, schemas and
-`categories.json` pass `validateDataFile` under the manifest's policy; the manifest has
-the expected shape; tabs match the game's screens; every game folder (`data/<slug>/`,
-not `_meta` or another `_` folder) is a game games.json lists. It imports no npm package and exits
-0 (clean), 1 (problems) or 2 (no folder). The data repo's
+admin's own rules: every `data/**/*.json` parses; screens, navigation, schemas,
+`categories.json`, games.json and records (their id is their file's name) pass
+`validateDataFile` under the manifest's policy; the manifest has the expected shape;
+tabs and actions match the game's screens; every game folder (`data/<slug>/`, not
+`_meta` or another `_` folder) is a game games.json lists; every picture a file names
+exists under `public/assets`. Warnings, which don't fail it: references to records that
+don't exist, enum values that aren't options, record pictures on hosts the app won't
+load, a second detail screen of a category (the admin lets these happen; the app shows
+them degraded). It imports no npm package and exits 0 (no errors), 1 (errors) or 2 (no
+folder); in Actions, warnings are `::warning` annotations. The data repo's
 `.github/workflows/validate-data.yml` checks out athena at `main` and runs it on every
 change. Tests: `tests/validate-data.test.ts`.
 
