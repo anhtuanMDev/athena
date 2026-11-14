@@ -256,3 +256,21 @@ describe("a GraphQL blob's text", () => {
     assert.equal(usableText(blob("\uFEFF{}")), "{}");
   });
 });
+
+void describe("records without an id (R3)", () => {
+  void it("get their file's name, as screens do, so the app can open them", async () => {
+    const files = {
+      "data/ow/news/no-id.json": JSON.stringify({ title: "No id" }),
+      "data/ow/news/empty-id.json": JSON.stringify({ id: "", title: "Empty" }),
+      "data/ow/news/number-id.json": JSON.stringify({ id: 7, title: "Seven" }),
+      "data/ow/news/kept.json": JSON.stringify({ id: "kept", title: "Kept" }),
+      "data/ow/news/renamed.json": JSON.stringify({ id: "other", title: "Other" }),
+    };
+    const { payload } = await buildDataPayload(memoryReader(files).reader, "data/ow/news");
+    assert.deepEqual(
+      (payload as { id: unknown }[]).map((record) => record.id).sort(),
+      ["empty-id", "kept", "no-id", "number-id", "other"],
+    );
+    assert.deepEqual((payload as Record<string, unknown>[]).find((record) => record.title === "No id"), { title: "No id", id: "no-id" });
+  });
+});

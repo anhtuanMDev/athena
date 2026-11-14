@@ -12,12 +12,18 @@ import { problemAnnotation, problemLine, run, validateDataRepo } from "../tools/
 const fixture = (path: string) => JSON.parse(readFileSync(new URL(`./fixtures/${path}`, import.meta.url), "utf8"));
 const schemaDir = new URL("./fixtures/overwatch/schemas/", import.meta.url);
 
+/** A games.json entry the app shows: a developer and the 14 dark colors (F10). */
+function game(slug: string, name: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  const dark = fixture("palette-cases.json").dark as Record<string, string>;
+  return { slug, name, developer: "", active: true, ...dark, ...extra };
+}
+
 /** A small data repo that passes: the fixtures' meta files and schemas, three screens and their tabs. */
 function baseRepo(): Record<string, unknown> {
   const files: Record<string, unknown> = {
     "data/_meta/mobile_primitives.json": fixture("mobile_primitives.json"),
     "data/_meta/categories.json": fixture("categories.json"),
-    "data/_meta/games.json": { games: [{ slug: "overwatch", name: "Overwatch 2" }] },
+    "data/_meta/games.json": { games: [game("overwatch", "Overwatch 2")] },
     "data/overwatch/news/weekly-recall-going-ultra.json": fixture("overwatch/news/weekly-recall-going-ultra.json"),
     "data/overwatch/syncs/cron-overwatch-news.json": { lastRun: "2026-11-01T00:00:00.000Z" },
     "data/overwatch/screens/home.json": { type: "home", title: "Home", blocks: [{ id: "h", type: "screen_header", props: { title: "Overwatch" } }] },
@@ -58,7 +64,7 @@ describe("checking a data repo", () => {
     assert.deepEqual(result.problems, []);
     assert.equal(result.files, Object.keys(baseRepo()).length);
     // Screens, navigation, schemas and categories.json go through the admin's rules.
-    assert.equal(result.checked, 3 + 1 + readdirSync(schemaDir).length + 1);
+    assert.equal(result.checked, 3 + 1 + readdirSync(schemaDir).length + 1 + 1 + 1);
   });
 
   it("reports a game folder that no game in games.json names", () => {
@@ -71,7 +77,7 @@ describe("checking a data repo", () => {
   it("doesn't count _meta or any other folder starting with _ as a game, nor want a folder for each game", () => {
     const files = {
       ...baseRepo(),
-      "data/_meta/games.json": { games: [{ slug: "overwatch", name: "Overwatch 2" }, { slug: "marvel-rivals", name: "Marvel Rivals", active: false }] },
+      "data/_meta/games.json": { games: [game("overwatch", "Overwatch 2"), game("marvel-rivals", "Marvel Rivals", { active: false })] },
       "data/_shared/notes.json": {},
     };
     assert.deepEqual(messages(repo(files)), []);
@@ -209,10 +215,145 @@ describe("the command", () => {
     const bad = node(repo({ ...baseRepo(), "data/overwatch/news/broken.json": "{" }));
     assert.equal(bad.status, 1);
     assert.match(bad.stdout, /^data\/overwatch\/news\/broken\.json: isn't valid JSON/m);
-    assert.match(bad.stdout, /: 1 problem\.$/m);
+    assert.match(bad.stdout, /: 1 error\.$/m);
   });
 
   it("exits 2 without a directory", () => {
     assert.equal(node().status, 2);
+  });
+});
+
+// ─── R3: warnings, and what the admin's rules can't see file by file ────
+
+const levelled = (root: string) => validateDataRepo(root).problems.map((problem) => `${problem.level ?? "error"} ${problem.path}: ${problem.message}`);
+const hero = (id: string, extra: Record<string, unknown> = {}) => ({ id, schema_id: "hero-hero", game: "overwatch", name: id, hero_name: id, role: "support", health: 200, abilities: [], ...extra });
+const ROLE = { id: "role", name: "Role", options: [{ id: "tank", name: "Tank" }, { id: "support", name: "Support", icon: "/api/assets/overwatch/enums/role/support.png" }] };
+
+void describe("levels", () => {
+  void it("warn without failing: a warning is annotated as one, and the run exits 0", () => {
+    const files = { ...baseRepo(), "data/overwatch/modes/push.json": { ...fixture("overwatch/modes/push.json"), compatible_maps: ["colosseo"] } };
+    const problems = validateDataRepo(repo(files)).problems;
+    assert.deepEqual(
+      problems.map((problem) => [problem.level, problem.message]),
+      [["warning", 'compatible_maps: "colosseo" isn\'t a record of maps; the app shows the id instead.']],
+    );
+    const out: string[] = [];
+    assert.equal(run([repo(files)], (line) => out.push(line), true), 0);
+    assert.match(out[0], /^::warning file=data\/overwatch\/modes\/push\.json::compatible_maps: /);
+    assert.match(out[1], /: 1 warning\.$/);
+  });
+
+  void it("count errors and warnings apart", () => {
+    const files = {
+      ...baseRepo(),
+      "data/overwatch/modes/push.json": { ...fixture("overwatch/modes/push.json"), compatible_maps: ["colosseo", "esperanca"] },
+      "data/overwatch/news/broken.json": "{",
+    };
+    const out: string[] = [];
+    assert.equal(run([repo(files)], (line) => out.push(line), false), 1);
+    assert.match(out.at(-1)!, /: 1 error and 2 warnings\.$/);
+  });
+});
+
+void describe("records", () => {
+  void it("are named by their id, a record id the app accepts", () => {
+    const files = {
+      ...baseRepo(),
+      "data/overwatch/news/no-id.json": { title: "No id" },
+      "data/overwatch/news/other.json": { id: "not-other", title: "Other" },
+      "data/overwatch/news/bad-.json": { id: "bad-", title: "Bad" },
+    };
+    assert.deepEqual(levelled(repo(files)), [
+      'error data/overwatch/news/bad-.json: The file name "bad-" isn\'t a record id: 1 to 80 lowercase letters, digits, dots and dashes, starting and ending with a letter or digit, without "..".',
+      "error data/overwatch/news/no-id.json: The record's id must be \"no-id\", its file's name.",
+      "error data/overwatch/news/other.json: The record's id must be \"other\", its file's name.",
+    ]);
+  });
+
+  void it("warn about references to records that don't exist and enum values that aren't options", () => {
+    const files = {
+      ...baseRepo(),
+      "public/assets/overwatch/enums/role/support.png": "x",
+      "data/overwatch/enums/role.json": ROLE,
+      "data/overwatch/heroes/ana.json": hero("ana", { role: "Healer", difficulty: "hard" }),
+      "data/overwatch/heroes/tracer.json": hero("tracer", { role: "Tank", difficulty: "Brutal" }),
+      "data/overwatch/items/biotic-rounds.json": { id: "biotic-rounds", item_name: "Biotic Rounds", applicable_heroes: ["ana", "kiriko"] },
+      "data/overwatch/modes/push.json": { ...fixture("overwatch/modes/push.json"), compatible_maps: [], introduced_patch: "patch-9" },
+    };
+    assert.deepEqual(levelled(repo(files)), [
+      'warning data/overwatch/heroes/ana.json: role: "Healer" isn\'t an option of the enum role; the app shows it as stored.',
+      'warning data/overwatch/heroes/tracer.json: difficulty: "Brutal" isn\'t one of the field\'s options; the app shows it as stored.',
+      'warning data/overwatch/items/biotic-rounds.json: applicable_heroes: "kiriko" isn\'t a record of heroes; the app shows the id instead.',
+      'warning data/overwatch/modes/push.json: introduced_patch: "patch-9" isn\'t a record of patches; the app shows the id instead.',
+    ]);
+  });
+
+  void it("need the pictures they name, and warn about pictures the app won't load", () => {
+    const files = {
+      ...baseRepo(),
+      "public/assets/overwatch/heroes/ana/portrait_2d.webp": "x",
+      "public/assets/overwatch/enums/role/support.png": "x",
+      "data/overwatch/enums/role.json": { ...ROLE, options: [...ROLE.options, { id: "damage", name: "Damage", icon: "/api/assets/overwatch/enums/role/damage.png" }] },
+      "data/overwatch/heroes/ana.json": hero("ana", { portrait: { main: "/api/assets/overwatch/heroes/ana/portrait_2d.webp?v=0123456789ab", "3d": "/api/assets/overwatch/heroes/ana/portrait_3d.webp" } }),
+      "data/overwatch/news/imgur.json": { id: "imgur", title: "Imgur", image: "https://i.imgur.com/a.png", url: "https://news.blizzard.com/x" },
+    };
+    assert.deepEqual(levelled(repo(files)), [
+      "error data/overwatch/enums/role.json: options[2].icon: the picture /api/assets/overwatch/enums/role/damage.png doesn't exist.",
+      "error data/overwatch/heroes/ana.json: portrait.3d: the picture /api/assets/overwatch/heroes/ana/portrait_3d.webp doesn't exist.",
+      "warning data/overwatch/news/imgur.json: image: the app won't load the picture https://i.imgur.com/a.png.",
+    ]);
+  });
+});
+
+void describe("games.json", () => {
+  void it("is checked as the app reads it (F10)", () => {
+    const files = { ...baseRepo(), "data/_meta/games.json": { games: [game("overwatch", "Overwatch 2", { background: "" })] } };
+    assert.deepEqual(levelled(repo(files)), ["error data/_meta/games.json: Game 1: background must be a hex color such as #FF8200 or #F80."]);
+  });
+
+  void it("needs the icons it names", () => {
+    const files = { ...baseRepo(), "data/_meta/games.json": { games: [game("overwatch", "Overwatch 2", { icon: "/api/assets/games/overwatch-icon.webp" })] } };
+    assert.deepEqual(levelled(repo(files)), ["error data/_meta/games.json: games[0].icon: the picture /api/assets/games/overwatch-icon.webp doesn't exist."]);
+    assert.deepEqual(levelled(repo({ ...files, "public/assets/games/overwatch-icon.webp": "x" })), []);
+  });
+});
+
+void describe("screens with the game's other screens", () => {
+  void it("open a detail screen only from a list of its records (F9), and warn about a second one (C9)", () => {
+    const files = {
+      ...baseRepo(),
+      "data/overwatch/screens/home.json": {
+        type: "home",
+        blocks: [{ id: "p", type: "promo_card", props: { title: "Hi", action: { screen: "news-detail" } } }],
+      },
+      "data/overwatch/screens/news-detail.json": { type: "detail", source: { category: "news" }, blocks: [] },
+      "data/overwatch/screens/news-full.json": { type: "detail", source: { category: "news" }, blocks: [] },
+    };
+    assert.deepEqual(levelled(repo(files)), [
+      'error data/overwatch/screens/home.json: Block 1: action opens "news-detail", a detail screen: only a list of "news" records can open it, with the record that was tapped.',
+      'warning data/overwatch/screens/news-detail.json: The detail screen "news-full" shows "news" records too: notifications and reference links open neither of them. List blocks can still open either.',
+      'warning data/overwatch/screens/news-full.json: The detail screen "news-detail" shows "news" records too: notifications and reference links open neither of them. List blocks can still open either.',
+    ]);
+  });
+
+  void it("list configured categories that this game has schemas for (C5)", () => {
+    const files = {
+      ...baseRepo(),
+      "data/overwatch/screens/skins.json": { type: "list", source: { category: "skin" }, blocks: [] },
+      "data/overwatch/screens/events.json": { type: "list", source: { category: "event" }, blocks: [] },
+      "data/_meta/categories.json": { categories: [...fixture("categories.json").categories, { category: "event", folder: "events", label: "Events" }] },
+    };
+    assert.deepEqual(levelled(repo(files)), [
+      'error data/overwatch/screens/events.json: No schema of this game has category "event": the app shows nothing for it.',
+      'error data/overwatch/screens/skins.json: source names the category "skin", which isn\'t in categories.json: the app shows nothing for it.',
+    ]);
+  });
+});
+
+void describe("the data repo as it is", () => {
+  void it("passes zero-backend's main with only the push mode's map references as warnings", { skip: !process.env.DATA_REPO }, () => {
+    const result = validateDataRepo(process.env.DATA_REPO!);
+    const levels = result.problems.map((problem) => problem.level ?? "error");
+    assert.equal(levels.filter((level) => level === "error").length, 0, result.problems.map((problem) => problem.message).join("\n"));
   });
 });

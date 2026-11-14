@@ -1,0 +1,2683 @@
+{
+ "description": "Shared contract cases: zms (__tests__/fixtures/contract-cases.json) and athena (tests/fixtures/contract-cases.json) run this same file, byte for byte. Its rules and how each side runs each section are in contract-spec.md. Its sha256 is in the block manifest's $policy.fixtures.",
+ "enums": {
+  "files": [
+   {
+    "id": "role",
+    "name": "Role",
+    "options": [
+     "",
+     "Tank",
+     {
+      "id": "damage",
+      "name": "Damage",
+      "icon": "/api/assets/overwatch/enums/role/damage.png"
+     },
+     {
+      "id": "",
+      "name": "Support"
+     },
+     {
+      "name": ""
+     },
+     {
+      "id": "flex"
+     },
+     5,
+     null
+    ]
+   }
+  ],
+  "cases": [
+   {
+    "name": "global enum: the options a field offers, empty ones left out",
+    "field": {
+     "key": "role",
+     "type": "enum",
+     "globalEnumId": "role"
+    },
+    "value": "damage",
+    "expected": {
+     "options": [
+      "Tank",
+      "damage",
+      "Support",
+      "flex"
+     ],
+     "name": "Damage",
+     "icon": "/api/assets/overwatch/enums/role/damage.png"
+    }
+   },
+   {
+    "name": "global enum: matched by name in any case",
+    "field": {
+     "key": "role",
+     "type": "enum",
+     "globalEnumId": "role"
+    },
+    "value": "DAMAGE",
+    "expected": {
+     "options": [
+      "Tank",
+      "damage",
+      "Support",
+      "flex"
+     ],
+     "name": "Damage",
+     "icon": "/api/assets/overwatch/enums/role/damage.png"
+    }
+   },
+   {
+    "name": "global enum: a plain text option",
+    "field": {
+     "key": "role",
+     "type": "enum",
+     "globalEnumId": "role"
+    },
+    "value": "Tank",
+    "expected": {
+     "options": [
+      "Tank",
+      "damage",
+      "Support",
+      "flex"
+     ],
+     "name": "Tank",
+     "icon": null
+    }
+   },
+   {
+    "name": "global enum: an option with an empty id is named by its name",
+    "field": {
+     "key": "role",
+     "type": "enum",
+     "globalEnumId": "role"
+    },
+    "value": "support",
+    "expected": {
+     "options": [
+      "Tank",
+      "damage",
+      "Support",
+      "flex"
+     ],
+     "name": "Support",
+     "icon": null
+    }
+   },
+   {
+    "name": "global enum: an option with only an id",
+    "field": {
+     "key": "role",
+     "type": "enum",
+     "globalEnumId": "role"
+    },
+    "value": "flex",
+    "expected": {
+     "options": [
+      "Tank",
+      "damage",
+      "Support",
+      "flex"
+     ],
+     "name": "flex",
+     "icon": null
+    }
+   },
+   {
+    "name": "global enum: an empty value names nothing",
+    "field": {
+     "key": "role",
+     "type": "enum",
+     "globalEnumId": "role"
+    },
+    "value": "",
+    "expected": {
+     "options": [
+      "Tank",
+      "damage",
+      "Support",
+      "flex"
+     ],
+     "name": null,
+     "icon": null
+    }
+   },
+   {
+    "name": "global enum: an unknown value names nothing",
+    "field": {
+     "key": "role",
+     "type": "enum",
+     "globalEnumId": "role"
+    },
+    "value": "healer",
+    "expected": {
+     "options": [
+      "Tank",
+      "damage",
+      "Support",
+      "flex"
+     ],
+     "name": null,
+     "icon": null
+    }
+   },
+   {
+    "name": "global enum that doesn't exist",
+    "field": {
+     "key": "role",
+     "type": "enum",
+     "globalEnumId": "nope"
+    },
+    "value": "Tank",
+    "expected": {
+     "options": [],
+     "name": null,
+     "icon": null
+    }
+   },
+   {
+    "name": "inline options, empty ones left out",
+    "field": {
+     "key": "difficulty",
+     "type": "enum",
+     "options": [
+      "",
+      "Easy",
+      "Hard"
+     ]
+    },
+    "value": "hard",
+    "expected": {
+     "options": [
+      "Easy",
+      "Hard"
+     ],
+     "name": "Hard",
+     "icon": null
+    }
+   },
+   {
+    "name": "inline options: a number value",
+    "field": {
+     "key": "tier",
+     "type": "enum",
+     "options": [
+      "1",
+      "2",
+      "3"
+     ]
+    },
+    "value": 3,
+    "expected": {
+     "options": [
+      "1",
+      "2",
+      "3"
+     ],
+     "name": "3",
+     "icon": null
+    }
+   },
+   {
+    "name": "a list field with inline options",
+    "field": {
+     "key": "affected_modes",
+     "type": "list",
+     "options": [
+      "Quick Play",
+      "Competitive Play"
+     ]
+    },
+    "value": "competitive play",
+    "expected": {
+     "options": [
+      "Quick Play",
+      "Competitive Play"
+     ],
+     "name": "Competitive Play",
+     "icon": null
+    }
+   }
+  ]
+ },
+ "values": [
+  {
+   "name": "a whole number with its unit",
+   "field": {
+    "key": "health",
+    "type": "number",
+    "unit": "HP"
+   },
+   "record": {
+    "health": 250
+   },
+   "expected": {
+    "bound": "250 HP",
+    "section": "250 HP"
+   }
+  },
+  {
+   "name": "decimals: bound as stored, a field section rounds to 2",
+   "field": {
+    "key": "health",
+    "type": "number",
+    "unit": "HP"
+   },
+   "record": {
+    "health": 1.23456
+   },
+   "expected": {
+    "bound": "1.23456 HP",
+    "section": "1.23 HP"
+   }
+  },
+  {
+   "name": "rounding goes through toFixed(2), then drops trailing zeros",
+   "field": {
+    "key": "health",
+    "type": "number",
+    "unit": "HP"
+   },
+   "record": {
+    "health": 2.005
+   },
+   "expected": {
+    "bound": "2.005 HP",
+    "section": "2 HP"
+   }
+  },
+  {
+   "name": "a negative decimal",
+   "field": {
+    "key": "health",
+    "type": "number",
+    "unit": "HP"
+   },
+   "record": {
+    "health": -0.5
+   },
+   "expected": {
+    "bound": "-0.5 HP",
+    "section": "-0.5 HP"
+   }
+  },
+  {
+   "name": "zero keeps its unit",
+   "field": {
+    "key": "health",
+    "type": "number",
+    "unit": "HP"
+   },
+   "record": {
+    "health": 0
+   },
+   "expected": {
+    "bound": "0 HP",
+    "section": "0 HP"
+   }
+  },
+  {
+   "name": "a number stored as text reads as a number",
+   "field": {
+    "key": "health",
+    "type": "number",
+    "unit": "HP"
+   },
+   "record": {
+    "health": "250"
+   },
+   "expected": {
+    "bound": "250 HP",
+    "section": "250 HP"
+   }
+  },
+  {
+   "name": "text in a number field has no unit",
+   "field": {
+    "key": "health",
+    "type": "number",
+    "unit": "HP"
+   },
+   "record": {
+    "health": "n/a"
+   },
+   "expected": {
+    "bound": "n/a",
+    "section": "n/a"
+   }
+  },
+  {
+   "name": "a number without a unit",
+   "field": {
+    "key": "team_count",
+    "type": "number"
+   },
+   "record": {
+    "team_count": 7
+   },
+   "expected": {
+    "bound": "7",
+    "section": "7"
+   }
+  },
+  {
+   "name": "the record's own suffix, trimmed, wins over the unit",
+   "field": {
+    "key": "cooldown",
+    "type": "number",
+    "unit": "s",
+    "hasCustomSuffix": true
+   },
+   "record": {
+    "cooldown": 6,
+    "cooldown_suffix": " sec "
+   },
+   "expected": {
+    "bound": "6 sec",
+    "section": "6 sec"
+   }
+  },
+  {
+   "name": "a blank suffix falls back to the unit",
+   "field": {
+    "key": "cooldown",
+    "type": "number",
+    "unit": "s",
+    "hasCustomSuffix": true
+   },
+   "record": {
+    "cooldown": 6,
+    "cooldown_suffix": "  "
+   },
+   "expected": {
+    "bound": "6 s",
+    "section": "6 s"
+   }
+  },
+  {
+   "name": "a suffix counts only when the field allows one",
+   "field": {
+    "key": "cooldown",
+    "type": "number",
+    "unit": "s"
+   },
+   "record": {
+    "cooldown": 6,
+    "cooldown_suffix": "sec"
+   },
+   "expected": {
+    "bound": "6 s",
+    "section": "6 s"
+   }
+  },
+  {
+   "name": "a text value takes the record's suffix",
+   "field": {
+    "key": "range",
+    "type": "string",
+    "hasCustomSuffix": true
+   },
+   "record": {
+    "range": "long",
+    "range_suffix": "m"
+   },
+   "expected": {
+    "bound": "long m",
+    "section": "long m"
+   }
+  },
+  {
+   "name": "a text value never takes the unit",
+   "field": {
+    "key": "label",
+    "type": "string",
+    "unit": "x"
+   },
+   "record": {
+    "label": "abc"
+   },
+   "expected": {
+    "bound": "abc",
+    "section": "abc"
+   }
+  },
+  {
+   "name": "a flag: bound as true/false, Yes/No in a field section",
+   "field": {
+    "key": "is_symmetric",
+    "type": "boolean"
+   },
+   "record": {
+    "is_symmetric": true
+   },
+   "expected": {
+    "bound": "true",
+    "section": "Yes"
+   }
+  },
+  {
+   "name": "an enum never takes a unit",
+   "field": {
+    "key": "role",
+    "type": "enum",
+    "unit": "x",
+    "options": [
+     "Tank"
+    ]
+   },
+   "record": {
+    "role": "Tank"
+   },
+   "expected": {
+    "bound": "Tank"
+   }
+  }
+ ],
+ "pictures": [
+  {
+   "name": "an asset path",
+   "value": "/api/assets/overwatch/heroes/ana/portrait_2d.webp",
+   "expected": "{api}/api/assets/overwatch/heroes/ana/portrait_2d.webp"
+  },
+  {
+   "name": "an asset path with its version",
+   "value": "/api/assets/overwatch/heroes/ana/portrait_2d.webp?v=0123456789ab",
+   "expected": "{api}/api/assets/overwatch/heroes/ana/portrait_2d.webp?v=0123456789ab"
+  },
+  {
+   "name": "a relative asset path",
+   "value": "assets/heroes/tracer.png",
+   "expected": "{api}/api/assets/heroes/tracer.png"
+  },
+  {
+   "name": "an approved image host",
+   "value": "https://bnetcmsus-a.akamaihd.net/cms/blog_header/a.jpg",
+   "expected": "https://bnetcmsus-a.akamaihd.net/cms/blog_header/a.jpg"
+  },
+  {
+   "name": "the other approved image host",
+   "value": "https://blz-contentstack-images.akamaized.net/v3/assets/a.png",
+   "expected": "https://blz-contentstack-images.akamaized.net/v3/assets/a.png"
+  },
+  {
+   "name": "a subdomain of an approved host",
+   "value": "https://images.bnetcmsus-a.akamaihd.net/a.png",
+   "expected": "https://images.bnetcmsus-a.akamaihd.net/a.png"
+  },
+  {
+   "name": "an approved host with :443",
+   "value": "https://bnetcmsus-a.akamaihd.net:443/a.png",
+   "expected": "https://bnetcmsus-a.akamaihd.net:443/a.png"
+  },
+  {
+   "name": "another https host",
+   "value": "https://i.imgur.com/a.png",
+   "expected": null
+  },
+  {
+   "name": "http on an approved host",
+   "value": "http://bnetcmsus-a.akamaihd.net/a.png",
+   "expected": null
+  },
+  {
+   "name": "credentials before an approved host",
+   "value": "https://user@bnetcmsus-a.akamaihd.net/a.png",
+   "expected": null
+  },
+  {
+   "name": "an approved host as a prefix of another",
+   "value": "https://bnetcmsus-a.akamaihd.net.evil.example/a.png",
+   "expected": null
+  },
+  {
+   "name": "a protocol-relative URL",
+   "value": "//cdn.example.com/a.png",
+   "expected": null
+  },
+  {
+   "name": "upper-case scheme",
+   "value": "HTTPS://bnetcmsus-a.akamaihd.net/a.png",
+   "expected": null
+  },
+  {
+   "name": "a data URL",
+   "value": "data:image/png;base64,AAAA",
+   "expected": null
+  },
+  {
+   "name": "a bare file name",
+   "value": "portrait.png",
+   "expected": null
+  },
+  {
+   "name": "empty",
+   "value": "",
+   "expected": null
+  },
+  {
+   "name": "a number",
+   "value": 42,
+   "expected": null
+  },
+  {
+   "name": "variants: main first",
+   "value": {
+    "main": "/api/assets/a.webp",
+    "2d": "/api/assets/b.webp"
+   },
+   "expected": "{api}/api/assets/a.webp"
+  },
+  {
+   "name": "variants: 2d before 3d",
+   "value": {
+    "3d": "/api/assets/c.webp",
+    "2d": "/api/assets/b.webp"
+   },
+   "expected": "{api}/api/assets/b.webp"
+  },
+  {
+   "name": "variants: none of the known names, the first text",
+   "value": {
+    "3d": "/api/assets/c.webp",
+    "splash": "/api/assets/d.webp"
+   },
+   "expected": "{api}/api/assets/c.webp"
+  },
+  {
+   "name": "variants: an empty one is skipped",
+   "value": {
+    "default": "",
+    "portrait": "/api/assets/p.webp"
+   },
+   "expected": "{api}/api/assets/p.webp"
+  },
+  {
+   "name": "variants: a non-text one is skipped",
+   "value": {
+    "main": 5,
+    "icon": "/api/assets/i.webp"
+   },
+   "expected": "{api}/api/assets/i.webp"
+  },
+  {
+   "name": "variants: the picked one is refused, no fallback",
+   "value": {
+    "main": "https://i.imgur.com/a.png",
+    "2d": "/api/assets/b.webp"
+   },
+   "expected": null
+  },
+  {
+   "name": "variants: none",
+   "value": {},
+   "expected": null
+  }
+ ],
+ "lists": [
+  {
+   "name": "no sort: file order",
+   "records": [
+    {
+     "id": "a",
+     "v": 10
+    },
+    {
+     "id": "b",
+     "v": "9"
+    },
+    {
+     "id": "c",
+     "v": ""
+    },
+    {
+     "id": "d",
+     "v": null
+    },
+    {
+     "id": "e",
+     "v": "abc"
+    },
+    {
+     "id": "f",
+     "v": 2
+    },
+    {
+     "id": "g",
+     "v": true
+    },
+    {
+     "id": "h",
+     "v": {
+      "x": 1
+     }
+    },
+    {
+     "id": "i",
+     "v": "Abc"
+    },
+    {
+     "id": "j"
+    }
+   ],
+   "source": {
+    "category": "x"
+   },
+   "schemas": [
+    "s1"
+   ],
+   "expected": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j"
+   ]
+  },
+  {
+   "name": "ascending: numbers by value, the rest as text with numbers inside by value, missing last",
+   "records": [
+    {
+     "id": "a",
+     "v": 10
+    },
+    {
+     "id": "b",
+     "v": "9"
+    },
+    {
+     "id": "c",
+     "v": ""
+    },
+    {
+     "id": "d",
+     "v": null
+    },
+    {
+     "id": "e",
+     "v": "abc"
+    },
+    {
+     "id": "f",
+     "v": 2
+    },
+    {
+     "id": "g",
+     "v": true
+    },
+    {
+     "id": "h",
+     "v": {
+      "x": 1
+     }
+    },
+    {
+     "id": "i",
+     "v": "Abc"
+    },
+    {
+     "id": "j"
+    }
+   ],
+   "source": {
+    "category": "x",
+    "sort": "v"
+   },
+   "schemas": [
+    "s1"
+   ],
+   "expected": [
+    "h",
+    "f",
+    "b",
+    "a",
+    "e",
+    "i",
+    "g",
+    "c",
+    "d",
+    "j"
+   ]
+  },
+  {
+   "name": "descending: missing still last",
+   "records": [
+    {
+     "id": "a",
+     "v": 10
+    },
+    {
+     "id": "b",
+     "v": "9"
+    },
+    {
+     "id": "c",
+     "v": ""
+    },
+    {
+     "id": "d",
+     "v": null
+    },
+    {
+     "id": "e",
+     "v": "abc"
+    },
+    {
+     "id": "f",
+     "v": 2
+    },
+    {
+     "id": "g",
+     "v": true
+    },
+    {
+     "id": "h",
+     "v": {
+      "x": 1
+     }
+    },
+    {
+     "id": "i",
+     "v": "Abc"
+    },
+    {
+     "id": "j"
+    }
+   ],
+   "source": {
+    "category": "x",
+    "sort": "v",
+    "order": "desc"
+   },
+   "schemas": [
+    "s1"
+   ],
+   "expected": [
+    "g",
+    "e",
+    "i",
+    "a",
+    "b",
+    "f",
+    "h",
+    "c",
+    "d",
+    "j"
+   ]
+  },
+  {
+   "name": "numbers inside text by value",
+   "records": [
+    {
+     "id": "p10",
+     "t": "Patch 10"
+    },
+    {
+     "id": "p9",
+     "t": "Patch 9"
+    },
+    {
+     "id": "p100",
+     "t": "patch 100"
+    }
+   ],
+   "source": {
+    "category": "x",
+    "sort": "t"
+   },
+   "schemas": [
+    "s1"
+   ],
+   "expected": [
+    "p9",
+    "p10",
+    "p100"
+   ]
+  },
+  {
+   "name": "ties keep file order, case aside",
+   "records": [
+    {
+     "id": "one",
+     "t": "Abc"
+    },
+    {
+     "id": "two",
+     "t": "abc"
+    },
+    {
+     "id": "three",
+     "t": "ABC"
+    }
+   ],
+   "source": {
+    "category": "x",
+    "sort": "t",
+    "order": "desc"
+   },
+   "schemas": [
+    "s1"
+   ],
+   "expected": [
+    "one",
+    "two",
+    "three"
+   ]
+  },
+  {
+   "name": "a limit",
+   "records": [
+    {
+     "id": "a",
+     "v": 10
+    },
+    {
+     "id": "b",
+     "v": "9"
+    },
+    {
+     "id": "c",
+     "v": ""
+    },
+    {
+     "id": "d",
+     "v": null
+    },
+    {
+     "id": "e",
+     "v": "abc"
+    },
+    {
+     "id": "f",
+     "v": 2
+    },
+    {
+     "id": "g",
+     "v": true
+    },
+    {
+     "id": "h",
+     "v": {
+      "x": 1
+     }
+    },
+    {
+     "id": "i",
+     "v": "Abc"
+    },
+    {
+     "id": "j"
+    }
+   ],
+   "source": {
+    "category": "x",
+    "sort": "v",
+    "limit": 3
+   },
+   "schemas": [
+    "s1"
+   ],
+   "expected": [
+    "h",
+    "f",
+    "b"
+   ]
+  },
+  {
+   "name": "limit 0 means all",
+   "records": [
+    {
+     "id": "a",
+     "v": 10
+    },
+    {
+     "id": "b",
+     "v": "9"
+    },
+    {
+     "id": "c",
+     "v": ""
+    },
+    {
+     "id": "d",
+     "v": null
+    },
+    {
+     "id": "e",
+     "v": "abc"
+    },
+    {
+     "id": "f",
+     "v": 2
+    },
+    {
+     "id": "g",
+     "v": true
+    },
+    {
+     "id": "h",
+     "v": {
+      "x": 1
+     }
+    },
+    {
+     "id": "i",
+     "v": "Abc"
+    },
+    {
+     "id": "j"
+    }
+   ],
+   "source": {
+    "category": "x",
+    "limit": 0
+   },
+   "schemas": [
+    "s1"
+   ],
+   "expected": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j"
+   ]
+  },
+  {
+   "name": "a negative limit means all",
+   "records": [
+    {
+     "id": "a",
+     "v": 10
+    },
+    {
+     "id": "b",
+     "v": "9"
+    },
+    {
+     "id": "c",
+     "v": ""
+    },
+    {
+     "id": "d",
+     "v": null
+    },
+    {
+     "id": "e",
+     "v": "abc"
+    },
+    {
+     "id": "f",
+     "v": 2
+    },
+    {
+     "id": "g",
+     "v": true
+    },
+    {
+     "id": "h",
+     "v": {
+      "x": 1
+     }
+    },
+    {
+     "id": "i",
+     "v": "Abc"
+    },
+    {
+     "id": "j"
+    }
+   ],
+   "source": {
+    "category": "x",
+    "limit": -2
+   },
+   "schemas": [
+    "s1"
+   ],
+   "expected": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j"
+   ]
+  },
+  {
+   "name": "a fractional limit",
+   "records": [
+    {
+     "id": "a",
+     "v": 10
+    },
+    {
+     "id": "b",
+     "v": "9"
+    },
+    {
+     "id": "c",
+     "v": ""
+    },
+    {
+     "id": "d",
+     "v": null
+    },
+    {
+     "id": "e",
+     "v": "abc"
+    },
+    {
+     "id": "f",
+     "v": 2
+    },
+    {
+     "id": "g",
+     "v": true
+    },
+    {
+     "id": "h",
+     "v": {
+      "x": 1
+     }
+    },
+    {
+     "id": "i",
+     "v": "Abc"
+    },
+    {
+     "id": "j"
+    }
+   ],
+   "source": {
+    "category": "x",
+    "limit": 2.5
+   },
+   "schemas": [
+    "s1"
+   ],
+   "expected": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "name": "a limit given as text is ignored",
+   "records": [
+    {
+     "id": "a",
+     "v": 10
+    },
+    {
+     "id": "b",
+     "v": "9"
+    },
+    {
+     "id": "c",
+     "v": ""
+    },
+    {
+     "id": "d",
+     "v": null
+    },
+    {
+     "id": "e",
+     "v": "abc"
+    },
+    {
+     "id": "f",
+     "v": 2
+    },
+    {
+     "id": "g",
+     "v": true
+    },
+    {
+     "id": "h",
+     "v": {
+      "x": 1
+     }
+    },
+    {
+     "id": "i",
+     "v": "Abc"
+    },
+    {
+     "id": "j"
+    }
+   ],
+   "source": {
+    "category": "x",
+    "limit": "5"
+   },
+   "schemas": [
+    "s1"
+   ],
+   "expected": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j"
+   ]
+  },
+  {
+   "name": "at most 100 entries",
+   "records": [
+    {
+     "id": "r1"
+    },
+    {
+     "id": "r2"
+    },
+    {
+     "id": "r3"
+    },
+    {
+     "id": "r4"
+    },
+    {
+     "id": "r5"
+    },
+    {
+     "id": "r6"
+    },
+    {
+     "id": "r7"
+    },
+    {
+     "id": "r8"
+    },
+    {
+     "id": "r9"
+    },
+    {
+     "id": "r10"
+    },
+    {
+     "id": "r11"
+    },
+    {
+     "id": "r12"
+    },
+    {
+     "id": "r13"
+    },
+    {
+     "id": "r14"
+    },
+    {
+     "id": "r15"
+    },
+    {
+     "id": "r16"
+    },
+    {
+     "id": "r17"
+    },
+    {
+     "id": "r18"
+    },
+    {
+     "id": "r19"
+    },
+    {
+     "id": "r20"
+    },
+    {
+     "id": "r21"
+    },
+    {
+     "id": "r22"
+    },
+    {
+     "id": "r23"
+    },
+    {
+     "id": "r24"
+    },
+    {
+     "id": "r25"
+    },
+    {
+     "id": "r26"
+    },
+    {
+     "id": "r27"
+    },
+    {
+     "id": "r28"
+    },
+    {
+     "id": "r29"
+    },
+    {
+     "id": "r30"
+    },
+    {
+     "id": "r31"
+    },
+    {
+     "id": "r32"
+    },
+    {
+     "id": "r33"
+    },
+    {
+     "id": "r34"
+    },
+    {
+     "id": "r35"
+    },
+    {
+     "id": "r36"
+    },
+    {
+     "id": "r37"
+    },
+    {
+     "id": "r38"
+    },
+    {
+     "id": "r39"
+    },
+    {
+     "id": "r40"
+    },
+    {
+     "id": "r41"
+    },
+    {
+     "id": "r42"
+    },
+    {
+     "id": "r43"
+    },
+    {
+     "id": "r44"
+    },
+    {
+     "id": "r45"
+    },
+    {
+     "id": "r46"
+    },
+    {
+     "id": "r47"
+    },
+    {
+     "id": "r48"
+    },
+    {
+     "id": "r49"
+    },
+    {
+     "id": "r50"
+    },
+    {
+     "id": "r51"
+    },
+    {
+     "id": "r52"
+    },
+    {
+     "id": "r53"
+    },
+    {
+     "id": "r54"
+    },
+    {
+     "id": "r55"
+    },
+    {
+     "id": "r56"
+    },
+    {
+     "id": "r57"
+    },
+    {
+     "id": "r58"
+    },
+    {
+     "id": "r59"
+    },
+    {
+     "id": "r60"
+    },
+    {
+     "id": "r61"
+    },
+    {
+     "id": "r62"
+    },
+    {
+     "id": "r63"
+    },
+    {
+     "id": "r64"
+    },
+    {
+     "id": "r65"
+    },
+    {
+     "id": "r66"
+    },
+    {
+     "id": "r67"
+    },
+    {
+     "id": "r68"
+    },
+    {
+     "id": "r69"
+    },
+    {
+     "id": "r70"
+    },
+    {
+     "id": "r71"
+    },
+    {
+     "id": "r72"
+    },
+    {
+     "id": "r73"
+    },
+    {
+     "id": "r74"
+    },
+    {
+     "id": "r75"
+    },
+    {
+     "id": "r76"
+    },
+    {
+     "id": "r77"
+    },
+    {
+     "id": "r78"
+    },
+    {
+     "id": "r79"
+    },
+    {
+     "id": "r80"
+    },
+    {
+     "id": "r81"
+    },
+    {
+     "id": "r82"
+    },
+    {
+     "id": "r83"
+    },
+    {
+     "id": "r84"
+    },
+    {
+     "id": "r85"
+    },
+    {
+     "id": "r86"
+    },
+    {
+     "id": "r87"
+    },
+    {
+     "id": "r88"
+    },
+    {
+     "id": "r89"
+    },
+    {
+     "id": "r90"
+    },
+    {
+     "id": "r91"
+    },
+    {
+     "id": "r92"
+    },
+    {
+     "id": "r93"
+    },
+    {
+     "id": "r94"
+    },
+    {
+     "id": "r95"
+    },
+    {
+     "id": "r96"
+    },
+    {
+     "id": "r97"
+    },
+    {
+     "id": "r98"
+    },
+    {
+     "id": "r99"
+    },
+    {
+     "id": "r100"
+    },
+    {
+     "id": "r101"
+    },
+    {
+     "id": "r102"
+    },
+    {
+     "id": "r103"
+    },
+    {
+     "id": "r104"
+    },
+    {
+     "id": "r105"
+    }
+   ],
+   "source": {
+    "category": "x"
+   },
+   "schemas": [
+    "s1"
+   ],
+   "expected": [
+    "r1",
+    "r2",
+    "r3",
+    "r4",
+    "r5",
+    "r6",
+    "r7",
+    "r8",
+    "r9",
+    "r10",
+    "r11",
+    "r12",
+    "r13",
+    "r14",
+    "r15",
+    "r16",
+    "r17",
+    "r18",
+    "r19",
+    "r20",
+    "r21",
+    "r22",
+    "r23",
+    "r24",
+    "r25",
+    "r26",
+    "r27",
+    "r28",
+    "r29",
+    "r30",
+    "r31",
+    "r32",
+    "r33",
+    "r34",
+    "r35",
+    "r36",
+    "r37",
+    "r38",
+    "r39",
+    "r40",
+    "r41",
+    "r42",
+    "r43",
+    "r44",
+    "r45",
+    "r46",
+    "r47",
+    "r48",
+    "r49",
+    "r50",
+    "r51",
+    "r52",
+    "r53",
+    "r54",
+    "r55",
+    "r56",
+    "r57",
+    "r58",
+    "r59",
+    "r60",
+    "r61",
+    "r62",
+    "r63",
+    "r64",
+    "r65",
+    "r66",
+    "r67",
+    "r68",
+    "r69",
+    "r70",
+    "r71",
+    "r72",
+    "r73",
+    "r74",
+    "r75",
+    "r76",
+    "r77",
+    "r78",
+    "r79",
+    "r80",
+    "r81",
+    "r82",
+    "r83",
+    "r84",
+    "r85",
+    "r86",
+    "r87",
+    "r88",
+    "r89",
+    "r90",
+    "r91",
+    "r92",
+    "r93",
+    "r94",
+    "r95",
+    "r96",
+    "r97",
+    "r98",
+    "r99",
+    "r100"
+   ]
+  },
+  {
+   "name": "a limit over 100 is 100",
+   "records": [
+    {
+     "id": "r1"
+    },
+    {
+     "id": "r2"
+    },
+    {
+     "id": "r3"
+    },
+    {
+     "id": "r4"
+    },
+    {
+     "id": "r5"
+    },
+    {
+     "id": "r6"
+    },
+    {
+     "id": "r7"
+    },
+    {
+     "id": "r8"
+    },
+    {
+     "id": "r9"
+    },
+    {
+     "id": "r10"
+    },
+    {
+     "id": "r11"
+    },
+    {
+     "id": "r12"
+    },
+    {
+     "id": "r13"
+    },
+    {
+     "id": "r14"
+    },
+    {
+     "id": "r15"
+    },
+    {
+     "id": "r16"
+    },
+    {
+     "id": "r17"
+    },
+    {
+     "id": "r18"
+    },
+    {
+     "id": "r19"
+    },
+    {
+     "id": "r20"
+    },
+    {
+     "id": "r21"
+    },
+    {
+     "id": "r22"
+    },
+    {
+     "id": "r23"
+    },
+    {
+     "id": "r24"
+    },
+    {
+     "id": "r25"
+    },
+    {
+     "id": "r26"
+    },
+    {
+     "id": "r27"
+    },
+    {
+     "id": "r28"
+    },
+    {
+     "id": "r29"
+    },
+    {
+     "id": "r30"
+    },
+    {
+     "id": "r31"
+    },
+    {
+     "id": "r32"
+    },
+    {
+     "id": "r33"
+    },
+    {
+     "id": "r34"
+    },
+    {
+     "id": "r35"
+    },
+    {
+     "id": "r36"
+    },
+    {
+     "id": "r37"
+    },
+    {
+     "id": "r38"
+    },
+    {
+     "id": "r39"
+    },
+    {
+     "id": "r40"
+    },
+    {
+     "id": "r41"
+    },
+    {
+     "id": "r42"
+    },
+    {
+     "id": "r43"
+    },
+    {
+     "id": "r44"
+    },
+    {
+     "id": "r45"
+    },
+    {
+     "id": "r46"
+    },
+    {
+     "id": "r47"
+    },
+    {
+     "id": "r48"
+    },
+    {
+     "id": "r49"
+    },
+    {
+     "id": "r50"
+    },
+    {
+     "id": "r51"
+    },
+    {
+     "id": "r52"
+    },
+    {
+     "id": "r53"
+    },
+    {
+     "id": "r54"
+    },
+    {
+     "id": "r55"
+    },
+    {
+     "id": "r56"
+    },
+    {
+     "id": "r57"
+    },
+    {
+     "id": "r58"
+    },
+    {
+     "id": "r59"
+    },
+    {
+     "id": "r60"
+    },
+    {
+     "id": "r61"
+    },
+    {
+     "id": "r62"
+    },
+    {
+     "id": "r63"
+    },
+    {
+     "id": "r64"
+    },
+    {
+     "id": "r65"
+    },
+    {
+     "id": "r66"
+    },
+    {
+     "id": "r67"
+    },
+    {
+     "id": "r68"
+    },
+    {
+     "id": "r69"
+    },
+    {
+     "id": "r70"
+    },
+    {
+     "id": "r71"
+    },
+    {
+     "id": "r72"
+    },
+    {
+     "id": "r73"
+    },
+    {
+     "id": "r74"
+    },
+    {
+     "id": "r75"
+    },
+    {
+     "id": "r76"
+    },
+    {
+     "id": "r77"
+    },
+    {
+     "id": "r78"
+    },
+    {
+     "id": "r79"
+    },
+    {
+     "id": "r80"
+    },
+    {
+     "id": "r81"
+    },
+    {
+     "id": "r82"
+    },
+    {
+     "id": "r83"
+    },
+    {
+     "id": "r84"
+    },
+    {
+     "id": "r85"
+    },
+    {
+     "id": "r86"
+    },
+    {
+     "id": "r87"
+    },
+    {
+     "id": "r88"
+    },
+    {
+     "id": "r89"
+    },
+    {
+     "id": "r90"
+    },
+    {
+     "id": "r91"
+    },
+    {
+     "id": "r92"
+    },
+    {
+     "id": "r93"
+    },
+    {
+     "id": "r94"
+    },
+    {
+     "id": "r95"
+    },
+    {
+     "id": "r96"
+    },
+    {
+     "id": "r97"
+    },
+    {
+     "id": "r98"
+    },
+    {
+     "id": "r99"
+    },
+    {
+     "id": "r100"
+    },
+    {
+     "id": "r101"
+    },
+    {
+     "id": "r102"
+    },
+    {
+     "id": "r103"
+    },
+    {
+     "id": "r104"
+    },
+    {
+     "id": "r105"
+    }
+   ],
+   "source": {
+    "category": "x",
+    "limit": 500
+   },
+   "schemas": [
+    "s1"
+   ],
+   "expected": [
+    "r1",
+    "r2",
+    "r3",
+    "r4",
+    "r5",
+    "r6",
+    "r7",
+    "r8",
+    "r9",
+    "r10",
+    "r11",
+    "r12",
+    "r13",
+    "r14",
+    "r15",
+    "r16",
+    "r17",
+    "r18",
+    "r19",
+    "r20",
+    "r21",
+    "r22",
+    "r23",
+    "r24",
+    "r25",
+    "r26",
+    "r27",
+    "r28",
+    "r29",
+    "r30",
+    "r31",
+    "r32",
+    "r33",
+    "r34",
+    "r35",
+    "r36",
+    "r37",
+    "r38",
+    "r39",
+    "r40",
+    "r41",
+    "r42",
+    "r43",
+    "r44",
+    "r45",
+    "r46",
+    "r47",
+    "r48",
+    "r49",
+    "r50",
+    "r51",
+    "r52",
+    "r53",
+    "r54",
+    "r55",
+    "r56",
+    "r57",
+    "r58",
+    "r59",
+    "r60",
+    "r61",
+    "r62",
+    "r63",
+    "r64",
+    "r65",
+    "r66",
+    "r67",
+    "r68",
+    "r69",
+    "r70",
+    "r71",
+    "r72",
+    "r73",
+    "r74",
+    "r75",
+    "r76",
+    "r77",
+    "r78",
+    "r79",
+    "r80",
+    "r81",
+    "r82",
+    "r83",
+    "r84",
+    "r85",
+    "r86",
+    "r87",
+    "r88",
+    "r89",
+    "r90",
+    "r91",
+    "r92",
+    "r93",
+    "r94",
+    "r95",
+    "r96",
+    "r97",
+    "r98",
+    "r99",
+    "r100"
+   ]
+  },
+  {
+   "name": "a schema: records without a known schema follow the first",
+   "records": [
+    {
+     "id": "s1a",
+     "schema_id": "s1"
+    },
+    {
+     "id": "s2a",
+     "schema_id": "s2"
+    },
+    {
+     "id": "none"
+    },
+    {
+     "id": "unknown",
+     "schema_id": "zz"
+    },
+    {
+     "id": "s2b",
+     "schema_id": "s2"
+    }
+   ],
+   "source": {
+    "category": "x",
+    "schema": "s1"
+   },
+   "schemas": [
+    "s1",
+    "s2"
+   ],
+   "expected": [
+    "s1a",
+    "none",
+    "unknown"
+   ]
+  },
+  {
+   "name": "another schema",
+   "records": [
+    {
+     "id": "s1a",
+     "schema_id": "s1"
+    },
+    {
+     "id": "s2a",
+     "schema_id": "s2"
+    },
+    {
+     "id": "none"
+    },
+    {
+     "id": "unknown",
+     "schema_id": "zz"
+    },
+    {
+     "id": "s2b",
+     "schema_id": "s2"
+    }
+   ],
+   "source": {
+    "category": "x",
+    "schema": "s2"
+   },
+   "schemas": [
+    "s1",
+    "s2"
+   ],
+   "expected": [
+    "s2a",
+    "s2b"
+   ]
+  },
+  {
+   "name": "a schema when the category has none: no filter",
+   "records": [
+    {
+     "id": "s1a",
+     "schema_id": "s1"
+    },
+    {
+     "id": "s2a",
+     "schema_id": "s2"
+    },
+    {
+     "id": "none"
+    },
+    {
+     "id": "unknown",
+     "schema_id": "zz"
+    },
+    {
+     "id": "s2b",
+     "schema_id": "s2"
+    }
+   ],
+   "source": {
+    "category": "x",
+    "schema": "s1"
+   },
+   "schemas": [],
+   "expected": [
+    "s1a",
+    "s2a",
+    "none",
+    "unknown",
+    "s2b"
+   ]
+  },
+  {
+   "name": "schema, sort, order and limit together",
+   "records": [
+    {
+     "id": "s1a",
+     "schema_id": "s1"
+    },
+    {
+     "id": "s2a",
+     "schema_id": "s2"
+    },
+    {
+     "id": "none"
+    },
+    {
+     "id": "unknown",
+     "schema_id": "zz"
+    },
+    {
+     "id": "s2b",
+     "schema_id": "s2"
+    }
+   ],
+   "source": {
+    "category": "x",
+    "schema": "s2",
+    "sort": "id",
+    "order": "desc",
+    "limit": 1
+   },
+   "schemas": [
+    "s1",
+    "s2"
+   ],
+   "expected": [
+    "s2b"
+   ]
+  }
+ ],
+ "colors": [
+  {
+   "value": "#FFF",
+   "expected": true
+  },
+  {
+   "value": "#fff",
+   "expected": true
+  },
+  {
+   "value": "#00B4FF",
+   "expected": true
+  },
+  {
+   "value": "#00b4ff",
+   "expected": true
+  },
+  {
+   "value": "#12345",
+   "expected": false
+  },
+  {
+   "value": "#1234",
+   "expected": false
+  },
+  {
+   "value": "#12345678",
+   "expected": false
+  },
+  {
+   "value": "#GGG",
+   "expected": false
+  },
+  {
+   "value": "red",
+   "expected": false
+  },
+  {
+   "value": "rgb(0, 0, 0)",
+   "expected": false
+  },
+  {
+   "value": "hsl(0, 0%, 0%)",
+   "expected": false
+  },
+  {
+   "value": "",
+   "expected": false
+  },
+  {
+   "value": " #FFF",
+   "expected": false
+  },
+  {
+   "value": "#FFF ",
+   "expected": false
+  },
+  {
+   "value": "FFFFFF",
+   "expected": false
+  }
+ ],
+ "ids": [
+  {
+   "kind": "gameSlug",
+   "value": "overwatch",
+   "expected": true
+  },
+  {
+   "kind": "gameSlug",
+   "value": "marvel-rivals",
+   "expected": true
+  },
+  {
+   "kind": "gameSlug",
+   "value": "a",
+   "expected": true
+  },
+  {
+   "kind": "gameSlug",
+   "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "expected": true
+  },
+  {
+   "kind": "gameSlug",
+   "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "expected": false
+  },
+  {
+   "kind": "gameSlug",
+   "value": "ow-",
+   "expected": false
+  },
+  {
+   "kind": "gameSlug",
+   "value": "-ow",
+   "expected": false
+  },
+  {
+   "kind": "gameSlug",
+   "value": "Overwatch",
+   "expected": false
+  },
+  {
+   "kind": "gameSlug",
+   "value": "ow.2",
+   "expected": false
+  },
+  {
+   "kind": "gameSlug",
+   "value": "",
+   "expected": false
+  },
+  {
+   "kind": "recordId",
+   "value": "ana",
+   "expected": true
+  },
+  {
+   "kind": "recordId",
+   "value": "yggsgard.v2",
+   "expected": true
+  },
+  {
+   "kind": "recordId",
+   "value": "a--b",
+   "expected": true
+  },
+  {
+   "kind": "recordId",
+   "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "expected": true
+  },
+  {
+   "kind": "recordId",
+   "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "expected": false
+  },
+  {
+   "kind": "recordId",
+   "value": "ana-",
+   "expected": false
+  },
+  {
+   "kind": "recordId",
+   "value": "-ana",
+   "expected": false
+  },
+  {
+   "kind": "recordId",
+   "value": "a..b",
+   "expected": false
+  },
+  {
+   "kind": "recordId",
+   "value": ".ana",
+   "expected": false
+  },
+  {
+   "kind": "recordId",
+   "value": "Ana",
+   "expected": false
+  },
+  {
+   "kind": "recordId",
+   "value": "ana~x",
+   "expected": false
+  },
+  {
+   "kind": "recordId",
+   "value": "",
+   "expected": false
+  },
+  {
+   "kind": "screenId",
+   "value": "hero-detail",
+   "expected": true
+  },
+  {
+   "kind": "screenId",
+   "value": "home",
+   "expected": true
+  },
+  {
+   "kind": "screenId",
+   "value": "x-",
+   "expected": true
+  },
+  {
+   "kind": "screenId",
+   "value": "-x",
+   "expected": false
+  },
+  {
+   "kind": "screenId",
+   "value": "app:settings",
+   "expected": false
+  },
+  {
+   "kind": "screenId",
+   "value": "hero_detail",
+   "expected": false
+  },
+  {
+   "kind": "screenId",
+   "value": "Hero",
+   "expected": false
+  },
+  {
+   "kind": "category",
+   "value": "hero",
+   "expected": true
+  },
+  {
+   "kind": "category",
+   "value": "skin_set",
+   "expected": true
+  },
+  {
+   "kind": "category",
+   "value": "a-b",
+   "expected": false
+  },
+  {
+   "kind": "category",
+   "value": "1x",
+   "expected": false
+  },
+  {
+   "kind": "category",
+   "value": "abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "expected": true
+  },
+  {
+   "kind": "category",
+   "value": "abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "expected": false
+  },
+  {
+   "kind": "folder",
+   "value": "heroes",
+   "expected": true
+  },
+  {
+   "kind": "folder",
+   "value": "news-items",
+   "expected": true
+  },
+  {
+   "kind": "folder",
+   "value": "cron_jobs",
+   "expected": false
+  },
+  {
+   "kind": "folder",
+   "value": "_meta",
+   "expected": false
+  },
+  {
+   "kind": "folder",
+   "value": "1x",
+   "expected": false
+  },
+  {
+   "kind": "folder",
+   "value": "Heroes",
+   "expected": false
+  },
+  {
+   "kind": "fieldKey",
+   "value": "role",
+   "expected": true
+  },
+  {
+   "kind": "fieldKey",
+   "value": "hero_name",
+   "expected": true
+  },
+  {
+   "kind": "fieldKey",
+   "value": "params.cooldown",
+   "expected": false
+  },
+  {
+   "kind": "fieldKey",
+   "value": "Role",
+   "expected": false
+  },
+  {
+   "kind": "fieldKey",
+   "value": "",
+   "expected": false
+  },
+  {
+   "kind": "boundLink",
+   "value": "data.url",
+   "expected": true
+  },
+  {
+   "kind": "boundLink",
+   "value": "item.patch_notes_url",
+   "expected": true
+  },
+  {
+   "kind": "boundLink",
+   "value": "data.Links.0.url",
+   "expected": true
+  },
+  {
+   "kind": "boundLink",
+   "value": "data.",
+   "expected": false
+  },
+  {
+   "kind": "boundLink",
+   "value": "url",
+   "expected": false
+  },
+  {
+   "kind": "boundLink",
+   "value": "data.a b",
+   "expected": false
+  },
+  {
+   "kind": "boundLink",
+   "value": "record.url",
+   "expected": false
+  },
+  {
+   "kind": "assetVersion",
+   "value": "0123456789ab",
+   "expected": true
+  },
+  {
+   "kind": "assetVersion",
+   "value": "0123456789a",
+   "expected": false
+  },
+  {
+   "kind": "assetVersion",
+   "value": "0123456789abc",
+   "expected": false
+  },
+  {
+   "kind": "assetVersion",
+   "value": "0123456789AB",
+   "expected": false
+  },
+  {
+   "kind": "recordFolder",
+   "value": "heroes",
+   "expected": true
+  },
+  {
+   "kind": "recordFolder",
+   "value": "events",
+   "expected": true
+  },
+  {
+   "kind": "recordFolder",
+   "value": "schemas",
+   "expected": false
+  },
+  {
+   "kind": "recordFolder",
+   "value": "assets",
+   "expected": false
+  },
+  {
+   "kind": "recordFolder",
+   "value": "cron",
+   "expected": false
+  },
+  {
+   "kind": "recordFolder",
+   "value": "cron_jobs",
+   "expected": false
+  },
+  {
+   "kind": "categoryName",
+   "value": "hero",
+   "expected": true
+  },
+  {
+   "kind": "categoryName",
+   "value": "event",
+   "expected": true
+  },
+  {
+   "kind": "categoryName",
+   "value": "cron_job",
+   "expected": false
+  },
+  {
+   "kind": "categoryName",
+   "value": "Hero",
+   "expected": false
+  }
+ ],
+ "detailScreens": [
+  {
+   "name": "one detail screen",
+   "screens": [
+    {
+     "id": "heroes",
+     "type": "list",
+     "source": {
+      "category": "hero"
+     }
+    },
+    {
+     "id": "hero-detail",
+     "type": "detail",
+     "source": {
+      "category": "hero"
+     }
+    }
+   ],
+   "category": "hero",
+   "expected": "hero-detail"
+  },
+  {
+   "name": "two detail screens: neither",
+   "screens": [
+    {
+     "id": "hero-detail",
+     "type": "detail",
+     "source": {
+      "category": "hero"
+     }
+    },
+    {
+     "id": "hero-lore",
+     "type": "detail",
+     "source": {
+      "category": "hero"
+     }
+    }
+   ],
+   "category": "hero",
+   "expected": null
+  },
+  {
+   "name": "only a list screen",
+   "screens": [
+    {
+     "id": "heroes",
+     "type": "list",
+     "source": {
+      "category": "hero"
+     }
+    }
+   ],
+   "category": "hero",
+   "expected": null
+  },
+  {
+   "name": "another category's detail screen",
+   "screens": [
+    {
+     "id": "map-detail",
+     "type": "detail",
+     "source": {
+      "category": "map"
+     }
+    }
+   ],
+   "category": "hero",
+   "expected": null
+  },
+  {
+   "name": "a detail screen without a source doesn't count",
+   "screens": [
+    {
+     "id": "loose",
+     "type": "detail"
+    },
+    {
+     "id": "hero-detail",
+     "type": "detail",
+     "source": {
+      "category": "hero"
+     }
+    }
+   ],
+   "category": "hero",
+   "expected": "hero-detail"
+  },
+  {
+   "name": "no screens",
+   "screens": [],
+   "category": "hero",
+   "expected": null
+  }
+ ]
+}

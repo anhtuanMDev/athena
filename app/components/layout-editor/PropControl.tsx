@@ -152,6 +152,8 @@ const smallButtonClass =
 export interface PropContext {
   /** Fields "data.<path>" can use on this screen. */
   dataFields: FieldOption[];
+  /** Fields the filter chips can filter the screen's lists by: its source's (screenDataFields). Without them, dataFields. */
+  chipFields?: FieldOption[];
   /** Fields "item.<path>" can use; null outside list blocks. */
   itemFields: FieldOption[] | null;
   schemas: SchemaInfo[];
@@ -593,7 +595,7 @@ export function PropControl({
     } else if (spec.type === "info_rows") control = <InfoRowsInput id={inputId} value={value} onChange={onChange} dataFields={dataFields} icons={context.icons} max={context.limits.smallList} />;
     else {
       const current = typeof value === "string" ? value : "";
-      const choices = filterFields(dataFields);
+      const choices = filterFields(context.chipFields ?? dataFields);
       control = (
         <select id={inputId} value={current} aria-describedby={describedBy} aria-invalid={error ? true : undefined} onChange={(e) => onChange(e.target.value || undefined)} className={inputClass}>
           <option value="">Choose a field…</option>

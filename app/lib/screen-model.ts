@@ -1,6 +1,11 @@
+import { PICTURE_PROP, pictureAdvice, refusedPicture } from "./app-pictures";
 import { DEFAULT_CATEGORIES, type Category } from "./categories";
-import { APP_POLICY, BLOCKED_PROP, BOUND_LINK, isAllowedLink, isAppScreen, type AppLimits, type AppPolicy } from "./screen-policy";
+import { colorProblem } from "./colors";
 import { isReferenceField, referenceFolders } from "./reference-labels";
+import { detailActionProblem, otherDetailScreens, secondDetailMessage, sourceCategory } from "./screen-actions";
+import { APP_POLICY, BLOCKED_PROP, BOUND_LINK, isAllowedLink, isAppScreen, type AppLimits, type AppPolicy } from "./screen-policy";
+
+import type { ScreenRef } from "./screen-actions";
 
 // App screens under data/<game>/screens/<id>.json and the tab list in
 // data/<game>/navigation.json, rendered by the mobile app (zms). Schemas only
@@ -116,7 +121,11 @@ export interface ScreenIssue {
     | "not-favoritable"
     | "long-text"
     | "empty-screen"
-    | "list-as-text";
+    | "list-as-text"
+    | "foreign-picture"
+    | "bad-color"
+    | "wrong-record"
+    | "second-detail";
   message: string;
 }
 
@@ -619,8 +628,14 @@ function isEmptyValue(value: unknown): boolean {
 export interface AppContext {
   limits?: AppLimits;
   appScreens?: AppPolicy["appScreens"];
-  /** Without them, favorites sources aren't checked. */
+  imageHosts?: AppPolicy["imageHosts"];
+  imageVariants?: AppPolicy["imageVariants"];
+  /** categories.json. Without them, favorites sources aren't checked, nor whether a source's category is configured. */
   categories?: readonly Pick<Category, "category" | "favoritable">[];
+  /** The game's screens, this one by `screenId`: where actions lead. Without them, only whether the screen exists is checked. */
+  screens?: readonly ScreenRef[];
+  /** This screen's id; its entry in `screens` is replaced by the screen being checked. */
+  screenId?: string;
 }
 
 /** Every text value inside `value`, with the path to it. */
@@ -629,6 +644,53 @@ function textsIn(value: unknown, path: string, out: { path: string; text: string
   else if (Array.isArray(value)) value.forEach((entry, i) => textsIn(entry, `${path}[${i}]`, out));
   else if (value && typeof value === "object") for (const [key, nested] of Object.entries(value)) textsIn(nested, `${path}.${key}`, out);
   return out;
+}
+
+/** Why the app shows nothing for a source's `category` (C5), when categories.json is given and doesn't have it. */
+function unconfiguredMessage(category: string, name: string, configured?: readonly Pick<Category, "category">[]): string | undefined {
+  if (configured === undefined || configured.some((entry) => entry.category === category)) {
+    return undefined;
+  }
+  return `${name} lists category "${category}", which isn't in categories.json: the app shows nothing for it.`;
+}
+
+/** The game's screens with this one as it's being edited, where actions lead (F9, C9); undefined without them. */
+function editedScreens(screen: ScreenFile, app: AppContext): ScreenRef[] | undefined {
+  if (!app.screens) {
+    return undefined;
+  }
+  const others = app.screens.filter((ref) => ref.id !== app.screenId);
+  return app.screenId === undefined ? others : [...others, { id: app.screenId, type: screen.type, source: screen.source }];
+}
+
+/** A warning for each other detail screen of this one's category: notifications and reference links then open neither (C9). */
+function secondDetailIssues(screen: ScreenFile, screenId: string | undefined, screens: ScreenRef[] | undefined): ScreenIssue[] {
+  const shows = screen.type === "detail" ? sourceCategory(screen.source) : undefined;
+  if (screens === undefined || screenId === undefined || shows === undefined) {
+    return [];
+  }
+  return otherDetailScreens(screenId, screens).map((other) => ({ sectionId: "", level: "warning", kind: "second-detail", message: secondDetailMessage(other, shows) }));
+}
+
+/** Why the app shows nothing for the category a block's source lists (C5): not in categories.json when it's given, else in no schema. */
+function blockCategoryMessage(name: string, source: RecordSource | undefined, known: { configured: AppContext["categories"]; schemas: Set<string> }): string | undefined {
+  if (source === undefined) {
+    return undefined;
+  }
+  return unconfiguredMessage(source.category, name, known.configured) ?? (known.schemas.has(source.category) ? undefined : `${name} lists category "${source.category}", which no schema has.`);
+}
+
+/** A literal picture the app won't load, and a color that isn't hex (F3, C7); nothing for a binding, the record's. */
+function literalIssues(name: string, value: unknown, policy: AppPolicy): Pick<ScreenIssue, "kind" | "message">[] {
+  if (isBinding(value)) {
+    return [];
+  }
+  const picture = PICTURE_PROP.test(name) ? refusedPicture(value, policy) : undefined;
+  const color = colorProblem(name, value);
+  return [
+    ...(picture === undefined ? [] : [{ kind: "foreign-picture" as const, message: `The app won't load the picture ${picture}: ${pictureAdvice(policy)}.` }]),
+    ...(color === undefined ? [] : [{ kind: "bad-color" as const, message: color }]),
+  ];
 }
 
 export function validateScreen(
@@ -642,7 +704,13 @@ export function validateScreen(
 ): ScreenIssue[] {
   const issues: ScreenIssue[] = [];
   const limits = app.limits ?? APP_POLICY.limits;
-  const policy: AppPolicy = { limits, appScreens: app.appScreens ?? APP_POLICY.appScreens };
+  const policy: AppPolicy = {
+    limits,
+    appScreens: app.appScreens ?? APP_POLICY.appScreens,
+    imageHosts: app.imageHosts ?? APP_POLICY.imageHosts,
+    imageVariants: app.imageVariants ?? APP_POLICY.imageVariants,
+  };
+  const screenRefs = editedScreens(screen, app);
   const dataKnown = new Set(dataFields.map((f) => f.key));
   const seenIds = new Set<string>();
   const categories = new Set(schemas.map((s) => s.category));
@@ -673,14 +741,14 @@ export function validateScreen(
       message: `A screen can have at most ${limits.blocksPerScreen} blocks; the app ignores the rest.`,
     });
   }
-  if (screen.source && !categories.has(screen.source.category)) {
-    issues.push({
-      sectionId: "",
-      level: "error",
-      kind: "unknown-category",
-      message: `No schema has category "${screen.source.category}".`,
-    });
+  const screenCategory = screen.source?.category;
+  if (screenCategory !== undefined) {
+    const message = unconfiguredMessage(screenCategory, "The screen", app.categories) ?? (categories.has(screenCategory) ? undefined : `No schema has category "${screenCategory}".`);
+    if (message !== undefined) {
+      issues.push({ sectionId: "", level: "error", kind: "unknown-category", message });
+    }
   }
+  issues.push(...secondDetailIssues(screen, app.screenId, screenRefs));
   if (screen.source) {
     for (const problem of sourceProblems(screen.source, "The screen")) issues.push({ sectionId: "", level: "error", ...problem });
   }
@@ -752,6 +820,7 @@ export function validateScreen(
               : `${what} opens "${action.screen}", which isn't a screen of this game.`,
           });
         }
+        checkTarget(name, action.screen, what);
         return;
       }
       if (action.url !== undefined) {
@@ -760,6 +829,14 @@ export function validateScreen(
         else if (!isAllowedLink(action.url)) {
           add({ prop: name, kind: "unsafe-link", message: `${what} links to a site the app won't open: use https on an allowed site.` }, "error");
         }
+      }
+    };
+    /** An action to a detail screen from a block that can't show what was tapped (F9). */
+    const checkTarget = (name: string, target: string, what: string) => {
+      const origin = { what, isList: Boolean(spec?.list), items: block.props.items, category: normalizeSource(block.props.source)?.category ?? screen.source?.category };
+      const problem = screenRefs ? detailActionProblem(target, screenRefs, origin) : undefined;
+      if (problem !== undefined) {
+        add({ prop: name, kind: "wrong-record", message: problem });
       }
     };
     const ignored: string[] = [];
@@ -772,6 +849,9 @@ export function validateScreen(
       if (isBinding(value)) {
         checkBinding(name, value);
         checkText(name, value, name);
+      }
+      for (const issue of literalIssues(name, value, policy)) {
+        add({ prop: name, ...issue });
       }
       // The app cuts longer text short (zms policy.ts clampText).
       for (const { path, text } of textsIn(value, name)) {
@@ -804,11 +884,12 @@ export function validateScreen(
       }
       const action = value && typeof value === "object" ? (value as ScreenAction) : undefined;
       if (spec?.props[name]?.type === "action" && action) checkAction(name, action, name);
+      const unknownCategory = spec?.props[name]?.type === "source" ? blockCategoryMessage(name, normalizeSource(value), { configured: app.categories, schemas: categories }) : undefined;
+      if (unknownCategory !== undefined) {
+        add({ prop: name, kind: "unknown-category", message: unknownCategory });
+      }
       if (spec?.props[name]?.type === "source") {
         const source = normalizeSource(value);
-        if (source && !categories.has(source.category)) {
-          add({ prop: name, kind: "unknown-category", message: `${name} lists category "${source.category}", which no schema has.` });
-        }
         if (source) for (const problem of sourceProblems(source, name)) add({ prop: name, ...problem });
       }
     }
@@ -846,7 +927,34 @@ export function recordLabel(record: Record<string, unknown>): string {
   return "Untitled record";
 }
 
-export const SCREEN_ID = /^[a-z0-9][a-z0-9-]*$/;
+export { SCREEN_ID } from "./contract";
+
+/** The game's screens as the listing gives them (each with its file name as id), where actions lead. */
+export function screenRefsOf(files: readonly unknown[]): ScreenRef[] {
+  return files.flatMap((file): ScreenRef[] => (isPlainObject(file) && typeof file.id === "string" ? [{ id: file.id, type: file.type, source: file.source }] : []));
+}
+
+/** The schemas the starters may use: those of categories in categories.json (the app shows no others). */
+export function starterSchemas(schemas: SchemaInfo[], categories: readonly Pick<Category, "category">[]): SchemaInfo[] {
+  return schemas.filter((schema) => categories.some((entry) => entry.category === schema.category));
+}
+
+/**
+ * What "data.<path>" can read on a screen, as the app gives it (zms
+ * ScreenView), and the fields the filter chips pick from. Detail screens read
+ * their record; home, list and page screens read { game, <folder>… } only, so
+ * their source's fields feed the filter chips, never "data.".
+ */
+export function screenDataFields(
+  screen: ScreenFile,
+  { schemas, categories = DEFAULT_CATEGORIES, records = [] }: { schemas: SchemaInfo[]; categories?: Categories; records?: Record<string, unknown>[] },
+): { data: FieldOption[]; filter: FieldOption[] } {
+  if (screen.type === "detail") {
+    const fields = sourceFields(schemas, screen.source, records);
+    return { data: fields, filter: fields };
+  }
+  return { data: homeFields(categories), filter: screen.source ? sourceFields(schemas, screen.source) : [] };
+}
 
 /** How the editors name a screen the app provides itself. */
 export function appScreenLabel(id: string): string {

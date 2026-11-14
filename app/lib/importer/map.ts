@@ -11,7 +11,7 @@
  *   "a@href", "@id"  HTML: an attribute of the matches, or of the item
  *   "time | date"    transforms, applied in order: date, slug, number,
  *                    lower, upper, and url (a link made absolute against
- *                    the source's address)
+ *                    the source's address, and https)
  * Object-array fields take { each, fields }: one object per match of `each`,
  * its sub-fields mapped by the same rules relative to that match.
  *
@@ -19,9 +19,12 @@
  * preview can show them and a reviewer can fix the draft.
  */
 import { parse, type HTMLElement } from "node-html-parser";
+
+import { RECORD_ID } from "../contract";
+import { slugify } from "../slug";
+
 import type { FieldRule } from "../../schemas/cron";
 import type { DynamicField } from "../../schemas/dynamic-schema";
-import { slugify } from "../slug";
 
 export type SourceFormat = "json" | "html";
 
@@ -191,9 +194,14 @@ function applyTransform(value: unknown, transform: Transform, base?: string): un
     case "upper":
       return String(value).toUpperCase();
     case "url":
+      // https only: the app opens no other links. An http link is made https,
+      // as the sites the app may open all serve it.
       try {
         const url = new URL(String(value).trim(), base);
-        return url.protocol === "https:" || url.protocol === "http:" ? url.href : undefined;
+        if (url.protocol === "http:") {
+          url.protocol = "https:";
+        }
+        return url.protocol === "https:" ? url.href : undefined;
       } catch {
         return undefined;
       }
@@ -283,8 +291,8 @@ interface MappingConfig {
   field_mappings: Record<string, FieldRule>;
 }
 
-/** Same shape as the record ids the admin and the app accept. */
-export const RECORD_ID = /^(?!.*\.\.)[a-z0-9](?:[a-z0-9.-]{0,78}[a-z0-9])?$/;
+/** The record ids the admin and the app accept (contract.ts). */
+export { RECORD_ID };
 
 function readRule(doc: Doc, node: unknown, rule: string): unknown[] | { error: string } {
   const parsed = parseRule(rule, doc.attributes);

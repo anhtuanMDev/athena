@@ -9,12 +9,15 @@
  * A run only ever adds drafts for ids that aren't published, drafted or
  * dismissed yet; nothing reaches the app until a reviewer publishes it.
  */
-import type { CronJob } from "../../schemas/cron";
-import type { DynamicField, DynamicSchemaFile } from "../../schemas/dynamic-schema";
 import { CATEGORIES_PATH, DEFAULT_CATEGORIES, normalizeCategories, type Category } from "../categories";
+import { GAME_SLUG } from "../contract";
+
 import { fetchSource } from "./fetch-source";
 import { RECORD_ID, mapDocument, missingRequired, type MappedItem } from "./map";
 import { RepoError, type DataRepo, type FileChange, type RunRepo } from "./repo";
+
+import type { CronJob } from "../../schemas/cron";
+import type { DynamicField, DynamicSchemaFile } from "../../schemas/dynamic-schema";
 
 export interface ImportDraft {
   record: Record<string, unknown>;
@@ -46,7 +49,6 @@ export class ImportError extends Error {
   }
 }
 
-const GAME_SLUG = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 const JOB_ID = /^[a-z0-9-]{1,80}$/;
 const MAX_DISMISSED = 500;
 const PREVIEW_ITEMS = 20;

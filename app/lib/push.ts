@@ -10,15 +10,14 @@
  * access token never reach a log, a reply or an error message.
  */
 import { CATEGORIES_PATH, normalizeCategories } from "./categories";
+import { ANDROID_CHANNEL_ID, PUSH_TOPIC } from "./contract";
 import { isGameActive } from "./games";
 import { renderNotification } from "./notify-template";
 
 /** At most this many pushes per game in any hour, whatever admins publish. */
 export const PUSHES_PER_GAME_PER_HOUR = 3;
-/** Every player who has notifications on (zms subscribes to it). */
-export const PUSH_TOPIC = "all_users";
-/** The channel zms creates at start-up (src/notifications, setupNotificationChannels). */
-export const ANDROID_CHANNEL_ID = "default";
+/** Every player who has notifications on (zms subscribes to it), and the channel zms creates at start-up (contract.ts). */
+export { ANDROID_CHANNEL_ID, PUSH_TOPIC };
 /** For getting a token and sending, together: a publish doesn't wait longer on a push. */
 export const PUSH_TIMEOUT_MS = 5_000;
 export const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";

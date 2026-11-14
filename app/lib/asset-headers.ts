@@ -3,6 +3,8 @@
 // they're sandboxed: an uploaded SVG opened directly can't run script or load
 // anything on the admin's origin. Neither changes how an <img> shows them.
 
+import { ASSET_VERSION } from "./contract";
+
 const TYPES: Record<string, string> = {
   avif: "image/avif",
   gif: "image/gif",
@@ -40,8 +42,8 @@ export const ASSET_CACHE = {
 /** raw.githubusercontent.com keeps a file for up to 5 minutes; ask again in one. */
 const RETRY_AFTER_SECONDS = "60";
 
-/** A ?v= value the mobile payloads write: the start of the file's git blob hash. */
-export const ASSET_VERSION = /^[0-9a-f]{12}$/;
+/** A ?v= value the mobile payloads write: the start of the file's git blob hash (contract.ts). */
+export { ASSET_VERSION };
 
 /** The git blob hash of `bytes`, the hash the repo tree lists for the file. */
 export async function gitBlobSha(bytes: Uint8Array): Promise<string> {

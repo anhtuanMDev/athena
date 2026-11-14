@@ -6,6 +6,7 @@
 // A category's push notification (`notify`) is the admin's alone: zms never
 // reads it, and /mobile/init leaves it out (see appCategory).
 
+import { CATEGORY_NAME, FOLDER_NAME, RESERVED_CATEGORIES, RESERVED_FOLDERS } from "./contract";
 import { keepUnknownKeys } from "./unknown-keys";
 
 export const CATEGORIES_PATH = "data/_meta/categories.json";
@@ -78,19 +79,19 @@ export const DEFAULT_CATEGORIES: readonly Category[] = [
 
 export const MAX_CATEGORIES = 24;
 const MAX_LABEL = 40;
-const CATEGORY_NAME = /^[a-z][a-z0-9_]{0,39}$/;
-// No "_", "." or "/": _meta, cron_jobs and ../x can't even be written.
-const FOLDER_NAME = /^[a-z][a-z0-9-]{0,39}$/;
-/** Folders of a game that aren't records, and the admin's own routes under a game. */
-export const RESERVED_FOLDERS = ["imports", "syncs", "schemas", "screens", "enums", "assets", "navigation", "cron", "raw"];
-/** Schema categories that aren't records: import job definitions. */
-const RESERVED_CATEGORIES = ["cron_job"];
+/** Folders of a game that aren't records, and the admin's own routes under a game (contract.ts). */
+export { RESERVED_FOLDERS };
 /** Categories whose editors are built into the admin, so their folders can't move. */
 const FIXED_FOLDERS: Record<string, string> = { hero: "heroes", map: "maps", mode: "modes" };
 
 /** Whether `folder` may hold records: the format, and not an internal folder. Says nothing about the config. */
 export function isCategoryFolderFormat(folder: string): boolean {
   return FOLDER_NAME.test(folder) && !RESERVED_FOLDERS.includes(folder);
+}
+
+/** Whether `category` may name a category of records: the format, and not a reserved one. Says nothing about the config. */
+export function isCategoryNameFormat(category: string): boolean {
+  return CATEGORY_NAME.test(category) && !RESERVED_CATEGORIES.includes(category);
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -113,7 +114,7 @@ export function normalizeCategories(raw: unknown): { categories: Category[]; pro
     const where = `Category ${i + 1}`;
     if (!isObject(entry)) return problems.push(`${where} isn't an object.`);
     const { category, folder } = entry;
-    if (typeof category !== "string" || !CATEGORY_NAME.test(category) || RESERVED_CATEGORIES.includes(category)) {
+    if (typeof category !== "string" || !isCategoryNameFormat(category)) {
       return problems.push(`${where}: "${String(category)}" can't be a category; use lowercase letters, digits and _, starting with a letter.`);
     }
     if (typeof folder !== "string" || !isCategoryFolderFormat(folder)) {
@@ -238,6 +239,12 @@ export async function readCategories(read: (path: string) => Promise<string>): P
 
 /** Whether checking a write to `path` needs the configured categories: a schema's references name them. */
 export const needsCategories = (path: string) => /^data\/[^/]+\/schemas\/[^/]+\.json$/.test(path);
+
+/** A screen file of a game. */
+export const SCREEN_FILE = /^data\/[^/]+\/screens\/[^/]+\.json$/;
+
+/** Whether checking a write to `path` needs categories.json: schemas (their references) and screens (their sources). */
+export const readsCategories = (path: string): boolean => needsCategories(path) || SCREEN_FILE.test(path);
 
 /** Where a reference field may read its options: a category folder of the record's own game. */
 export function referenceEndpoints(categories: readonly Pick<Category, "folder">[]): string[] {

@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
-import { ChevronRight, ImageOff } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+
+import { appPicture, refusedPicture, type PicturePolicy } from "~/lib/app-pictures";
 import { enumParamText, findEnumOption, type EnumOptionView } from "~/lib/enum-options";
 import { isReferenceField } from "~/lib/reference-labels";
 import {
@@ -16,6 +17,10 @@ import {
   type ScreenBlock,
   type ValueView,
 } from "~/lib/screen-model";
+
+import { PreviewImage } from "./PreviewImage";
+
+import type { ReactNode } from "react";
 
 // A sketch of what each app block receives, not the app's own styling.
 
@@ -39,6 +44,8 @@ export interface PreviewContext {
   screenSource?: RecordSource;
   /** Stages a route timeline shows (the app's routeStops limit). */
   routeStops: number;
+  /** Which pictures the app loads, and which variant of a map of them it shows (the manifest's policy). */
+  pictures: PicturePolicy;
 }
 
 function resolvePath(data: unknown, path: string): unknown {
@@ -67,17 +74,6 @@ function MissingValue({ path }: { path: string }) {
       <span className="truncate">{path}</span>
     </span>
   );
-}
-
-export function assetUrl(value: unknown): string | null {
-  if (value && typeof value === "object") {
-    const first = Object.values(value as Record_).find((v) => typeof v === "string");
-    return assetUrl(first);
-  }
-  if (typeof value !== "string" || !value) return null;
-  if (/^https?:\/\//.test(value) || value.startsWith("/")) return value;
-  if (value.startsWith("assets/")) return `/api/${value}`;
-  return null;
 }
 
 function makeReader(block: ScreenBlock, spec: PrimitiveSpec | undefined, ctx: PreviewContext, item?: unknown) {
@@ -182,17 +178,6 @@ function FieldValuePreview({ view }: { view: ValueView }) {
   }
 }
 
-function PreviewImage({ src, className }: { src: string | null; className: string }) {
-  if (!src) {
-    return (
-      <div className={`flex items-center justify-center bg-surface-raised text-ink-muted ${className}`}>
-        <ImageOff aria-hidden="true" className="size-5" />
-      </div>
-    );
-  }
-  return <img src={src} alt="" loading="lazy" className={`object-cover ${className}`} />;
-}
-
 function SectionTitle({ children }: { children: ReactNode }) {
   if (!children) return null;
   return <p className="mb-2 text-sm font-bold uppercase tracking-wide">{children}</p>;
@@ -284,7 +269,7 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
                 const r = makeReader(block, spec, ctx, record);
                 return (
                   <div key={i} className={`relative shrink-0 overflow-hidden rounded-xl border-2 border-ink bg-surface ${i === 1 || records.length === 1 ? "h-48 w-36" : "h-40 w-28 opacity-60"}`}>
-                    <PreviewImage src={assetUrl(r.raw("itemImage"))} className="absolute inset-0 h-full w-full opacity-70" />
+                    <PreviewImage value={r.raw("itemImage")} pictures={ctx.pictures} className="absolute inset-0 h-full w-full opacity-70" />
                     <div className="relative space-y-0.5 p-2">
                       <p className="text-[0.75rem] font-semibold uppercase">{r.show("itemSubtitle")}</p>
                       <p className="text-base font-black uppercase italic leading-none">{r.show("itemTitle")}</p>
@@ -352,6 +337,7 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
         <div>
           <SectionTitle>{show("sectionTitle")}</SectionTitle>
           <div className="space-y-1 rounded-xl border border-border bg-surface p-4">
+            {raw("image") !== undefined && <PreviewImage value={raw("image")} pictures={ctx.pictures} className="mb-2 h-24 w-full rounded-md" />}
             {show("eyebrow") && <p className="text-[0.75rem] font-semibold uppercase">{show("eyebrow")}</p>}
             <p className="text-lg font-black uppercase italic">{show("title") ?? "Title"}</p>
             {show("text") && <p className="text-xs text-ink-muted">{show("text")}</p>}
@@ -390,7 +376,7 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
                 const item = makeReader(block, spec, ctx, record);
                 return (
                   <div key={i} className="space-y-1">
-                    <PreviewImage src={assetUrl(item.raw("itemImage"))} className="aspect-square w-full rounded-md" />
+                    <PreviewImage value={item.raw("itemImage")} pictures={ctx.pictures} className="aspect-square w-full rounded-md" />
                     <p className="truncate text-[0.75rem] font-bold uppercase">{item.show("itemLabel")}</p>
                   </div>
                 );
@@ -401,14 +387,18 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
       );
     }
     case "detail_header": {
-      const background = raw("imageMode") === "background" ? assetUrl(raw("image")) : null;
+      const background = raw("imageMode") === "background" ? raw("image") : undefined;
+      const backgroundSrc = appPicture(background, ctx.pictures);
       return (
         <div className="relative -mx-4 -mt-4 space-y-2 overflow-hidden bg-surface-raised p-4 pt-8">
-          {background && (
+          {backgroundSrc && (
             <>
-              <img src={background} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <img src={backgroundSrc} alt="" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-linear-to-b from-transparent to-page" />
             </>
+          )}
+          {refusedPicture(background, ctx.pictures) !== undefined && (
+            <PreviewImage value={background} pictures={ctx.pictures} className="relative h-16 w-full rounded-md" />
           )}
           <div className="relative space-y-2">
           {show("eyebrow") && <p className="text-xs font-semibold uppercase">{show("eyebrow")}</p>}
@@ -481,7 +471,7 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
           ) : option ? (
             <div className="space-y-1.5">
               <span className="inline-flex items-center gap-1.5">
-                {option.icon && <PreviewImage src={assetUrl(option.icon)} className="size-5 rounded" />}
+                {option.icon && <PreviewImage value={option.icon} pictures={ctx.pictures} className="size-5 rounded" />}
                 <span className="rounded-full bg-surface-raised px-2.5 py-0.5 text-xs font-semibold">{option.name}</span>
               </span>
               {option.description && <p className="text-xs text-ink-muted">{option.description}</p>}
@@ -521,7 +511,7 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
           {block.type === "gallery" && (
             <div className="flex gap-2 overflow-hidden">
               {entries.slice(0, 3).map((entry, i) => (
-                <PreviewImage key={i} src={assetUrl(makeReader(block, spec, ctx, entry).raw(itemProp))} className="h-16 w-24 shrink-0 rounded-md" />
+                <PreviewImage key={i} value={makeReader(block, spec, ctx, entry).raw(itemProp)} pictures={ctx.pictures} className="h-16 w-24 shrink-0 rounded-md" />
               ))}
             </div>
           )}
@@ -596,7 +586,7 @@ function BlockBody({ block, spec, ctx }: { block: ScreenBlock; spec: PrimitiveSp
     case "cover_entity_header":
       return (
         <div className="-mx-4 -mt-4 overflow-hidden">
-          <PreviewImage src={assetUrl(raw("backgroundImage"))} className="h-36 w-full" />
+          <PreviewImage value={raw("backgroundImage")} pictures={ctx.pictures} className="h-36 w-full" />
           <div className="space-y-1 px-4 pt-3">
             <p className="text-2xl font-bold tracking-tight">{show("title") ?? "Title"}</p>
             {show("subtitle") && <p className="text-sm text-ink-muted">{show("subtitle")}</p>}

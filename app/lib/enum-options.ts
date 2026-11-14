@@ -61,11 +61,12 @@ export function enumOptions(file: unknown): EnumOptionView[] {
 /**
  * A field's options as the app reads them (zms findEnumOption): its global
  * enum's, found by globalEnumId among `enums` (a game's enum files), else its
- * own. None when the enum isn't there: a value then shows as stored.
+ * own; an empty option is left out either way (contract-cases.json "enums").
+ * None when the enum isn't there: a value then shows as stored.
  */
 export function fieldOptions(field: { globalEnumId?: string; options?: unknown }, enums: readonly unknown[]): EnumOptionView[] {
   if (field.globalEnumId) return enumOptions(enums.find((e) => isObject(e) && e.id === field.globalEnumId));
-  return Array.isArray(field.options) ? field.options.filter((o): o is string => typeof o === "string").map((o) => ({ id: o, name: o })) : [];
+  return Array.isArray(field.options) ? field.options.filter((option): option is string => typeof option === "string" && option !== "").map((option) => ({ id: option, name: option })) : [];
 }
 
 /** The option a stored value names: by id, else by name in any case, as the app matches it. */

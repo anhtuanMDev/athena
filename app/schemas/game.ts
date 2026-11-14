@@ -1,10 +1,14 @@
 import { z } from "zod";
 
-const hexColor = z
-  .string()
-  .regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Must be a valid hex color")
-  .optional()
-  .or(z.literal(""));
+import { pictureAdvice, refusedPicture } from "~/lib/app-pictures";
+import { HEX_EXAMPLE } from "~/lib/colors";
+import { GAME_SLUG, HEX_COLOR } from "~/lib/contract";
+
+const HEX_MESSAGE = `Must be ${HEX_EXAMPLE}`;
+/** A color the light palette may leave out: the app fills it in. */
+const hexColor = z.string().regex(HEX_COLOR, HEX_MESSAGE).optional().or(z.literal(""));
+/** A top-level (dark) color: the app draws the game with all 14, so each must be set. */
+const darkColor = z.string().regex(HEX_COLOR, HEX_MESSAGE);
 
 /**
  * The colors of a game's light screens (games.json `light`), any part of
@@ -28,27 +32,39 @@ export const LightPaletteSchema = z.object({
   border: hexColor,
 });
 
+/**
+ * A game as games.json holds it. The app (zms gameSchema) leaves out a game
+ * without a developer (text, which may be empty) or any of the 14 top-level
+ * colors, so the form requires them; the write API and the data validator
+ * check the same (data-file-rules.ts gamesFileProblems), and an icon the app
+ * won't load.
+ */
 export const GameSchema = z.object({
-  slug: z.string().min(1).regex(/^[a-z0-9-]+$/, "Must be a URL-safe slug"),
+  slug: z.string().regex(GAME_SLUG, "1 to 40 lowercase letters, digits and dashes, starting and ending with a letter or digit"),
   name: z.string().min(1, "Name is required"),
-  developer: z.string().optional(),
+  developer: z.string(),
   active: z.boolean(),
-  icon: z.string().optional().or(z.literal("")),
+  // An uploaded picture, or one on the app's picture hosts (app-pictures.ts).
+  icon: z
+    .string()
+    .refine((icon) => refusedPicture(icon) === undefined, `The app won't load this icon: ${pictureAdvice()}.`)
+    .optional()
+    .or(z.literal("")),
   // Color scheme
-  primary: hexColor,
-  secondary: hexColor,
-  accent: hexColor,
-  background: hexColor,
-  surface: hexColor,
-  surfaceVariant: hexColor,
-  onPrimary: hexColor,
-  onSecondary: hexColor,
-  onBackground: hexColor,
-  onSurface: hexColor,
-  error: hexColor,
-  warning: hexColor,
-  success: hexColor,
-  border: hexColor,
+  primary: darkColor,
+  secondary: darkColor,
+  accent: darkColor,
+  background: darkColor,
+  surface: darkColor,
+  surfaceVariant: darkColor,
+  onPrimary: darkColor,
+  onSecondary: darkColor,
+  onBackground: darkColor,
+  onSurface: darkColor,
+  error: darkColor,
+  warning: darkColor,
+  success: darkColor,
+  border: darkColor,
   light: LightPaletteSchema.optional(),
 });
 

@@ -4,11 +4,14 @@ import { HeroSchema } from "~/schemas/hero";
 import { MapSchema } from "~/schemas/map";
 import { ModeSchema } from "~/schemas/mode";
 
+import { RECORD_ID } from "./contract";
+
 // What a record of each category must look like, as its editor checks it.
 // The editors and the raw JSON editor share these, so a file the raw editor
 // accepts is one its category's form would save, and the other way round.
 
-export const RECORD_ID = /^(?!.*\.\.)[a-z0-9](?:[a-z0-9.-]{0,78}[a-z0-9])?$/;
+/** The contract's record id (contract.ts), as the editors check it. */
+export { RECORD_ID };
 
 /** Every record may name the schema it follows (the editors' schema picker, imports). */
 const SCHEMA_ID = { schema_id: z.string().optional() };

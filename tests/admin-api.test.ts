@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
 
 import { assetSeenKey } from "../app/lib/asset-headers";
@@ -434,10 +435,10 @@ describe("signing in", () => {
 
 describe("saving games.json", () => {
   const GAMES = "data/_meta/games.json";
-  const games = [
-    { slug: "overwatch", name: "Overwatch", active: true },
-    { slug: "marvel-rivals", name: "Marvel Rivals", active: false },
-  ];
+  // Games the app shows: a developer and the 14 dark colors (games.json's own checks).
+  const dark = JSON.parse(readFileSync(new URL("./fixtures/palette-cases.json", import.meta.url), "utf8")).dark as Record<string, string>;
+  const game = (slug: string, name: string, active: boolean) => ({ slug, name, developer: "", active, ...dark });
+  const games = [game("overwatch", "Overwatch", true), game("marvel-rivals", "Marvel Rivals", false)];
   const text = `${JSON.stringify({ games }, null, 2)}\n`;
   /** GitHub with games.json and data/overwatch/ (marvel-rivals has no folder yet); every request is logged. */
   function gamesGitHub(graphql: boolean) {
@@ -498,7 +499,7 @@ describe("saving games.json", () => {
   it("lets any other change through after one read", async () => {
     for (const next of [
       { games: [games[0]] },
-      { games: [...games, { slug: "valorant", name: "Valorant" }] },
+      { games: [...games, game("valorant", "Valorant", true)] },
       { games: [{ ...games[0], name: "Overwatch 2" }, games[1]] },
     ]) {
       const calls = gamesGitHub(true);

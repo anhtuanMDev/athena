@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { assetHeaders } from "../app/lib/asset-headers";
-import { encodeUtf8Base64 } from "../app/lib/utf8-base64";
-import { DEFAULT_CATEGORIES, referenceEndpoints } from "../app/lib/categories";
-import { readFileSync, readdirSync } from "node:fs";
+import { DEFAULT_CATEGORIES, readsCategories, referenceEndpoints } from "../app/lib/categories";
 import {
   LIMITS,
   dataWriteProblems,
@@ -17,6 +16,7 @@ import {
 } from "../app/lib/screen-policy";
 // P2: the app's policy (limits, its own screens) read from the block manifest.
 import * as policy from "../app/lib/screen-policy";
+import { encodeUtf8Base64 } from "../app/lib/utf8-base64";
 
 const block = (props: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
   id: "b1",
@@ -140,10 +140,10 @@ describe("navigation", () => {
 });
 
 describe("data files by path", () => {
-  it("checks screens and navigation only", () => {
+  void it("checks screens, navigation, games.json and records (their ids)", () => {
     assert.ok(validateDataFile("data/overwatch/screens/home.json", { blocks: "x" }).length > 0);
     assert.ok(validateDataFile("data/overwatch/navigation.json", {}).length > 0);
-    assert.deepEqual(validateDataFile("data/overwatch/heroes/ana.json", { anything: true }), []);
+    assert.deepEqual(validateDataFile("data/overwatch/heroes/ana.json", { id: "ana", anything: true }), []);
     assert.deepEqual(validateDataFile("data/overwatch/screens/nested/x.json", {}), []);
   });
 });
@@ -203,7 +203,7 @@ describe("writes", () => {
   it("leave assets alone, and check JSON writes as before", () => {
     assert.deepEqual(dataWriteProblems("public/assets/overwatch/heroes/ana/portrait.webp", "UklGRg==", true), []);
     assert.equal(dataWriteProblems("data/overwatch/screens/home.json", unsafe, false).length, 1);
-    assert.deepEqual(dataWriteProblems("data/overwatch/heroes/ana.json", { anything: true }, false), []);
+    assert.deepEqual(dataWriteProblems("data/overwatch/heroes/ana.json", { id: "ana", anything: true }, false), []);
   });
 });
 
@@ -239,16 +239,20 @@ describe("the app's policy, from the block manifest", () => {
     assert.deepEqual(policy.APP_POLICY, {
       limits: { screensPerGame: 50, blocksPerScreen: 60, tabs: 5, listItems: 100, smallList: 12, text: 2000, routeStops: 6 },
       appScreens: ["app:settings"],
+      imageHosts: ["blz-contentstack-images.akamaized.net", "bnetcmsus-a.akamaihd.net"],
+      imageVariants: ["main", "default", "2d", "portrait", "icon"],
     });
     for (const raw of [undefined, null, "x", {}, { screen_header: manifestWithPolicy.screen_header }, { $policy: "x" }, { $policy: [] }]) {
       assert.deepEqual(policy.appPolicy(raw), policy.APP_POLICY, JSON.stringify(raw));
     }
   });
 
-  it("reads the limits and app screens, and ignores the rest", () => {
+  void it("reads the limits, app screens and picture hosts, and ignores the rest", () => {
     assert.deepEqual(policy.appPolicy(manifestWithPolicy), {
       limits: { screensPerGame: 40, blocksPerScreen: 30, tabs: 4, listItems: 80, smallList: 8, text: 1000, routeStops: 9 },
       appScreens: ["app:settings", "app:search"],
+      imageHosts: [],
+      imageVariants: ["main", "default", "2d", "portrait", "icon"],
     });
   });
 
@@ -281,7 +285,7 @@ describe("the app's policy, from the block manifest", () => {
 
 describe("screens and tabs against the app's policy", () => {
   // Built lazily, so a missing APP_POLICY fails each test rather than the suite.
-  const small = () => ({ limits: { ...policy.APP_POLICY.limits, blocksPerScreen: 2, tabs: 2 }, appScreens: ["app:settings"] });
+  const small = () => ({ ...policy.APP_POLICY, limits: { ...policy.APP_POLICY.limits, blocksPerScreen: 2, tabs: 2 }, appScreens: ["app:settings"] });
   const threeBlocks = screen([block({}, { id: "a" }), block({}, { id: "b" }), block({ action: { url: "https://evil.example" } }, { id: "c" })]);
   const tabs = (list: unknown[]) => ({ tabs: list });
 
@@ -297,7 +301,7 @@ describe("screens and tabs against the app's policy", () => {
     const withApp = (screen: string) => tabs([{ screen: "home", label: "Home" }, { screen, label: "X" }]);
     assert.deepEqual(policy.validateNavigationFile(withApp("app:settings"), { home: "home" }), []);
     assert.deepEqual(policy.validateNavigationFile(withApp("app:foo"), { home: "home" }), ['Tab 2 opens "app:foo", which the app doesn\'t have: use app:settings.']);
-    const search = { limits: policy.APP_POLICY.limits, appScreens: ["app:settings", "app:search"] };
+    const search = { ...policy.APP_POLICY, appScreens: ["app:settings", "app:search"] };
     assert.deepEqual(policy.validateNavigationFile(withApp("app:search"), { home: "home" }, search), []);
   });
 
@@ -377,5 +381,153 @@ describe("the block manifest's shape", () => {
       'Block "Bad-Type": the type must be lowercase letters, digits and _.',
     ]);
     assert.deepEqual(policy.manifestProblems({ $policy: manifest().$policy }), ["The block manifest lists no blocks."]);
+  });
+});
+
+// ─── R3: the contract with the app ──────────────────────────────────────
+
+/** The block manifest of the fixtures, as the app generates it. */
+const appManifest = (): { $policy: Record<string, unknown> } => JSON.parse(readFileSync(new URL("./fixtures/mobile_primitives.json", import.meta.url), "utf8")) as { $policy: Record<string, unknown> };
+const IMAGE_HOSTS = ["blz-contentstack-images.akamaized.net", "bnetcmsus-a.akamaihd.net"];
+const CATEGORIES = [...DEFAULT_CATEGORIES, { category: "event", folder: "events", label: "Events", singular: "Event", icon: "list" as const, favoritable: false }];
+type ScreenCheck = (raw: unknown, p?: unknown, categories?: unknown) => string[];
+const checkScreen = validateScreenFile as unknown as ScreenCheck;
+
+void describe("pictures the app loads (F3)", () => {
+  void it("come from the manifest's image hosts and variants, else the contract's", () => {
+    const read = policy.appPolicy(appManifest()) as unknown as { imageHosts?: string[]; imageVariants?: string[] };
+    assert.deepEqual(read.imageHosts, IMAGE_HOSTS);
+    assert.deepEqual(read.imageVariants, ["main", "default", "2d", "portrait", "icon"]);
+    const odd = policy.appPolicy({ $policy: { imageHosts: ["cdn.example", 5], imageVariants: "main" } }) as unknown as { imageHosts?: string[]; imageVariants?: string[] };
+    assert.deepEqual(odd.imageHosts, ["cdn.example"]);
+    assert.deepEqual(odd.imageVariants, ["main", "default", "2d", "portrait", "icon"]);
+    assert.deepEqual((policy.APP_POLICY as unknown as { imageHosts?: string[] }).imageHosts, IMAGE_HOSTS);
+  });
+
+  void it("must be the admin's in the manifest, as its link hosts are", () => {
+    const edited = appManifest();
+    edited.$policy.imageHosts = [...IMAGE_HOSTS, "i.imgur.com"];
+    assert.equal(policy.manifestProblems(edited).length, 1);
+    assert.match(policy.manifestProblems(edited)[0], /^"\$policy\.imageHosts" must be the admin's picture hosts/);
+    edited.$policy.imageHosts = [...IMAGE_HOSTS].reverse();
+    assert.deepEqual(policy.manifestProblems(edited), []);
+  });
+
+  void it("are the only literal pictures a screen may hold", () => {
+    const problems = validateScreenFile(
+      screen([
+        block({ title: "Hi", image: "https://i.imgur.com/a.png" }),
+        { id: "c", type: "cover_entity_header", props: { title: "X", backgroundImage: "http://bnetcmsus-a.akamaihd.net/a.png" } },
+        { id: "g", type: "record_grid", props: { itemLabel: "item.name", itemImage: "portrait.png" } },
+      ]),
+    );
+    assert.deepEqual(problems, [
+      "Block 1: the app won't load the picture https://i.imgur.com/a.png (props.image): use an uploaded picture or one on blz-contentstack-images.akamaized.net, bnetcmsus-a.akamaihd.net.",
+      "Block 2: the app won't load the picture http://bnetcmsus-a.akamaihd.net/a.png (props.backgroundImage): use an uploaded picture or one on blz-contentstack-images.akamaized.net, bnetcmsus-a.akamaihd.net.",
+      "Block 3: the app won't load the picture portrait.png (props.itemImage): use an uploaded picture or one on blz-contentstack-images.akamaized.net, bnetcmsus-a.akamaihd.net.",
+    ]);
+    for (const image of ["/api/assets/overwatch/x.webp", "assets/x.png", "https://bnetcmsus-a.akamaihd.net/a.png", "data.portrait", "item.image", "", { main: "/api/assets/a.webp" }]) {
+      assert.deepEqual(validateScreenFile(screen([block({ title: "Hi", image })])), [], JSON.stringify(image));
+    }
+  });
+});
+
+void describe("colours (C7)", () => {
+  void it("are #RGB or #RRGGBB, or for the accent a record's field", () => {
+    assert.deepEqual(validateScreenFile(screen([], { accent: "#12345" })), ['accent must be a hex color such as #FF8200 or #F80, or "data.<field>".']);
+    assert.deepEqual(validateScreenFile(screen([], { accent: "data.color" })), []);
+    assert.deepEqual(
+      validateScreenFile(screen([{ id: "t", type: "text", props: { text: "Hi", color: "teal" } }, { id: "b", type: "badge", props: { label: "New", color: "data.color", textColor: "#1" } }])),
+      ['Block 1: color "teal" isn\'t a hex color such as #FF8200 or #F80; the app shows the theme\'s instead.', 'Block 2: textColor "#1" isn\'t a hex color such as #FF8200 or #F80; the app shows the theme\'s instead.'],
+    );
+    assert.deepEqual(validateScreenFile(screen([{ id: "t", type: "text", props: { text: "Hi", color: "" } }])), []);
+  });
+});
+
+void describe("a screen's categories (C5)", () => {
+  void it("are configured in categories.json, for the screen and its blocks", () => {
+    const skins = screen([{ id: "g", type: "record_grid", props: { itemLabel: "item.name", source: { category: "skin" } } }], { type: "list", source: { category: "skin" } });
+    assert.deepEqual(checkScreen(skins, policy.APP_POLICY, CATEGORIES), [
+      'source names the category "skin", which isn\'t in categories.json: the app shows nothing for it.',
+      'Block 1: its source names the category "skin", which isn\'t in categories.json: the app shows nothing for it.',
+    ]);
+    const events = screen([], { type: "list", source: { category: "event" } });
+    assert.deepEqual(checkScreen(events, policy.APP_POLICY, CATEGORIES), []);
+    // Without the categories (an editor that hasn't loaded them), nothing is said.
+    assert.deepEqual(checkScreen(skins, policy.APP_POLICY), []);
+    assert.deepEqual(validateDataFile("data/overwatch/screens/skins.json", skins, CATEGORIES).length, 2);
+    assert.equal(readsCategories("data/overwatch/screens/skins.json"), true);
+  });
+});
+
+void describe("data on home, list and page screens (C4)", () => {
+  void it("is the game and the category folders: a record's fields only on detail screens", () => {
+    const blocks = [
+      { id: "t", type: "text", props: { text: "data.role" } },
+      { id: "i", type: "info_list", props: { rows: [{ label: "Role", value: "data.heroes.0.role" }, { label: "Odd", value: "data.health" }] } },
+      { id: "h", type: "screen_header", props: { title: "data.game.name" } },
+    ];
+    const expected = [
+      'Block 1: text reads "data.role", but home, list and page screens read only data.game and the category folders (data.heroes…): use item.role in a list block.',
+      'Block 2: rows[1].value reads "data.health", but home, list and page screens read only data.game and the category folders (data.heroes…): use item.health in a list block.',
+    ];
+    for (const type of ["home", "list", "page"]) {
+      assert.deepEqual(checkScreen(screen(blocks, { type, source: { category: "hero" } }), policy.APP_POLICY, CATEGORIES), expected, type);
+    }
+    assert.deepEqual(checkScreen(screen(blocks, { type: "detail", source: { category: "hero" } }), policy.APP_POLICY, CATEGORIES), []);
+    assert.deepEqual(checkScreen(screen([], { type: "list", accent: "data.game.secondary", source: { category: "hero" } }), policy.APP_POLICY, CATEGORIES), []);
+    assert.deepEqual(checkScreen(screen([], { type: "list", accent: "data.color", source: { category: "hero" } }), policy.APP_POLICY, CATEGORIES), [
+      'accent reads "data.color", but home, list and page screens read only data.game and the category folders (data.heroes…).',
+    ]);
+  });
+});
+
+void describe("games.json (F10, C8, F3)", () => {
+  const dark = JSON.parse(readFileSync(new URL("./fixtures/palette-cases.json", import.meta.url), "utf8")).dark;
+  const game = { slug: "overwatch", name: "Overwatch 2", developer: "Blizzard Entertainment", active: true, icon: "/api/assets/games/overwatch-icon.webp", ...dark };
+  const problems = (games: unknown[]) => validateDataFile("data/_meta/games.json", { games });
+
+  void it("passes a game the app shows, its icon checked against the contract's picture hosts (no manifest read)", () => {
+    assert.deepEqual(problems([game, { ...game, slug: "marvel-rivals", name: "Marvel Rivals", active: false, icon: "", light: { background: "#FFFFFF" } }]), []);
+    assert.equal(policy.needsAppPolicy("data/_meta/games.json"), false);
+  });
+
+  void it("refuses what makes the app drop a game or draw it wrong", () => {
+    const noDeveloper = Object.fromEntries(Object.entries(game).filter(([key]) => key !== "developer"));
+    assert.deepEqual(
+      problems([
+        { ...game, slug: "ow-", background: "", primary: "orange" },
+        { ...noDeveloper, slug: "marvel-rivals", name: " ", active: "yes", icon: "https://i.imgur.com/a.png", light: { surface: "#12345", glow: "#FFF" } },
+        { ...game, slug: "marvel-rivals" },
+      ]),
+      [
+        'Game 1: "ow-" can\'t be a slug: 1 to 40 lowercase letters, digits and -, starting and ending with a letter or digit.',
+        "Game 1: primary must be a hex color such as #FF8200 or #F80.",
+        "Game 1: background must be a hex color such as #FF8200 or #F80.",
+        "Game 2: it needs a name.",
+        "Game 2: developer must be text (it may be empty).",
+        "Game 2: active must be true or false.",
+        "Game 2: the app won't load the icon https://i.imgur.com/a.png: use an uploaded picture or one on blz-contentstack-images.akamaized.net, bnetcmsus-a.akamaihd.net.",
+        "Game 2: light.surface must be a hex color such as #FF8200 or #F80.",
+        'Game 3: the slug "marvel-rivals" is used twice.',
+      ],
+    );
+    assert.deepEqual(validateDataFile("data/_meta/games.json", { games: "x" }), ['games.json needs a "games" list.']);
+  });
+});
+
+void describe("record files (C8, ids)", () => {
+  void it("are named by their id, which is a record id the app accepts", () => {
+    assert.deepEqual(dataWriteProblems("data/overwatch/maps/dorado.json", { id: "dorado", name: "Dorado" }, false), []);
+    assert.deepEqual(dataWriteProblems("data/overwatch/maps/ana-.json", { id: "ana-", name: "Ana" }, false), [
+      'The file name "ana-" isn\'t a record id: 1 to 80 lowercase letters, digits, dots and dashes, starting and ending with a letter or digit, without "..".',
+    ]);
+    assert.deepEqual(dataWriteProblems("data/overwatch/maps/dorado.json", { id: "dorado-2" }, false), ['The record\'s id must be "dorado", its file\'s name.']);
+    assert.deepEqual(dataWriteProblems("data/overwatch/maps/dorado.json", { name: "Dorado" }, false), ['The record\'s id must be "dorado", its file\'s name.']);
+    assert.deepEqual(dataWriteProblems("data/overwatch/maps/dorado.json", encodeUtf8Base64(JSON.stringify({ id: "x" })), true), ['The record\'s id must be "dorado", its file\'s name.']);
+    assert.deepEqual(dataWriteProblems("data/ow-/maps/dorado.json", { id: "dorado" }, false), ['"ow-" isn\'t a game slug.']);
+    // Folders that don't hold records: their own rules, or none.
+    assert.deepEqual(dataWriteProblems("data/overwatch/cron_jobs/x.json", { id: "y" }, false), []);
+    assert.deepEqual(dataWriteProblems("data/overwatch/syncs/x.json", {}, false), []);
   });
 });
