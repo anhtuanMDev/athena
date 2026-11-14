@@ -357,3 +357,23 @@ void describe("the data repo as it is", () => {
     assert.equal(levels.filter((level) => level === "error").length, 0, result.problems.map((problem) => problem.message).join("\n"));
   });
 });
+
+// ─── athena-2: the manifest's fixture hashes ────────────────────────────
+
+void describe("the manifest's fixture hashes (spec §2.7)", () => {
+  void it("are those of the admin's own copies of the shared fixtures", () => {
+    const manifest = fixture("mobile_primitives.json");
+    manifest.$policy.fixtures["contrast-cases.json"] = "0".repeat(64);
+    const problems = messages(repo({ ...baseRepo(), "data/_meta/mobile_primitives.json": manifest }));
+    assert.equal(problems.length, 1, problems.join("\n"));
+    assert.match(problems[0], /^data\/_meta\/mobile_primitives\.json: "\$policy\.fixtures\.contrast-cases\.json" must be [0-9a-f]{64}, the SHA-256 of the admin's tests\/fixtures\/contrast-cases\.json: /);
+  });
+
+  void it("are read from the admin's checkout wherever it runs, as zero-backend's CI runs it", () => {
+    const cli = fileURLToPath(new URL("../tools/validate-data.ts", import.meta.url));
+    const hook = fileURLToPath(new URL("./resolve-ts.mjs", import.meta.url));
+    const result = spawnSync(process.execPath, ["--import", hook, cli, "."], { cwd: repo(baseRepo()), encoding: "utf8", env: { ...process.env, GITHUB_ACTIONS: "" } });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /: no problems\.$/m);
+  });
+});
