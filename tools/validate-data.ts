@@ -4,11 +4,13 @@
 // validateDataFile, given what the write API gives it: the categories, the
 // schemas' template fields and the app's policy from the block manifest. Tabs
 // are also checked against the game's screens, as the screen editor does. The
-// manifest must have the shape the admin and the app rely on
-// (manifestProblems). Every game folder (data/{slug}/) must be a game
-// games.json lists. What a single file can't show (pictures that don't
-// exist, references, enum values, actions to detail screens) is checked
-// across files (data-cross-checks.ts, data-picture-checks.ts); some of it as
+// manifest must have the shape the admin and the app rely on, its contract
+// keys must be the admin's, and its shared fixtures' hashes those of the
+// admin's copies, read from this checkout's tests/fixtures (manifestProblems,
+// fixtureHashes). Every game folder (data/{slug}/) must be a game games.json
+// lists. What a single file can't show (pictures that don't exist,
+// references, enum values, actions to detail screens) is checked across
+// files (data-cross-checks.ts, data-picture-checks.ts); some of it as
 // warnings.
 //
 //   node --import ./tests/resolve-ts.mjs tools/validate-data.ts <data-repo>
@@ -17,12 +19,13 @@
 // Exits 0 when there's no error (warnings don't fail it), 1 with errors, 2
 // without a folder.
 
+import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { CATEGORIES_PATH, isCategoryFolderFormat, parseCategories } from "../app/lib/categories";
-import { GAME_SLUG } from "../app/lib/contract";
+import { GAME_SLUG, SHARED_FIXTURES } from "../app/lib/contract";
 import { gameSlugs } from "../app/lib/games-guard";
 import { templateFieldsByCategory } from "../app/lib/notify-template";
 import { APP_POLICY, MANIFEST_PATH, appPolicy, manifestProblems, validateDataFile, validateNavigationFile } from "../app/lib/screen-policy";
@@ -52,6 +55,14 @@ function isRecordFile(path: string): boolean {
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** The admin's copies of the fixtures it shares with the app (spec §1), found from this file: zero-backend's CI runs it from its checkout of athena. */
+const FIXTURES = new URL("../tests/fixtures/", import.meta.url);
+
+/** The SHA-256 of each shared fixture's bytes as committed, by file name, as the app's generator writes them into the manifest (spec §2.7). */
+export function fixtureHashes(): Record<string, string> {
+  return Object.fromEntries(SHARED_FIXTURES.map((name) => [name, createHash("sha256").update(readFileSync(new URL(name, FIXTURES))).digest("hex")]));
+}
 
 /** The JSON files directly in `folder` (no deeper), of `paths`. */
 const inFolder = (paths: Iterable<string>, folder: string) =>
@@ -88,7 +99,9 @@ export function validateDataRepo(root: string): { files: number; checked: number
   // The inputs the write API reads before it checks a file (functions/api).
   const manifest = parsed.get(MANIFEST_PATH);
   if (!texts.has(MANIFEST_PATH)) problems.push({ path: MANIFEST_PATH, message: "is missing; the admin and the app read the block manifest from it." });
-  else if (parsed.has(MANIFEST_PATH)) for (const message of manifestProblems(manifest)) problems.push({ path: MANIFEST_PATH, message });
+  else if (parsed.has(MANIFEST_PATH)) {
+    problems.push(...manifestProblems(manifest, fixtureHashes()).map((message) => ({ path: MANIFEST_PATH, message })));
+  }
   const policy = parsed.has(MANIFEST_PATH) ? appPolicy(manifest) : APP_POLICY;
   const categories = parseCategories(texts.get(CATEGORIES_PATH));
   const games = parsed.get(GAMES_PATH);

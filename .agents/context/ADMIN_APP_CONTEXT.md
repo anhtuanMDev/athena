@@ -699,6 +699,20 @@ folder); in Actions, warnings are `::warning` annotations. The data repo's
 `.github/workflows/validate-data.yml` checks out athena at `main` and runs it on every
 change. Tests: `tests/validate-data.test.ts`.
 
+The manifest's contract keys (`$policy.patterns`, `reservedFolders`,
+`reservedCategories`, `imageVariants`, `assetVersionLength`, `push`, `fixtures`) are
+required and must equal `app/lib/contract.ts` (`manifestContractProblems`,
+`app/lib/block-manifest.ts`); `fixtures` must hold the SHA-256 of athena's own
+`tests/fixtures/` copy of each shared fixture (`SHARED_FIXTURES`), which the validator
+hashes from its own checkout. athena's CI runs the same check on
+`tests/fixtures/mobile_primitives.json`, a byte-for-byte copy of zms's
+`src/components/schema-driven/primitives.json`. To change a shared fixture: (1) edit it
+the same way in both repos (`tests/fixtures/` here, `__tests__/fixtures/` in zms);
+(2) regenerate zms's manifest (`npm run primitives`); (3) copy that manifest, in one
+step, to athena's `tests/fixtures/mobile_primitives.json` and to zero-backend's
+`data/_meta/mobile_primitives.json`. Until all three land, the CIs that see a mismatch
+fail, naming the fixture and the hash it expected.
+
 ### Known gaps
 
 - `README.md` is still the React Router template.

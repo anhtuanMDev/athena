@@ -25,7 +25,52 @@
     "appScreens": [
       "app:settings"
     ],
-    "blockedProps": "^(style|on[A-Z].*|children|ref|key)$"
+    "blockedProps": "^(style|on[A-Z].*|children|ref|key)$",
+    "patterns": {
+      "gameSlug": "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$",
+      "recordId": "^(?!.*\\.\\.)[a-z0-9](?:[a-z0-9.-]{0,78}[a-z0-9])?$",
+      "screenId": "^[a-z0-9][a-z0-9-]*$",
+      "category": "^[a-z][a-z0-9_]{0,39}$",
+      "folder": "^[a-z][a-z0-9-]{0,39}$",
+      "fieldKey": "^[a-z0-9_]+$",
+      "boundLink": "^(data|item)\\.[A-Za-z0-9_.]+$",
+      "color": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
+      "assetVersion": "^[0-9a-f]{12}$"
+    },
+    "reservedFolders": [
+      "imports",
+      "syncs",
+      "schemas",
+      "screens",
+      "enums",
+      "assets",
+      "navigation",
+      "cron",
+      "raw"
+    ],
+    "reservedCategories": [
+      "cron_job"
+    ],
+    "imageVariants": [
+      "main",
+      "default",
+      "2d",
+      "portrait",
+      "icon"
+    ],
+    "assetVersionLength": 12,
+    "push": {
+      "topic": "all_users",
+      "androidChannel": "default"
+    },
+    "fixtures": {
+      "categories.json": "58659f5f2b7e171c242801cfa55574bba7de869dddb6e13553c900e55e8b86fd",
+      "contract-cases.json": "aa03ef7f6ac883b59b8cc1f59c2ba1c9fba27f1e7a1c694721679145db66a5fd",
+      "contrast-cases.json": "302fbf8156afe5972d842b7128f2775232b9ed125845173b82041e47252cfe64",
+      "palette-cases.json": "bb4b4f4c81455dd27ad8efe37e2d5aa1d591100c2f5c080f999ad6af3d6aa64c",
+      "reference-folders-golden-items.json": "985f5adaf36e090f886f94b33511f42426bcfece80f42449735ec989ce4471c4",
+      "reference-folders-golden.json": "f25d4317b0cb339066081a4e09472e9816629d7950d9572939482f641085f1c3"
+    }
   },
   "screen_header": {
     "name": "ScreenHeader",
@@ -789,10 +834,6 @@
       },
       "footerText": {
         "type": "string",
-        "required": false
-      },
-      "gradientColors": {
-        "type": "array",
         "required": false
       }
     }

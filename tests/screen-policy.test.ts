@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { assetHeaders } from "../app/lib/asset-headers";
 import { DEFAULT_CATEGORIES, readsCategories, referenceEndpoints } from "../app/lib/categories";
+import { SHARED_FIXTURES } from "../app/lib/contract";
 import {
   LIMITS,
   dataWriteProblems,
@@ -25,6 +27,10 @@ const block = (props: Record<string, unknown> = {}, extra: Record<string, unknow
   ...extra,
 });
 const screen = (blocks: unknown[], extra: Record<string, unknown> = {}) => ({ type: "page", blocks, ...extra });
+/** The SHA-256 of the admin's copy of each fixture it shares with the app, which the manifest's must be (spec §2.7). */
+const FIXTURE_HASHES = Object.fromEntries(
+  SHARED_FIXTURES.map((name) => [name, createHash("sha256").update(readFileSync(new URL(`./fixtures/${name}`, import.meta.url))).digest("hex")]),
+);
 
 describe("links", () => {
   it("allows https on listed sites and their subdomains", () => {
@@ -335,7 +341,7 @@ describe("the block manifest's shape", () => {
   const manifest = () => JSON.parse(readFileSync(new URL("./fixtures/mobile_primitives.json", import.meta.url), "utf8"));
 
   it("accepts the manifest the app generates", () => {
-    assert.deepEqual(policy.manifestProblems(manifest()), []);
+    assert.deepEqual(policy.manifestProblems(manifest(), FIXTURE_HASHES), []);
   });
 
   it("refuses what appPolicy would quietly replace with the admin's defaults", () => {
@@ -343,27 +349,27 @@ describe("the block manifest's shape", () => {
     m.$policy.limits.tabs = "5";
     delete m.$policy.limits.text;
     m.$policy.appScreens = ["app:settings", "app:Settings"];
-    assert.deepEqual(policy.manifestProblems(m), [
+    assert.deepEqual(policy.manifestProblems(m, FIXTURE_HASHES), [
       '"$policy.limits.tabs" must be a positive whole number.',
       '"$policy.limits.text" must be a positive whole number.',
       '"$policy.appScreens" must list distinct app screens such as "app:settings".',
     ]);
-    assert.deepEqual(policy.manifestProblems({ ...manifest(), $policy: undefined }), ['"$policy" must be an object.']);
-    assert.deepEqual(policy.manifestProblems([]), ["The block manifest must be a JSON object."]);
+    assert.deepEqual(policy.manifestProblems({ ...manifest(), $policy: undefined }, FIXTURE_HASHES), ['"$policy" must be an object.']);
+    assert.deepEqual(policy.manifestProblems([], FIXTURE_HASHES), ["The block manifest must be a JSON object."]);
   });
 
   it("refuses link hosts or blocked props that differ from the admin's", () => {
     const m = manifest();
     m.$policy.linkHosts = [...policy.LINK_HOSTS, "evil.example"];
     m.$policy.blockedProps = "^(style)$";
-    const problems = policy.manifestProblems(m);
+    const problems = policy.manifestProblems(m, FIXTURE_HASHES);
     assert.equal(problems.length, 2);
     assert.match(problems[0], /^"\$policy\.linkHosts" must be the admin's link hosts/);
     assert.match(problems[1], /^"\$policy\.blockedProps" must be the admin's/);
     // Order doesn't matter, only the set.
     const reordered = manifest();
     reordered.$policy.linkHosts = [...policy.LINK_HOSTS].reverse();
-    assert.deepEqual(policy.manifestProblems(reordered), []);
+    assert.deepEqual(policy.manifestProblems(reordered, FIXTURE_HASHES), []);
   });
 
   it("checks every block's spec", () => {
@@ -372,7 +378,7 @@ describe("the block manifest's shape", () => {
     m.text = { name: "", props: { value: { type: 3, required: "yes", options: ["a", 1] } } };
     m.gallery = { name: "Gallery" };
     // In the manifest's order: gallery and text are already in it, Bad-Type is added last.
-    assert.deepEqual(policy.manifestProblems(m), [
+    assert.deepEqual(policy.manifestProblems(m, FIXTURE_HASHES), [
       'Block "gallery" needs props as an object.',
       'Block "text" needs a name.',
       'Block "text": prop "value" needs a type.',
@@ -380,7 +386,7 @@ describe("the block manifest's shape", () => {
       'Block "text": prop "value": options must be a list of text.',
       'Block "Bad-Type": the type must be lowercase letters, digits and _.',
     ]);
-    assert.deepEqual(policy.manifestProblems({ $policy: manifest().$policy }), ["The block manifest lists no blocks."]);
+    assert.deepEqual(policy.manifestProblems({ $policy: manifest().$policy }, FIXTURE_HASHES), ["The block manifest lists no blocks."]);
   });
 });
 
@@ -407,10 +413,10 @@ void describe("pictures the app loads (F3)", () => {
   void it("must be the admin's in the manifest, as its link hosts are", () => {
     const edited = appManifest();
     edited.$policy.imageHosts = [...IMAGE_HOSTS, "i.imgur.com"];
-    assert.equal(policy.manifestProblems(edited).length, 1);
-    assert.match(policy.manifestProblems(edited)[0], /^"\$policy\.imageHosts" must be the admin's picture hosts/);
+    assert.equal(policy.manifestProblems(edited, FIXTURE_HASHES).length, 1);
+    assert.match(policy.manifestProblems(edited, FIXTURE_HASHES)[0], /^"\$policy\.imageHosts" must be the admin's picture hosts/);
     edited.$policy.imageHosts = [...IMAGE_HOSTS].reverse();
-    assert.deepEqual(policy.manifestProblems(edited), []);
+    assert.deepEqual(policy.manifestProblems(edited, FIXTURE_HASHES), []);
   });
 
   void it("are the only literal pictures a screen may hold", () => {
@@ -529,5 +535,84 @@ void describe("record files (C8, ids)", () => {
     // Folders that don't hold records: their own rules, or none.
     assert.deepEqual(dataWriteProblems("data/overwatch/cron_jobs/x.json", { id: "y" }, false), []);
     assert.deepEqual(dataWriteProblems("data/overwatch/syncs/x.json", {}, false), []);
+  });
+});
+
+// ─── athena-2: the manifest's contract keys are required ────────────────
+
+void describe("the manifest's contract keys (spec §2.8)", () => {
+  const CONTRACT = "app/lib/contract.ts";
+  const PATTERN_KEYS = "gameSlug, recordId, screenId, category, folder, fieldKey, boundLink, color, assetVersion";
+  const FLOW =
+    "the shared fixture differs between the admin and the app: edit it the same way in both repos, regenerate the app's manifest (zms npm run primitives), then copy it to the admin's tests/fixtures and to zero-backend's data/_meta";
+  const hashMessage = (name: string, hash: string) => `"$policy.fixtures.${name}" must be ${hash}, the SHA-256 of the admin's tests/fixtures/${name}: ${FLOW}.`;
+  const FOLDERS = `"$policy.reservedFolders" must be the admin's reserved folders, in any order (RESERVED_FOLDERS in ${CONTRACT}): imports, syncs, schemas, screens, enums, assets, navigation, cron, raw.`;
+  const CATEGORIES_MESSAGE = `"$policy.reservedCategories" must be the admin's reserved categories, in any order (RESERVED_CATEGORIES in ${CONTRACT}): cron_job.`;
+  const VARIANTS = `"$policy.imageVariants" must be the admin's picture variants, in this order (IMAGE_VARIANTS in ${CONTRACT}): main, default, 2d, portrait, icon.`;
+  const LENGTH = `"$policy.assetVersionLength" must be 12 (ASSET_VERSION_LENGTH in ${CONTRACT}).`;
+  const TOPIC = `"$policy.push.topic" must be "all_users" (PUSH_TOPIC in ${CONTRACT}).`;
+  const CHANNEL = `"$policy.push.androidChannel" must be "default" (ANDROID_CHANNEL_ID in ${CONTRACT}).`;
+  const MISSING: Record<string, string[]> = {
+    patterns: [`"$policy.patterns" must be an object of the contract's patterns (${CONTRACT}): ${PATTERN_KEYS}.`],
+    reservedFolders: [FOLDERS],
+    reservedCategories: [CATEGORIES_MESSAGE],
+    imageVariants: [VARIANTS],
+    assetVersionLength: [LENGTH],
+    push: [TOPIC, CHANNEL],
+    fixtures: [`"$policy.fixtures" must be an object of the SHA-256 of each shared fixture (SHARED_FIXTURES in ${CONTRACT}): ${SHARED_FIXTURES.join(", ")}.`],
+  };
+
+  void it("accepts the app's manifest, its fixtures' hashes those of the admin's copies", () => {
+    // tests/fixtures/mobile_primitives.json is zms main's primitives.json, byte for byte.
+    assert.deepEqual(Object.keys(appManifest().$policy).filter((key) => Object.hasOwn(MISSING, key)), Object.keys(MISSING));
+    assert.deepEqual(policy.manifestProblems(appManifest(), FIXTURE_HASHES), []);
+  });
+
+  void it("refuses a manifest without one, naming it and what it must be", () => {
+    for (const [key, expected] of Object.entries(MISSING)) {
+      const edited = appManifest();
+      edited.$policy = Object.fromEntries(Object.entries(edited.$policy).filter(([name]) => name !== key));
+      assert.deepEqual(policy.manifestProblems(edited, FIXTURE_HASHES), expected, key);
+    }
+  });
+
+  void it("refuses a value that isn't the admin's", () => {
+    const edited = appManifest();
+    edited.$policy.patterns = { ...(edited.$policy.patterns as Record<string, string>), recordId: "^[a-z0-9-]+$", screenId: undefined, slug: "^x$" };
+    edited.$policy.reservedFolders = ["imports", "syncs"];
+    edited.$policy.reservedCategories = ["cron_job", "draft"];
+    edited.$policy.imageVariants = ["default", "main", "2d", "portrait", "icon"];
+    edited.$policy.assetVersionLength = 16;
+    edited.$policy.push = { topic: "everyone", androidChannel: "default" };
+    assert.deepEqual(policy.manifestProblems(edited, FIXTURE_HASHES), [
+      `"$policy.patterns.recordId" must be ^(?!.*\\.\\.)[a-z0-9](?:[a-z0-9.-]{0,78}[a-z0-9])?$ (RECORD_ID in ${CONTRACT}).`,
+      `"$policy.patterns.screenId" must be ^[a-z0-9][a-z0-9-]*$ (SCREEN_ID in ${CONTRACT}).`,
+      `"$policy.patterns.slug" isn't a pattern of the contract, which has ${PATTERN_KEYS} only.`,
+      FOLDERS,
+      CATEGORIES_MESSAGE,
+      VARIANTS,
+      LENGTH,
+      TOPIC,
+    ]);
+    // Reserved folders and categories are sets; the picture variants are an order.
+    const reordered = appManifest();
+    reordered.$policy.reservedFolders = [...(reordered.$policy.reservedFolders as string[])].reverse();
+    reordered.$policy.push = { androidChannel: "default", topic: "all_users" };
+    assert.deepEqual(policy.manifestProblems(reordered, FIXTURE_HASHES), []);
+  });
+
+  void it("refuses fixture hashes that aren't those of the admin's copies, and fixtures it doesn't share", () => {
+    const edited = appManifest();
+    const fixtures: Record<string, string> = { ...(edited.$policy.fixtures as Record<string, string>), "palette-cases.json": "0".repeat(64), "extra.json": "1".repeat(64) };
+    delete fixtures["categories.json"];
+    edited.$policy.fixtures = fixtures;
+    assert.deepEqual(policy.manifestProblems(edited, FIXTURE_HASHES), [
+      hashMessage("categories.json", FIXTURE_HASHES["categories.json"]),
+      hashMessage("palette-cases.json", FIXTURE_HASHES["palette-cases.json"]),
+      `"$policy.fixtures.extra.json" isn't a shared fixture (SHARED_FIXTURES in ${CONTRACT}).`,
+    ]);
+    // A fixture edited in the admin only: its copy no longer hashes to the manifest's.
+    const changed = { ...FIXTURE_HASHES, "contract-cases.json": "2".repeat(64) };
+    assert.deepEqual(policy.manifestProblems(appManifest(), changed), [hashMessage("contract-cases.json", "2".repeat(64))]);
   });
 });
