@@ -12,8 +12,8 @@ pages_build_output_dir = "./build/client"
 #   GITHUB_BRANCH
 #   ADMIN_PASSWORD_HASH    (the sign-in's verifier, pbkdf2-sha256:<iterations>:<salt>:<hash>,
 #                           made by `npm run admin-password`: app/lib/password.ts. A bcrypt
-#                           hash set before still works until it's replaced. Redeploy after
-#                           changing it: Pages applies secrets to later deployments.)
+#                           hash isn't accepted: sign-in answers 500 until it's replaced. Redeploy
+#                           after changing it: Pages applies secrets to later deployments.)
 #   SESSION_SECRET
 #   GITHUB_WEBHOOK_SECRET  (the data repo's push webhook: functions/api/webhooks/github.ts)
 #   FCM_SERVICE_ACCOUNT    (optional: a Firebase service account's JSON key, for

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
-import bcrypt from "bcryptjs";
 
 import { assetSeenKey } from "../app/lib/asset-headers";
 import { logout } from "../app/lib/auth";
@@ -397,10 +396,19 @@ describe("signing in", () => {
     assert.match(res.headers.get("Set-Cookie") ?? "", /^__admin_session=/);
   });
 
-  it("still signs in with the bcrypt hash set before", async () => {
-    const legacy = bcrypt.hashSync(PASS, 4);
-    assert.equal((await login(legacy, PASS)).status, 200);
-    assert.equal((await login(legacy, "wrong")).status, 401);
+  it("answers a bcrypt hash as a setup error, right passphrase or not: not counted, and the log says what to do without showing it", async () => {
+    const logged = mock.method(console, "error", () => {});
+    // Shaped like a bcrypt hash; not the hash of anything.
+    const legacy = "$2b$10$" + "a".repeat(22) + "b".repeat(31);
+    for (const password of [PASS, "wrong"]) {
+      const res = await login(legacy, password);
+      assert.equal(res.status, 500);
+      assert.deepEqual(await res.json(), { error: "Server misconfigured" });
+    }
+    assert.equal(attempts.size, 0);
+    const lines = logged.mock.calls.map((call) => call.arguments.map(String).join(" "));
+    assert.ok(lines.some((line) => line.includes("`npm run admin-password`")));
+    assert.ok(!lines.some((line) => line.includes("$2b$") || line.includes("a".repeat(22))), "never logs the hash");
   });
 
   it("counts a wrong passphrase, and refuses the 6th try before checking it", async () => {

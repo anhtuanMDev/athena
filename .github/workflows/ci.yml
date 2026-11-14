@@ -38,8 +38,10 @@ jobs:
             package-lock.json
             workers/cron/package-lock.json
 
-      # --ignore-scripts: no dependency runs code at install. Only fsevents
-      # (macOS only) has an install script, and nothing here needs one.
+      # --ignore-scripts: no dependency runs code at install. fsevents (macOS
+      # only), and wrangler's esbuild and workerd, have install scripts; the
+      # last two only check for their platform binary, which npm installs as
+      # an optional dependency. Nothing here needs them.
       - name: Install
         run: npm ci --ignore-scripts --no-audit --no-fund
 

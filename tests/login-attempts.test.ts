@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, describe, it } from "node:test";
-import bcrypt from "bcryptjs";
+import { afterEach, before, beforeEach, describe, it } from "node:test";
 
 import { MAX_ATTEMPTS, WINDOW_MS, checkLoginAttempts, recordLoginAttempt } from "../app/lib/login-attempts";
+import { hashAdminPassword } from "../app/lib/password";
 import { SESSION_VERSION_KEY } from "../app/lib/session";
 
 // Loaded by URL so the root typecheck doesn't pull the handler in: there DOM's
@@ -81,7 +81,10 @@ describe("POST /api/auth/login", () => {
     (globalThis as { caches?: unknown }).caches = realCaches;
   });
 
-  const ADMIN_PASSWORD_HASH = bcrypt.hashSync("right password", 4);
+  let ADMIN_PASSWORD_HASH: string;
+  before(async () => {
+    ADMIN_PASSWORD_HASH = await hashAdminPassword("right password");
+  });
   function recordingKv() {
     const ops: string[] = [];
     const kv = {

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
-import bcrypt from "bcryptjs";
 
 import { PasswordConfigError, hashAdminPassword, verifyAdminPassword } from "../app/lib/password";
 
@@ -44,14 +43,23 @@ describe("the admin password check", () => {
     for (const iterations of [9_999, 100_001, 1.5]) await assert.rejects(hashAdminPassword(PASS, { iterations }), RangeError);
   });
 
-  it("still accepts the bcrypt hash set before, and says to replace it without showing it", async () => {
-    const legacy = bcrypt.hashSync(PASS, 4);
-    assert.equal(await verifyAdminPassword(PASS, legacy), true);
-    assert.equal(await verifyAdminPassword("wrong", legacy), false);
-    assert.equal(await verifyAdminPassword(PASS, legacy.replace(/^\$2a\$/, "$2b$")), true);
-    assert.ok(warnings.length >= 1);
-    assert.match(warnings[0], /ADMIN_PASSWORD_HASH is a bcrypt hash/);
-    assert.ok(!warnings.some((w) => w.includes(legacy.slice(7))), "never logs the hash");
+  it("refuses a bcrypt hash as a setup error, saying how to replace it without showing it", async () => {
+    // Shaped like a bcrypt hash at cost 10; not the hash of anything.
+    const body = "a".repeat(22) + "b".repeat(31);
+    for (const prefix of ["$2a$", "$2b$", "$2y$"]) {
+      for (const input of [PASS, "wrong"]) {
+        await assert.rejects(verifyAdminPassword(input, `${prefix}10$${body}`), (err: unknown) => {
+          assert.ok(err instanceof PasswordConfigError);
+          assert.match(err.message, /ADMIN_PASSWORD_HASH is a bcrypt hash/);
+          assert.match(err.message, /`npm run admin-password`/);
+          assert.ok(!err.message.includes("$2") && !err.message.includes(body.slice(0, 22)), "never shows the hash");
+          return true;
+        });
+      }
+    }
+    // A damaged one gets the same message.
+    await assert.rejects(verifyAdminPassword(PASS, "$2b$10$short"), /ADMIN_PASSWORD_HASH is a bcrypt hash/);
+    assert.deepEqual(warnings, []);
   });
 
   it("treats a stored value it can't use as a setup error, never as a wrong password", async () => {

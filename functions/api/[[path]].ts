@@ -334,7 +334,7 @@ async function handleLogin(request: Request, env: Env): Promise<Response> {
     return json({ error: "Server misconfigured" }, 500);
   }
 
-  // A PBKDF2 verifier, or the bcrypt hash set before it (app/lib/password.ts).
+  // A PBKDF2 verifier (app/lib/password.ts); a bcrypt hash is no longer accepted.
   // A value it can't check is a setup problem, not a wrong password: not counted.
   let valid: boolean;
   try {
