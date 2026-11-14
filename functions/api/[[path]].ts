@@ -4,12 +4,13 @@ import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
 import { jsonFileText } from "../../app/lib/json-file";
 import { bumpCacheVersion, mobileVersionKeyForPath } from "../../app/lib/mobile-cache-version";
 import { APP_POLICY, dataWriteProblems, needsAppPolicy, readAppPolicy } from "../../app/lib/screen-policy";
-import { ASSET_VERSION, assetSeenKey, serveAsset } from "../../app/lib/asset-headers";
+import { ASSET_VERSION, assetSeenKey, gitBlobSha, serveAsset } from "../../app/lib/asset-headers";
 import { checkLoginAttempts, recordLoginAttempt } from "../../app/lib/login-attempts";
-import { SESSION_TTL_SECONDS, createSessionToken, readSessionVersion, revokeSessions, sessionClaims } from "../../app/lib/session";
+import { SESSION_TTL_SECONDS, createSessionToken, isPictureToken, pictureToken, readSessionVersion, revokeSessions, sessionClaims } from "../../app/lib/session";
 import { SourceError } from "../../app/lib/importer/fetch-source";
 import { RepoError, githubRepo } from "../../app/lib/importer/repo";
-import { deletionConflict, deletionRequest, isOwnedAsset, prunePlan, pruneRequest, recordAssetDir, type ScannedRecord } from "../../app/lib/record-assets";
+import { deletionConflict, deletionRequest, isOwnedAsset, pictureRequest, prunePlan, pruneRequest, recordAssetDir, saveRequest, type ScannedRecord } from "../../app/lib/record-assets";
+import { MAX_PICTURE_BASE64, pictureProblem } from "../../app/lib/picture-rules";
 import { assertSafeEntityId, assertSafeGameSlug } from "../../app/lib/safe-path";
 import {
   ImportError,
@@ -129,36 +130,89 @@ interface PagesFunctionContext {
 }
 
 function triggerCachePurge(context: PagesFunctionContext, path: string) {
-  const cache = caches.default;
-  const url = new URL(context.request.url);
+  purgePaths(context, [path]);
+}
 
-  const urlsToPurge: string[] = [];
+/**
+ * Pictures whose cached copies one write forgets in this data center: two
+ * cache deletes each, of a Function's 50 subrequests (Workers Free). Any
+ * others' expire on their own, within 5 minutes (asset-headers.ts); the app's
+ * picture URLs carry their content hash, so only plain-path previews wait.
+ */
+const PURGED_PICTURES = 12;
+
+// After a write: forgets this data center's copies of the pictures written,
+// the first PURGED_PICTURES of `paths` (so callers put replaced pictures
+// first), and bumps the mobile cache version of each kind of path once, not
+// per path: KV takes one write a second per key, and 1,000 a day.
+function purgePaths(context: PagesFunctionContext, paths: string[]) {
+  const cache = caches.default;
   
   // Use a constant origin to bypass any Vite proxy Host header discrepancies
   const internalOrigin = "https://api.internal";
 
-  if (path.startsWith("public/assets/")) {
-    const assetPath = path.slice("public/assets/".length);
-    const encodedAssetPath = assetPath.split('/').map(encodeURIComponent).join('/');
-    urlsToPurge.push(`${internalOrigin}/api/assets/${encodedAssetPath}`);
-    // And what this data center last saw of it (a 404, an older hash), so the
-    // new picture shows here at once; elsewhere within a minute.
-    urlsToPurge.push(assetSeenKey(`assets/${encodedAssetPath}`));
-  }
+  const urlsToPurge = paths
+    .filter((path) => path.startsWith("public/assets/"))
+    .slice(0, PURGED_PICTURES)
+    .flatMap((path) => {
+      const encodedAssetPath = path.slice("public/assets/".length).split('/').map(encodeURIComponent).join('/');
+      // And what this data center last saw of it (a 404, an older hash), so the
+      // new picture shows here at once; elsewhere within a minute.
+      return [`${internalOrigin}/api/assets/${encodedAssetPath}`, assetSeenKey(`assets/${encodedAssetPath}`)];
+    });
 
   // Mobile payloads are cached in every data center, so they are invalidated by
   // bumping the version in their cache key rather than by cache.delete().
   // The webhook bumps it again for the same commit (about 40 writes a day),
   // kept as a safety net for when a delivery fails.
-  const versionKey = mobileVersionKeyForPath(path);
+  const versionKeys = [...new Set(paths.map(mobileVersionKeyForPath).filter((key) => key !== null))];
 
   const promise = Promise.all([
     ...urlsToPurge.map(u => cache.delete(u)),
-    ...(versionKey ? [bumpCacheVersion(context.env.RATE_LIMIT_KV, versionKey)] : []),
+    ...versionKeys.map((key) => bumpCacheVersion(context.env.RATE_LIMIT_KV, key)),
   ]).catch(err => console.error("Cache purge failed:", err));
 
   if (context.waitUntil) {
     context.waitUntil(promise);
+  }
+}
+
+/** The most a data/file write's body may hold: any data file, or a picture at its limit as base64. */
+const WRITE_BODY_LIMIT = 3 * 1024 * 1024;
+
+/**
+ * The request's JSON body, or {} when it isn't JSON (the handler then says
+ * what's missing). Read only up to `limit` bytes: a larger body is refused
+ * (413) before any of it is parsed, so it can't spend the Function's CPU or
+ * memory (10 ms and 128 MB on Workers Free).
+ */
+async function readJsonBody(request: Request, limit: number, tooLargeError = "The request is too large."): Promise<unknown> {
+  const tooLarge = () => json({ error: tooLargeError }, 413);
+  if (Number(request.headers.get("Content-Length")) > limit) throw tooLarge();
+  if (!request.body) return {};
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel().catch(() => {});
+      throw tooLarge();
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return {};
   }
 }
 
@@ -202,6 +256,10 @@ export async function onRequest(
       return await handleWriteFile(context);
     if (path === "data/file" && request.method === "DELETE")
       return await handleDeleteFile(context);
+    if (path === "data/picture" && request.method === "POST")
+      return await handleUploadPicture(context);
+    if (path === "data/save-record" && request.method === "POST")
+      return await handleSaveRecord(context);
     if (path === "data/record-assets" && request.method === "GET")
       return await handleRecordAssets(context);
     if (path === "data/delete-record" && request.method === "POST")
@@ -379,7 +437,7 @@ async function handleGetFile(context: PagesFunctionContext): Promise<Response> {
 async function handleWriteFile(context: PagesFunctionContext): Promise<Response> {
   const { request, env } = context;
   await requireAuth(context);
-  const body = (await request.json().catch(() => ({}))) as {
+  const body = (await readJsonBody(request, WRITE_BODY_LIMIT)) as {
     path: string;
     content: unknown;
     message?: string;
@@ -389,6 +447,12 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
   };
   if (!body.path) return json({ error: "path is required" }, 400);
   assertSafeFilePath(body.path);
+  // A picture follows the picture rules here too: the games page's icon still comes this way.
+  if (body.path.startsWith("public/assets/")) {
+    if (body.isBase64 !== true) return json({ error: "A picture is sent as base64." }, 400);
+    const problem = pictureProblem(body.path, body.content);
+    if (problem) return json({ error: problem.error }, problem.status);
+  }
   // A schema's references must name configured categories, which only then need reading.
   const categories = needsCategories(body.path)
     ? await readCategories((path) => githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH ?? "main").read(path))
@@ -485,21 +549,117 @@ async function handleDeleteFile(context: PagesFunctionContext): Promise<Response
     triggerCachePurge(context, body.path);
     return json({ ok: true });
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      "status" in err &&
-      (err as { status: number }).status === 409
-    ) {
-      return json(
-        {
-          error: `Conflict on ${body.path}: file was modified since loaded.`,
-          conflict: true,
-        },
-        409,
-      );
+    // Gone already: someone removed it since this page loaded it.
+    if ((err as { status?: unknown } | null)?.status === 404) {
+      return json({ error: `Conflict on ${body.path}: the file was already removed.`, conflict: true }, 409);
     }
+    const refused = refusedWrite(err, body.path);
+    if (refused) return refused;
     throw err;
   }
+}
+
+/** The most a picture upload's body may hold: a picture at its limit as base64, and where it goes. */
+const PICTURE_BODY_LIMIT = MAX_PICTURE_BASE64 + 16 * 1024;
+
+// A picture for a record's save (app/lib/github.ts saveRecord), uploaded on its
+// own before the save: GitHub keeps it as a blob, which commits nothing and
+// moves no branch, so uploads can run side by side. (Contents API writes, one
+// commit each, conflicted when made in parallel, and a save could fail with
+// some of its pictures committed.) It must be a file of the record's own
+// folder that passes the picture rules (app/lib/picture-rules.ts), checked from
+// the base64 as sent: the file is never decoded here, GitHub decodes it. The
+// token returned is the server's word for that blob at that path, which the
+// save checks (handleSaveRecord). 1 GitHub request.
+async function handleUploadPicture(context: PagesFunctionContext): Promise<Response> {
+  await requireAuth(context);
+  const request = pictureRequest(await readJsonBody(context.request, PICTURE_BODY_LIMIT, "The picture is over 2 MB; a picture can be at most 2 MB."));
+  if (typeof request === "string") return json({ error: request }, 400);
+  assertSafeFilePath(request.path);
+  const problem = pictureProblem(request.path, request.base64);
+  if (problem) return json({ error: problem.error }, problem.status);
+  try {
+    const sha = await githubRepo(context.env).createBlob(request.base64);
+    return json({ path: request.path, sha, token: await pictureToken(context.env.SESSION_SECRET, request.path, sha) });
+  } catch (err) {
+    if (err instanceof RepoError && err.status === 422) return json({ error: `GitHub refused ${request.path}.` }, 400);
+    throw err;
+  }
+}
+
+/** The most a save's body may hold: the record, and its pictures' shas and tokens (never their bytes). */
+const SAVE_BODY_LIMIT = 1024 * 1024;
+
+// A record and its new or replaced pictures, in one commit: a save lands whole
+// or not at all, and the push webhook fires once. The pictures were uploaded
+// before as blobs (handleUploadPicture); only those whose token is the
+// server's, for that very path, in the record's own folder, are committed. The
+// record must still be at the sha the editor loaded (null: it mustn't exist
+// yet), or it's a conflict to reload. A branch that moves between the check
+// and the commit (an import, another admin's save) is checked and committed on
+// once more; a second move is a conflict. Folders whose files need checks that
+// read other files (schemas, screens, navigation) aren't record folders, so
+// dataWriteProblems reads nothing here.
+// Subrequests at most: the session (1), the snapshot (3) and the commit (4),
+// twice when the branch moved; a new record's push (2 GitHub reads, 2 KV, 2
+// to Google); a KV write per mobile version (2); and the cached copies of
+// PURGED_PICTURES pictures (24): 47 of a Function's 50 (Workers Free).
+async function handleSaveRecord(context: PagesFunctionContext): Promise<Response> {
+  await requireAuth(context);
+  const request = saveRequest(await readJsonBody(context.request, SAVE_BODY_LIMIT));
+  if (typeof request === "string") return json({ error: request }, 400);
+  const { game, folder, id, content, pictures } = request;
+  const record = `data/${game}/${folder}/${id}.json`;
+  for (const path of [record, ...pictures.map((p) => p.path)]) assertSafeFilePath(path);
+  for (const picture of pictures) {
+    if (!(await isPictureToken(picture.token, context.env.SESSION_SECRET, picture.path, picture.sha))) {
+      return json({ error: `${picture.path} wasn't uploaded for this path. Pick the picture again.` }, 400);
+    }
+  }
+  if (content !== undefined) {
+    const problems = dataWriteProblems(record, content, false);
+    if (problems.length > 0) return json({ error: `This file can't be saved: ${problems.join(" ")}` }, 400);
+  }
+
+  const repo = githubRepo(context.env);
+  const conflict = (error: string) => json({ error: `Conflict on ${record}: ${error}`, conflict: true }, 409);
+  const changes = [...(content !== undefined ? [{ path: record, content }] : []), ...pictures.map((p) => ({ path: p.path, blob: p.sha }))];
+  // The commit, and the files of the record's folder it was made on; or why there's none.
+  const commitSave = async (): Promise<{ commit: string | null; files: Record<string, string> } | Response> => {
+    for (let attempt = 1; ; attempt++) {
+      const snapshot = await repo.snapshot([record, recordAssetDir(game, folder, id)]);
+      const now = snapshot.files[record] ?? null;
+      if (request.sha === null && now !== null) return conflict("a record with this id already exists.");
+      if (request.sha !== null && now === null) return conflict("the record was deleted since it was loaded.");
+      if (request.sha !== null && now !== request.sha) return conflict("the record was modified since it was loaded.");
+      try {
+        return { commit: await repo.commitOn(snapshot.head, changes, request.message), files: snapshot.files };
+      } catch (err) {
+        if (!(err instanceof RepoError && err.moved)) throw err;
+        if (attempt === 2) return conflict("the data kept changing while saving. Save again.");
+      }
+    }
+  };
+  let saved: Awaited<ReturnType<typeof commitSave>>;
+  try {
+    saved = await commitSave();
+  } catch (err) {
+    if (err instanceof RepoError && err.status === 503) return json({ error: err.message }, 503);
+    // A tree GitHub won't build: a picture's blob it doesn't have.
+    if (err instanceof RepoError && err.status === 422) return json({ error: "GitHub refused the save's pictures. Pick them again and save." }, 400);
+    throw err;
+  }
+  if (saved instanceof Response) return saved;
+
+  // Replaced pictures first: theirs are the copies that may be cached.
+  const replaced = (path: string) => path in saved.files;
+  const paths = pictures.map((p) => p.path);
+  purgePaths(context, [...(content !== undefined ? [record] : []), ...paths.filter(replaced), ...paths.filter((path) => !replaced(path))]);
+  // Only once the record is saved; a push never fails the save.
+  const push = content === undefined ? undefined : await pushAfterWrite({ path: record, content, notify: request.notify, sha: request.sha ?? undefined }, pushEnv(context.env));
+  // The record file's sha as committed (commitOn writes jsonFileText), so an editor can keep saving.
+  const sha = content === undefined ? request.sha : await gitBlobSha(new TextEncoder().encode(jsonFileText(content)));
+  return json({ ok: true, sha, commit: saved.commit, ...(push && { push }) });
 }
 
 // A record's pictures, for the delete page (app/lib/record-assets.ts): the files

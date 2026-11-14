@@ -22,10 +22,8 @@ import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { AIPromptModalWrapper, ImportDataModalWrapper } from "~/components/views/HeroFormModals";
 import {
   getFile,
-  getFileSha,
   listDirectory,
-  publishRecord,
-  uploadAsset,
+  saveRecord,
 } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
@@ -508,37 +506,17 @@ Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the sou
         return;
       }
 
-      const uploads = [];
-      for (const upload of portraitUploads) {
-        const portraitSha = await getFileSha(upload.path);
-        uploads.push(
-          uploadAsset(
-            upload.path,
-            upload.base64,
-            portraitSha || undefined,
-            `Add portrait ${upload.key} for ${id}`,
-          ),
-        );
-      }
-      for (const upload of abilityUploads) {
-        const assetSha = await getFileSha(upload.path);
-        uploads.push(
-          uploadAsset(
-            upload.path,
-            upload.base64,
-            assetSha || undefined,
-            upload.message,
-          ),
-        );
-      }
-      if (uploads.length > 0) await Promise.all(uploads);
-
-      const { push } = await publishRecord(
-        `data/${game}/heroes/${parsed.id}.json`,
-        parsed,
-        `Add hero: ${parsed.name}`,
+      // The hero and its pictures in one commit; the server refuses it if the id was taken meanwhile.
+      const { push } = await saveRecord({
+        game,
+        folder: "heroes",
+        id: String(parsed.id),
+        sha: null,
+        content: parsed,
+        message: `Add hero: ${parsed.name}`,
         notify,
-      );
+        pictures: [...portraitUploads, ...abilityUploads],
+      });
       publishedToast({ success: toastSuccess, warning: toastWarning }, `Hero ${parsed.name} created successfully!`, push);
       navigate(`/${game}/heroes`);
     } catch (err) {

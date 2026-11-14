@@ -16,12 +16,10 @@ import {
 } from "~/components/views/HeroFormModals";
 import {
   getFile,
-  getFileSha,
   isConflictError,
   listDirectory,
   pruneReplacedAssets,
-  updateFile,
-  uploadAsset,
+  saveRecord,
 } from "~/lib/github";
 import { assertSafeEntityId, assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
@@ -156,6 +154,7 @@ export default function EditMode() {
             enums={data.enums}
             game={data.game}
             modeData={data.modeData}
+            fileId={id!}
             modeSha={data.modeSha!}
           />
         </CardContent>
@@ -169,12 +168,14 @@ function ModeForm({
   enums,
   game,
   modeData,
+  fileId,
   modeSha,
 }: {
   schemas: DynamicSchemaFile[];
   enums: GlobalEnum[];
   game: string;
   modeData: Record<string, unknown>;
+  fileId: string;
   modeSha: string;
 }) {
   const [formKey, setFormKey] = useState(0);
@@ -198,6 +199,7 @@ function ModeForm({
       game={game}
       initData={initData}
       stored={modeData}
+      fileId={fileId}
       modeSha={modeSha}
       onImportSuccess={handleImportSuccess}
     />
@@ -211,6 +213,8 @@ type ModeFormInnerProps = {
   initData: Record<string, unknown>;
   /** The mode as loaded: a save changes only what was edited (asStored). */
   stored: Record<string, unknown>;
+  /** The mode's file name, which its id must be. */
+  fileId: string;
   modeSha: string;
   onImportSuccess: (data: Record<string, unknown>) => void;
 };
@@ -221,6 +225,7 @@ function ModeFormInner({
   game,
   initData,
   stored,
+  fileId,
   modeSha,
   onImportSuccess,
 }: ModeFormInnerProps) {
@@ -292,28 +297,19 @@ function ModeFormInner({
 
       const parsed = dynamicZodSchema.parse(formData) as Record<string, unknown>;
 
-      const uploads = [];
-      for (const upload of abilityUploads) {
-        const assetSha = await getFileSha(upload.path);
-        uploads.push(
-          uploadAsset(
-            upload.path,
-            upload.base64,
-            assetSha || undefined,
-            upload.message,
-          ),
-        );
-      }
-      if (uploads.length > 0) await Promise.all(uploads);
-
       // What the form filled in for keys the mode had no value for doesn't count as an edit.
       const saved = asStored(stored, parsed, dynamicZodSchema);
-      await updateFile(
-        `data/${game}/modes/${parsed.id}.json`,
-        saved,
-        modeSha,
-        `Update mode: ${parsed.name}`,
-      );
+      // The mode and its new pictures in one commit, at the file it was loaded from:
+      // the server refuses a record whose id isn't its file's name.
+      await saveRecord({
+        game,
+        folder: "modes",
+        id: fileId,
+        sha: modeSha,
+        content: saved,
+        message: `Update mode: ${parsed.name}`,
+        pictures: abilityUploads,
+      });
       // Pictures the save replaced or dropped: removed when nothing uses them (never fails the save).
       const pruned = parsed.id === stored.id ? await pruneReplacedAssets(game, "modes", String(parsed.id), stored, saved) : null;
       const done = `Mode ${parsed.name} updated successfully!`;

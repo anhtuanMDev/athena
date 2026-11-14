@@ -27,6 +27,10 @@ function loadedHero(): Item {
 const formOf = (hero: Item) => withAbilityKeys(hero, LISTS) as Record<string, Item[]>;
 const reader = (form: Record<string, unknown>) => (path: string) => path.split(".").reduce<any>((v, k) => v?.[k], form);
 const picked = (name: string) => ({ id: `new-${name}`, key: "main", name, base64: "iVBORw0K", previewUrl: "data:image/png;base64,iVBORw0K" });
+/** The first bytes of a PNG, a JPEG and a WebP picture, as base64: a new picture's type, and so its file's extension. */
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]).toString("base64");
+const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1]).toString("base64");
+const WEBP = Buffer.from("RIFF\x24\x00\x00\x00WEBPVP8 ", "latin1").toString("base64");
 
 describe("ability pictures in the editors", () => {
   it("lists the ability lists of a schema", () => {
@@ -68,8 +72,8 @@ describe("ability pictures in the editors", () => {
     // The minor perk keeps its own pictures, as stored; the upload goes to the major perks' folder.
     assert.deepEqual(output.minor_perks[0].icon, (hero.minor_perks as Item[])[0].icon);
     assert.deepEqual(uploads.map((u) => u.path), ["public/assets/overwatch/heroes/ana/major_perks/groggy.png"]);
-    // The abilities list keeps the folder its pictures always had.
-    assert.equal(iconForSave([picked("x.webp")], undefined, "overwatch/heroes/ana/abilities", "sleep-dart").uploads[0].path, "public/assets/overwatch/heroes/ana/abilities/sleep-dart.webp");
+    // The abilities list keeps the folder its pictures always had; the extension is the picture's type, not its name's.
+    assert.equal(iconForSave([{ ...picked("x.png"), base64: WEBP }], undefined, "overwatch/heroes/ana/abilities", "sleep-dart").uploads[0].path, "public/assets/overwatch/heroes/ana/abilities/sleep-dart.webp");
   });
 
   it("only a new ability's id follows its name: the field marks it _isNew, loaded ones get _clientId only", () => {
@@ -142,15 +146,17 @@ describe("a hero's portrait when saved", () => {
     assert.equal(portraitForSave(loaded(lone), lone, DIR).portrait, lone);
   });
 
-  it("names a new picture's file from its name, with a safe extension", () => {
-    const pick = (name: string) => [{ id: "n", key: "main", name, base64: "AA", previewUrl: "data:image/jpeg;base64,AA" }];
-    assert.deepEqual(portraitForSave(pick("Ana Portrait.JPG"), undefined, DIR), {
+  it("names a new picture's file after its type, whatever its name says: the file is served as its extension's type", () => {
+    const pick = (name: string, base64: string) => [{ id: "n", key: "main", name, base64, previewUrl: `data:image/jpeg;base64,${base64}` }];
+    assert.deepEqual(portraitForSave(pick("Ana Portrait.PNG", JPEG), undefined, DIR), {
       portrait: "/api/assets/overwatch/heroes/ana/portrait.jpg",
-      uploads: [{ path: "public/assets/overwatch/heroes/ana/portrait.jpg", base64: "AA", key: "main" }],
+      uploads: [{ path: "public/assets/overwatch/heroes/ana/portrait.jpg", base64: JPEG, key: "main" }],
     });
-    // No extension in the name: png, never the name itself.
-    assert.equal(portraitForSave(pick("ana"), undefined, DIR).portrait, "/api/assets/overwatch/heroes/ana/portrait.png");
-    assert.equal(portraitForSave(pick("ana.portrait?v=1"), undefined, DIR).uploads[0].path, "public/assets/overwatch/heroes/ana/portrait.png");
+    assert.equal(portraitForSave(pick("ana", PNG), undefined, DIR).portrait, "/api/assets/overwatch/heroes/ana/portrait.png");
+    assert.equal(portraitForSave(pick("ana.portrait?v=1", WEBP), undefined, DIR).uploads[0].path, "public/assets/overwatch/heroes/ana/portrait.webp");
+    // A type it can't tell (the upload fields refuse those): the name's extension, else png, never the name itself.
+    assert.equal(portraitForSave(pick("Ana Portrait.JPG", "AA"), undefined, DIR).portrait, "/api/assets/overwatch/heroes/ana/portrait.jpg");
+    assert.equal(portraitForSave(pick("ana.portrait?v=1", "AA"), undefined, DIR).uploads[0].path, "public/assets/overwatch/heroes/ana/portrait.png");
   });
 
   it("replaces one picture and keeps the URL of the other as stored", () => {

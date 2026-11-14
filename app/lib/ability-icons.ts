@@ -1,4 +1,5 @@
 import type { ImageEntry } from "~/components/MultiImageUploadField";
+import { newPictureExtension } from "./picture-rules";
 
 // Abilities and weapons (fields of type "abilities" and "weapon") are edited as
 // lists, and their pictures next to the form, in one map for all the lists:
@@ -95,9 +96,9 @@ export function iconKeyProblem(entries: ImageEntry[], entry?: ImageEntry): strin
   return undefined;
 }
 
-/** A new picture's file extension, from its file name. */
+/** A new picture's file extension: its type's, which the server requires (picture-rules.ts). */
 function extensionOf(entry: ImageEntry): string {
-  return (/\.([A-Za-z0-9]{1,8})$/.exec(entry.name ?? "")?.[1] ?? "png").toLowerCase();
+  return newPictureExtension(entry.name, entry.base64);
 }
 
 export interface IconUpload {
@@ -110,7 +111,7 @@ export interface IconUpload {
  * to upload for it. `stored` is the icon it has; `dir` is where its new
  * pictures go, under public/assets ("overwatch/heroes/ana/abilities"), named
  * after `name` (its id): `${name}.png` for a lone "main" picture, else
- * `${name}_${key}.png`.
+ * `${name}_${key}.png`, the extension being the picture's own type.
  *
  * Entries without a picture are left out, and pictures that were already there
  * keep their URLs. When every picture is as stored, the icon is saved exactly as
@@ -147,9 +148,9 @@ export function iconForSave(entries: ImageEntry[], stored: unknown, dir: string,
  * (`recordDir`, "overwatch/heroes/ana"), named portrait.png for a lone "main"
  * picture, else portrait_<key>.png. So a portrait nobody touched is saved
  * exactly as stored (an outside URL, another file name or a ?v= included),
- * and a new picture's extension comes from its file name alone. Without
- * entries the portrait is undefined: the URL typed in the form stands; with
- * entries but no picture left, there is none.
+ * and a new picture's extension comes from its type, not its file's name.
+ * Without entries the portrait is undefined: the URL typed in the form
+ * stands; with entries but no picture left, there is none.
  */
 export function portraitForSave(entries: ImageEntry[], stored: unknown, recordDir: string): { portrait: unknown; uploads: (IconUpload & { key: string })[] } {
   if (entries.length === 0) return { portrait: undefined, uploads: [] };

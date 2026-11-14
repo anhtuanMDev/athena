@@ -38,17 +38,20 @@ const realFetch = globalThis.fetch;
 const realCaches = (globalThis as { caches?: unknown }).caches;
 let github: string[];
 let deleted: string[];
-/** How GitHub answers a contents PUT. */
+/** How GitHub answers a contents PUT, and a contents DELETE. */
 let putAnswer: () => Response;
+let deleteAnswer: () => Response;
 beforeEach(() => {
   github = [];
   deleted = [];
   putAnswer = () => Response.json({ content: { sha: "new-sha" } });
+  deleteAnswer = () => Response.json({ commit: { sha: "c" } });
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const method = init?.method ?? "GET";
     github.push(`${method} ${url.pathname}`);
     if (url.hostname === "api.github.com" && method === "PUT" && url.pathname.startsWith("/repos/o/r/contents/")) return putAnswer();
+    if (url.hostname === "api.github.com" && method === "DELETE" && url.pathname.startsWith("/repos/o/r/contents/")) return deleteAnswer();
     throw new Error(`unexpected ${method} ${url.href}`);
   }) as typeof fetch;
   (globalThis as { caches?: unknown }).caches = {
@@ -80,6 +83,8 @@ async function call(path: string, init: RequestInit & { kv?: unknown } = {}) {
   return response;
 }
 const cookie = (token: string) => ({ Cookie: `__admin_session=${token}` });
+/** The first bytes of a PNG, as base64: what an upload must start with. */
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]).toString("base64");
 const authenticated = async (token: string, kv: unknown) => ((await (await call("/api/auth/check", { headers: cookie(token), kv })).json()) as { authenticated: boolean }).authenticated;
 
 describe("checking a session", () => {
@@ -228,7 +233,7 @@ describe("a write GitHub refuses", () => {
     call("/api/data/file", {
       method: "POST",
       headers: { ...cookie(await createSessionToken(SECRET, "0")), "Content-Type": "application/json" },
-      body: JSON.stringify({ path: "public/assets/overwatch/x.png", content: Buffer.from("png").toString("base64"), isBase64: true }),
+      body: JSON.stringify({ path: "public/assets/overwatch/x.png", content: PNG, isBase64: true }),
       kv: recordingKv().kv,
     });
   const refused = (status: number, message: string) => () =>
@@ -272,10 +277,73 @@ describe("an upload", () => {
     const res = await call("/api/data/file", {
       method: "POST",
       headers: { ...cookie(await createSessionToken(SECRET, "0")), "Content-Type": "application/json" },
-      body: JSON.stringify({ path: "public/assets/overwatch/x.png", content: Buffer.from("png").toString("base64"), isBase64: true }),
+      body: JSON.stringify({ path: "public/assets/overwatch/x.png", content: PNG, isBase64: true }),
       kv: recordingKv().kv,
     });
     assert.equal(res.status, 200);
     assert.deepEqual(deleted.sort(), ["https://api.internal/api/assets/overwatch/x.png", assetSeenKey("assets/overwatch/x.png")].sort());
+  });
+});
+
+describe("a picture sent to the per-file write (the games page's icon)", () => {
+  const send = async (body: Record<string, unknown> | string) =>
+    call("/api/data/file", {
+      method: "POST",
+      headers: { ...cookie(await createSessionToken(SECRET, "0")), "Content-Type": "application/json" },
+      body: typeof body === "string" ? body : JSON.stringify({ path: "public/assets/games/overwatch-icon.png", isBase64: true, ...body }),
+      kv: recordingKv().kv,
+    });
+
+  it("follows the picture rules, refusing before any GitHub request", async () => {
+    const big = Buffer.alloc(2 * 1024 * 1024 + 1);
+    big.set(Buffer.from(PNG, "base64"));
+    for (const [what, body, status] of [
+      ["one byte over 2 MiB", { content: big.toString("base64") }, 413],
+      ["an SVG", { path: "public/assets/games/overwatch-icon.svg", content: Buffer.from("<svg/>").toString("base64") }, 415],
+      ["an SVG named .png", { content: Buffer.from("<svg/>").toString("base64") }, 415],
+      ["JSON rather than base64", { isBase64: false, content: { not: "a picture" } }, 400],
+      ["a body over 3 MiB, before it's parsed", JSON.stringify({ path: "data/overwatch/heroes/ana.json", content: "x".repeat(3 * 1024 * 1024) }), 413],
+    ] as const) {
+      const res = await send(body);
+      assert.equal(res.status, status, what);
+      assert.equal(typeof ((await res.json()) as { error?: unknown }).error, "string", what);
+    }
+    assert.deepEqual(github, []);
+  });
+});
+
+describe("a delete GitHub refuses", () => {
+  const remove = async () =>
+    call("/api/data/file", {
+      method: "DELETE",
+      headers: { ...cookie(await createSessionToken(SECRET, "0")), "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "data/overwatch/screens/home.json", sha: "old-sha" }),
+      kv: recordingKv().kv,
+    });
+  const refused = (status: number, message: string) => () => Response.json({ message, documentation_url: "https://docs.github.com/rest/repos/contents#delete-a-file" }, { status });
+
+  it("is a conflict to reload when the file changed or is gone already", async () => {
+    for (const [status, message, says] of [
+      [409, "home.json does not match old-sha", /modified/],
+      [422, "Invalid request.\n\nsha is not valid for this file.", /modified or removed/],
+      [404, "Not Found", /already removed/],
+    ] as const) {
+      deleteAnswer = refused(status, message);
+      const res = await remove();
+      assert.equal(res.status, 409, message);
+      const body = (await res.json()) as { error: string; conflict?: boolean };
+      assert.equal(body.conflict, true);
+      assert.match(body.error, says);
+      assert.match(body.error, /^Conflict on data\/overwatch\/screens\/home\.json: /);
+    }
+  });
+
+  it("says why otherwise, in GitHub's words, without claiming a conflict", async () => {
+    deleteAnswer = refused(422, "Invalid request.\n\nmessage is too long.");
+    const res = await remove();
+    assert.equal(res.status, 400);
+    const body = (await res.json()) as { error: string; conflict?: boolean };
+    assert.equal(body.conflict, undefined);
+    assert.equal(body.error, "GitHub refused data/overwatch/screens/home.json: Invalid request. message is too long.");
   });
 });

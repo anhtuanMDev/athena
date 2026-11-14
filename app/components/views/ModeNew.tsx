@@ -20,10 +20,8 @@ import {
 } from "~/components/views/HeroFormModals";
 import {
   getFile,
-  getFileSha,
   listDirectory,
-  publishRecord,
-  uploadAsset,
+  saveRecord,
 } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
@@ -294,26 +292,17 @@ function ModeFormInner({
         return;
       }
 
-      const uploads = [];
-      for (const upload of abilityUploads) {
-        const assetSha = await getFileSha(upload.path);
-        uploads.push(
-          uploadAsset(
-            upload.path,
-            upload.base64,
-            assetSha || undefined,
-            upload.message,
-          ),
-        );
-      }
-      if (uploads.length > 0) await Promise.all(uploads);
-
-      const { push } = await publishRecord(
-        `data/${game}/modes/${parsed.id}.json`,
-        parsed,
-        `Add mode: ${parsed.name}`,
+      // The mode and its pictures in one commit; the server refuses it if the id was taken meanwhile.
+      const { push } = await saveRecord({
+        game,
+        folder: "modes",
+        id: String(parsed.id),
+        sha: null,
+        content: parsed,
+        message: `Add mode: ${parsed.name}`,
         notify,
-      );
+        pictures: abilityUploads,
+      });
       publishedToast({ success: toastSuccess, warning: toastWarning }, `Mode ${parsed.name} created successfully!`, push);
       navigate(`/${game}/modes`);
     } catch (err) {

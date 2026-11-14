@@ -13,6 +13,13 @@ export interface FileChange {
   content: unknown | null;
 }
 
+/** A file set to a blob already in the repository: an uploaded picture's (BlobWriter). */
+export interface BlobChange {
+  path: string;
+  /** The blob's sha. */
+  blob: string;
+}
+
 export interface DataRepo {
   /** File names (without ".json") in a folder; empty when it doesn't exist. */
   list(dir: string): Promise<string[]>;
@@ -24,8 +31,17 @@ export interface DataRepo {
 export interface PinnedRepo {
   /** The branch's head commit, and the blob sha of each file at `paths`, or under those ending in "/". */
   snapshot(paths: string[]): Promise<{ head: string; files: Record<string, string> }>;
-  /** Commits `changes` on top of `parent` only: if the branch has moved since, nothing is written (RepoError 422). */
-  commitOn(parent: string, changes: FileChange[], message: string): Promise<void>;
+  /**
+   * Commits `changes` on top of `parent` only: if the branch has moved since,
+   * nothing is written (RepoError 422, `moved`). Resolves to the new commit's
+   * sha, or null when there was nothing to commit.
+   */
+  commitOn(parent: string, changes: (FileChange | BlobChange)[], message: string): Promise<string | null>;
+}
+
+export interface BlobWriter {
+  /** Keeps `base64`'s bytes as a blob, which no commit holds yet, and resolves to its sha. */
+  createBlob(base64: string): Promise<string>;
 }
 
 /** Paths to read together: files with their text, folders with their .json files' text, and listings (.json names alone). */
@@ -60,9 +76,12 @@ export interface GitHubEnv {
 export class RepoError extends Error {
   name = "RepoError";
   readonly status: number;
-  constructor(message: string, status: number) {
+  /** The ref update was refused (its 422): someone committed on the branch after the new commit's parent, so nothing was written. */
+  readonly moved: boolean;
+  constructor(message: string, status: number, moved = false) {
     super(message);
     this.status = status;
+    this.moved = moved;
   }
 }
 
@@ -71,7 +90,7 @@ const jsonEntries = (object: GraphqlObject) =>
   object?.kind === "tree" ? object.entries.filter((e) => e.type === "blob" && e.mode !== SYMLINK_MODE && e.name.endsWith(".json")) : [];
 
 /** A DataRepo backed by the GitHub REST API, which can also read many files in one GraphQL request. */
-export function githubRepo(env: GitHubEnv, fetcher: typeof fetch = fetch): DataRepo & PinnedRepo & BulkReader {
+export function githubRepo(env: GitHubEnv, fetcher: typeof fetch = fetch): DataRepo & PinnedRepo & BulkReader & BlobWriter {
   const base = `https://api.github.com/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}`;
   const branch = env.GITHUB_BRANCH || "main";
 
@@ -96,15 +115,17 @@ export function githubRepo(env: GitHubEnv, fetcher: typeof fetch = fetch): DataR
 
   const head = async () => (await call<{ object: { sha: string } }>("GET", `/git/ref/heads/${encodeURIComponent(branch)}`)).object.sha;
 
-  async function commitOnce(changes: FileChange[], message: string, on?: string): Promise<void> {
+  async function commitOnce(changes: (FileChange | BlobChange)[], message: string, on?: string): Promise<string> {
     const parentSha = on ?? (await head());
     const parent = await call<{ tree: { sha: string } }>("GET", `/git/commits/${parentSha}`);
     const tree = await call<{ sha: string }>("POST", "/git/trees", {
       base_tree: parent.tree.sha,
       tree: changes.map((change) =>
-        change.content === null
-          ? { path: change.path, mode: "100644", type: "blob", sha: null }
-          : { path: change.path, mode: "100644", type: "blob", content: jsonFileText(change.content) },
+        "blob" in change
+          ? { path: change.path, mode: "100644", type: "blob", sha: change.blob }
+          : change.content === null
+            ? { path: change.path, mode: "100644", type: "blob", sha: null }
+            : { path: change.path, mode: "100644", type: "blob", content: jsonFileText(change.content) },
       ),
     });
     const commit = await call<{ sha: string }>("POST", "/git/commits", {
@@ -112,7 +133,14 @@ export function githubRepo(env: GitHubEnv, fetcher: typeof fetch = fetch): DataR
       tree: tree.sha,
       parents: [parentSha],
     });
-    await call("PATCH", `/git/refs/heads/${encodeURIComponent(branch)}`, { sha: commit.sha });
+    try {
+      await call("PATCH", `/git/refs/heads/${encodeURIComponent(branch)}`, { sha: commit.sha });
+    } catch (err) {
+      // Not a fast-forward: someone committed on the branch since `parentSha`.
+      if (err instanceof RepoError && err.status === 422) throw new RepoError(err.message, 422, true);
+      throw err;
+    }
+    return commit.sha;
   }
 
   return {
@@ -168,7 +196,11 @@ export function githubRepo(env: GitHubEnv, fetcher: typeof fetch = fetch): DataR
       return { head: commit, files };
     },
     async commitOn(parent, changes, message) {
-      if (changes.length > 0) await commitOnce(changes, message, parent);
+      return changes.length > 0 ? commitOnce(changes, message, parent) : null;
+    },
+    async createBlob(base64) {
+      // GitHub decodes it: the bytes are never decoded here (a Function has 10 ms of CPU).
+      return (await call<{ sha: string }>("POST", "/git/blobs", { content: base64, encoding: "base64" })).sha;
     },
     async commit(changes, message) {
       if (changes.length === 0) return;

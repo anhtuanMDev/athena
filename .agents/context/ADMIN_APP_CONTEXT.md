@@ -168,6 +168,7 @@ The API (`functions/api/[[path]].ts`, one `onRequest` with a route table):
 auth/login (POST) · auth/logout (POST) · auth/check (GET)
 data/file (GET, POST, DELETE) · data/directory (GET) · data/folders (GET, up to 4 subpaths)
 data/games · data/dashboard · data/commits (GET)
+data/picture (POST) · data/save-record (POST)
 data/record-assets (GET) · data/delete-record (POST) · data/prune-assets (POST)
 imports/preview · imports/run · imports/publish · imports/dismiss (POST)
 push/status · github/status (GET) · {game}/enums/{id} (GET)
@@ -398,7 +399,9 @@ Where implemented, the flow is:
    write is rejected and you're told to refresh and re-apply the edit.
 5. **Creation concurrency:** a create sends no `sha`; if the file already exists, GitHub
    answers 409 or 422, which the Function maps to `409 { conflict: true }` and
-   `app/lib/github.ts` turns into a `ConflictError`.
+   `app/lib/github.ts` turns into a `ConflictError`. Deletes map the same way, and a
+   file already gone is a conflict too. Saves with pictures (§7.5) check the record's
+   `sha`, or that a new one doesn't exist, themselves.
 
 ### 7.4 Environment variable handling
 
@@ -411,12 +414,44 @@ Cloudflare dashboard.
 
 - A record's pictures live in its own folder,
   `public/assets/<game>/<folder>/<id>/` (portrait, ability icons, an enum's option
-  icons), and records point at them as `/api/assets/…`. Uploads are separate base64
-  writes made at commit time; the diff view lists them.
+  icons), and records point at them as `/api/assets/…`. The diff view lists a save's
+  uploads.
+- **A save with pictures is one commit** (`saveRecord`, `app/lib/github.ts`). The hero,
+  mode and enum editors, new and edit, send each new or replaced picture on its own to
+  `POST /api/data/picture` (3 at a time). That keeps it as a git blob, which commits
+  nothing and moves no branch, so uploads can't conflict, and returns
+  `{path, sha, token}`. The token is an HMAC of the path and blob sha with the session
+  secret (`pictureToken`, `app/lib/session.ts`; its message can't be a session's). Then
+  `POST /api/data/save-record` takes `{game, folder, id, sha, content?, message, notify?,
+  pictures: [{path, sha, token}]}` (0-50 pictures, all in the record's own folder; no
+  `content` saves the pictures alone) and commits the record and the blobs together on
+  the head it checked, where the record must still be at `sha` (null: a new record whose
+  file mustn't exist). A record's `id` must be its file's name. Folders whose files
+  need checks that read other files (schemas, screens, navigation) are refused. A
+  branch that moved before the ref update is checked and committed on once more; a
+  second move, a changed or deleted record, or a taken id is a 409 conflict. After the
+  commit: one KV bump per mobile version (not per picture), the cached copies of at
+  most 12 pictures (replaced ones first; the rest expire within 5 minutes), and a new
+  record's push. A save makes at most 47 of the 50 subrequests (`handleSaveRecord`), an
+  upload 2. The games page's icon still goes through `POST data/file` (one picture,
+  then `games.json`). Tests: `tests/record-save.test.ts`.
+- **Picture rules** (`app/lib/picture-rules.ts`): PNG, JPEG or WebP (by their first
+  bytes; nothing in the data repo is a GIF, and an SVG can carry script), at most 2 MiB,
+  named after their type (`.png`, `.jpg`/`.jpeg`, `.webp`). The server checks them from
+  the base64 as sent, without decoding the file: the size from its length, the type from
+  its first 16 characters (413, or 415). The same rules apply to pictures sent to
+  `data/file`, and the upload fields refuse such files as soon as they're picked. A new
+  picture's file extension comes from its type, not its file name. Bodies are read only
+  up to a limit (a picture's, 1 MiB for a save, 3 MiB for `data/file`), so a larger one
+  is refused (413) before it is parsed.
+- **Enum option icons** are picked per option and kept by the form's key for the option
+  (useFieldArray's field id, `app/lib/enum-icons.ts`), which follows it when options are
+  added above it or removed.
 - `GET /api/assets/*` needs no session: it proxies `raw.githubusercontent.com` with the
   type from the file name and a sandboxing CSP (`app/lib/asset-headers.ts`). Mobile
   payloads add `?v=<blob sha>`, so those URLs are immutable.
-- **Prune after save:** the hero, mode (same id only) and enum editors call
+- **Prune after save** (its own commit, only when a save stopped using a picture): the
+  hero, mode (same id only) and enum editors call
   `pruneReplacedAssets` after a successful save. It sends the files of the record's own
   folder the save stopped pointing at (`droppedAssets`, 1-50 paths) to
   `POST /api/data/prune-assets`, which takes a snapshot of the game's data, `_meta` and
