@@ -9,15 +9,15 @@
 // gets 10 ms of CPU a request, and Web Crypto runs inside the request, so its
 // time counts in full (Cloudflare caps PBKDF2 at 100,000 iterations in
 // production because it can't stop it part way: workerd issue #1346). bcrypt
-// at cost 10, the hash this replaces, took about 50 ms in Node and in local
+// at cost 10, the hash this replaced, took about 50 ms in Node and in local
 // workerd, wrong passwords included. 20,000 iterations took about 1 ms in local
 // workerd (1.5 ms in Node). The passphrase is long and random, which is what
 // keeps it safe from offline guessing; the iterations add a margin, and the
 // verifier says how many it used, so a new one can use more.
 //
-// A bcrypt hash ($2a$, $2b$, $2y$) is still accepted until it is replaced, so
-// a deploy doesn't lock anyone out. No `$` in the new format: it can't be
-// expanded by a shell or a .env reader.
+// A bcrypt hash ($2a$, $2b$, $2y$) is no longer accepted: it's a setup error,
+// with its own message, so the log says what to do. No `$` in the new format:
+// it can't be expanded by a shell or a .env reader.
 
 export const PBKDF2_ITERATIONS = 20_000;
 export const MIN_ITERATIONS = 10_000;
@@ -27,7 +27,8 @@ export const MAX_ITERATIONS = 100_000;
 const SALT_BYTES = 16;
 const HASH_BYTES = 32;
 const VERIFIER = /^pbkdf2-sha256:([1-9][0-9]{0,8}):([A-Za-z0-9_-]{22}):([A-Za-z0-9_-]{43})$/;
-const BCRYPT = /^\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}$/;
+/** The start of a bcrypt hash, so a damaged one gets the bcrypt message too. */
+const BCRYPT = /^\$2[aby]\$/;
 
 /** ADMIN_PASSWORD_HASH isn't something this check can use: a setup problem, never a wrong password. */
 export class PasswordConfigError extends Error {
@@ -75,12 +76,10 @@ export async function hashAdminPassword(passphrase: string, { iterations = PBKDF
  */
 export async function verifyAdminPassword(input: string, stored: string): Promise<boolean> {
   if (BCRYPT.test(stored)) {
-    // Said on every sign-in until it's replaced; never with the hash itself.
-    console.warn(
-      "ADMIN_PASSWORD_HASH is a bcrypt hash, which costs about 50 ms of CPU a sign-in on a 10 ms plan. Replace it with a verifier from `npm run admin-password`.",
+    // Never with the hash itself.
+    throw new PasswordConfigError(
+      "ADMIN_PASSWORD_HASH is a bcrypt hash, which this admin no longer accepts. Make a verifier with `npm run admin-password`, set it as ADMIN_PASSWORD_HASH and redeploy.",
     );
-    const bcrypt = await import("bcryptjs");
-    return bcrypt.compareSync(input, stored);
   }
   const match = VERIFIER.exec(stored);
   const iterations = Number(match?.[1]);

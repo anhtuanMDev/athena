@@ -5,10 +5,10 @@
   "scripts": {
     "build": "react-router build",
     "dev": "react-router dev",
-    "wrangler": "npx wrangler pages dev --port 8788 --ip 0.0.0.0",
+    "wrangler": "wrangler pages dev --port 8788 --ip 0.0.0.0",
     "typecheck": "react-router typegen && tsc",
-    "pages:dev": "npm run build && npx wrangler pages dev",
-    "pages:deploy": "npm run build && npx wrangler pages deploy",
+    "pages:dev": "npm run build && wrangler pages dev",
+    "pages:deploy": "npm run build && wrangler pages deploy",
     "test": "node --import ./tests/resolve-ts.mjs --test tests/*.test.ts",
     "admin-password": "node --import ./tests/resolve-ts.mjs tools/admin-password.ts"
   },
@@ -22,7 +22,6 @@
     "@octokit/rest": "^22.0.1",
     "@react-router/node": "^8.3.1",
     "animejs": "^4.5.0",
-    "bcryptjs": "^3.0.3",
     "cookie": "^2.0.1",
     "isbot": "^5",
     "lucide-react": "^1.23.0",
@@ -34,10 +33,9 @@
     "zod": "^4.6.6"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260702.1",
+    "@cloudflare/workers-types": "^5.20261023.1",
     "@react-router/dev": "^8.3.1",
     "@tailwindcss/vite": "^4.2.2",
-    "@types/bcryptjs": "^2.4.6",
     "@types/cookie": "^0.6.0",
     "@types/node": "^22",
     "@types/react": "^19.2.14",
@@ -45,6 +43,7 @@
     "dotenv": "^17.4.2",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
-    "vite": "^8.1.6"
+    "vite": "^8.1.6",
+    "wrangler": "4.153.0"
   }
 }

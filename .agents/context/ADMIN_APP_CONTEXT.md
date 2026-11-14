@@ -119,7 +119,7 @@ Pages Functions (`wrangler.toml` lists them; values are set in Cloudflare):
 | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
 | `GITHUB_TOKEN`                                   | Fine-grained PAT, scoped to **only** the data repo, `contents: read & write` permission. Nothing broader.            |
 | `GITHUB_OWNER` / `GITHUB_REPO` / `GITHUB_BRANCH` | The data repo. `GITHUB_BRANCH` defaults to `main`.                                                                   |
-| `ADMIN_PASSWORD_HASH`                            | The sign-in's verifier, `pbkdf2-sha256:<iterations>:<salt>:<hash>`, from `npm run admin-password` (§6.1). A bcrypt hash set before still works, with a warning in the logs, until it's replaced. |
+| `ADMIN_PASSWORD_HASH`                            | The sign-in's verifier, `pbkdf2-sha256:<iterations>:<salt>:<hash>`, from `npm run admin-password` (§6.1). A bcrypt hash isn't accepted: sign-in answers 500, and the log says to run `npm run admin-password`. |
 | `SESSION_SECRET`                                 | Session token signing secret.                                                                                        |
 | `COOKIE_SECURE`                                  | `"false"` drops the cookie's `Secure` flag (local dev over http); anything else keeps it.                           |
 | `GITHUB_WEBHOOK_SECRET`                          | Verifies the data repo's push webhook (`functions/api/webhooks/github.ts`). Without it the webhook answers 503.      |
@@ -194,8 +194,8 @@ anything else: JSON 404
   cap), a 16-byte salt, compared in constant time. Web Crypto's CPU counts toward the
   10 ms a request gets: 20,000 iterations took about 1 ms in local workerd, where bcrypt
   at cost 10 took about 50 ms. The passphrase is long and random, which is what keeps it
-  safe from offline guessing. A value it can't check answers 500 and isn't counted as a
-  failed attempt. `npm run admin-password` (`tools/admin-password.ts`) makes the
+  safe from offline guessing. A value it can't check, a bcrypt hash included, answers 500
+  and isn't counted as a failed attempt. `npm run admin-password` (`tools/admin-password.ts`) makes the
   verifier on your own computer: it asks for the passphrase twice without showing it
   (or `-- --generate` makes a 24-character one and shows it once), and prints only the
   verifier. Set it as the secret `ADMIN_PASSWORD_HASH` (Production and Preview), then
@@ -626,9 +626,11 @@ npm run pages:dev    # build + wrangler pages dev (local CF preview)
 npm run pages:deploy # build + wrangler pages deploy
 ```
 
-The `nodejs_compat` flag is enabled (@octokit/rest, and bcryptjs for a bcrypt `ADMIN_PASSWORD_HASH` set before §6.1's verifier). The cron Worker deploys
+The `nodejs_compat` flag is enabled (@octokit/rest). wrangler is an exact devDependency,
+so these scripts run that version and never fetch the latest. The cron Worker deploys
 on its own: `cd workers/cron && npm run deploy` (its wrangler is pinned in its
-`package-lock.json`).
+`package-lock.json`). wrangler 4 needs Node 22 or later: run both deploys with the Node
+in `.node-version`.
 
 ### Build output
 
