@@ -61,6 +61,29 @@ describe("checking a data repo", () => {
     assert.equal(result.checked, 3 + 1 + readdirSync(schemaDir).length + 1);
   });
 
+  it("reports a game folder that no game in games.json names", () => {
+    const files = { ...baseRepo(), "data/valorant/schemas/agent.json": { id: "agent", name: "Agent", category: "hero", fields: [] } };
+    assert.deepEqual(messages(repo(files)), [
+      'data/valorant: no game in data/_meta/games.json has the slug "valorant", so the admin and the app never show this data.',
+    ]);
+  });
+
+  it("doesn't count _meta or any other folder starting with _ as a game, nor want a folder for each game", () => {
+    const files = {
+      ...baseRepo(),
+      "data/_meta/games.json": { games: [{ slug: "overwatch", name: "Overwatch 2" }, { slug: "marvel-rivals", name: "Marvel Rivals", active: false }] },
+      "data/_shared/notes.json": {},
+    };
+    assert.deepEqual(messages(repo(files)), []);
+  });
+
+  it("checks no game folder when games.json can't be read", () => {
+    // (categories.json's templates then can't be checked against the games' schemas either.)
+    const problems = messages(repo({ ...baseRepo(), "data/_meta/games.json": "{ nope" }));
+    assert.ok(problems.some((p) => /^data\/_meta\/games\.json: isn't valid JSON/.test(p)));
+    assert.ok(!problems.some((p) => /has the slug/.test(p)), problems.join("\n"));
+  });
+
   it("reports every JSON file that doesn't parse, and goes on with the rest", () => {
     const files = { ...baseRepo(), "data/overwatch/news/broken.json": "{ nope", "data/overwatch/screens/home.json": "" };
     const problems = messages(repo(files));

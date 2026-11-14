@@ -18,7 +18,7 @@ import type { Game } from "~/schemas/game";
 import { GameSchema } from "~/schemas/game";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { keepUnknownKeys } from "~/lib/unknown-keys";
-import { isGameActive } from "~/lib/games";
+import { isGameActive, withSavedGame } from "~/lib/games";
 import {
   LIGHT_BASE,
   MIN_CONTRAST,
@@ -81,8 +81,7 @@ export default function GamesList() {
     modalMode === "create"
       ? true
       : originalGame
-        ? slug !== originalGame.slug ||
-          name !== originalGame.name ||
+        ? name !== originalGame.name ||
           developer !== (originalGame.developer || "") ||
           icon !== (originalGame.icon || "") ||
           iconFile !== null ||
@@ -190,38 +189,17 @@ export default function GamesList() {
     setFormErrors(null);
 
     try {
-      let finalIconUrl = icon;
-
-      if (iconFile) {
-        const base64Data = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(",")[1]);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(iconFile);
-        });
-
-        const ext = iconFile.name.split(".").pop() || "png";
-        const filename = `${slug || "game"}-icon.${ext}`;
-        const path = `public/assets/games/${filename}`;
-
-        const existingSha = await getFileSha(path);
-        await uploadAsset(
-          path,
-          base64Data,
-          existingSha || undefined,
-          `Upload icon for ${name || slug}`,
-        );
-        finalIconUrl = `/api/assets/games/${filename}`;
-      }
-
+      // Everything that can refuse the save is checked before the icon is
+      // uploaded, so a refused form leaves no unused picture commit behind
+      // (and a taken slug can't overwrite that game's icon).
+      const iconUrl = iconFile
+        ? `/api/assets/games/${slug || "game"}-icon.${iconFile.name.split(".").pop() || "png"}`
+        : icon;
       const parsed = GameSchema.safeParse({
         slug,
         name,
         developer,
-        icon: finalIconUrl,
+        icon: iconUrl,
         primary,
         secondary,
         accent,
@@ -258,25 +236,39 @@ export default function GamesList() {
         return;
       }
 
-      let updatedGames;
-      if (modalMode === "edit") {
-        if (
-          parsed.data.slug !== editOriginalSlug &&
-          file.content.games.some((g) => g.slug === parsed.data.slug)
-        ) {
-          setFormErrors({ slug: ["A game with this slug already exists"] });
-          return;
-        }
-        // The game's keys this form doesn't edit (a banner…) stay as they are.
-        updatedGames = file.content.games.map((g) =>
-          g.slug === editOriginalSlug ? (keepUnknownKeys(g, parsed.data, GameSchema) as Game) : g,
+      // An edited game keeps its slug: it names the game's data folder.
+      const saved = withSavedGame(file.content.games, parsed.data, modalMode === "edit" ? editOriginalSlug : null, (old, game) =>
+        keepUnknownKeys(old, game, GameSchema) as Game,
+      );
+      if ("error" in saved) {
+        setFormErrors(modalMode === "edit" ? { _form: [saved.error] } : { slug: [saved.error] });
+        return;
+      }
+      const updatedGames = saved.games;
+
+      // Uploaded at the address the saved game already names (iconUrl above).
+      if (iconFile) {
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(",")[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(iconFile);
+        });
+
+        const ext = iconFile.name.split(".").pop() || "png";
+        const filename = `${slug || "game"}-icon.${ext}`;
+        const path = `public/assets/games/${filename}`;
+
+        const existingSha = await getFileSha(path);
+        await uploadAsset(
+          path,
+          base64Data,
+          existingSha || undefined,
+          `Upload icon for ${name || slug}`,
         );
-      } else {
-        if (file.content.games.some((g) => g.slug === parsed.data.slug)) {
-          setFormErrors({ slug: ["A game with this slug already exists"] });
-          return;
-        }
-        updatedGames = [...file.content.games, parsed.data];
       }
 
       try {
@@ -457,6 +449,13 @@ export default function GamesList() {
                           label="Slug"
                           placeholder="e.g. overwatch"
                           value={slug}
+                          // The slug names the game's data folder; nothing moves it, so it can't change.
+                          slotProps={{ htmlInput: { readOnly: modalMode === "edit" } }}
+                          helperText={
+                            modalMode === "edit"
+                              ? `Can't be changed: it names the game's data (data/${slug}/).`
+                              : "Can't be changed once the game is added: it names the game's data folder."
+                          }
                           onChange={(e) =>
                             setSlug(
                               e.target.value

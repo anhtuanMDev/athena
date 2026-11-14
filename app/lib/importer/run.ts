@@ -14,7 +14,7 @@ import type { DynamicField, DynamicSchemaFile } from "../../schemas/dynamic-sche
 import { CATEGORIES_PATH, DEFAULT_CATEGORIES, normalizeCategories, type Category } from "../categories";
 import { fetchSource } from "./fetch-source";
 import { RECORD_ID, mapDocument, missingRequired, type MappedItem } from "./map";
-import type { DataRepo, FileChange, RunRepo } from "./repo";
+import { RepoError, type DataRepo, type FileChange, type RunRepo } from "./repo";
 
 export interface ImportDraft {
   record: Record<string, unknown>;
@@ -87,6 +87,15 @@ const paths = (game: string, jobId: string) => ({
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
+
+/** A job's state as an edit reads it (null: none yet). */
+const stateOf = (raw: unknown, jobId: string): ImportState => (isPlainObject(raw) ? { ...(raw as unknown as ImportState), id: jobId } : { id: jobId });
+
+/** An edit GitHub kept refusing because the branch kept moving, as the admin should hear it. */
+function conflictAsImportError(err: unknown): never {
+  if (err instanceof RepoError && err.status === 409) throw new ImportError(err.message, 409);
+  throw err;
+}
 
 /**
  * A job as the importer runs it, from a saved file or an unsaved form: the
@@ -199,7 +208,9 @@ export async function previewImport(opts: {
 /**
  * Fetches the source and adds a draft for each new item, up to the job's
  * limit, in one commit with the job's state. A failure is recorded in the
- * state and thrown.
+ * state and thrown. The state is written as it is when the commit is made,
+ * not as it was when the run started: a reviewer may have dismissed ids
+ * meanwhile, which stay dismissed and aren't drafted.
  */
 export async function runImport(opts: {
   repo: DataRepo;
@@ -212,31 +223,43 @@ export async function runImport(opts: {
   const now = (opts.now ?? new Date()).toISOString();
   const p = paths(game, jobId);
   const { job, schema } = await loadJob(repo, game, jobId);
-  const previous = (await repo.read<ImportState>(p.state)) ?? { id: jobId };
   try {
     const items = await classify(repo, game, job, schema, await fetchAndMap(job, schema, opts.fetcher));
     const fresh = items.filter((item) => item.status === "new").slice(0, job.max_items);
     const result = { found: items.length, added: fresh.length, skipped: items.length - fresh.length };
-    const drafts: FileChange[] = fresh.map((item) => ({
-      path: p.draft(item.id!),
-      content: {
-        record: item.record,
-        source: { job: job.id, url: job.api_endpoint, fetched_at: now },
-        problems: item.problems,
-      } satisfies ImportDraft,
-    }));
-    const state: ImportState = { ...previous, id: jobId, last_sync: now, last_sync_attempt: now, last_result: result };
-    delete state.last_error;
-    await repo.commit(
-      [...drafts, { path: p.state, content: state }],
-      fresh.length > 0 ? `Import ${fresh.length} draft(s) from ${job.id}` : `Import run: ${job.id} (nothing new)`,
-    );
+    await repo.edit({
+      reads: [p.state],
+      changes: (current) => {
+        const state = stateOf(current.get(p.state), jobId);
+        const dismissed = new Set(state.dismissed ?? []);
+        const kept = fresh.filter((item) => !dismissed.has(item.id!));
+        delete state.last_error;
+        const drafts: FileChange[] = kept.map((item) => ({
+          path: p.draft(item.id!),
+          content: {
+            record: item.record,
+            source: { job: job.id, url: job.api_endpoint, fetched_at: now },
+            problems: item.problems,
+          } satisfies ImportDraft,
+        }));
+        const last_result = { found: items.length, added: kept.length, skipped: items.length - kept.length };
+        return [...drafts, { path: p.state, content: { ...state, last_sync: now, last_sync_attempt: now, last_result } satisfies ImportState }];
+      },
+      message: fresh.length > 0 ? `Import ${fresh.length} draft(s) from ${job.id}` : `Import run: ${job.id} (nothing new)`,
+    });
     return result;
   } catch (err) {
-    const message = err instanceof Error && (err.name === "ImportError" || err.name === "SourceError") ? err.message : "The run failed unexpectedly.";
-    const state: ImportState = { ...previous, id: jobId, last_sync_attempt: now, last_error: message };
-    await repo.commit([{ path: p.state, content: state }], `Import run failed: ${job.id}`).catch(() => {});
-    throw err instanceof ImportError ? err : new ImportError(message, 502);
+    const conflict = err instanceof RepoError && err.status === 409;
+    const message =
+      conflict || (err instanceof Error && (err.name === "ImportError" || err.name === "SourceError")) ? (err as Error).message : "The run failed unexpectedly.";
+    await repo
+      .edit({
+        reads: [p.state],
+        changes: (current) => [{ path: p.state, content: { ...stateOf(current.get(p.state), jobId), last_sync_attempt: now, last_error: message } satisfies ImportState }],
+        message: `Import run failed: ${job.id}`,
+      })
+      .catch(() => {});
+    throw err instanceof ImportError ? err : new ImportError(message, conflict ? 409 : 502);
   }
 }
 
@@ -263,22 +286,35 @@ export async function importPaths(repo: RunRepo, game: string, job: CronJob): Pr
   return { files, listings, folderKnown: true };
 }
 
-/** The most subrequests a run of `job` can still make: its source's, and each read `repo` doesn't hold yet. */
+/**
+ * The most subrequests a run of `job` can still make: its source's, each read
+ * `repo` doesn't hold yet, and through REST its state's read again when the
+ * run commits (runImport's edit), on each try.
+ */
 export async function importCost(repo: RunRepo, game: string, job: CronJob): Promise<number> {
   const { files, listings, folderKnown } = await importPaths(repo, game, job);
-  return SOURCE_REQUESTS + repo.pending({ files, listings }) + (folderKnown ? 0 : 1);
+  return SOURCE_REQUESTS + repo.pending({ files, listings, edits: [paths(game, job.id).state] }) + (folderKnown ? 0 : 1);
 }
 
-/** Drops a draft and remembers its id, so later runs don't bring it back. */
+/**
+ * Drops a draft and remembers its id, so later runs don't bring it back; in
+ * the state as it is when the commit is made, so a run's results or another
+ * dismissal committed meanwhile stay.
+ */
 export async function dismissDraft(repo: DataRepo, game: string, jobId: string, id: string): Promise<void> {
   assertImportIds(game, jobId, id);
   const p = paths(game, jobId);
-  const [draft, previous] = await Promise.all([repo.read<ImportDraft>(p.draft(id)), repo.read<ImportState>(p.state)]);
-  const dismissed = [...(previous?.dismissed ?? []).filter((d) => d !== id), id].slice(-MAX_DISMISSED);
-  await repo.commit(
-    [...(draft ? [{ path: p.draft(id), content: null }] : []), { path: p.state, content: { ...previous, id: jobId, dismissed } }],
-    `Dismiss import draft ${id} from ${jobId}`,
-  );
+  await repo
+    .edit({
+      reads: [p.state, p.draft(id)],
+      changes: (current) => {
+        const state = stateOf(current.get(p.state), jobId);
+        const dismissed = [...(state.dismissed ?? []).filter((d) => d !== id), id].slice(-MAX_DISMISSED);
+        return [...(current.get(p.draft(id)) != null ? [{ path: p.draft(id), content: null }] : []), { path: p.state, content: { ...state, dismissed } }];
+      },
+      message: `Dismiss import draft ${id} from ${jobId}`,
+    })
+    .catch(conflictAsImportError);
 }
 
 /** Why `value` doesn't fit `field`, if it doesn't. */
@@ -336,7 +372,8 @@ export function recordProblems(fields: DynamicField[], record: Record<string, un
 /**
  * Publishes a reviewed draft as a record of the job's schema (its schema_id),
  * and drops the draft, in one commit. Returns the record's path. Fails if the
- * record breaks the schema or already exists.
+ * record breaks the schema or already exists, checked on the commit it would
+ * go on, so a record saved meanwhile is never written over.
  */
 export async function publishDraft(
   repo: DataRepo,
@@ -350,13 +387,17 @@ export async function publishDraft(
   const problems = recordProblems(schema.fields ?? [], record);
   if (problems.length > 0) throw new ImportError(problems.join(" "));
   const path = `data/${game}/${recordFolder(schema.category, await configuredCategories(repo))}/${id}.json`;
-  if (await repo.read(path)) throw new ImportError(`A record with the id "${id}" already exists.`, 409);
   const p = paths(game, jobId);
-  const draft = await repo.read(p.draft(id));
   const published = { ...record, schema_id: schema.id };
-  await repo.commit(
-    [{ path, content: published }, ...(draft ? [{ path: p.draft(id), content: null }] : [])],
-    `Publish ${id} from import ${jobId}`,
-  );
+  await repo
+    .edit({
+      reads: [path, p.draft(id)],
+      changes: (current) => {
+        if (current.get(path) != null) throw new ImportError(`A record with the id "${id}" already exists.`, 409);
+        return [{ path, content: published }, ...(current.get(p.draft(id)) != null ? [{ path: p.draft(id), content: null }] : [])];
+      },
+      message: `Publish ${id} from import ${jobId}`,
+    })
+    .catch(conflictAsImportError);
   return path;
 }

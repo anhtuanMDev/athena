@@ -182,8 +182,9 @@ describe("the importer", () => {
       async read<T>(path: string) {
         return path in files ? (structuredClone(files[path]) as T) : null;
       },
-      async commit(changes: FileChange[]) {
-        for (const change of changes) {
+      async edit({ reads, changes }) {
+        const list: FileChange[] = changes(new Map(reads.map((path) => [path, path in files ? structuredClone(files[path]) : null])));
+        for (const change of list) {
           if (change.content === null) delete files[change.path];
           else files[change.path] = change.content;
         }

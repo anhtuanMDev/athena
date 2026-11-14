@@ -6,6 +6,8 @@ import { bumpCacheVersion, mobileVersionKeyForPath } from "../../app/lib/mobile-
 import { APP_POLICY, dataWriteProblems, needsAppPolicy, readAppPolicy } from "../../app/lib/screen-policy";
 import { ASSET_VERSION, assetSeenKey, gitBlobSha, serveAsset } from "../../app/lib/asset-headers";
 import { checkLoginAttempts, recordLoginAttempt } from "../../app/lib/login-attempts";
+import { PasswordConfigError, verifyAdminPassword } from "../../app/lib/password";
+import { GAMES_PATH, gamesWriteProblems } from "../../app/lib/games-guard";
 import { SESSION_TTL_SECONDS, createSessionToken, isPictureToken, pictureToken, readSessionVersion, revokeSessions, sessionClaims } from "../../app/lib/session";
 import { SourceError } from "../../app/lib/importer/fetch-source";
 import { RepoError, githubRepo } from "../../app/lib/importer/repo";
@@ -321,9 +323,9 @@ async function handleLogin(request: Request, env: Env): Promise<Response> {
     return json({ error: "Too many attempts", retryAfter }, 429);
   }
 
-  const body = (await request.json().catch(() => ({}))) as { password?: string };
+  const body = (await request.json().catch(() => ({}))) as { password?: unknown };
   const password = body.password;
-  if (!password) {
+  if (typeof password !== "string" || !password) {
     return json({ error: "Password is required" }, 400);
   }
 
@@ -332,8 +334,16 @@ async function handleLogin(request: Request, env: Env): Promise<Response> {
     return json({ error: "Server misconfigured" }, 500);
   }
 
-  const bcrypt = await import("bcryptjs");
-  const valid = bcrypt.compareSync(password, hash);
+  // A PBKDF2 verifier, or the bcrypt hash set before it (app/lib/password.ts).
+  // A value it can't check is a setup problem, not a wrong password: not counted.
+  let valid: boolean;
+  try {
+    valid = await verifyAdminPassword(password, hash);
+  } catch (err) {
+    if (!(err instanceof PasswordConfigError)) throw err;
+    console.error(err.message);
+    return json({ error: "Server misconfigured" }, 500);
+  }
   if (!valid) {
     await recordLoginAttempt(attempts, ip, false);
     return json({ error: "Invalid password" }, 401);
@@ -465,6 +475,8 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
   // Their limits and the app's own screens come from the block manifest, as in the editors.
   const policy = needsAppPolicy(body.path) ? await readAppPolicy((path) => dataReader(env).read(path)) : APP_POLICY;
   const problems = dataWriteProblems(body.path, body.content, body.isBase64 === true, categories, templateFields, policy);
+  // A game dropped or renamed while data/{slug}/ exists would lose its data (app/lib/games-guard.ts).
+  if (decodeURIComponent(body.path) === GAMES_PATH) problems.push(...(await gamesWriteProblems({ token: env.GITHUB_TOKEN, owner: env.GITHUB_OWNER, repo: env.GITHUB_REPO, branch: env.GITHUB_BRANCH ?? "main" }, body.content, body.isBase64 === true)));
   if (problems.length > 0) return json({ error: `This file can't be saved: ${problems.join(" ")}` }, 400);
 
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
@@ -531,6 +543,8 @@ async function handleDeleteFile(context: PagesFunctionContext): Promise<Response
   if (!body.path || !body.sha)
     return json({ error: "path and sha are required" }, 400);
   assertSafeFilePath(body.path);
+  // games.json lists every game; nothing in the admin deletes it (app/lib/games-guard.ts).
+  if (decodeURIComponent(body.path) === GAMES_PATH) return json({ error: `${GAMES_PATH} can't be deleted: it lists every game.` }, 400);
 
   const octokit = new Octokit({ auth: env.GITHUB_TOKEN });
   const owner = env.GITHUB_OWNER;

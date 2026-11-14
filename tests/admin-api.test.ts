@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it, mock } from "node:test";
+import bcrypt from "bcryptjs";
 
 import { assetSeenKey } from "../app/lib/asset-headers";
 import { logout } from "../app/lib/auth";
@@ -70,11 +71,11 @@ afterEach(() => {
   (globalThis as { caches?: unknown }).caches = realCaches;
 });
 
-async function call(path: string, init: RequestInit & { kv?: unknown } = {}) {
+async function call(path: string, init: RequestInit & { kv?: unknown; env?: Record<string, unknown> } = {}) {
   const waits: Promise<unknown>[] = [];
   const response = await api({
     request: new Request(`${ORIGIN}${path}`, init),
-    env: { RATE_LIMIT_KV: init.kv, GITHUB_TOKEN: "none", GITHUB_OWNER: "o", GITHUB_REPO: "r", SESSION_SECRET: SECRET, COOKIE_SECURE: "false" },
+    env: { RATE_LIMIT_KV: init.kv, GITHUB_TOKEN: "none", GITHUB_OWNER: "o", GITHUB_REPO: "r", SESSION_SECRET: SECRET, COOKIE_SECURE: "false", ...init.env },
     params: {},
     next: async () => new Response(null),
     waitUntil: (p: Promise<unknown>) => waits.push(p),
@@ -345,5 +346,186 @@ describe("a delete GitHub refuses", () => {
     const body = (await res.json()) as { error: string; conflict?: boolean };
     assert.equal(body.conflict, undefined);
     assert.equal(body.error, "GitHub refused data/overwatch/screens/home.json: Invalid request. message is too long.");
+  });
+});
+
+describe("signing in", () => {
+  // Test passphrases only. The verifier is made here by its definition
+  // (PBKDF2-SHA256, base64url), not with app/lib/password.ts, so the format is pinned.
+  const PASS = "test-passphrase-for-the-api-tests";
+  const b64url = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64url");
+  async function verifier(passphrase: string, iterations = 20_000) {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(passphrase), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, key, 256);
+    return `pbkdf2-sha256:${iterations}:${b64url(salt)}:${b64url(new Uint8Array(bits))}`;
+  }
+  /** The data center's cache, as caches.default keeps the failed attempts. */
+  let attempts: Map<string, string>;
+  beforeEach(() => {
+    attempts = new Map();
+    (globalThis as { caches?: unknown }).caches = {
+      default: {
+        async match(request: Request) {
+          const text = attempts.get(request.url);
+          return text === undefined ? undefined : new Response(text);
+        },
+        async put(request: Request, response: Response) {
+          attempts.set(request.url, await response.text());
+        },
+        async delete(request: Request) {
+          return attempts.delete(request.url);
+        },
+      },
+    };
+    mock.method(console, "warn", () => {});
+    mock.method(console, "error", () => {});
+  });
+  afterEach(() => mock.restoreAll());
+  const login = (stored: string, password: string, ip = "203.0.113.7") =>
+    call("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "CF-Connecting-IP": ip },
+      body: JSON.stringify({ password }),
+      kv: recordingKv().kv,
+      env: { ADMIN_PASSWORD_HASH: stored },
+    });
+
+  it("signs in with a pbkdf2-sha256 verifier", async () => {
+    const res = await login(await verifier(PASS), PASS);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("Set-Cookie") ?? "", /^__admin_session=/);
+  });
+
+  it("still signs in with the bcrypt hash set before", async () => {
+    const legacy = bcrypt.hashSync(PASS, 4);
+    assert.equal((await login(legacy, PASS)).status, 200);
+    assert.equal((await login(legacy, "wrong")).status, 401);
+  });
+
+  it("counts a wrong passphrase, and refuses the 6th try before checking it", async () => {
+    const stored = await verifier(PASS);
+    for (let i = 0; i < 5; i++) assert.equal((await login(stored, `wrong-${i}`)).status, 401);
+    const derive = mock.method(crypto.subtle, "deriveBits");
+    const res = await login(stored, PASS);
+    assert.equal(res.status, 429);
+    assert.equal(derive.mock.callCount(), 0);
+    // Another address isn't held back.
+    assert.equal((await login(stored, PASS, "203.0.113.8")).status, 200);
+  });
+
+  it("answers a stored value it can't use as a setup error, and doesn't count it against the user", async () => {
+    for (const stored of ["not-a-verifier", `pbkdf2-sha256:5:AAAAAAAAAAAAAAAAAAAAAA:${"A".repeat(43)}`]) {
+      const res = await login(stored, PASS);
+      assert.equal(res.status, 500, stored);
+      assert.deepEqual(await res.json(), { error: "Server misconfigured" });
+    }
+    assert.equal(attempts.size, 0);
+  });
+});
+
+describe("saving games.json", () => {
+  const GAMES = "data/_meta/games.json";
+  const games = [
+    { slug: "overwatch", name: "Overwatch", active: true },
+    { slug: "marvel-rivals", name: "Marvel Rivals", active: false },
+  ];
+  const text = `${JSON.stringify({ games }, null, 2)}\n`;
+  /** GitHub with games.json and data/overwatch/ (marvel-rivals has no folder yet); every request is logged. */
+  function gamesGitHub(graphql: boolean) {
+    const calls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+      const path = decodeURIComponent(url.pathname.replace(/^\/repos\/o\/r\/contents\//, ""));
+      if (url.pathname === "/graphql") {
+        calls.push("graphql");
+        if (!graphql) return Response.json({ message: "Bad credentials" }, { status: 401 });
+        const variables = JSON.parse(String(init?.body)).variables as Record<string, string>;
+        assert.deepEqual(variables, { owner: "o", name: "r", p0: `main:${GAMES}`, l0: "main:data" });
+        const blob = { oid: "x", byteSize: Buffer.byteLength(text), isBinary: false, isTruncated: false, text };
+        const entries = [
+          { name: "_meta", type: "tree", mode: 16384 },
+          { name: "overwatch", type: "tree", mode: 16384 },
+          { name: "README.json", type: "blob", mode: 33188 },
+        ];
+        return Response.json({ data: { repository: { p0: blob, l0: { entries } } } });
+      }
+      calls.push(`${method} ${path}`);
+      if (method === "GET" && path === GAMES) return Response.json({ type: "file", encoding: "base64", content: Buffer.from(text).toString("base64"), sha: "games-sha" });
+      if (method === "GET" && path === "data")
+        return Response.json([
+          { name: "_meta", path: "data/_meta", type: "dir" },
+          { name: "overwatch", path: "data/overwatch", type: "dir" },
+        ]);
+      if (method === "PUT" || method === "DELETE") return Response.json({ content: { sha: "new-sha" } });
+      throw new Error(`unexpected ${method} ${url.href}`);
+    }) as typeof fetch;
+    return calls;
+  }
+  const save = async (content: unknown, extra: Record<string, unknown> = {}) =>
+    call("/api/data/file", {
+      method: "POST",
+      headers: { ...cookie(await createSessionToken(SECRET, "0")), "Content-Type": "application/json" },
+      body: JSON.stringify({ path: GAMES, content, sha: "games-sha", ...extra }),
+      kv: recordingKv().kv,
+    });
+
+  it("refuses renaming or removing a game whose data folder exists, before writing anything", async () => {
+    for (const next of [
+      { games: [{ ...games[0], slug: "overwatch-2" }, games[1]] },
+      { games: [games[1]] },
+      { nope: true },
+    ]) {
+      const calls = gamesGitHub(true);
+      const res = await save(next);
+      assert.equal(res.status, 400);
+      const { error } = (await res.json()) as { error: string };
+      assert.match(error, /"overwatch"/);
+      assert.match(error, /data\/overwatch\//);
+      assert.deepEqual(calls, ["graphql"]);
+    }
+  });
+
+  it("lets any other change through after one read", async () => {
+    for (const next of [
+      { games: [games[0]] },
+      { games: [...games, { slug: "valorant", name: "Valorant" }] },
+      { games: [{ ...games[0], name: "Overwatch 2" }, games[1]] },
+    ]) {
+      const calls = gamesGitHub(true);
+      assert.equal((await save(next)).status, 200);
+      assert.deepEqual(calls, ["graphql", `PUT ${GAMES}`]);
+    }
+  });
+
+  it("checks games.json the same way sent as base64, or under an encoded path", async () => {
+    gamesGitHub(true);
+    const renamed = { games: [{ ...games[0], slug: "ow" }, games[1]] };
+    assert.equal((await save(Buffer.from(JSON.stringify(renamed)).toString("base64"), { isBase64: true })).status, 400);
+    const calls = gamesGitHub(true);
+    assert.equal((await save(renamed, { path: "data/_meta/games%2Ejson" })).status, 400);
+    assert.deepEqual(calls, ["graphql"]);
+  });
+
+  it("reads through REST when GraphQL can't", async () => {
+    mock.method(console, "warn", () => {});
+    const calls = gamesGitHub(false);
+    assert.equal((await save({ games: [games[1]] })).status, 400);
+    assert.deepEqual(calls, ["graphql", `GET ${GAMES}`, "GET data"]);
+    mock.restoreAll();
+  });
+
+  it("can't delete it, and asks GitHub nothing", async () => {
+    const calls = gamesGitHub(true);
+    const res = await call("/api/data/file", {
+      method: "DELETE",
+      headers: { ...cookie(await createSessionToken(SECRET, "0")), "Content-Type": "application/json" },
+      body: JSON.stringify({ path: GAMES, sha: "games-sha" }),
+      kv: recordingKv().kv,
+    });
+    assert.equal(res.status, 400);
+    assert.match(((await res.json()) as { error: string }).error, /can't be deleted/);
+    assert.deepEqual(calls, []);
   });
 });

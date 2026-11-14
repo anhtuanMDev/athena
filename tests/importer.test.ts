@@ -65,10 +65,28 @@ const htmlJob: CronJob = {
   },
 };
 
-/** A DataRepo over an in-memory file map, recording each commit. */
+/**
+ * A DataRepo over an in-memory file map, recording each commit. An edit's
+ * changes are worked out from the files as they are when it commits, as
+ * GitHub's head is. `meanwhile` runs another writer once, just before the next
+ * commit: what lands between a writer's reads and its commit.
+ */
 function memoryRepo(initial: Record<string, unknown> = {}) {
   const files: Record<string, unknown> = structuredClone(initial);
   const commits: { message: string; changes: FileChange[] }[] = [];
+  let pending: (() => Promise<void>) | undefined;
+  const apply = (changes: FileChange[], message: string) => {
+    commits.push({ message, changes });
+    for (const change of changes) {
+      if (change.content === null) delete files[change.path];
+      else files[change.path] = structuredClone(change.content);
+    }
+  };
+  const other = async () => {
+    const run = pending;
+    pending = undefined;
+    await run?.();
+  };
   const repo: DataRepo = {
     async list(dir) {
       const prefix = `${dir}/`;
@@ -79,15 +97,20 @@ function memoryRepo(initial: Record<string, unknown> = {}) {
     async read<T>(path: string) {
       return path in files ? (structuredClone(files[path]) as T) : null;
     },
-    async commit(changes, message) {
-      commits.push({ message, changes });
-      for (const change of changes) {
-        if (change.content === null) delete files[change.path];
-        else files[change.path] = structuredClone(change.content);
-      }
+    async edit({ reads, changes, message }) {
+      await other();
+      const list = changes(new Map(reads.map((path) => [path, path in files ? structuredClone(files[path]) : null])));
+      if (list.length > 0) apply(list, message);
     },
   };
-  return { repo, files, commits };
+  return {
+    repo,
+    files,
+    commits,
+    meanwhile: (run: () => Promise<void>) => {
+      pending = run;
+    },
+  };
 }
 
 /** A fetch that answers DNS-over-HTTPS with `ip` and serves `pages` by URL. */
@@ -521,6 +544,12 @@ describe("reviewing drafts", () => {
     assert.deepEqual(recordProblems(PATCH_FIELDS, { id: "x" }).slice(0, 2), ["Title is required.", "Release Date is required."]);
   });
 
+  it("dismisses a draft for good, even one that was never drafted", async () => {
+    const { repo, files } = memoryRepo(baseRepoFiles());
+    await dismissDraft(repo, "overwatch", "ow-patch-notes", "patch-2026-10-13");
+    assert.deepEqual(files["data/overwatch/syncs/ow-patch-notes.json"], { id: "ow-patch-notes", dismissed: ["patch-2026-10-13"] });
+  });
+
   it("dismisses a draft for good", async () => {
     const { repo, files, commits } = memoryRepo({
       ...baseRepoFiles(),
@@ -538,5 +567,81 @@ describe("reviewing drafts", () => {
     const run = await runImport({ repo, game: "overwatch", jobId: "ow-patch-notes", fetcher: fakeFetch({ [htmlJob.api_endpoint]: { body: PATCH_PAGE } }).fetcher });
     assert.equal(run.added, 1); // the 13th; the dismissed 20th stays out
     assert.ok(files["data/overwatch/imports/ow-patch-notes/patch-2026-10-13.json"]);
+  });
+});
+
+// ─── Writers at the same time ──────────────────────────────────────────
+// The cron worker, "Run now" and a reviewer's publish or dismiss each read the
+// job's state, then commit. Whatever another of them committed in between
+// must survive (zero-backend has one branch and no locks).
+
+describe("writers at the same time", () => {
+  const STATE = "data/overwatch/syncs/ow-patch-notes.json";
+  const draft = (id: string) => `data/overwatch/imports/ow-patch-notes/${id}.json`;
+  const pages = { [htmlJob.api_endpoint]: { body: PATCH_PAGE } };
+  const run = (repo: DataRepo, fetcher = fakeFetch(pages).fetcher) => runImport({ repo, game: "overwatch", jobId: "ow-patch-notes", fetcher });
+
+  it("keeps a dismissal made while a run fetches its source, and the next run leaves the id out", async () => {
+    // The audit's repro: run 1 drafts both; run 2 starts; the reviewer dismisses one; run 2 commits.
+    const { repo, files } = memoryRepo(baseRepoFiles());
+    assert.equal((await run(repo)).added, 2);
+    const plain = fakeFetch(pages).fetcher;
+    const dismissingMeanwhile = (async (input: string | URL | Request, init?: RequestInit) => {
+      if (String(input) === htmlJob.api_endpoint) await dismissDraft(repo, "overwatch", "ow-patch-notes", "patch-2026-10-20");
+      return plain(input, init);
+    }) as typeof fetch;
+    await run(repo, dismissingMeanwhile);
+    assert.deepEqual((files[STATE] as { dismissed?: string[] }).dismissed, ["patch-2026-10-20"]);
+    // Run 3 doesn't bring it back.
+    assert.deepEqual(await run(repo), { found: 2, added: 0, skipped: 2 });
+    assert.equal(files[draft("patch-2026-10-20")], undefined);
+  });
+
+  it("doesn't draft an id dismissed between the run's reads and its commit", async () => {
+    const { repo, files, meanwhile } = memoryRepo(baseRepoFiles());
+    meanwhile(() => dismissDraft(repo, "overwatch", "ow-patch-notes", "patch-2026-10-13"));
+    await run(repo);
+    assert.ok(files[draft("patch-2026-10-20")]);
+    assert.equal(files[draft("patch-2026-10-13")], undefined);
+    const state = files[STATE] as { dismissed?: string[]; last_result?: unknown };
+    assert.deepEqual(state.dismissed, ["patch-2026-10-13"]);
+    assert.deepEqual(state.last_result, { found: 2, added: 1, skipped: 1 });
+  });
+
+  it("keeps both of two dismissals made at once", async () => {
+    const { repo, files, meanwhile } = memoryRepo(baseRepoFiles());
+    await run(repo);
+    meanwhile(() => dismissDraft(repo, "overwatch", "ow-patch-notes", "patch-2026-10-13"));
+    await dismissDraft(repo, "overwatch", "ow-patch-notes", "patch-2026-10-20");
+    assert.deepEqual((files[STATE] as { dismissed?: string[] }).dismissed, ["patch-2026-10-13", "patch-2026-10-20"]);
+    assert.equal(files[draft("patch-2026-10-13")], undefined);
+    assert.equal(files[draft("patch-2026-10-20")], undefined);
+  });
+
+  it("keeps a run's results when a dismissal commits after it", async () => {
+    const { repo, files, meanwhile } = memoryRepo({ ...baseRepoFiles(), [draft("older")]: { record: {} } });
+    const now = new Date("2026-11-02T00:00:00Z");
+    meanwhile(async () => void (await runImport({ repo, game: "overwatch", jobId: "ow-patch-notes", fetcher: fakeFetch(pages).fetcher, now })));
+    await dismissDraft(repo, "overwatch", "ow-patch-notes", "older");
+    assert.deepEqual(files[STATE], {
+      id: "ow-patch-notes",
+      last_sync: now.toISOString(),
+      last_sync_attempt: now.toISOString(),
+      last_result: { found: 2, added: 2, skipped: 0 },
+      dismissed: ["older"],
+    });
+  });
+
+  it("won't publish over a record saved meanwhile", async () => {
+    const record = { id: "patch-2026-10-20", title: "Patch", release_date: "2026-10-20", patch_type: "Hotfix", status: "Live" };
+    const path = "data/overwatch/patches/patch-2026-10-20.json";
+    const { repo, files, commits, meanwhile } = memoryRepo({ ...baseRepoFiles(), [draft("patch-2026-10-20")]: { record } });
+    meanwhile(async () => {
+      files[path] = { ...record, title: "Written by hand" };
+    });
+    await assert.rejects(publishDraft(repo, "overwatch", "ow-patch-notes", record), { status: 409 });
+    assert.equal((files[path] as { title: string }).title, "Written by hand");
+    assert.ok(files[draft("patch-2026-10-20")]);
+    assert.equal(commits.length, 0);
   });
 });
