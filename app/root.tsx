@@ -9,7 +9,11 @@ import {
 } from "react-router";
 import type { Route } from "./+types/root";
 import { theme } from "~/lib/theme";
+import { installChunkReload } from "~/lib/chunk-reload";
 import "./app.css";
+
+// Before anything renders, so a view whose code is gone after a deploy reloads the page (chunk-reload.ts).
+if (typeof window !== "undefined") installChunkReload(window);
 
 export const links: Route.LinksFunction = () => [
   { rel: "alternate icon", href: "/favicon.ico" },

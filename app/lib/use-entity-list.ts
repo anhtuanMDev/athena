@@ -1,12 +1,17 @@
 import { useData } from "~/lib/use-data";
-import { getEnum, listDirectory } from "~/lib/github";
+import { getEnum, listDirectory, listSummaries } from "~/lib/github";
 import { enumOptions, type EnumOptionView } from "~/lib/enum-options";
+import { entityListKey, type ListShape } from "~/lib/listing";
 
-export function useEntityList<T>(game: string, entityType: string) {
+/**
+ * A folder's records for a list: whole, or with `shape` "summary" only what
+ * the list shows (listing.ts), which spares the page most of the bytes.
+ */
+export function useEntityList<T>(game: string, entityType: string, shape?: ListShape) {
   return useData(async () => {
-    const items = await listDirectory<T>(game, entityType, true);
+    const items = shape ? await listSummaries<T>(game, entityType) : await listDirectory<T>(game, entityType, true);
     return items.filter(Boolean);
-  }, [game, entityType], `${game}-${entityType}-list`);
+  }, [game, entityType, shape ?? "whole"], entityListKey(game, entityType, shape));
 }
 
 /**

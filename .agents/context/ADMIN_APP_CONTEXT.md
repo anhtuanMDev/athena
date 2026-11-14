@@ -156,6 +156,13 @@ app/routes/
     raw/:type/:id                    RawEdit
 ```
 
+`_admin.$game.tsx` loads each view's code when it's first opened (`React.lazy`), so a
+game page loads its view's chunk (a list about 15 kB, an editor 130 to 190 kB) instead of
+all of them (one 400 kB chunk before). Until the code is in, a view shows its own loading
+placeholder (`app/components/views/ViewSkeletons.tsx`, the one it shows while its data
+loads). A chunk missing after a deploy reloads the page once (`app/lib/chunk-reload.ts`).
+Tests: `tests/lazy-views.test.ts`.
+
 `_admin.tsx` has no loader: it calls `checkSession()` (`GET /api/auth/check`) and lists
 the games for the sidebar (`app/components/SidebarNav.tsx`): Dashboard, Activity, Games,
 Categories, then for each game players see (anything but `active: false`,
@@ -390,7 +397,9 @@ The Function reads the data repo two ways (`app/lib/github-graphql.ts`,
 - **REST** - single files with their `sha` (Contents API, `handleGetFile`), listings
   without content, games, enums, the dashboard's git tree, commits, the Git Data API
   commits of deletes and prunes (`app/lib/importer/repo.ts`), and asset bytes from
-  `raw.githubusercontent.com`.
+  `raw.githubusercontent.com`. The repo tree (the dashboard's, and the pictures' hashes
+  for `/mobile/*`) is read with fetch and a plain parse (`app/lib/github-tree.ts`):
+  Octokit's parse revives every value and cost 3 ms of the 10 for 80 heroes' pictures.
 
 `GET /api/github/status` says whether the token can use GraphQL; the dashboard shows it.
 Through REST alone, each file is a request, and folders of more than about 45 records
@@ -493,7 +502,15 @@ Cloudflare dashboard.
 - **Subrequests:** 50 per invocation, Functions and the cron Worker alike. That is why
   folders are read through GraphQL (§7.1), `data/folders` reads up to 4 folders at once,
   and the cron run budgets its requests (§6.13). `includeContent=true` and `keysOnly` let
-  a page get a folder's records, or just some keys, in one call.
+  a page get a folder's records, or just some keys, in one call; `shape=summary` gives
+  each record as a list shows it (`listSummary` in `app/lib/record-columns.ts`: its
+  scalars, lists of scalars and picture variants). The heroes, maps, modes and other
+  categories' lists ask for summaries, and the screen editor for every category but the
+  screen's own: 80 filled heroes are 158 KB that way instead of 1.7 MB.
+- **CPU:** 10 ms per invocation. A cold `/mobile/data` build reads its folder in one
+  GraphQL answer and every record must be parsed, so its cost grows with the records:
+  80 filled-in heroes take about 9 ms in local workerd (14 ms in a fresh isolate).
+  `tests/mobile-cpu.test.ts` holds a cold build to twice the parsing it can't skip.
 - **Requests a day:** only `/api/*` and `/mobile/*` run a Function (§2).
 - **KV:** sessions and cache versions use KV; failed logins don't (§6.1), and mobile
   requests read cache versions through a 60 s memo in each data center
@@ -510,6 +527,12 @@ version at most once a minute. The data repo's push webhook (`/api/webhooks/gith
 bumps the versions of the pushed paths too (all of them when a push lists no files), so
 commits made outside the admin also reach the app. It checks `X-Hub-Signature-256`,
 answers `ping`, and only acts on pushes to the configured repo and branch.
+
+The pictures' hashes a build reads from the repo tree are kept in the data center's
+cache under the assets version, for an hour at most (`assetHashes` in
+`app/lib/mobile-payload.ts`): `/mobile/init` and every folder's cold builds share them
+until a picture's save moves that version. A tree that couldn't be read or that GitHub
+cut short is never kept, and nothing is kept or used while KV can't say the version.
 
 ### 7.8 Content Security Policy
 

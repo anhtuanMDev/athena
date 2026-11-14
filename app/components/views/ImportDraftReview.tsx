@@ -13,6 +13,7 @@ import { assertSafeGameSlug } from "~/lib/safe-path";
 import { useData } from "~/lib/use-data";
 import type { CronJob } from "~/schemas/cron";
 import type { DynamicField, DynamicSchemaFile } from "~/schemas/dynamic-schema";
+import { TallPanelSkeleton } from "~/components/views/ViewSkeletons";
 
 const hostOf = (url: string) => {
   try {
@@ -43,12 +44,7 @@ export default function ImportDraftReview() {
   }, [game, jobId, draftId], "ImportDraftReview");
 
   if (loading) {
-    return (
-      <div className="w-full py-8 space-y-6 animate-pulse motion-reduce:animate-none">
-        <div className="h-10 w-64 bg-border rounded-lg"></div>
-        <div className="h-96 bg-border rounded-xl"></div>
-      </div>
-    );
+    return <TallPanelSkeleton />;
   }
   if (error) return <LoadErrorState title="Can't Open This Draft" error={error} onBack={backToJob} />;
   if (!data) return null;

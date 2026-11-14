@@ -39,6 +39,7 @@ import { type Hero } from "~/schemas/hero";
 import { type GlobalEnum } from "~/schemas/enum";
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
 import { slugify } from "~/lib/slug";
+import { SplitFormSkeleton } from "~/components/views/ViewSkeletons";
 
 export default function EditHero() {
   const { game, "*": splat } = useParams();
@@ -78,19 +79,7 @@ export default function EditHero() {
   );
 
   if (heroResult.loading || schemaResult.loading) {
-    return (
-      <div className="w-full space-y-6 animate-pulse motion-reduce:animate-none">
-        <div className="h-10 w-48 bg-border rounded-lg"></div>
-        <div className="space-y-4 bg-surface p-6 rounded-xl border border-border">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="h-12 bg-border rounded-lg"></div>
-            <div className="h-12 bg-border rounded-lg"></div>
-          </div>
-          <div className="h-12 bg-border rounded-lg"></div>
-          <div className="h-40 bg-border rounded-lg mt-8"></div>
-        </div>
-      </div>
-    );
+    return <SplitFormSkeleton />;
   }
   if (heroResult.error) {
     return (

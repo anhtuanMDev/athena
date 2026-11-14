@@ -36,6 +36,7 @@ import { formatImportedJson, generateAiPromptMarkdown } from "~/lib/schema-utils
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
 import { UnknownKeysNotice } from "~/components/UnknownKeysNotice";
 import { unknownKeys } from "~/lib/unknown-keys";
+import { SplitFormSkeleton } from "~/components/views/ViewSkeletons";
 
 export default function EditMode() {
   const { game, "*": splat } = useParams();
@@ -73,19 +74,7 @@ export default function EditMode() {
   );
 
   if (loading) {
-    return (
-      <div className="w-full space-y-6 animate-pulse motion-reduce:animate-none">
-        <div className="h-10 w-48 bg-border rounded-lg"></div>
-        <div className="space-y-4 bg-surface p-6 rounded-xl border border-border">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="h-12 bg-border rounded-lg"></div>
-            <div className="h-12 bg-border rounded-lg"></div>
-          </div>
-          <div className="h-12 bg-border rounded-lg"></div>
-          <div className="h-40 bg-border rounded-lg mt-8"></div>
-        </div>
-      </div>
-    );
+    return <SplitFormSkeleton />;
   }
 
   if (fetchError)

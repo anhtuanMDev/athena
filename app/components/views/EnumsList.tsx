@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { ButtonLink } from "~/components/ui/button";
 import { Plus } from "lucide-react";
 import type { GlobalEnum } from "~/schemas/enum";
-import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
+import { EntityListSkeleton, LIST_SKELETONS } from "~/components/views/ViewSkeletons";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 
 export default function EnumsIndex() {
@@ -41,7 +41,7 @@ export default function EnumsIndex() {
   }
   
   if (loading) {
-    return <EntityListSkeleton columns={3} rows={5} />;
+    return <EntityListSkeleton {...LIST_SKELETONS.enums} />;
   }
 
   return (

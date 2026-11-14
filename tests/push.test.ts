@@ -234,7 +234,7 @@ describe("notify in categories.json", () => {
         return files[path];
       },
       async assets() {
-        return new Map();
+        return { hashes: new Map(), truncated: false };
       },
     };
     const { payload } = await buildInitPayload(reader);

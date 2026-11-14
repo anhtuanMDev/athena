@@ -3,12 +3,13 @@ import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "~/components/ui/card";
 import { ButtonLink } from "~/components/ui/button";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
-import { listDirectory } from "~/lib/github";
+import { listDirectory, listSummaries } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { dateField, recordListOrder, summaryField, titleField } from "~/lib/screen-model";
 import { useCategories } from "~/lib/categories-context";
 import { useData } from "~/lib/use-data";
 import type { DynamicSchemaFile } from "~/schemas/dynamic-schema";
+import { RecordListSkeleton } from "~/components/views/ViewSkeletons";
 
 /**
  * The records of a category without a form of its own (news, patches, items),
@@ -23,7 +24,8 @@ export default function RecordList({ category, noun, icon: Icon }: { category: s
   const { data, loading, error } = useData(async () => {
     const [schemas, records] = await Promise.all([
       listDirectory<DynamicSchemaFile>(game!, "schemas", true),
-      listDirectory<Record<string, unknown>>(game!, folder, true),
+      // What the list shows of each (its title, date, summary): no need for whole records.
+      listSummaries<Record<string, unknown>>(game!, folder),
     ]);
     const fields = schemas.filter((s) => s?.category === category).flatMap((s) => s.fields ?? []);
     return {
@@ -35,14 +37,7 @@ export default function RecordList({ category, noun, icon: Icon }: { category: s
   }, [game, category], "RecordList");
 
   if (loading) {
-    return (
-      <div className="space-y-4 animate-pulse motion-reduce:animate-none">
-        <div className="h-8 w-48 bg-border rounded" />
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-20 bg-border rounded-xl" />
-        ))}
-      </div>
-    );
+    return <RecordListSkeleton />;
   }
   if (error) return <LoadErrorState title={`Failed to Load ${label}`} error={error} onBack={() => window.history.back()} />;
 

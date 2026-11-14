@@ -19,6 +19,7 @@ import { UnknownKeysNotice } from "~/components/UnknownKeysNotice";
 import { keepUnknownKeys, unknownKeys } from "~/lib/unknown-keys";
 import { asStored } from "~/lib/as-stored";
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
+import { FieldsFormSkeleton } from "~/components/views/ViewSkeletons";
 
 export default function EditMap() {
   const { game, "*": splat } = useParams();
@@ -106,16 +107,7 @@ export default function EditMap() {
   const loading = fileLoading || schemaLoading;
 
   if (loading) {
-    return (
-      <div className="w-full space-y-6 animate-pulse motion-reduce:animate-none">
-        <div className="h-10 w-48 bg-border rounded-lg"></div>
-        <div className="space-y-4 bg-surface p-6 rounded-xl border border-border">
-          <div className="h-12 bg-border rounded-lg"></div>
-          <div className="h-12 bg-border rounded-lg"></div>
-          <div className="h-12 bg-border rounded-lg"></div>
-        </div>
-      </div>
-    );
+    return <FieldsFormSkeleton />;
   }
 
   if (fileFetchError || schemaFetchError) return (

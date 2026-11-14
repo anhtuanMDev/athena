@@ -8,6 +8,7 @@ import { type DynamicSchemaFile } from "~/schemas/dynamic-schema";
 import { Plus, FileJson, Copy, Check, Download, Trash2 } from "lucide-react";
 import { EmptyState } from "~/components/ui/EmptyState";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
+import { CardGridSkeleton } from "~/components/views/ViewSkeletons";
 
 export default function SchemasList() {
   const { game } = useParams();
@@ -46,27 +47,7 @@ export default function SchemasList() {
   }, [game], `${game}-schema-list`);
 
   if (loading)
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="h-8 w-48 bg-border rounded animate-pulse motion-reduce:animate-none" />
-          <div className="h-10 w-32 bg-border rounded animate-pulse motion-reduce:animate-none" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse motion-reduce:animate-none">
-              <CardHeader>
-                <div className="h-6 w-32 bg-border rounded" />
-              </CardHeader>
-              <CardContent>
-                <div className="h-4 w-24 bg-border rounded mb-2" />
-                <div className="h-4 w-48 bg-border rounded" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
+    return <CardGridSkeleton />;
   if (error)
     return (
       <LoadErrorState

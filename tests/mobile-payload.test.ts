@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { gitBlobSha } from "../app/lib/asset-headers";
-import { buildDataPayload, buildInitPayload, readJsonFile, readJsonFolder, versionAssets, type RepoReader } from "../app/lib/mobile-payload";
+import { buildDataPayload, buildInitPayload, readJsonFile, readJsonFolder, versionAssets, versionAssetsInPlace, type RepoReader } from "../app/lib/mobile-payload";
+import { usableText } from "../app/lib/github-graphql";
+import { filledHeroes } from "./fixtures/filled-heroes";
 
 const notFound = () => Object.assign(new Error("Not Found"), { status: 404 });
 
@@ -29,7 +31,7 @@ function memoryReader(files: Record<string, string | Error>, failList: Record<st
     },
     async assets() {
       if (assets instanceof Error) throw assets;
-      return assets;
+      return { hashes: assets, truncated: false };
     },
   };
   return { reader, reads, concurrency };
@@ -176,5 +178,81 @@ describe("picture versions", () => {
   it("use git's blob hash, as the repo tree lists it", async () => {
     // `printf 'hello\n' | git hash-object --stdin`
     assert.equal(await gitBlobSha(new TextEncoder().encode("hello\n")), "ce013625030ba8dba906f756967f9e9ca394464a");
+  });
+});
+
+describe("picture versions set in place (the builds' own parse)", () => {
+  const sha = "1f2e3d4c5b6a79881f2e3d4c5b6a79881f2e3d4c";
+  const hashes = new Map([
+    ["overwatch/heroes/ana/portrait_2d.webp", sha],
+    ["overwatch/heroes/lúcio/portrait 2d.webp", sha],
+  ]);
+  /** versionAssets' answer, and versionAssetsInPlace's on a copy: they must agree. */
+  const both = (value: unknown) => {
+    const copy = structuredClone(value);
+    versionAssetsInPlace(copy, hashes);
+    return [versionAssets(value, hashes), copy];
+  };
+
+  it("give what versionAssets gives, keys, other text and other values left alone", () => {
+    const record = {
+      "/api/assets/overwatch/heroes/ana/portrait_2d.webp": "a key that is a path stays a key",
+      portrait: { "2d": "/api/assets/overwatch/heroes/ana/portrait_2d.webp", raw: "assets/overwatch/heroes/ana/portrait_2d.webp" },
+      encoded: "/api/assets/overwatch/heroes/l%C3%BAcio/portrait%202d.webp",
+      list: ["/api/assets/overwatch/heroes/lúcio/portrait 2d.webp", "/api/assets/unknown.webp", 1, null, true, [["assets/overwatch/heroes/ana/portrait_2d.webp"]]],
+      kept: ["/api/assets/overwatch/heroes/ana/portrait_2d.webp?v=000000000000", "/api/assets/overwatch/heroes/ana/portrait_2d.webp#x", "See /api/assets/overwatch/heroes/ana/portrait_2d.webp", "", "a", "/"],
+      n: 0,
+    };
+    const [copied, inPlace] = both(record);
+    assert.deepEqual(inPlace, copied);
+    assert.deepEqual(both([record, "/api/assets/overwatch/heroes/ana/portrait_2d.webp", 3]), [versionAssets([record, "/api/assets/overwatch/heroes/ana/portrait_2d.webp", 3], hashes), versionAssets([record, "/api/assets/overwatch/heroes/ana/portrait_2d.webp", 3], hashes)]);
+  });
+
+  it("make the 80 filled heroes' payload byte for byte the one copying versions made", async () => {
+    const { files, pictures } = filledHeroes(80);
+    const all = new Map(pictures.map((p, i) => [p, (i.toString(16) + sha).slice(0, 40)]));
+    const built = await buildDataPayload(memoryReader(files, {}, all).reader, "data/overwatch/heroes");
+    const before = versionAssets(Object.values(files).map((text) => JSON.parse(text) as unknown), all);
+    assert.equal(JSON.stringify(built.payload), JSON.stringify(before));
+    assert.ok(JSON.stringify(built.payload).includes("?v="));
+  });
+
+  it("make init's payload the one copying versions made", async () => {
+    const files = {
+      "data/_meta/games.json": JSON.stringify({ games: [{ slug: "ow", icon: "/api/assets/overwatch/heroes/ana/portrait_2d.webp" }] }),
+      "data/ow/schemas/hero.json": JSON.stringify({ id: "hero", category: "hero", fields: [{ key: "icon", default: "assets/overwatch/heroes/ana/portrait_2d.webp" }] }),
+      "data/ow/enums/role.json": JSON.stringify({ id: "role", options: [{ id: "tank", icon: "/api/assets/overwatch/heroes/lúcio/portrait 2d.webp" }] }),
+      "data/ow/screens/home.json": JSON.stringify({ blocks: [{ type: "hero_banner", props: { image: "/api/assets/overwatch/heroes/ana/portrait_2d.webp" } }] }),
+      "data/ow/navigation.json": JSON.stringify({ tabs: [{ icon: "/api/assets/overwatch/heroes/ana/portrait_2d.webp" }] }),
+    };
+    const plain = await buildInitPayload(memoryReader(files, {}, new Map()).reader);
+    const versioned = await buildInitPayload(memoryReader(files, {}, hashes).reader);
+    assert.deepEqual(versioned.payload, versionAssets(plain.payload, hashes));
+    assert.notDeepEqual(versioned.payload, plain.payload);
+  });
+});
+
+describe("a GraphQL blob's text", () => {
+  const blob = (text: string, byteSize = new TextEncoder().encode(text).length) => ({ oid: "o", byteSize, isBinary: false, isTruncated: false, text });
+
+  it("is used when its UTF-8 size is the file's, whatever its characters", () => {
+    for (const text of ['{"name":"Lúcio — “DJ”"}', '{"a":1}', "x".repeat(70_000), `{"big":"${"é".repeat(600_000)}"}`, '{"emoji":"🎧"}']) {
+      assert.equal(usableText(blob(text)), text);
+    }
+  });
+
+  it("is read through REST when its size isn't the file's, or it holds U+FFFD", () => {
+    // Latin-1 bytes GitHub decoded as U+FFFD: as many characters as bytes, yet not the file.
+    assert.equal(usableText(blob("caf\uFFFD", 4)), undefined);
+    assert.equal(usableText(blob('{"name":"Lúcio"}', 16)), undefined);
+    assert.equal(usableText(blob('{"a":1}', 8)), undefined);
+    // A long text then a short one: the size is the short one's.
+    assert.equal(usableText(blob("y".repeat(50_000))), "y".repeat(50_000));
+    assert.equal(usableText(blob("ab", 3)), undefined);
+    assert.equal(usableText(blob("ab")), "ab");
+  });
+
+  it("loses a byte-order mark, as REST's decoding does", () => {
+    assert.equal(usableText(blob("\uFEFF{}")), "{}");
   });
 });

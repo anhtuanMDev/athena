@@ -2,6 +2,7 @@ import { clearDataCache } from "~/lib/use-data";
 import type { PushResult } from "~/lib/push";
 import type { Game } from "~/schemas/game";
 import { droppedAssets, pruneNote, recordAssetDir, type AssetFile, type DeletionRequest, type Listing, type PruneResult } from "~/lib/record-assets";
+import { directoryPath } from "~/lib/listing";
 
 export interface GitHubFile<T = unknown> {
   sha: string;
@@ -173,10 +174,16 @@ export async function deleteFile(path: string, sha: string, message?: string): P
 }
 
 export async function listDirectory<T = string>(game: string, subpath: string, includeContent?: boolean, keysOnly?: string[]): Promise<T[]> {
-  let url = `data/directory?game=${encodeURIComponent(game)}&subpath=${encodeURIComponent(subpath)}`;
-  if (includeContent) url += '&includeContent=true';
-  if (keysOnly && keysOnly.length > 0) url += `&keysOnly=${encodeURIComponent(keysOnly.join(','))}`;
-  return api<T[]>("GET", url);
+  return api<T[]>("GET", directoryPath(game, subpath, { includeContent, keysOnly }));
+}
+
+/**
+ * A folder's records as its list shows them (shape=summary, listing.ts):
+ * what a cell or a picture can show, without the lists of objects that make
+ * up most of a filled-in record. For the whole records, listDirectory.
+ */
+export async function listSummaries<T = Record<string, unknown>>(game: string, subpath: string): Promise<T[]> {
+  return api<T[]>("GET", directoryPath(game, subpath, { includeContent: true, shape: "summary" }));
 }
 
 /**

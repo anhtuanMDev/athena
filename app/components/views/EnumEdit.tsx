@@ -24,6 +24,7 @@ import { clearDataCache } from "~/lib/use-data";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { EmptyState } from "~/components/ui/EmptyState";
 import { slugify } from "~/lib/slug";
+import { EnumFormSkeleton } from "~/components/views/ViewSkeletons";
 
 export default function EnumEdit() {
   const { game, "*": splat } = useParams();
@@ -44,15 +45,7 @@ export default function EnumEdit() {
   );
 
   if (loading) {
-    return (
-      <div className="w-full space-y-6 animate-pulse motion-reduce:animate-none">
-        <div className="h-10 w-48 bg-border rounded-lg"></div>
-        <div className="space-y-4 bg-surface p-6 rounded-xl border border-border">
-          <div className="h-12 bg-border rounded-lg"></div>
-          <div className="h-40 bg-border rounded-lg"></div>
-        </div>
-      </div>
-    );
+    return <EnumFormSkeleton />;
   }
   if (error) {
     return (

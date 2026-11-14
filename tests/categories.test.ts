@@ -235,7 +235,7 @@ describe("mobile payloads", () => {
       return files[path];
     },
     async assets() {
-      return new Map();
+      return { hashes: new Map(), truncated: false };
     },
   });
   const games = JSON.stringify({ games: [{ slug: "overwatch", active: true }] });

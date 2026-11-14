@@ -31,7 +31,7 @@ const FILES: Record<string, string> = {
 function fakeGitHub(initial: Record<string, string>) {
   const files = { ...initial };
   const calls: string[] = [];
-  const state = { down: false, treeFails: false, failing: new Set<string>() };
+  const state = { down: false, treeFails: false, treeTruncated: false, failing: new Set<string>() };
   const sha = (text: string) => createHash("sha1").update(text).digest("hex");
   const children = (dir: string) => Object.keys(files).filter((p) => p.startsWith(`${dir}/`) && !p.slice(dir.length + 1).includes("/"));
   const blob = (path: string) => ({ oid: sha(files[path]), byteSize: Buffer.byteLength(files[path]), isBinary: false, isTruncated: false, text: files[path] });
@@ -69,7 +69,7 @@ function fakeGitHub(initial: Record<string, string>) {
     if (url.pathname.startsWith("/repos/o/r/git/trees/")) {
       calls.push("tree");
       if (state.treeFails) return Response.json({ message: "Server Error" }, { status: 502 });
-      return Response.json({ truncated: false, tree: Object.keys(files).filter((p) => p.startsWith("public/assets/")).map((path) => ({ path, type: "blob", sha: sha(files[path]) })) });
+      return Response.json({ truncated: state.treeTruncated, tree: Object.keys(files).filter((p) => p.startsWith("public/assets/")).map((path) => ({ path, type: "blob", sha: sha(files[path]) })) });
     }
     throw new Error(`unexpected request to ${url.href}`);
   };
@@ -383,5 +383,79 @@ describe("a cache version KV can't read", () => {
     await data("overwatch", "heroes");
     assert.deepEqual(kv.reads.sort(), [MOBILE_ASSETS_VERSION_KEY, mobileDataVersionKey("overwatch", "heroes")].sort());
     assert.ok(caches.puts.some(({ key }) => /[?&]v=0&a=0$/.test(key)));
+  });
+});
+
+describe("the picture hashes a data center keeps between builds", () => {
+  const PORTRAIT = "/api/assets/overwatch/heroes/ana/portrait.webp";
+  const portraitOf = async (res: Response) => ((await res.json()) as { id: string; portrait?: string }[]).find((h) => h.id === "ana")?.portrait;
+  const trees = () => github.calls.filter((c) => c === "tree").length;
+  const versionOf = (text: string) => `?v=${createHash("sha1").update(text).digest("hex").slice(0, 12)}`;
+
+  it("are read once per assets version: a cold build after a record's save, and init, use them", async () => {
+    const first = await data("overwatch", "heroes");
+    assert.equal(await portraitOf(first), `${PORTRAIT}${versionOf("a picture")}`);
+    assert.equal(trees(), 1);
+    // A record saved: its folder is built again, without the tree.
+    bump(mobileDataVersionKey("overwatch", "heroes"));
+    const again = await data("overwatch", "heroes");
+    assert.equal(again.headers.get("X-Incomplete"), null);
+    assert.equal(await portraitOf(again), `${PORTRAIT}${versionOf("a picture")}`);
+    // init and the other folders share them.
+    assert.equal((await init()).status, 200);
+    assert.equal((await data("overwatch", "news")).status, 200);
+    assert.equal(trees(), 1);
+  });
+
+  it("are read again once a picture's save moves the assets version", async () => {
+    await data("overwatch", "heroes");
+    github.files["public/assets/overwatch/heroes/ana/portrait.webp"] = "a new picture";
+    bump(MOBILE_ASSETS_VERSION_KEY);
+    const res = await data("overwatch", "heroes");
+    assert.equal(await portraitOf(res), `${PORTRAIT}${versionOf("a new picture")}`);
+    assert.equal(trees(), 2);
+  });
+
+  it("are kept an hour at most", async () => {
+    await data("overwatch", "heroes");
+    caches.advance(60 * MINUTE);
+    bump(mobileDataVersionKey("overwatch", "heroes"));
+    await data("overwatch", "heroes");
+    assert.equal(trees(), 2);
+  });
+
+  it("aren't kept when the tree couldn't be read: the next build reads it, and is complete", async () => {
+    github.state.treeFails = true;
+    assert.equal((await data("overwatch", "heroes")).headers.get("X-Incomplete"), "1");
+    github.state.treeFails = false;
+    bump(mobileDataVersionKey("overwatch", "heroes"));
+    const res = await data("overwatch", "heroes");
+    assert.equal(res.headers.get("X-Incomplete"), null);
+    assert.equal(await portraitOf(res), `${PORTRAIT}${versionOf("a picture")}`);
+    assert.equal(trees(), 2);
+  });
+
+  it("aren't kept from a tree GitHub cut short", async () => {
+    github.state.treeTruncated = true;
+    const res = await data("overwatch", "heroes");
+    // As before: the pictures it lists are versioned, and nothing counts as left out.
+    assert.equal(res.headers.get("X-Incomplete"), null);
+    assert.equal(await portraitOf(res), `${PORTRAIT}${versionOf("a picture")}`);
+    bump(mobileDataVersionKey("overwatch", "heroes"));
+    await data("overwatch", "heroes");
+    assert.equal(trees(), 2);
+    assert.ok(!caches.puts.some(({ key }) => key.includes("asset-hashes")));
+  });
+
+  it("aren't kept or used while KV can't say the assets version", async () => {
+    await data("overwatch", "heroes");
+    assert.equal(trees(), 1);
+    kv.state.failing = true;
+    caches.advance(MINUTE);
+    forget();
+    // A folder with no copy kept here is built, and reads the tree for itself.
+    assert.equal((await data("overwatch", "news")).status, 200);
+    assert.deepEqual(github.calls.filter((c) => c === "tree"), ["tree"]);
+    assert.ok(!caches.puts.some(({ key }) => key.includes("asset-hashes")));
   });
 });

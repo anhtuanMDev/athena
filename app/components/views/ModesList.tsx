@@ -2,7 +2,7 @@ import { Link, useParams } from "react-router";
 import { useEntityList, useEnumOptions } from "~/lib/use-entity-list";
 import { findEnumOption, type EnumOptionView } from "~/lib/enum-options";
 import { DataTable, type Column } from "~/components/DataTable";
-import { EntityListSkeleton } from "~/components/views/EntityListSkeleton";
+import { EntityListSkeleton, LIST_SKELETONS } from "~/components/views/ViewSkeletons";
 import { ButtonLink } from "~/components/ui/button";
 import { assertSafeGameSlug } from "~/lib/safe-path";
 import { Plus } from "lucide-react";
@@ -32,7 +32,7 @@ const columns = (objectives: EnumOptionView[]): Column<ModeRow>[] => [
 export default function ModesIndex() {
   const { game } = useParams();
   assertSafeGameSlug(game!);
-  const { data: modes, loading, error } = useEntityList<ModeRow>(game!, "modes");
+  const { data: modes, loading, error } = useEntityList<ModeRow>(game!, "modes", "summary");
   const objectives = useEnumOptions(game!, OBJECTIVE_ENUM);
 
   if (error) return (
@@ -44,7 +44,7 @@ export default function ModesIndex() {
   );
 
   
-  if (loading) return <EntityListSkeleton columns={3} rows={6} />;
+  if (loading) return <EntityListSkeleton {...LIST_SKELETONS.modes} />;
 return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">

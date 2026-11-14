@@ -76,6 +76,24 @@ export function keyColumns(records: readonly Row[], exclude: readonly string[], 
   return [...keys].slice(0, max);
 }
 
+/**
+ * A record as a list needs it (data/directory's shape=summary): its top-level
+ * values that a cell or a picture can show, which are the scalars, the lists
+ * of scalars, and the maps of strings (a picture's variants, {"2d": url}).
+ * Lists of objects and other nested values (abilities, balance logs) are
+ * left out: most of a filled-in hero, and none of what schemaColumns,
+ * keyColumns or a list's picture reads. Anything but an object is kept as is.
+ */
+export function listSummary(record: unknown): unknown {
+  if (!record || typeof record !== "object" || Array.isArray(record)) return record;
+  const summary: Row = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (value === null || typeof value !== "object") summary[key] = value;
+    else if (Array.isArray(value) ? value.every((v) => v === null || typeof v !== "object") : Object.values(value).every((v) => typeof v === "string")) summary[key] = value;
+  }
+  return summary;
+}
+
 /** A cell's text: an enum's or options' value by its option's name (as stored when there's none), a list's items joined, a flag as Yes or No. */
 export function cellText(field: ColumnField | undefined, value: unknown, enums: readonly unknown[]): string {
   const options = field ? fieldOptions(field, enums) : [];

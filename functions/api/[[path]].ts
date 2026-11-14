@@ -3,6 +3,7 @@ import type { KVNamespace } from "@cloudflare/workers-types";
 import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
 import { jsonFileText } from "../../app/lib/json-file";
 import { bumpCacheVersion, mobileVersionKeyForPath } from "../../app/lib/mobile-cache-version";
+import { octokitHeaders, readRepoTree } from "../../app/lib/github-tree";
 import { APP_POLICY, dataWriteProblems, needsAppPolicy, readAppPolicy } from "../../app/lib/screen-policy";
 import { ASSET_VERSION, assetSeenKey, gitBlobSha, serveAsset } from "../../app/lib/asset-headers";
 import { checkLoginAttempts, recordLoginAttempt } from "../../app/lib/login-attempts";
@@ -25,6 +26,7 @@ import { CATEGORIES_PATH, DEFAULT_CATEGORIES, needsCategories, readCategories } 
 import { githubReader, readJsonFolderCounted, readJsonTogether, type RepoReader } from "../../app/lib/mobile-payload";
 import { GraphqlUnavailable, graphqlStatus } from "../../app/lib/github-graphql";
 import { templateFieldsByCategory } from "../../app/lib/notify-template";
+import { listSummary } from "../../app/lib/record-columns";
 import { pushAfterWrite, readServiceAccount, type PushEnv } from "../../app/lib/push";
 
 const SESSION_KEY = "__admin_session";
@@ -911,8 +913,15 @@ async function handleListDirectory(
 
   if (url.searchParams.get("includeContent") === "true") {
     const keysOnly = url.searchParams.get("keysOnly")?.split(",") ?? null;
+    // shape=summary: each record as a list shows it (record-columns.ts
+    // listSummary), for lists whose columns follow the schema, so no fixed
+    // keys can be asked for. 80 filled heroes come to 158 KB instead of 1.7 MB.
+    const shape = url.searchParams.get("shape");
+    if (shape !== null && shape !== "summary") return json({ error: 'shape can only be "summary"' }, 400);
+    if (shape !== null && keysOnly) return json({ error: "Ask for keysOnly or shape, not both" }, 400);
     // Only the keys asked for, which keeps big records out of the page's memory.
     const shown = (content: unknown) => {
+      if (shape === "summary") return listSummary(content);
       if (!keysOnly) return content;
       if (content === null || content === undefined) return null;
       const filtered: Record<string, unknown> = {};
@@ -1065,13 +1074,10 @@ async function handleDashboardData(context: PagesFunctionContext): Promise<Respo
 
     const { data: branchData } = await octokit.repos.getBranch({ owner, repo, branch });
     const treeSha = branchData.commit.commit.tree.sha;
-    
-    const { data: treeData } = await octokit.git.getTree({
-      owner,
-      repo,
-      tree_sha: treeSha,
-      recursive: "1",
-    });
+
+    // The whole tree, pictures included: read with a plain parse, as Octokit's
+    // costs several milliseconds once heroes have theirs (github-tree.ts).
+    const treeData = await readRepoTree({ token: env.GITHUB_TOKEN, owner, repo, headers: octokitHeaders(octokit) }, treeSha);
 
     // Records per configured category, inactive games included: the Categories
     // page locks a category's folder while any game has records in it.
