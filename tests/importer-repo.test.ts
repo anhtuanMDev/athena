@@ -288,6 +288,8 @@ void describe("the import routes (POST /api/imports/*)", () => {
     assert.deepEqual(badDraft, { status: 400, body: { error: "Invalid record id." } });
     const notJson = await answerOf(await importRoute("run", { body: "not json" }));
     assert.deepEqual(notJson, { status: 400, body: { error: "Invalid game." } });
+    const notObjects = await Promise.all(["null", "[]", '"overwatch"'].map(async (body) => answerOf(await importRoute("run", { body }))));
+    assert.deepEqual(notObjects, Array.from({ length: 3 }, () => ({ status: 400, body: { error: "Invalid game." } })));
     assert.deepEqual(git.calls, []);
   });
 

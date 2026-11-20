@@ -128,7 +128,7 @@ interface PagesFunctionContext {
   env: Env;
   params: Record<string, string>;
   next: () => Promise<Response>;
-  waitUntil?: (promise: Promise<any>) => void;
+  waitUntil?: (promise: Promise<unknown>) => void;
 }
 
 function triggerCachePurge(context: PagesFunctionContext, path: string) {
@@ -216,6 +216,84 @@ async function readJsonBody(request: Request, limit: number, tooLargeError = "Th
   } catch {
     return {};
   }
+}
+
+// The bodies the routes take, checked before a handler uses them: a field of
+// the wrong type is a 400 that says which, never a 500 from deep in a
+// handler, nor a value sent on to GitHub. Each parser takes whatever the body
+// parsed to (an object, but also null, a list or a string).
+
+/** The most a small request's body may hold: a sign-in, or deleting one file. */
+const SMALL_BODY_LIMIT = 65_536;
+const BAD_REQUEST = 400;
+
+/** A body's fields: none when it isn't a JSON object. */
+const fieldsOf = (body: unknown): Record<string, unknown> => (isJsonObject(body) ? body : {});
+
+/** An optional text field: undefined when left out, null when it's something else. */
+function optionalText(value: unknown): string | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+  return typeof value === "string" ? value : null;
+}
+
+/** POST data/file: a file's new content, as JSON or base64. */
+interface WriteRequest {
+  path: string;
+  content: unknown;
+  message?: string;
+  /** The file's sha as loaded; left out for a new file. */
+  sha?: string;
+  /** True for base64 content (pictures); anything else is JSON. */
+  isBase64?: unknown;
+  /** Asks for a push to players (only true does): read by pushAfterWrite. */
+  notify?: unknown;
+}
+
+function writeRequest(body: unknown): WriteRequest | string {
+  const fields = fieldsOf(body);
+  if (typeof fields.path !== "string" || fields.path === "") {
+    return "path is required";
+  }
+  const message = optionalText(fields.message);
+  const sha = optionalText(fields.sha);
+  if (message === null) {
+    return "Invalid commit message.";
+  }
+  if (sha === null) {
+    return "Invalid sha.";
+  }
+  return { path: fields.path, content: fields.content, message, sha, isBase64: fields.isBase64, notify: fields.notify };
+}
+
+/** DELETE data/file: a file, at the sha it was loaded at. */
+function deleteFileRequest(body: unknown): { path: string; sha: string; message?: string } | string {
+  const fields = fieldsOf(body);
+  if (typeof fields.path !== "string" || fields.path === "" || typeof fields.sha !== "string" || fields.sha === "") {
+    return "path and sha are required";
+  }
+  const message = optionalText(fields.message);
+  if (message === null) {
+    return "Invalid commit message.";
+  }
+  return { path: fields.path, sha: fields.sha, message };
+}
+
+/** An id sent as text; anything else is "", which the importer refuses as an id. */
+const idText = (value: unknown): string => (typeof value === "string" ? value : "");
+
+/** POST imports/{action}: the ids as text, the job or record as sent. */
+function importRequest(body: unknown) {
+  const fields = fieldsOf(body);
+  return {
+    game: idText(fields.game),
+    jobId: idText(fields.jobId),
+    id: idText(fields.id),
+    job: fields.job,
+    record: isJsonObject(fields.record) ? fields.record : {},
+    notify: fields.notify,
+  };
 }
 
 /** Methods that change something: only the admin's own pages may send them. */
@@ -323,8 +401,7 @@ async function handleLogin(request: Request, env: Env): Promise<Response> {
     return json({ error: "Too many attempts", retryAfter }, 429);
   }
 
-  const body = (await request.json().catch(() => ({}))) as { password?: unknown };
-  const password = body.password;
+  const { password } = fieldsOf(await readJsonBody(request, SMALL_BODY_LIMIT));
   if (typeof password !== "string" || !password) {
     return json({ error: "Password is required" }, 400);
   }
@@ -447,15 +524,10 @@ async function handleGetFile(context: PagesFunctionContext): Promise<Response> {
 async function handleWriteFile(context: PagesFunctionContext): Promise<Response> {
   const { request, env } = context;
   await requireAuth(context);
-  const body = (await readJsonBody(request, WRITE_BODY_LIMIT)) as {
-    path: string;
-    content: unknown;
-    message?: string;
-    sha?: string;
-    isBase64?: boolean;
-    notify?: unknown;
-  };
-  if (!body.path) return json({ error: "path is required" }, 400);
+  const body = writeRequest(await readJsonBody(request, WRITE_BODY_LIMIT));
+  if (typeof body === "string") {
+    return json({ error: body }, BAD_REQUEST);
+  }
   assertSafeFilePath(body.path);
   // A picture follows the picture rules here too: the games page's icon still comes this way.
   if (body.path.startsWith("public/assets/")) {
@@ -537,11 +609,10 @@ function refusedWrite(err: unknown, path: string): Response | null {
 async function handleDeleteFile(context: PagesFunctionContext): Promise<Response> {
   const { request, env } = context;
   await requireAuth(context);
-  const body = (await request
-    .json()
-    .catch(() => ({}))) as { path: string; sha: string; message?: string };
-  if (!body.path || !body.sha)
-    return json({ error: "path and sha are required" }, 400);
+  const body = deleteFileRequest(await readJsonBody(request, SMALL_BODY_LIMIT));
+  if (typeof body === "string") {
+    return json({ error: body }, BAD_REQUEST);
+  }
   assertSafeFilePath(body.path);
   // games.json lists every game; nothing in the admin deletes it (app/lib/games-guard.ts).
   if (decodeURIComponent(body.path) === GAMES_PATH) return json({ error: `${GAMES_PATH} can't be deleted: it lists every game.` }, 400);
@@ -707,7 +778,7 @@ async function handleRecordAssets(context: PagesFunctionContext): Promise<Respon
 // Function's 50 subrequests (Workers Free).
 async function handleDeleteRecord(context: PagesFunctionContext): Promise<Response> {
   await requireAuth(context);
-  const request = deletionRequest(await context.request.json().catch(() => ({})));
+  const request = deletionRequest(await readJsonBody(context.request, SAVE_BODY_LIMIT));
   if (typeof request === "string") return json({ error: request }, 400);
   const record = `data/${request.game}/${request.folder}/${request.id}.json`;
   for (const path of [record, ...request.remove.map((f) => f.path), ...request.keep]) assertSafeFilePath(path);
@@ -778,7 +849,7 @@ async function recordsAt(env: Env, head: string, game: string, paths: string[]):
 // 8 GitHub requests: the snapshot (3), the records (1 GraphQL), the commit (4).
 async function handlePruneAssets(context: PagesFunctionContext): Promise<Response> {
   await requireAuth(context);
-  const request = pruneRequest(await context.request.json().catch(() => ({})));
+  const request = pruneRequest(await readJsonBody(context.request, SAVE_BODY_LIMIT));
   if (typeof request === "string") return json({ error: request }, 400);
   for (const path of request.paths) assertSafeFilePath(path);
   const { game, folder, id } = request;
@@ -821,9 +892,8 @@ async function handlePruneAssets(context: PagesFunctionContext): Promise<Respons
 // refreshes the mobile caches like any other save.
 async function handleImport(context: PagesFunctionContext, action: string): Promise<Response> {
   await requireAuth(context);
-  const body = (await context.request.json().catch(() => ({}))) as Record<string, unknown>;
-  const game = String(body.game ?? "");
-  const jobId = String(body.jobId ?? "");
+  const body = importRequest(await readJsonBody(context.request, SAVE_BODY_LIMIT));
+  const { game, jobId } = body;
   const repo = githubRepo(context.env);
   try {
     switch (action) {
@@ -832,14 +902,14 @@ async function handleImport(context: PagesFunctionContext, action: string): Prom
       case "run":
         return json(await runImport({ repo, game, jobId }));
       case "publish": {
-        const record = body.record && typeof body.record === "object" ? (body.record as Record<string, unknown>) : {};
+        const { record } = body;
         const path = await publishDraft(repo, game, jobId, record);
         triggerCachePurge(context, path);
         const push = await pushAfterWrite({ path, content: record, notify: body.notify }, pushEnv(context.env));
         return json({ ok: true, path, ...(push && { push }) });
       }
       case "dismiss":
-        await dismissDraft(repo, game, jobId, String(body.id ?? ""));
+        await dismissDraft(repo, game, jobId, body.id);
         return json({ ok: true });
       default:
         return json({ error: "Not found" }, 404);
@@ -1071,7 +1141,7 @@ async function handleDashboardData(context: PagesFunctionContext): Promise<Respo
         "Cache-Control": "no-cache",
       },
     });
-    let games = [];
+    let games: { slug: string }[] = [];
     if ("content" in data && "sha" in data) {
       games = JSON.parse(decodeUtf8Base64(data.content)).games ?? [];
     }
@@ -1086,7 +1156,7 @@ async function handleDashboardData(context: PagesFunctionContext): Promise<Respo
     // Records per configured category, inactive games included: the Categories
     // page locks a category's folder while any game has records in it.
     const categories = await readCategories((path) => githubReader(octokit, owner, repo, branch).read(path));
-    const gameStats = games.map((game: any) => {
+    const gameStats = games.map((game) => {
       const count = (folder: string) =>
         treeData.tree.filter((t) => t.type === "blob" && t.path?.startsWith(`data/${game.slug}/${folder}/`) && t.path?.endsWith(".json")).length;
       return { ...game, counts: Object.fromEntries(categories.map((c) => [c.folder, count(c.folder)])) };

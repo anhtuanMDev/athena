@@ -3,8 +3,14 @@ import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, it } from "node:test";
 
 import { MOBILE_ASSETS_VERSION_KEY, MOBILE_INIT_VERSION_KEY, mobileDataVersionKey } from "../app/lib/mobile-cache-version";
-import { onRequest as mobileData } from "../functions/mobile/data";
-import { onRequest as mobileInit } from "../functions/mobile/init";
+
+// The Functions are type-checked with Workers' types (functions/tsconfig.json);
+// computed specifiers keep them out of this DOM-typed program, as for the API.
+type MobileHandler = (context: unknown) => Promise<Response>;
+const MOBILE_DATA = "../functions/mobile/data.ts";
+const MOBILE_INIT = "../functions/mobile/init.ts";
+const { onRequest: mobileData } = (await import(MOBILE_DATA)) as { onRequest: MobileHandler };
+const { onRequest: mobileInit } = (await import(MOBILE_INIT)) as { onRequest: MobileHandler };
 
 // /mobile/init and /mobile/data as the app meets them, run against a GitHub of
 // in-memory files, a caches.default with a clock and a KV that records what

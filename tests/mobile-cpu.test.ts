@@ -4,8 +4,13 @@ import { describe, it } from "node:test";
 import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
 
-import { onRequest as mobileData } from "../functions/mobile/data";
 import { filledHeroes } from "./fixtures/filled-heroes";
+
+// The Function is type-checked with Workers' types (functions/tsconfig.json);
+// a computed specifier keeps it out of this DOM-typed program, as for the API.
+type MobileHandler = (context: unknown) => Promise<Response>;
+const MOBILE_DATA = "../functions/mobile/data.ts";
+const { onRequest: mobileData } = (await import(MOBILE_DATA)) as { onRequest: MobileHandler };
 
 // The CPU a cold /mobile/data build costs, held to a budget. On the Workers
 // Free plan a Function gets 10 ms of CPU, and a build killed for going over

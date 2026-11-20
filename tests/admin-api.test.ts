@@ -574,3 +574,42 @@ void describe("the activity page's commits (GET /api/data/commits)", () => {
     assert.equal(new URL(asked[0] ?? "").searchParams.get("sha"), "main");
   });
 });
+
+void describe("a body that isn't what its route takes", () => {
+  const send = async (path: string, init: { method: string; body: string; isSignedIn?: boolean }) => {
+    const session = init.isSignedIn === false ? {} : cookie(await createSessionToken(SECRET, "0"));
+    return call(path, { method: init.method, headers: { ...session, "Content-Type": "application/json" }, body: init.body, kv: recordingKv().kv });
+  };
+  const answerOf = async (res: Response) => {
+    const body: unknown = await res.json();
+    return { status: res.status, body };
+  };
+  const picture = (extra: Record<string, unknown>) => JSON.stringify({ path: "public/assets/overwatch/x.png", content: PNG, isBase64: true, ...extra });
+
+  void it("is a 400 that says what's wrong, never a 500 from deep in the handler", async () => {
+    const write = await send("/api/data/file", { method: "POST", body: JSON.stringify({ path: 123, content: {} }) });
+    assert.deepEqual(await answerOf(write), { status: 400, body: { error: "path is required" } });
+    const removal = await send("/api/data/file", { method: "DELETE", body: JSON.stringify({ path: ["data/overwatch/screens/home.json"], sha: "old-sha" }) });
+    assert.deepEqual(await answerOf(removal), { status: 400, body: { error: "path and sha are required" } });
+    const login = await send("/api/auth/login", { method: "POST", body: "null", isSignedIn: false });
+    assert.deepEqual(await answerOf(login), { status: 400, body: { error: "Password is required" } });
+    assert.deepEqual(github, []);
+  });
+
+  void it("never sends GitHub a commit message or sha that isn't text", async () => {
+    assert.deepEqual(await answerOf(await send("/api/data/file", { method: "POST", body: picture({ message: 42 }) })), { status: 400, body: { error: "Invalid commit message." } });
+    assert.deepEqual(await answerOf(await send("/api/data/file", { method: "POST", body: picture({ sha: { sha: "x" } }) })), { status: 400, body: { error: "Invalid sha." } });
+    const removal = await send("/api/data/file", { method: "DELETE", body: JSON.stringify({ path: "data/overwatch/screens/home.json", sha: "old-sha", message: ["x"] }) });
+    assert.deepEqual(await answerOf(removal), { status: 400, body: { error: "Invalid commit message." } });
+    assert.deepEqual(github, []);
+  });
+
+  void it("is refused past its size before it's read, for a delete and a sign-in too", async () => {
+    const huge = JSON.stringify({ path: "data/overwatch/screens/home.json", sha: "old-sha", message: "x".repeat(70_000) });
+    const removal = await send("/api/data/file", { method: "DELETE", body: huge });
+    assert.equal(removal.status, 413);
+    const login = await send("/api/auth/login", { method: "POST", body: JSON.stringify({ password: "x".repeat(70_000) }), isSignedIn: false });
+    assert.equal(login.status, 413);
+    assert.deepEqual(github, []);
+  });
+});
