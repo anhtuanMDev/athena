@@ -1,5 +1,8 @@
-import { forwardRef, useState, useCallback } from "react";
 import TextField from "@mui/material/TextField";
+import { forwardRef, useState, useCallback } from "react";
+
+import { focusHandlers } from "~/lib/field-focus";
+
 import type { TextFieldProps } from "@mui/material/TextField";
 
 export type FormFieldProps = TextFieldProps & { label: string };
@@ -48,10 +51,8 @@ export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(
             ...(slotProps as any)?.inputLabel,
           },
           input: {
-            onFocus: () => setShrink(true),
-            onBlur: (e: React.FocusEvent<HTMLInputElement>) => {
-              setShrink(e.target.value ? true : undefined);
-            },
+            // They call the field's own (register's onBlur), which this slot would otherwise replace.
+            ...focusHandlers({ onFocus: props.onFocus, onBlur: props.onBlur, setShrink }),
             ...(slotProps as any)?.input,
           },
           htmlInput: {

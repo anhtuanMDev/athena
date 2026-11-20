@@ -1,17 +1,18 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router";
-import { deleteFile, deleteRecord, getFile, getRecordAssets, listDirectoryChecked } from "~/lib/github";
-import { Link } from "react-router";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { EmptyState } from "~/components/ui/EmptyState";
-import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
-import { useData, clearDataCache } from "~/lib/use-data";
+import { Link, useNavigate, useParams } from "react-router";
+
 import { useToast } from "~/components/ToastProvider";
-import { getCategoryDirectory, type SchemaCategory } from "~/schemas/dynamic-schema";
-import { useCategories } from "~/lib/categories-context";
-import { deletionPlan, dependents, recordAssetDir, scanRecords, type DeletionPlan, type Listing } from "~/lib/record-assets";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardHeader } from "~/components/ui/card";
+import { EmptyState } from "~/components/ui/EmptyState";
 import { DeleteSkeleton } from "~/components/views/ViewSkeletons";
+import { useCategories } from "~/lib/categories-context";
+import { deleteFile, deleteRecord, getFile, getRecordAssets, listDirectoryChecked } from "~/lib/github";
+import { deletionPlan, dependents, recordAssetDir, scanRecords, type DeletionPlan, type Listing } from "~/lib/record-assets";
+import { assertSafeGameSlug, assertSafeEntityId } from "~/lib/safe-path";
+import { screensUsingSchema } from "~/lib/schema-usage";
+import { useData, clearDataCache } from "~/lib/use-data";
+import { getCategoryDirectory, type SchemaCategory } from "~/schemas/dynamic-schema";
 
 interface EntityBase {
   id: string;
@@ -65,6 +66,8 @@ export default function EntityDelete({ entityType }: { entityType: string }) {
         const schemaCategory = file.content?.category as SchemaCategory;
         if (schemaCategory) {
           const targetEntity = categories.find((c) => c.category === schemaCategory)?.folder ?? getCategoryDirectory(schemaCategory);
+          // The app's screens, whose sources may list records through this schema (F15).
+          const screensRead = Promise.allSettled([load("screens")]);
           // Using keysOnly to avoid pulling full JSON payloads into memory for performance
           const [entities, schemas] = await Promise.all([
             load(targetEntity, ["id", "name", "schema_id"]).catch((): Listing => ({ items: [], complete: false })),
@@ -85,6 +88,14 @@ export default function EntityDelete({ entityType }: { entityType: string }) {
             if (!e.schema_id && isDefaultSchema) return true;
             return false;
           }).map(e => ({ id: e.id, name: e.name || e.id, targetEntity }));
+          const [screens] = await screensRead;
+          if (screens.status === "rejected" || !screens.value.complete) {
+            unread.push("screens");
+          }
+          const listed = screens.status === "fulfilled" ? screens.value.items : [];
+          const others = categorySchemas.filter((schema) => schema.id !== self.id).length;
+          const uses = screensUsingSchema(listed, { id: self.id, category: schemaCategory, others });
+          dependencies = [...dependencies, ...uses.map((use) => ({ id: use.screen, name: `Screen "${use.screen}", ${use.where}`, targetEntity: "screens" }))];
         }
         return { fileData: file, dependencies, unread, pictures: null };
       }

@@ -69,11 +69,6 @@ export async function getFile<T = unknown>(path: string): Promise<GitHubFile<T> 
   return api<GitHubFile<T> | null>("GET", `data/file?path=${encodeURIComponent(path)}`);
 }
 
-export async function fileExists(path: string): Promise<boolean> {
-  const file = await getFile(path);
-  return file !== null;
-}
-
 // Both resolve to the file's new sha.
 export async function createFile(path: string, content: unknown, message?: string): Promise<string | null> {
   const res = await api<{ sha?: string | null }>("POST", "data/file", { path, content, message });

@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { CronJob } from "../app/schemas/cron";
-import type { DynamicField } from "../app/schemas/dynamic-schema";
+import { messageOf } from "../app/lib/importer/edit-message";
 import { fetchSource, isSafeUrl } from "../app/lib/importer/fetch-source";
 import { mapDocument, parseRule, slugify, toIsoDate } from "../app/lib/importer/map";
-import type { DataRepo, FileChange } from "../app/lib/importer/repo";
 import { dismissDraft, previewImport, publishDraft, recordFolder, recordProblems, runImport } from "../app/lib/importer/run";
+
+import type { DataRepo, FileChange } from "../app/lib/importer/repo";
+import type { CronJob } from "../app/schemas/cron";
+import type { DynamicField } from "../app/schemas/dynamic-schema";
 
 // ─── Fixtures ──────────────────────────────────────────────────────────
 
@@ -100,7 +102,9 @@ function memoryRepo(initial: Record<string, unknown> = {}) {
     async edit({ reads, changes, message }) {
       await other();
       const list = changes(new Map(reads.map((path) => [path, path in files ? structuredClone(files[path]) : null])));
-      if (list.length > 0) apply(list, message);
+      if (list.length > 0) {
+        apply(list, messageOf(message));
+      }
     },
   };
   return {
@@ -614,6 +618,24 @@ describe("writers at the same time", () => {
     const state = files[STATE] as { dismissed?: string[]; last_result?: unknown };
     assert.deepEqual(state.dismissed, ["patch-2026-10-13"]);
     assert.deepEqual(state.last_result, { found: 2, added: 1, skipped: 1 });
+  });
+
+  void it("counts only the drafts it commits, in its commit message and its answer", async () => {
+    const { repo, commits, meanwhile } = memoryRepo(baseRepoFiles());
+    meanwhile(async () => dismissDraft(repo, "overwatch", "ow-patch-notes", "patch-2026-10-13"));
+    assert.deepEqual(await run(repo), { found: 2, added: 1, skipped: 1 });
+    assert.equal(commits.at(-1)?.message, "Import 1 draft(s) from ow-patch-notes");
+  });
+
+  void it("says a run added nothing when every new item was dismissed before its commit", async () => {
+    const { repo, files, commits, meanwhile } = memoryRepo(baseRepoFiles());
+    meanwhile(async () => {
+      await dismissDraft(repo, "overwatch", "ow-patch-notes", "patch-2026-10-13");
+      await dismissDraft(repo, "overwatch", "ow-patch-notes", "patch-2026-10-20");
+    });
+    assert.deepEqual(await run(repo), { found: 2, added: 0, skipped: 2 });
+    assert.equal(commits.at(-1)?.message, "Import run: ow-patch-notes (nothing new)");
+    assert.deepEqual((files[STATE] as { last_result?: unknown }).last_result, { found: 2, added: 0, skipped: 2 });
   });
 
   it("keeps both of two dismissals made at once", async () => {

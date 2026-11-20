@@ -1,7 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import type { KVNamespace } from "@cloudflare/workers-types";
 import { MOBILE_ASSETS_VERSION_KEY, mobileDataVersionKey, readCacheVersion } from "../../app/lib/mobile-cache-version";
-import { activeGames, buildDataPayload, githubReader, servedFolders } from "../../app/lib/mobile-payload";
+import { activeGames, buildDataPayload, githubReader, servedFolders, type RepoReader } from "../../app/lib/mobile-payload";
 import { servePayload } from "../../app/lib/mobile-response";
 import { assertSafeEntityType, assertSafeGameSlug } from "../../app/lib/safe-path";
 
@@ -13,6 +13,13 @@ export interface Env {
   GITHUB_BRANCH?: string;
 }
 
+/** What this Function reads of the context Pages calls it with (EventContext); waitUntil is left out by tests. */
+interface MobileContext {
+  request: Request;
+  env: Env;
+  waitUntil?: (promise: Promise<unknown>) => void;
+}
+
 function json(data: unknown, status = 200, headers: HeadersInit = {}): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -20,9 +27,14 @@ function json(data: unknown, status = 200, headers: HeadersInit = {}): Response 
   });
 }
 
-export async function onRequest(context: any): Promise<Response> {
-  const { env, request } = context;
-  const url = new URL(request.url);
+/** A folder the app asks for: a game, and one of its category folders. */
+interface AskedFolder {
+  game: string;
+  entity: string;
+}
+
+/** The folder `url` asks for, or the answer refusing it before anything is read. */
+async function askedFolder(url: URL): Promise<AskedFolder | Response> {
   const game = url.searchParams.get("game");
   const entity = url.searchParams.get("entity");
 
@@ -38,12 +50,16 @@ export async function onRequest(context: any): Promise<Response> {
     if (err instanceof Response) return json({ error: await err.text() }, 400);
     throw err;
   }
-  // And only configured categories of active games, checked before any KV
-  // read, so made-up names can't make version reads or reach GitHub: each list
-  // costs at most one GitHub read a minute in a data center (mobile-payload.ts).
-  // The folder through GraphQL when the token allows: one GitHub request whatever it holds.
-  const reader = githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH ?? "main", { token: env.GITHUB_TOKEN });
-  const cache = (caches as any).default;
+  return { game, entity };
+}
+
+/**
+ * The answer refusing a folder that isn't served, or null. Only configured
+ * categories of active games, checked before any KV read, so made-up names
+ * can't make version reads or reach GitHub: each list costs at most one
+ * GitHub read a minute in a data center (mobile-payload.ts).
+ */
+async function refusal(cache: Cache, reader: RepoReader, { game, entity }: AskedFolder): Promise<Response | null> {
   const [folders, games] = await Promise.all([servedFolders(cache, reader), activeGames(cache, reader)]);
   if (!folders.includes(entity)) {
     return json({ error: `Invalid entity type: ${entity}` }, 400);
@@ -54,6 +70,23 @@ export async function onRequest(context: any): Promise<Response> {
   if (!games.includes(game)) {
     return json({ error: `Unknown game: ${game}` }, 404);
   }
+  return null;
+}
+
+export async function onRequest(context: MobileContext): Promise<Response> {
+  const { env, request } = context;
+  const asked = await askedFolder(new URL(request.url));
+  if (asked instanceof Response) {
+    return asked;
+  }
+  // The folder through GraphQL when the token allows: one GitHub request whatever it holds.
+  const reader = githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH ?? "main", { token: env.GITHUB_TOKEN });
+  const cache = caches.default;
+  const refused = await refusal(cache, reader, asked);
+  if (refused) {
+    return refused;
+  }
+  const { game, entity } = asked;
 
   const internalOrigin = "https://api.internal";
   // Read through this data center's memo, so KV reads don't grow with players.
@@ -74,7 +107,7 @@ export async function onRequest(context: any): Promise<Response> {
     // on its own, and the list is then cached only briefly. The picture
     // hashes read under this assets version are kept for the next builds.
     build: () => buildDataPayload(reader, `data/${game}/${entity}`, { cache, version: assetsVersion }),
-    waitUntil: context.waitUntil && ((promise) => context.waitUntil(promise)),
+    waitUntil: context.waitUntil?.bind(context),
     label: "Mobile data API",
   });
 }

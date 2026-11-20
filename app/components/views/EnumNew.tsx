@@ -18,29 +18,29 @@ import { useWatch } from "react-hook-form";
 import { slugify } from "~/lib/slug";
 
 function AutoGenerateId() {
-  const { control, setValue, formState: { touchedFields } } = useFormContext<GlobalEnum>();
+  const { control, setValue, getValues, formState: { touchedFields } } = useFormContext<GlobalEnum>();
+  // Only a new name moves the id: typing in the id itself must not set it back.
   const nameValue = useWatch({ control, name: "name" });
-  const idValue = useWatch({ control, name: "id" });
 
   useEffect(() => {
     if (nameValue && typeof nameValue === "string" && !touchedFields.id) {
       const generatedId = slugify(nameValue);
-      if (idValue !== generatedId) {
+      if (getValues("id") !== generatedId) {
         setValue("id", generatedId, {
           shouldValidate: true,
           shouldDirty: true,
         });
       }
     }
-  }, [nameValue, touchedFields.id, setValue, idValue]);
+  }, [nameValue, touchedFields.id, setValue, getValues]);
 
   return null;
 }
 
 function AutoGenerateOptionId({ index }: { index: number }) {
-  const { control, setValue, formState: { touchedFields } } = useFormContext<GlobalEnum>();
+  const { control, setValue, getValues, formState: { touchedFields } } = useFormContext<GlobalEnum>();
+  // Only a new label moves the id: typing in the id itself must not set it back.
   const nameValue = useWatch({ control, name: `options.${index}.name` });
-  const idValue = useWatch({ control, name: `options.${index}.id` });
 
   useEffect(() => {
     if (
@@ -49,7 +49,7 @@ function AutoGenerateOptionId({ index }: { index: number }) {
       !touchedFields?.options?.[index]?.id
     ) {
       const generatedId = slugify(nameValue);
-      if (idValue !== generatedId) {
+      if (getValues("options")[index].id !== generatedId) {
         setValue(`options.${index}.id`, generatedId, {
           shouldValidate: true,
           shouldDirty: true,
@@ -60,7 +60,7 @@ function AutoGenerateOptionId({ index }: { index: number }) {
     nameValue,
     touchedFields?.options?.[index]?.id,
     setValue,
-    idValue,
+    getValues,
     index,
   ]);
 

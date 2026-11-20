@@ -228,7 +228,8 @@ export async function runImport(opts: {
   try {
     const items = await classify(repo, game, job, schema, await fetchAndMap(job, schema, opts.fetcher));
     const fresh = items.filter((item) => item.status === "new").slice(0, job.max_items);
-    const result = { found: items.length, added: fresh.length, skipped: items.length - fresh.length };
+    // What the commit drafts, worked out on the head it goes on: ids dismissed meanwhile aren't drafted.
+    let result = { found: items.length, added: fresh.length, skipped: items.length - fresh.length };
     await repo.edit({
       reads: [p.state],
       changes: (current) => {
@@ -244,10 +245,10 @@ export async function runImport(opts: {
             problems: item.problems,
           } satisfies ImportDraft,
         }));
-        const last_result = { found: items.length, added: kept.length, skipped: items.length - kept.length };
-        return [...drafts, { path: p.state, content: { ...state, last_sync: now, last_sync_attempt: now, last_result } satisfies ImportState }];
+        result = { found: items.length, added: kept.length, skipped: items.length - kept.length };
+        return [...drafts, { path: p.state, content: { ...state, last_sync: now, last_sync_attempt: now, last_result: result } satisfies ImportState }];
       },
-      message: fresh.length > 0 ? `Import ${fresh.length} draft(s) from ${job.id}` : `Import run: ${job.id} (nothing new)`,
+      message: () => (result.added > 0 ? `Import ${String(result.added)} draft(s) from ${job.id}` : `Import run: ${job.id} (nothing new)`),
     });
     return result;
   } catch (err) {

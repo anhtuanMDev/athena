@@ -27,7 +27,7 @@ interface AbilitiesFieldProps {
   game: string;
   /** The pictures of the form's abilities, by abilityKey. Without them, the form has no pictures to save and shows no upload. */
   abilityIcons?: Record<string, ImageEntry[]>;
-  setAbilityIcons?: (icons: Record<string, ImageEntry[]>) => void;
+  setAbilityIcons?: React.Dispatch<React.SetStateAction<Record<string, ImageEntry[]>>>;
   subFields?: DynamicField[];
   /** The schema's ability (or weapon) types; without them, the type is typed freely. */
   options?: string[];
@@ -88,9 +88,10 @@ export function AbilitiesField({
                     <MultiImageUploadField
                       label="Icons"
                       entries={abilityIcons[dataId] || []}
-                      onChange={(newIcons: ImageEntry[]) =>
-                        setAbilityIcons({ ...abilityIcons, [dataId]: newIcons })
-                      }
+                      onChange={(update) => {
+                        // On the icons as they are then: another ability's picture may have landed since this render.
+                        setAbilityIcons((icons) => ({ ...icons, [dataId]: update(icons[dataId] ?? []) }));
+                      }}
                       defaultKey="main"
                     />
                   </div>

@@ -42,7 +42,7 @@ export function DynamicFieldsRenderer({
                 label={f.label}
                 game={game}
                 abilityIcons={abilityIcons}
-                setAbilityIcons={setAbilityIcons as any}
+                setAbilityIcons={setAbilityIcons}
                 subFields={f.subFields || []}
                 options={f.options}
               />

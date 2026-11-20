@@ -20,7 +20,6 @@ pages_build_output_dir = "./build/client"
 #                           notifying players when a record is published: app/lib/push.ts)
 #
 # Set these in the Cloudflare Pages dashboard (Settings → Environment variables):
-#   NODE_ENV = production
 #   COOKIE_SECURE = true   (set to "false" for local dev)
 # ==========================================================
 

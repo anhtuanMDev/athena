@@ -17,14 +17,20 @@ import {
 } from "../app/lib/categories";
 import * as categoriesLib from "../app/lib/categories";
 import { versionKeysToBump } from "../app/lib/github-webhook";
-import type { DataRepo, FileChange } from "../app/lib/importer/repo";
 import { publishDraft, recordFolder } from "../app/lib/importer/run";
 import { MOBILE_INIT_VERSION_KEY, mobileDataVersionKey, mobileVersionKeyForPath } from "../app/lib/mobile-cache-version";
-import { templateFieldsByCategory } from "../app/lib/notify-template";
 import { buildInitPayload, servedFolders, type RepoReader } from "../app/lib/mobile-payload";
+import { templateFieldsByCategory } from "../app/lib/notify-template";
 import { dataWriteProblems, validateDataFile, validateSchemaFile } from "../app/lib/screen-policy";
 import { encodeUtf8Base64 } from "../app/lib/utf8-base64";
-import { onRequest as mobileData } from "../functions/mobile/data";
+
+import type { DataRepo, FileChange } from "../app/lib/importer/repo";
+
+// The Function is type-checked with Workers' types (functions/tsconfig.json);
+// a computed specifier keeps it out of this DOM-typed program, as for the API.
+type MobileHandler = (context: unknown) => Promise<Response>;
+const MOBILE_DATA = "../functions/mobile/data.ts";
+const { onRequest: mobileData } = (await import(MOBILE_DATA)) as { onRequest: MobileHandler };
 
 const REAL_FILE = readFileSync(new URL("./fixtures/categories.json", import.meta.url), "utf8");
 const EVENTS: Category = { category: "event", folder: "events", label: "Events", singular: "Event", icon: "calendar", favoritable: false };

@@ -1,5 +1,3 @@
-import { redirect } from "react-router";
-
 export async function login(password: string): Promise<void> {
   const res = await fetch("/api/auth/login", {
     method: "POST",
@@ -41,9 +39,4 @@ export async function checkSession(): Promise<boolean> {
     }
   }
   return data.authenticated;
-}
-
-export async function requireAdmin(): Promise<void> {
-  const ok = await checkSession();
-  if (!ok) throw redirect("/login");
 }

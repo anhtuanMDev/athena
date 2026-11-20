@@ -11,8 +11,14 @@ import {
   mobileVersionKeyForPath,
 } from "../app/lib/mobile-cache-version";
 import { onRequestPost as githubWebhook, type Env as WebhookEnv } from "../functions/api/webhooks/github";
-import { onRequest as mobileData } from "../functions/mobile/data";
-import { onRequest as mobileInit } from "../functions/mobile/init";
+
+// The Functions are type-checked with Workers' types (functions/tsconfig.json);
+// computed specifiers keep them out of this DOM-typed program, as for the API.
+type MobileHandler = (context: unknown) => Promise<Response>;
+const MOBILE_DATA = "../functions/mobile/data.ts";
+const MOBILE_INIT = "../functions/mobile/init.ts";
+const { onRequest: mobileData } = (await import(MOBILE_DATA)) as { onRequest: MobileHandler };
+const { onRequest: mobileInit } = (await import(MOBILE_INIT)) as { onRequest: MobileHandler };
 
 /** A KV namespace that records every read and write. */
 function recordingKv(failReads = false) {

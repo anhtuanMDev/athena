@@ -12,6 +12,13 @@ export interface Env {
   GITHUB_BRANCH?: string;
 }
 
+/** What this Function reads of the context Pages calls it with (EventContext); waitUntil is left out by tests. */
+interface MobileContext {
+  request: Request;
+  env: Env;
+  waitUntil?: (promise: Promise<unknown>) => void;
+}
+
 function json(data: unknown, status = 200, headers: HeadersInit = {}): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -19,9 +26,9 @@ function json(data: unknown, status = 200, headers: HeadersInit = {}): Response 
   });
 }
 
-export async function onRequest(context: any): Promise<Response> {
+export async function onRequest(context: MobileContext): Promise<Response> {
   const { env, request } = context;
-  const cache = (caches as any).default;
+  const cache = caches.default;
   const internalOrigin = "https://api.internal";
   // Read through this data center's memo, so KV reads don't grow with players.
   const [version, assetsVersion] = await Promise.all([
@@ -45,7 +52,7 @@ export async function onRequest(context: any): Promise<Response> {
       const active = await activeGames(cache, reader);
       return active === null || games.every((game) => active.includes(game));
     },
-    waitUntil: context.waitUntil && ((promise) => context.waitUntil(promise)),
+    waitUntil: context.waitUntil?.bind(context),
     label: "Mobile init API",
   });
 }

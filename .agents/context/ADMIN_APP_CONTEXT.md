@@ -287,6 +287,10 @@ anything else: JSON 404
   folder, plus `cron_jobs` and `schemas`, for anything that holds the id, and **blocks**
   the delete while something references the record. Only folders that couldn't be read
   can be overridden with a checkbox.
+- A schema is blocked while records use it (their `schema_id`, or none when it's the
+  category's default), and while app screens list records through it: a source that names
+  it, or, when it's its category's last schema, any source that lists the category
+  (`app/lib/schema-usage.ts`). The schema editor never changes a schema's category.
 - The record's own pictures are removed in the same commit
   (`POST /api/data/delete-record`), except any another record still points at
   (`app/lib/record-assets.ts`).
@@ -322,7 +326,7 @@ anything else: JSON 404
 ### 6.12 `/activity`
 
 - **Data:** `GET /api/data/commits` - the repo's last 20 commits
-  (`/repos/:owner/:repo/commits?per_page=20`, the default branch).
+  (`/repos/:owner/:repo/commits?per_page=20&sha=<GITHUB_BRANCH>`, the data branch).
 - **UI:** commit message, timestamp, link to the commit on GitHub. Since there's no
   separate database, git history _is_ the changelog - imports and hand edits included.
 
@@ -616,14 +620,16 @@ athena/
     entry.client.tsx         # Zod jitless (§7.8)
     lib/
       github.ts              # browser wrapper for /api (api(), ConflictError, prune)
+      use-data.ts, data-cache.ts # useData, and the answers pages share for 5 minutes
       github-graphql.ts      # GraphQL folder reads (§7.1)
       mobile-payload.ts      # /mobile payloads and the RepoReader they use
       mobile-cache-version.ts# cache versions (§7.7)
       session.ts, login-attempts.ts, auth.ts, password.ts
-      importer/              # fetch-source, map, run, repo, run-log (shared with workers/cron)
-      screen-model.ts, screen-policy.ts, reference-labels.ts, enum-options.ts
+      importer/              # fetch-source, map, run, repo, run-log, edit-message (shared with workers/cron)
+      screen-model.ts, screen-policy.ts, reference-labels.ts, enum-options.ts, schema-usage.ts
       categories.ts, games.ts, games-guard.ts, record-schema.ts, record-assets.ts, push.ts
       diff.ts, safe-path.ts, csp-hashes.ts, asset-headers.ts
+      image-entries.ts, field-focus.ts # picture-list fields' changes, FormField's focus handlers
     components/
       views/                 # page views (HeroesList, RecordEditor, ScreenEdit, …)
       layout-editor/         # BlockPreview, PropControl (screen editor)
@@ -639,7 +645,7 @@ athena/
   tools/admin-password.ts    # makes ADMIN_PASSWORD_HASH (npm run admin-password, §6.1)
   tests/                     # node --test suites (npm test)
   .github/workflows/ci.yml
-  .node-version, wrangler.toml, .env.example, DESIGN.md
+  .node-version, wrangler.toml, .env.example, DESIGN.md, README.md
 ```
 
 ---
@@ -715,12 +721,7 @@ fail, naming the fixture and the hash it expected.
 
 ### Known gaps
 
-- `README.md` is still the React Router template.
-- The `Dockerfile` runs `npm run start`, and `package.json` has no `start` script.
-- `WORKER_PURGE_URL` / `WORKER_PURGE_SECRET` are declared in the Function's `Env` but
-  nothing reads them, and no code reads `NODE_ENV` (only a `wrangler.toml` comment
-  mentions it).
-- `/activity` lists the repo's default branch, not `GITHUB_BRANCH`.
+- `.env.example` still mentions `NODE_ENV`, which no code reads.
 
 ---
 
