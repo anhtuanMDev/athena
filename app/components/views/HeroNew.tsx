@@ -42,22 +42,23 @@ function AutoGenerateId() {
   const {
     control,
     setValue,
+    getValues,
     formState: { touchedFields },
   } = useFormContext<Record<string, unknown>>();
+  // Only a new name moves the id: typing in the id itself must not set it back.
   const nameValue = useWatch({ control, name: "name" });
-  const idValue = useWatch({ control, name: "id" });
 
   useEffect(() => {
     if (nameValue && typeof nameValue === "string" && !touchedFields.id) {
       const generatedId = slugify(nameValue);
-      if (idValue !== generatedId) {
+      if (getValues("id") !== generatedId) {
         setValue("id", generatedId, {
           shouldValidate: true,
           shouldDirty: true,
         });
       }
     }
-  }, [nameValue, touchedFields.id, setValue, idValue]);
+  }, [nameValue, touchedFields.id, setValue, getValues]);
 
   return null;
 }
@@ -88,7 +89,8 @@ export default function NewHero() {
       };
     },
     [game],
-    `${game}-hero-schemas`,
+    // Not the editor's key: it keeps another shape (no game, no count) under its own.
+    `${game ?? ""}-hero-new-schemas`,
   );
 
   if (loading) {

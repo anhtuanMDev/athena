@@ -7,6 +7,8 @@ import { GraphqlUnavailable, SYMLINK_MODE, readAtCommit, readObjects, usableText
 import { jsonFileText } from "../json-file";
 import { decodeUtf8Base64 } from "../utf8-base64";
 
+import { messageOf, runMessage } from "./edit-message";
+
 export interface FileChange {
   path: string;
   /** The file's new JSON content, or null to delete it. */
@@ -34,7 +36,8 @@ export interface Edit {
   reads: string[];
   /** The changes, given each of `reads` as it is at that head (null: no such file). It may throw to refuse. */
   changes(current: ReadonlyMap<string, unknown>): FileChange[];
-  message: string;
+  /** The commit's message; a function is asked after `changes`, so it can say what they wrote on that head. */
+  message: string | (() => string);
 }
 
 export interface DataRepo {
@@ -276,14 +279,18 @@ export function githubRepo(
       // GitHub decodes it: the bytes are never decoded here (a Function has 10 ms of CPU).
       return (await call<{ sha: string }>("POST", "/git/blobs", { content: base64, encoding: "base64" })).sha;
     },
-    async edit({ reads, changes, message }) {
+    async edit(edit) {
+      const { reads } = edit;
       // What reads nothing is the same on any head: nothing to write, no request.
-      if (reads.length === 0 && changes(new Map()).length === 0) return;
+      if (reads.length === 0 && edit.changes(new Map()).length === 0) {
+        return;
+      }
       for (let attempt = 1; ; attempt++) {
         const parent = await head();
         const { tree, files } = await readAt(parent, reads);
-        const list = changes(files);
+        const list = edit.changes(files);
         if (list.length === 0) return;
+        const message = messageOf(edit.message);
         try {
           await commitOnce(list, message, parent, tree);
           return;
@@ -394,15 +401,15 @@ export function runRepo(base: DataRepo & Partial<BulkReader> & { readonly editAt
     async flush(extra) {
       const edits = held.splice(0);
       const log = extra && extra.changes.length > 0 ? extra : undefined;
-      const messages = [...edits.map((e) => e.message), ...(log ? [log.message] : [])];
-      if (messages.length === 0) return;
-      const jobs = edits.length;
-      const message = messages.length === 1 ? messages[0] : `Import run: ${jobs} job${jobs === 1 ? "" : "s"}\n\n${messages.join("\n")}`;
+      if (edits.length === 0 && log === undefined) {
+        return;
+      }
       // Each job's changes worked out on the head the run's one commit goes on.
       await base.edit({
         reads: [...new Set(edits.flatMap((e) => e.reads))],
         changes: (current) => [...edits.flatMap((e) => e.changes(current)), ...(log?.changes ?? [])],
-        message,
+        // Asked once the jobs' changes are, so each job's line says what it wrote.
+        message: () => runMessage([...edits.map((job) => messageOf(job.message)), ...(log ? [log.message] : [])], edits.length),
       });
     },
   };

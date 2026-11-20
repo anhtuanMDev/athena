@@ -322,7 +322,7 @@ anything else: JSON 404
 ### 6.12 `/activity`
 
 - **Data:** `GET /api/data/commits` - the repo's last 20 commits
-  (`/repos/:owner/:repo/commits?per_page=20`, the default branch).
+  (`/repos/:owner/:repo/commits?per_page=20&sha=<GITHUB_BRANCH>`, the data branch).
 - **UI:** commit message, timestamp, link to the commit on GitHub. Since there's no
   separate database, git history _is_ the changelog - imports and hand edits included.
 
@@ -717,7 +717,6 @@ fail, naming the fixture and the hash it expected.
 ### Known gaps
 
 - `.env.example` still mentions `NODE_ENV`, which no code reads.
-- `/activity` lists the repo's default branch, not `GITHUB_BRANCH`.
 
 ---
 

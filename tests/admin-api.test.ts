@@ -538,3 +538,39 @@ describe("saving games.json", () => {
     assert.deepEqual(calls, []);
   });
 });
+
+void describe("the activity page's commits (GET /api/data/commits)", () => {
+  /** GitHub's commits list, remembering each URL asked for. */
+  function commitsGitHub(): string[] {
+    const asked: string[] = [];
+    globalThis.fetch = async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : input.toString();
+      asked.push(url);
+      return Response.json([{ sha: "c1", html_url: "https://github.com/o/r/commit/c1", commit: { message: "Update hero: Ana", committer: { date: "2026-11-20T00:00:00Z" } } }]);
+    };
+    return asked;
+  }
+  const commits = async (env: Record<string, unknown>) =>
+    call("/api/data/commits", { headers: cookie(await createSessionToken(SECRET, "0")), kv: recordingKv().kv, env });
+
+  void it("lists the data branch's commits, not the repo's default branch", async () => {
+    const asked = commitsGitHub();
+    const res = await commits({ GITHUB_BRANCH: "staging" });
+    assert.equal(res.status, 200);
+    assert.equal(asked.length, 1);
+    const url = new URL(asked[0] ?? "");
+    assert.equal(url.pathname, "/repos/o/r/commits");
+    assert.equal(url.searchParams.get("sha"), "staging");
+    assert.equal(url.searchParams.get("per_page"), "20");
+    assert.deepEqual(await res.json(), {
+      commits: [{ sha: "c1", message: "Update hero: Ana", date: "2026-11-20T00:00:00Z", url: "https://github.com/o/r/commit/c1" }],
+      error: null,
+    });
+  });
+
+  void it("lists main's when no branch is set, as every other read does", async () => {
+    const asked = commitsGitHub();
+    await commits({});
+    assert.equal(new URL(asked[0] ?? "").searchParams.get("sha"), "main");
+  });
+});

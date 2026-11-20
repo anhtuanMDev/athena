@@ -101,19 +101,25 @@ export default function EnumEdit() {
   );
 }
 
-function AutoGenerateOptionId({ index }: { index: number }) {
-  const { control, setValue, formState: { touchedFields } } = useFormContext<GlobalEnum>();
+/**
+ * An option's id follows its label until the id is edited: for a new option
+ * only. A saved option's id is what records store (modes say "push"), so it
+ * never changes with the label.
+ */
+function AutoGenerateOptionId({ index, isLoaded }: { index: number; isLoaded: boolean }) {
+  const { control, setValue, getValues, formState: { touchedFields } } = useFormContext<GlobalEnum>();
+  // Only a new label moves the id: typing in the id itself must not set it back.
   const nameValue = useWatch({ control, name: `options.${index}.name` });
-  const idValue = useWatch({ control, name: `options.${index}.id` });
 
   useEffect(() => {
     if (
+      !isLoaded &&
       nameValue &&
       typeof nameValue === "string" &&
       !touchedFields?.options?.[index]?.id
     ) {
       const generatedId = slugify(nameValue);
-      if (idValue !== generatedId) {
+      if (getValues("options")[index].id !== generatedId) {
         setValue(`options.${index}.id`, generatedId, {
           shouldValidate: true,
           shouldDirty: true,
@@ -124,8 +130,9 @@ function AutoGenerateOptionId({ index }: { index: number }) {
     nameValue,
     touchedFields?.options?.[index]?.id,
     setValue,
-    idValue,
+    getValues,
     index,
+    isLoaded,
   ]);
 
   return null;
@@ -137,6 +144,8 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
     control,
     name: `options.${optionIndex}.params`,
   });
+  // The params the enum was saved with: their ids are stored values, so they never follow a label.
+  const [loadedParams] = useState(() => new Set(fields.map((param) => param.id)));
 
   return (
     <div className="space-y-3 mt-4 border-t border-border pt-4">
@@ -198,7 +207,7 @@ function OptionParamsEditor({ optionIndex }: { optionIndex: number }) {
                             labelField.onChange(e);
                             const label = e.target.value;
                             const isTouched = control._formState.touchedFields?.options?.[optionIndex]?.params?.[index]?.id;
-                            if (!isTouched) {
+                            if (!isTouched && !loadedParams.has(field.id)) {
                               setValue(`options.${optionIndex}.params.${index}.id`, label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/(^_|_$)/g, ""), { shouldValidate: true, shouldDirty: true });
                             }
                           }}
@@ -331,6 +340,8 @@ function EditEnumForm({
     control,
     name: "options",
   });
+  // The options the enum was saved with (their form keys): their ids never follow a label.
+  const [loadedOptions] = useState(() => new Set(fields.map((option) => option.id)));
 
   const onSubmitPreview = async (formData: GlobalEnum) => {
     setSubmitting(true);
@@ -532,7 +543,7 @@ function EditEnumForm({
               key={field.id}
               className="flex gap-3 items-start p-3 bg-surface border border-border rounded-lg"
             >
-              <AutoGenerateOptionId index={index} />
+              <AutoGenerateOptionId index={index} isLoaded={loadedOptions.has(field.id)} />
               <div className="flex-1 grid grid-cols-1 gap-3">
                 <div className="grid grid-cols-2 gap-3">
                   <FormField

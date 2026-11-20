@@ -1,20 +1,16 @@
 import { Plus, Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { iconKeyProblem } from "~/lib/ability-icons";
+import { entryHandlers, type EntriesUpdate, type ImageEntry } from "~/lib/image-entries";
 import { PICTURE_ACCEPT, pictureFileProblem } from "~/lib/picture-rules";
 
-export interface ImageEntry {
-  id: string;
-  key: string;
-  name?: string;
-  base64?: string;
-  previewUrl?: string;
-}
+export type { ImageEntry } from "~/lib/image-entries";
 
 interface MultiImageUploadFieldProps {
   label: string;
   entries: ImageEntry[];
-  onChange: (entries: ImageEntry[]) => void;
+  /** Given an update of the list as it is then (a state setter takes it as is): see image-entries.ts. */
+  onChange: (update: EntriesUpdate) => void;
   defaultKey?: string;
 }
 
@@ -24,23 +20,7 @@ export function MultiImageUploadField({
   onChange,
   defaultKey = "main",
 }: MultiImageUploadFieldProps) {
-  const addEntry = () => {
-    onChange([
-      ...entries,
-      {
-        id: Math.random().toString(36).substring(7),
-        key: entries.length === 0 ? defaultKey : "",
-      },
-    ]);
-  };
-
-  const updateEntry = (id: string, updates: Partial<ImageEntry>) => {
-    onChange(entries.map((e) => (e.id === id ? { ...e, ...updates } : e)));
-  };
-
-  const removeEntry = (id: string) => {
-    onChange(entries.filter((e) => e.id !== id));
-  };
+  const { add: addEntry, update: updateEntry, remove: removeEntry } = entryHandlers({ onChange, defaultKey });
 
   return (
     <div className="space-y-3">

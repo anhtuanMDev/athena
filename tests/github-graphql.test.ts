@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import { Octokit } from "@octokit/rest";
 
 import { graphqlStatus } from "../app/lib/github-graphql";
+import { messageOf } from "../app/lib/importer/edit-message";
 import { githubRepo, runRepo, type DataRepo, type FileChange } from "../app/lib/importer/repo";
 import { buildDataPayload, buildInitPayload, githubReader, readJsonFolder } from "../app/lib/mobile-payload";
 import { createSessionToken } from "../app/lib/session";
@@ -180,7 +181,7 @@ describe("reading a folder through GitHub GraphQL", () => {
   });
 
   for (const failure of [401, 403, "errors", "partial-errors", "malformed", "network"] as const) {
-    it(`falls back to REST when GraphQL fails as a whole (${failure}), says so once, and never repeats GitHub's message`, async () => {
+    void it(`falls back to REST when GraphQL fails as a whole (${String(failure)}), says so once, and never repeats GitHub's message`, async () => {
       const r = readers(news(12), { graphql: failure });
       const reader = r.graphql();
       const first = await readJsonFolder(reader, NEWS);
@@ -380,7 +381,12 @@ describe("an import run's reads (importer/repo.ts runRepo)", () => {
     const base: DataRepo = {
       list: async () => [],
       read: async () => null,
-      edit: async ({ reads, changes, message }) => void made.push({ reads, changes: changes(new Map(reads.map((p) => [p, head.get(p) ?? null]))), message }),
+      // The run's one commit, its message asked once its changes are worked out, as githubRepo does.
+      edit: (edit) => {
+        const changes = edit.changes(new Map(edit.reads.map((path) => [path, head.get(path) ?? null])));
+        made.push({ reads: edit.reads, changes, message: messageOf(edit.message) });
+        return Promise.resolve();
+      },
     };
     const repo = runRepo(base);
     const change = (path: string, content: unknown = { id: path }) => ({ path, content });

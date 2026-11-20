@@ -1108,6 +1108,8 @@ async function handleCommits(context: PagesFunctionContext): Promise<Response> {
   const token = env.GITHUB_TOKEN;
   const owner = env.GITHUB_OWNER ?? "YOUR_ORG";
   const repo = env.GITHUB_REPO ?? "YOUR_REPO";
+  // The data branch's history, which every save commits to: the repo's default branch may be another.
+  const branch = env.GITHUB_BRANCH ?? "main";
 
   if (!token) {
     return json({ commits: [], error: "GITHUB_TOKEN not configured" });
@@ -1115,7 +1117,7 @@ async function handleCommits(context: PagesFunctionContext): Promise<Response> {
 
   try {
     const response = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/commits?per_page=20`,
+      `https://api.github.com/repos/${owner}/${repo}/commits?per_page=20&sha=${encodeURIComponent(branch)}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
