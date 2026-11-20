@@ -1,87 +1,60 @@
-# Welcome to React Router!
+# athena
 
-A modern, production-ready template for building full-stack React applications using React Router.
+The admin for a hero shooter companion app. It edits the app's data, JSON files kept in
+a separate GitHub repository, and serves that data to the mobile app.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+- **Admin**: a React Router single-page app (`ssr: false`) served as static files by
+  Cloudflare Pages. Every save is a commit to the data repository.
+- **API**: Pages Functions. `functions/api/[[path]].ts` is the admin's API and holds
+  the GitHub token; `functions/mobile/*` serves the mobile app, cached per data center.
+- **Cron Worker**: `workers/cron` runs import jobs on a schedule and leaves drafts for
+  review in the admin.
 
-## Features
+The full description (pages, API, environment, limits) is in
+[`.agents/context/ADMIN_APP_CONTEXT.md`](.agents/context/ADMIN_APP_CONTEXT.md); the data
+model is in [`.agents/context/DATA_STRUCTURE.md`](.agents/context/DATA_STRUCTURE.md).
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
+## Layout
 
-## Getting Started
-
-### Installation
-
-Install the dependencies:
-
-```bash
-npm install
+```
+app/          the admin: routes, views, and the shared libraries (app/lib) the Functions use too
+functions/    Pages Functions: /api/* and /mobile/*
+workers/cron/ the import Worker, with its own package.json and wrangler.toml
+tools/        validate-data.ts (the data repository's validator), admin-password.ts
+tests/        node --test suites
 ```
 
-### Development
+## Development
 
-Start the development server with HMR:
+Use the Node version in `.node-version` (wrangler needs Node 22 or later).
 
 ```bash
-npm run dev
+npm ci
+npm run dev        # the admin, with /api proxied to 127.0.0.1:8788
+npm run wrangler   # the Functions on port 8788
 ```
 
-Your application will be available at `http://localhost:5173`.
+The Functions read their settings from `wrangler.toml` and the environment; the list of
+variables is in the context document (§4).
 
-## Building for Production
-
-Create a production build:
+## Checks
 
 ```bash
+npm test                                   # unit and API tests
+npm run typecheck                          # the admin
+npx --no-install tsc -p functions --noEmit # the Functions
+npx --no-install tsc -p workers/cron --noEmit
 npm run build
 ```
 
+CI (`.github/workflows/ci.yml`) runs the same on every pull request.
+
 ## Deployment
 
-### Docker Deployment
-
-To build and run using Docker:
-
 ```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
+npm run pages:deploy               # build, then deploy the admin and the Functions
+cd workers/cron && npm run deploy  # the cron Worker, on its own
 ```
 
-The containerized application can be deployed to any platform that supports Docker, including:
-
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
-```
-
-## Styling
-
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
-
----
-
-Built with ❤️ using React Router.
+`npm run admin-password` makes the sign-in's verifier (`ADMIN_PASSWORD_HASH`) on your own
+computer.

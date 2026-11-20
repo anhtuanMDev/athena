@@ -69,7 +69,3 @@ export const GameSchema = z.object({
 });
 
 export type Game = z.infer<typeof GameSchema>;
-
-export const GamesFileSchema = z.object({
-  games: z.array(GameSchema),
-});

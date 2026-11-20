@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router";
+import { useState, useEffect } from "react";
 
 const globalCache = new Map<string, { data: unknown; timestamp: number }>();
 const MAX_CACHE_SIZE = 100;
@@ -107,9 +106,4 @@ export function clearDataCache(keyPrefix?: string) {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("CACHE_INVALIDATED", { detail: { keyPrefix } }));
   }
-}
-
-export function useRedirect() {
-  const navigate = useNavigate();
-  return useCallback((to: string) => navigate(to), [navigate]);
 }

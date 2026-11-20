@@ -639,7 +639,7 @@ athena/
   tools/admin-password.ts    # makes ADMIN_PASSWORD_HASH (npm run admin-password, §6.1)
   tests/                     # node --test suites (npm test)
   .github/workflows/ci.yml
-  .node-version, wrangler.toml, .env.example, DESIGN.md
+  .node-version, wrangler.toml, .env.example, DESIGN.md, README.md
 ```
 
 ---
@@ -715,11 +715,7 @@ fail, naming the fixture and the hash it expected.
 
 ### Known gaps
 
-- `README.md` is still the React Router template.
-- The `Dockerfile` runs `npm run start`, and `package.json` has no `start` script.
-- `WORKER_PURGE_URL` / `WORKER_PURGE_SECRET` are declared in the Function's `Env` but
-  nothing reads them, and no code reads `NODE_ENV` (only a `wrangler.toml` comment
-  mentions it).
+- `.env.example` still mentions `NODE_ENV`, which no code reads.
 - `/activity` lists the repo's default branch, not `GITHUB_BRANCH`.
 
 ---

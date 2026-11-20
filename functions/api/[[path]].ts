@@ -40,8 +40,6 @@ export interface Env {
   ADMIN_PASSWORD_HASH?: string;
   SESSION_SECRET: string;
   COOKIE_SECURE?: string;
-  WORKER_PURGE_URL?: string;
-  WORKER_PURGE_SECRET?: string;
   /** A Firebase service account's JSON key; without it, publishing never notifies players. */
   FCM_SERVICE_ACCOUNT?: string;
 }
