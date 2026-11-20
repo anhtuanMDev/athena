@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { contentToSave, editedAfterImport, fieldsLeftBehind, heldId, importedRecord } from "../app/lib/record-form";
+import { contentToSave, editedAfterImport, fieldsLeftBehind, heldId, idFromName, importedRecord } from "../app/lib/record-form";
 import { modeRecordSchema } from "../app/lib/record-schema";
 
 import type { DynamicField, DynamicSchemaFile } from "../app/schemas/dynamic-schema";
@@ -108,5 +108,18 @@ void describe("a switch to another schema", () => {
   void it("never drops what every record has: its id, name, game, description and schema", () => {
     const from = [field("name"), field("description"), field("game"), field("id"), field("schema_id"), field("rounds", "number")];
     assert.deepEqual(fieldsLeftBehind(from, []), ["rounds"]);
+  });
+});
+
+void describe("a new record's id", () => {
+  void it("follows its name until it's typed", () => {
+    assert.equal(idFromName({ name: "Soldier: 76", isTouched: false }), "soldier-76");
+    assert.equal(idFromName({ name: "Soldier: 76", isTouched: true }), null);
+    assert.equal(idFromName({ name: "", isTouched: false }), null);
+  });
+
+  void it("holds while the form keeps one, such as an id an AI import gave", () => {
+    assert.equal(idFromName({ name: "Soldier: 76", isTouched: false, keptId: "soldier76" }), null);
+    assert.equal(idFromName({ name: "Soldier: 76", isTouched: false, keptId: "" }), "soldier-76");
   });
 });

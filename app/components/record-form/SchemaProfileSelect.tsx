@@ -6,11 +6,13 @@ interface SchemaProfileSelectProps {
   schemas: DynamicSchemaFile[];
   value: string;
   onChange: (schemaId: string) => void;
+  /** A line under the picker. */
+  hint?: string;
   className?: string;
 }
 
 /** Which of its category's schemas a record follows, when there are several. */
-export function SchemaProfileSelect({ label, schemas, value, onChange, className = "mb-8" }: SchemaProfileSelectProps) {
+export function SchemaProfileSelect({ label, schemas, value, onChange, hint, className = "mb-8" }: SchemaProfileSelectProps) {
   return (
     <div className={`${className} p-4 bg-surface-raised border border-border rounded-xl`}>
       <label className="block text-sm font-bold mb-2 text-ink">{label}</label>
@@ -28,6 +30,7 @@ export function SchemaProfileSelect({ label, schemas, value, onChange, className
           </option>
         ))}
       </select>
+      {hint !== undefined && <p className="text-xs text-ink-muted mt-2">{hint}</p>}
     </div>
   );
 }

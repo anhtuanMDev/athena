@@ -1,6 +1,7 @@
 import { computeDiff } from "./diff";
 import { schemaOf } from "./record-schema";
 import { formatImportedJson } from "./schema-utils";
+import { slugify } from "./slug";
 
 import type { DynamicField, DynamicSchemaFile } from "~/schemas/dynamic-schema";
 
@@ -70,4 +71,17 @@ export function contentToSave(stored: unknown, saved: unknown): unknown {
 export function fieldsLeftBehind(from: readonly DynamicField[], to: readonly DynamicField[]): string[] {
   const kept = new Set(to.map((entry) => entry.key));
   return from.map((entry) => entry.key).filter((key) => !kept.has(key) && !RECORD_KEYS.has(key));
+}
+
+/**
+ * The id a new record's name gives it, or null while the id holds: once it's
+ * typed (its field touched), or while the form keeps one (`keptId`: Edit's
+ * file name, an id an AI import gave).
+ */
+export function idFromName({ name, isTouched, keptId }: { name: unknown; isTouched: boolean; keptId?: string }): string | null {
+  const isKept = keptId !== undefined && keptId !== "";
+  if (typeof name !== "string" || name === "" || isTouched || isKept) {
+    return null;
+  }
+  return slugify(name);
 }
