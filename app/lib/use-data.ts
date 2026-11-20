@@ -1,109 +1,78 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useEffectEvent } from "react";
 
-const globalCache = new Map<string, { data: unknown; timestamp: number }>();
-const MAX_CACHE_SIZE = 100;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-const inFlight = new Map<string, Promise<unknown>>();
+import { INVALIDATED_EVENT, cachedData, forgetEntries, freshEntry, isInvalidated, loadOnce, storeEntry } from "./data-cache";
 
 export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = [], cacheKeyOverride?: string) {
   const key = `${cacheKeyOverride || 'useData-fallback'}-${JSON.stringify(deps)}`;
-  
-  const [data, setData] = useState<T | null>(() => {
-    if (key && globalCache.has(key)) {
-      const cached = globalCache.get(key)!;
-      if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
-        return cached.data as T;
-      }
-    }
-    return null;
-  });
-  const [loading, setLoading] = useState(!key || !globalCache.has(key) || (Date.now() - globalCache.get(key)!.timestamp >= CACHE_TTL_MS));
+
+  const [data, setData] = useState<T | null>(() => cachedData(key) as T | null);
+  const [isLoading, setLoading] = useState(() => freshEntry(key) === undefined);
   const [error, setError] = useState<unknown>(null);
   const [tick, setTick] = useState(0);
   const [prevKey, setPrevKey] = useState(key);
 
   if (key !== prevKey) {
     setPrevKey(key);
-    let initialData = null;
-    let initialLoading = true;
-    if (key && globalCache.has(key)) {
-      const cached = globalCache.get(key)!;
-      if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
-        initialData = cached.data as T;
-        initialLoading = false;
-      }
-    }
-    setData(initialData);
-    setLoading(initialLoading);
+    setData(cachedData(key) as T | null);
+    setLoading(freshEntry(key) === undefined);
     setError(null);
   }
 
-  useEffect(() => {
-    let cancelled = false;
-    
-    const isFresh = key && globalCache.has(key) && (Date.now() - globalCache.get(key)!.timestamp < CACHE_TTL_MS);
-    
-    if (!isFresh) {
-      if (!data) setLoading(true);
-      setError(null);
-
-      let fetchPromise = inFlight.get(key) as Promise<T> | undefined;
-      if (!fetchPromise) {
-        fetchPromise = fetcher().finally(() => {
-          inFlight.delete(key);
-        });
-        inFlight.set(key, fetchPromise);
-      }
-
-      fetchPromise
-        .then((d: T) => {
-          if (!cancelled) {
-            setData(d);
-            if (key) {
-              globalCache.set(key, { data: d, timestamp: Date.now() });
-              if (globalCache.size > MAX_CACHE_SIZE) {
-                const firstKey = globalCache.keys().next().value;
-                if (firstKey) globalCache.delete(firstKey);
-              }
-            }
-            setLoading(false);
-          }
-        })
-        .catch((e: unknown) => {
-          if (!cancelled) {
-            setError(e);
-            setLoading(false);
-          }
-        });
+  // The latest fetcher and data, for the effects below without re-running them.
+  const load = useEffectEvent(async () => fetcher());
+  const reloadOn = useEffectEvent((event: Event) => {
+    if (!isInvalidated(key, (event as CustomEvent<unknown>).detail)) {
+      return;
     }
+    // Answers stay on screen while they load again; a page without one shows it's loading.
+    if (data === null) {
+      setLoading(true);
+    }
+    setError(null);
+    setTick((count) => count + 1);
+  });
 
-    return () => { cancelled = true; };
-  }, [...deps, tick]);
+  // Loads the key unless its answer is fresh: one request for every page that asks meanwhile.
+  useEffect(() => {
+    if (freshEntry(key) !== undefined) {
+      return undefined;
+    }
+    let isCancelled = false;
+    loadOnce(key, async () => load())
+      .then((answer) => {
+        if (!isCancelled) {
+          setData(answer);
+          storeEntry(key, answer);
+          setLoading(false);
+        }
+      })
+      .catch((reason: unknown) => {
+        if (!isCancelled) {
+          setError(reason);
+          setLoading(false);
+        }
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [key, tick]);
 
   useEffect(() => {
-    const handleInvalidate = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (!detail?.keyPrefix || (key && key.startsWith(detail.keyPrefix))) {
-        setTick((t) => t + 1);
-      }
+    const listener = (event: Event) => {
+      reloadOn(event);
     };
-    window.addEventListener("CACHE_INVALIDATED", handleInvalidate);
-    return () => window.removeEventListener("CACHE_INVALIDATED", handleInvalidate);
-  }, [key]);
+    window.addEventListener(INVALIDATED_EVENT, listener);
+    return () => {
+      window.removeEventListener(INVALIDATED_EVENT, listener);
+    };
+  }, []);
 
-  return { data, loading, error };
+  return { data, loading: isLoading, error };
 }
 
 export function clearDataCache(keyPrefix?: string) {
-  if (keyPrefix) {
-    for (const k of globalCache.keys()) {
-      if (k.startsWith(keyPrefix)) globalCache.delete(k);
-    }
-  } else {
-    globalCache.clear();
-  }
+  forgetEntries(keyPrefix);
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("CACHE_INVALIDATED", { detail: { keyPrefix } }));
+    window.dispatchEvent(new CustomEvent(INVALIDATED_EVENT, { detail: { keyPrefix } }));
   }
 }

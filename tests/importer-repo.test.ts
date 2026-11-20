@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, it, mock } from "node:test";
 
 import { RepoError, githubRepo } from "../app/lib/importer/repo";
 import { dismissDraft } from "../app/lib/importer/run";
+import { createSessionToken } from "../app/lib/session";
 
 // The importer's writes (app/lib/importer/repo.ts githubRepo) against a GitHub
 // of in-memory commits: the git data API, whose ref only moves by
@@ -192,5 +193,141 @@ describe("an import's write to GitHub (githubRepo)", () => {
     const made = git.calls.length;
     await githubRepo(env).edit({ reads: [], changes: () => [], message: "nothing" });
     assert.equal(git.calls.length, made);
+  });
+});
+
+// The import routes (POST /api/imports/{preview,run,publish,dismiss}) as the
+// admin calls them: through the API's onRequest, signed in, on the same
+// in-memory GitHub. The handler is type-checked with Workers' types
+// (functions/tsconfig.json); a computed specifier keeps it out of this program.
+const API_HANDLER = "../functions/api/[[path]].ts";
+const { onRequest } = (await import(API_HANDLER)) as { onRequest: (context: unknown) => Promise<Response> };
+
+const SECRET = "test-session-secret";
+const ORIGIN = "https://athena.example";
+const JOB = "data/overwatch/cron_jobs/news.json";
+const SCHEMA = "data/overwatch/schemas/news-base.json";
+const RECORD = "data/overwatch/news/alpha.json";
+const NEWS_JOB = {
+  id: "news",
+  schema_id: "news-base",
+  api_endpoint: "https://news.example.com/feed.json",
+  items_path: "items",
+  id_from: "slug",
+  field_mappings: { title: "title" },
+};
+const NEWS_SCHEMA = { id: "news-base", name: "News", category: "news", fields: [{ key: "title", label: "Title", type: "string", required: true }] };
+const NEWS_FILES = { [JOB]: NEWS_JOB, [SCHEMA]: NEWS_SCHEMA, [STATE]: { id: "news" }, [DRAFT]: { record: { id: "alpha", title: "Alpha" } } };
+
+/** No session version stored (sessions signed with "0" are current), and writes kept nowhere. */
+const sessionStore = { get: async () => null, put: async () => undefined };
+const realCaches = (globalThis as { caches?: unknown }).caches;
+
+interface ImportCall {
+  body: unknown;
+  isSignedIn?: boolean;
+  headers?: Record<string, string>;
+}
+
+/** POST /api/imports/{action}, from the admin's own page, signed in unless told otherwise. */
+async function importRoute(action: string, { body, isSignedIn = true, headers = {} }: ImportCall): Promise<Response> {
+  const session: Record<string, string> = isSignedIn ? { Cookie: `__admin_session=${await createSessionToken(SECRET, "0")}` } : {};
+  const waits: Promise<unknown>[] = [];
+  const response = await onRequest({
+    request: new Request(`${ORIGIN}/api/imports/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...session, ...headers },
+      body: typeof body === "string" ? body : JSON.stringify(body),
+    }),
+    env: { ...env, RATE_LIMIT_KV: sessionStore, SESSION_SECRET: SECRET },
+    params: {},
+    next: async () => new Response(null),
+    waitUntil: (promise: Promise<unknown>) => waits.push(promise),
+  });
+  await Promise.all(waits);
+  return response;
+}
+
+/** The answer's status and JSON body. */
+async function answerOf(response: Response): Promise<{ status: number; body: unknown }> {
+  return { status: response.status, body: await response.json() };
+}
+
+void describe("the import routes (POST /api/imports/*)", () => {
+  beforeEach(() => {
+    (globalThis as { caches?: unknown }).caches = { default: { match: async () => undefined, put: async () => undefined, delete: async () => true } };
+  });
+  afterEach(() => {
+    (globalThis as { caches?: unknown }).caches = realCaches;
+  });
+
+  void it("need a session, and touch GitHub for nothing without one", async () => {
+    const git = fakeGit(NEWS_FILES);
+    const answer = await answerOf(await importRoute("dismiss", { body: { game: "overwatch", jobId: "news", id: "alpha" }, isSignedIn: false }));
+    assert.deepEqual(answer, { status: 401, body: { error: "Unauthorized" } });
+    assert.deepEqual(git.calls, []);
+  });
+
+  void it("are refused from another site, before the session is read", async () => {
+    const git = fakeGit(NEWS_FILES);
+    const response = await importRoute("dismiss", { body: { game: "overwatch", jobId: "news", id: "alpha" }, headers: { "Sec-Fetch-Site": "cross-site" } });
+    assert.equal(response.status, 403);
+    assert.deepEqual(git.calls, []);
+  });
+
+  void it("answer 404 to an action they don't have", async () => {
+    fakeGit(NEWS_FILES);
+    assert.deepEqual(await answerOf(await importRoute("approve", { body: {} })), { status: 404, body: { error: "Not found" } });
+  });
+
+  void it("refuse ids that could leave the game's folders, and a body that isn't JSON, before any GitHub request", async () => {
+    const git = fakeGit(NEWS_FILES);
+    const badGame = await answerOf(await importRoute("dismiss", { body: { game: "../overwatch", jobId: "news", id: "alpha" } }));
+    assert.deepEqual(badGame, { status: 400, body: { error: "Invalid game." } });
+    const badDraft = await answerOf(await importRoute("dismiss", { body: { game: "overwatch", jobId: "news", id: "../alpha" } }));
+    assert.deepEqual(badDraft, { status: 400, body: { error: "Invalid record id." } });
+    const notJson = await answerOf(await importRoute("run", { body: "not json" }));
+    assert.deepEqual(notJson, { status: 400, body: { error: "Invalid game." } });
+    assert.deepEqual(git.calls, []);
+  });
+
+  void it("answer 404 when the job isn't there", async () => {
+    fakeGit({});
+    const answer = await answerOf(await importRoute("run", { body: { game: "overwatch", jobId: "news" } }));
+    assert.deepEqual(answer, { status: 404, body: { error: "Import job not found." } });
+  });
+
+  void it("answer 502 when the job's source can't be read", async () => {
+    fakeGit(NEWS_FILES);
+    const answer = await importRoute("preview", { body: { game: "overwatch", job: NEWS_JOB } });
+    assert.equal(answer.status, 502);
+  });
+
+  void it("dismiss a draft: it goes, and its id is remembered", async () => {
+    const git = fakeGit(NEWS_FILES);
+    const answer = await answerOf(await importRoute("dismiss", { body: { game: "overwatch", jobId: "news", id: "alpha" } }));
+    assert.deepEqual(answer, { status: 200, body: { ok: true } });
+    assert.equal(git.json(DRAFT), undefined);
+    assert.deepEqual(git.json(STATE), { id: "news", dismissed: ["alpha"] });
+  });
+
+  void it("publish a draft as a record of the job's schema, dropping the draft in the same commit", async () => {
+    const git = fakeGit(NEWS_FILES);
+    const start = git.head();
+    const answer = await answerOf(await importRoute("publish", { body: { game: "overwatch", jobId: "news", record: { id: "alpha", title: "Alpha" } } }));
+    assert.deepEqual(answer, { status: 200, body: { ok: true, path: RECORD } });
+    assert.deepEqual(git.json(RECORD), { id: "alpha", title: "Alpha", schema_id: "news-base" });
+    assert.equal(git.json(DRAFT), undefined);
+    assert.equal(git.calls.filter((call) => call.startsWith("PATCH /git/refs")).length, 1);
+    assert.notEqual(git.head(), start);
+  });
+
+  void it("refuse to publish over a record that exists, or a record the schema doesn't take", async () => {
+    const git = fakeGit({ ...NEWS_FILES, [RECORD]: { id: "alpha", title: "Older" } });
+    const taken = await answerOf(await importRoute("publish", { body: { game: "overwatch", jobId: "news", record: { id: "alpha", title: "Alpha" } } }));
+    assert.deepEqual(taken, { status: 409, body: { error: 'A record with the id "alpha" already exists.' } });
+    const untitled = await importRoute("publish", { body: { game: "overwatch", jobId: "news", record: { id: "beta" } } });
+    assert.equal(untitled.status, 400);
+    assert.deepEqual(git.json(RECORD), { id: "alpha", title: "Older" });
   });
 });

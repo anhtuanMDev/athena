@@ -616,6 +616,7 @@ athena/
     entry.client.tsx         # Zod jitless (§7.8)
     lib/
       github.ts              # browser wrapper for /api (api(), ConflictError, prune)
+      use-data.ts, data-cache.ts # useData, and the answers pages share for 5 minutes
       github-graphql.ts      # GraphQL folder reads (§7.1)
       mobile-payload.ts      # /mobile payloads and the RepoReader they use
       mobile-cache-version.ts# cache versions (§7.7)
