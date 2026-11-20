@@ -78,3 +78,8 @@ export function forgetEntries(keyPrefix?: string): void {
     }
   }
 }
+
+/** A part for one visit's cache key: what a page loads then is its own, and a later visit loads it again. */
+export function newVisitKey(): string {
+  return String(Date.now());
+}
