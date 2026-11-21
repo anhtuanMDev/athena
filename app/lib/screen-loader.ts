@@ -1,5 +1,6 @@
-import { folderFor, normalizeManifest, normalizeSource, type PrimitiveManifest, type SchemaInfo } from "./screen-model";
+import { folderFor, normalizeManifest, type PrimitiveManifest, type SchemaInfo } from "./screen-model";
 import { MANIFEST_PATH, appPolicy, type AppPolicy } from "./screen-policy";
+import { normalizeSource } from "./screen-records";
 import { screenRefsOf } from "./screen-starters";
 
 import type { ScreenRef } from "./screen-actions";

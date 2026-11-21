@@ -5,6 +5,7 @@ import { referenceFolders } from "./reference-labels";
 import { detailActionProblem, otherDetailScreens, secondDetailMessage, sourceCategory } from "./screen-actions";
 import { entryFields, sourceFields } from "./screen-fields";
 import { APP_POLICY, BLOCKED_PROP, BOUND_LINK, isAllowedLink, isAppScreen, type AppLimits, type AppPolicy } from "./screen-policy";
+import { normalizeSource } from "./screen-records";
 import { isEmptyValue, isEntryList } from "./screen-values";
 
 import type { ScreenRef } from "./screen-actions";
@@ -231,61 +232,6 @@ export function fieldsForProp(fields: FieldOption[], spec: PropSpec): FieldOptio
     default:
       return fields;
   }
-}
-
-export function normalizeSource(raw: unknown): RecordSource | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const r = raw as Record<string, unknown>;
-  return typeof r.category === "string" && r.category ? (r as unknown as RecordSource) : undefined;
-}
-
-// ─── Records as the app lists them (zms model.ts selectRecords) ─────────
-
-/** A sort value the app treats as absent; forms save a cleared text field as "". */
-const isMissing = (value: unknown) => value === undefined || value === null || value === "";
-
-/** Two present values: numbers by value, anything else as text, numbers inside it by value and case aside. */
-function compareValues(a: unknown, b: unknown): number {
-  if (typeof a === "number" && typeof b === "number") return a - b;
-  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
-}
-
-/**
- * Records sorted by `key`. Records without it go last in both orders, and equal
- * values keep file order. The app sorts with this same rule (zms model.ts).
- */
-export function sortByField<T extends Record<string, unknown>>(records: readonly T[], key: string, order: "asc" | "desc" = "asc"): T[] {
-  const direction = order === "desc" ? -1 : 1;
-  return [...records].sort((x, y) => {
-    const a = x[key];
-    const b = y[key];
-    const aMissing = isMissing(a);
-    const bMissing = isMissing(b);
-    if (aMissing || bMissing) return aMissing === bMissing ? 0 : aMissing ? 1 : -1;
-    return direction * compareValues(a, b);
-  });
-}
-
-/**
- * The records a source shows in the app: its schema's (a record without a known
- * schema_id follows the category's first schema), sorted, and at most the app's
- * list size. `categorySchemas` are the category's schemas, in the app's order.
- */
-export function previewRecords<T extends Record<string, unknown>>(
-  records: readonly T[],
-  source: RecordSource | undefined,
-  categorySchemas: readonly { id: string }[],
-  limits: AppLimits = APP_POLICY.limits,
-): T[] {
-  if (!source) return [];
-  let result = [...records];
-  if (source.schema && categorySchemas.length > 0) {
-    const schemaOf = (r: T) => categorySchemas.find((s) => s.id === r.schema_id)?.id ?? categorySchemas[0].id;
-    result = result.filter((r) => schemaOf(r) === source.schema);
-  }
-  if (source.sort) result = sortByField(result, source.sort, source.order);
-  const limit = typeof source.limit === "number" && source.limit > 0 ? Math.min(source.limit, limits.listItems) : limits.listItems;
-  return result.slice(0, limit);
 }
 
 /** Fields "item.<path>" can bind to in a list block: entries of its bound list field, else its records. */

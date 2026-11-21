@@ -18,12 +18,13 @@ import {
 import * as screenModel from "../app/lib/screen-model";
 import { validateScreenFile } from "../app/lib/screen-policy";
 import * as policyLib from "../app/lib/screen-policy";
+import * as recordLib from "../app/lib/screen-records";
 import { recordListOrder, starterScreens } from "../app/lib/screen-starters";
 import * as starterLib from "../app/lib/screen-starters";
 import * as values from "../app/lib/screen-values";
 
-/** screen-model with the fields split out of it (screen-fields.ts), as the one namespace the P2 tests read. */
-const model = { ...screenModel, ...fieldLib };
+/** screen-model with the fields and records split out of it (screen-fields.ts, screen-records.ts), as the one namespace the P2 tests read. */
+const model = { ...screenModel, ...fieldLib, ...recordLib };
 
 const manifest: PrimitiveManifest = {
   promo_card: {
@@ -176,24 +177,24 @@ describe("the preview's records (the app's selectRecords)", () => {
   const ids = (list: { id: unknown }[]) => list.map((r) => r.id);
 
   it("count a record without a known schema_id as the category's first schema", () => {
-    assert.deepEqual(ids(model.previewRecords(records, { category: "c", schema: "one" }, schemasOfCategory)), ["y", "z", "w"]);
-    assert.deepEqual(ids(model.previewRecords(records, { category: "c", schema: "two" }, schemasOfCategory)), ["x"]);
-    assert.deepEqual(ids(model.previewRecords(records, { category: "c", schema: "one" }, [])), ["x", "y", "z", "w"]);
+    assert.deepEqual(ids(model.previewRecords(records, { category: "c", schema: "one" }, { schemas: schemasOfCategory })), ["y", "z", "w"]);
+    assert.deepEqual(ids(model.previewRecords(records, { category: "c", schema: "two" }, { schemas: schemasOfCategory })), ["x"]);
+    assert.deepEqual(ids(model.previewRecords(records, { category: "c", schema: "one" }, { schemas: [] })), ["x", "y", "z", "w"]);
   });
 
   it("sort like the app, missing values last", () => {
-    assert.deepEqual(ids(model.previewRecords(records, { category: "c", sort: "n", order: "desc" }, schemasOfCategory)), ["x", "z", "y", "w"]);
-    assert.deepEqual(ids(model.previewRecords(records, { category: "c", sort: "n" }, schemasOfCategory)), ["y", "z", "x", "w"]);
+    assert.deepEqual(ids(model.previewRecords(records, { category: "c", sort: "n", order: "desc" }, { schemas: schemasOfCategory })), ["x", "z", "y", "w"]);
+    assert.deepEqual(ids(model.previewRecords(records, { category: "c", sort: "n" }, { schemas: schemasOfCategory })), ["y", "z", "x", "w"]);
   });
 
   it("show at most the app's list size, and everything up to it without a limit", () => {
     const many = Array.from({ length: 150 }, (_, i) => ({ id: `r${i}` }));
-    assert.equal(model.previewRecords(many, { category: "c" }, []).length, policyLib.APP_POLICY.limits.listItems);
-    assert.equal(model.previewRecords(many, { category: "c", limit: 0 }, []).length, policyLib.APP_POLICY.limits.listItems);
-    assert.equal(model.previewRecords(many, { category: "c", limit: 120 }, []).length, policyLib.APP_POLICY.limits.listItems);
-    assert.equal(model.previewRecords(many, { category: "c", limit: 5 }, []).length, 5);
-    assert.equal(model.previewRecords(many, { category: "c" }, [], { ...policyLib.APP_POLICY.limits, listItems: 3 }).length, 3);
-    assert.deepEqual(model.previewRecords(many, undefined, []), []);
+    assert.equal(model.previewRecords(many, { category: "c" }, { schemas: [] }).length, policyLib.APP_POLICY.limits.listItems);
+    assert.equal(model.previewRecords(many, { category: "c", limit: 0 }, { schemas: [] }).length, policyLib.APP_POLICY.limits.listItems);
+    assert.equal(model.previewRecords(many, { category: "c", limit: 120 }, { schemas: [] }).length, policyLib.APP_POLICY.limits.listItems);
+    assert.equal(model.previewRecords(many, { category: "c", limit: 5 }, { schemas: [] }).length, 5);
+    assert.equal(model.previewRecords(many, { category: "c" }, { schemas: [], limits: { ...policyLib.APP_POLICY.limits, listItems: 3 } }).length, 3);
+    assert.deepEqual(model.previewRecords(many, undefined, { schemas: [] }), []);
   });
 });
 

@@ -4,7 +4,6 @@ import {
   SCREEN_TYPES,
   folderFor,
   isListField,
-  normalizeSource,
   type Categories,
   type FieldOption,
   type SchemaInfo,
@@ -12,6 +11,7 @@ import {
   type ScreenFile,
   type ScreenType,
 } from "./screen-model";
+import { normalizeSource } from "./screen-records";
 import { isPlainObject } from "./screen-values";
 
 import type { ScreenRef } from "./screen-actions";
