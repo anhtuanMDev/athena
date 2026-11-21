@@ -1,7 +1,8 @@
 import { inputClass } from "~/components/ui/input-classes";
-import { filterFields, type FieldOption } from "~/lib/screen-model";
+import { filterFields } from "~/lib/screen-fields";
 
 import type { PropField } from "../types";
+import type { FieldOption } from "~/lib/screen-model";
 
 interface FieldKeyInputProps {
   prop: PropField;

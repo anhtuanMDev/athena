@@ -13,12 +13,8 @@ import { createFile, deleteFile, getFile, isConflictError, listDirectory, update
 import {
   SCREEN_ID,
   SCREEN_TYPES,
-  appScreenLabel,
   iconOptions,
   normalizeManifest,
-  readScreen,
-  starterSchemas,
-  starterScreens,
   type NavTab,
   type NavigationFile,
   type SchemaInfo,
@@ -26,6 +22,7 @@ import {
   type ScreenType,
 } from "~/lib/screen-model";
 import { APP_POLICY, MANIFEST_PATH, appPolicy, validateNavigationFile } from "~/lib/screen-policy";
+import { appScreenLabel, readScreen, starterSchemas, starterScreens } from "~/lib/screen-starters";
 import { useData } from "~/lib/use-data";
 
 const iconButtonClass =

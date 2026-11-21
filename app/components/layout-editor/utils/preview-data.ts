@@ -5,13 +5,11 @@ import {
   bindingScope,
   isBinding,
   normalizeSource,
-  valueView,
-  valueWithUnit,
   type FieldOption,
   type RecordSource,
   type ScreenBlock,
-  type ValueView,
 } from "~/lib/screen-model";
+import { valueView, valueWithUnit, type ValueView } from "~/lib/screen-values";
 
 import { ownEntry } from "./own-entry";
 

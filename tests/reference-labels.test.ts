@@ -4,7 +4,8 @@ import { describe, it } from "node:test";
 
 import { DEFAULT_CATEGORIES } from "../app/lib/categories";
 import { detailScreenFor, isReferenceField, pickerKeys, pickerOption, referenceFolder, referenceFolders, referenceLabels, referenceRecords, type ReferenceField } from "../app/lib/reference-labels";
-import { screenReferenceFolders, sourceFields, type FieldOption, type ScreenFile } from "../app/lib/screen-model";
+import { sourceFields } from "../app/lib/screen-fields";
+import { screenReferenceFolders, type FieldOption, type ScreenFile } from "../app/lib/screen-model";
 
 // The app's reference labels (zms src/content/model.ts: referenceFolder,
 // referenceFolders, referenceLabels; the cases of its content-model tests), so

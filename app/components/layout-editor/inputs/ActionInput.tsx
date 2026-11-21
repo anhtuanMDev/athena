@@ -1,5 +1,5 @@
 import { inputClass } from "~/components/ui/input-classes";
-import { appScreenLabel } from "~/lib/screen-model";
+import { appScreenLabel } from "~/lib/screen-starters";
 
 import { actionChoice, actionFor, asAction, boundUrlOf, screenChoice } from "../utils/prop-values";
 

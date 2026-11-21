@@ -14,24 +14,19 @@ import { getFile, isConflictError, listDirectory, listGames, listSummaries, upda
 import { useCategories } from "~/lib/categories-context";
 import { enumOptions as optionsOf } from "~/lib/enum-options";
 import { detailScreenFor, referenceFolder, referenceLabels, referenceRecords } from "~/lib/reference-labels";
+import { homeData as appHomeData } from "~/lib/screen-fields";
 import {
   SCREEN_TYPES,
   bindingPath,
-  createBlock,
   folderFor,
   formProps,
-  homeData as appHomeData,
   iconOptions,
   isBinding,
   itemFieldsFor,
   normalizeManifest,
   normalizeSource,
   previewRecords,
-  readScreen,
-  recordLabel,
-  screenDataFields,
   screenReferenceFolders,
-  screenRefsOf,
   validateScreen,
   type FieldOption,
   type PrimitiveManifest,
@@ -42,6 +37,7 @@ import {
   type ScreenIssue,
 } from "~/lib/screen-model";
 import { APP_POLICY, MANIFEST_PATH, appPolicy, validateScreenFile } from "~/lib/screen-policy";
+import { createBlock, readScreen, recordLabel, screenDataFields, screenRefsOf } from "~/lib/screen-starters";
 import { useData } from "~/lib/use-data";
 import { ScreenEditSkeleton } from "~/components/views/ViewSkeletons";
 

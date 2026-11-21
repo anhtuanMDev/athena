@@ -2,7 +2,7 @@ import { PREVIEW_ENTRIES } from "../utils/preview-data";
 
 import { ReferenceValue } from "./ReferenceValue";
 
-import type { ValueView } from "~/lib/screen-model";
+import type { ValueView } from "~/lib/screen-values";
 
 interface FieldValuePreviewProps {
   view: ValueView;

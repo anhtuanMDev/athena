@@ -1,4 +1,5 @@
-import { normalizeSource, readScreen, type RecordSource } from "./screen-model";
+import { normalizeSource, type RecordSource } from "./screen-model";
+import { readScreen } from "./screen-starters";
 
 // What a schema's deletion would break in the app's screens (R5 F15). A
 // screen lists records through sources, its own and its blocks': each names a

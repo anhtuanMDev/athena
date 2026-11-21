@@ -1,4 +1,4 @@
-import { routeLayout } from "~/lib/screen-model";
+import { routeLayout } from "~/lib/screen-fields";
 
 import { isPresent, textOf } from "../utils/preview-data";
 import { makeReader } from "../utils/preview-reader";

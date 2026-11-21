@@ -1,12 +1,13 @@
 import { inputClass } from "~/components/ui/input-classes";
 import { useCategories } from "~/lib/categories-context";
-import { sourceFields, type RecordSource, type SchemaInfo } from "~/lib/screen-model";
+import { sourceFields } from "~/lib/screen-fields";
 
 import { asSource, sortableFields, updatedSource } from "../utils/prop-values";
 
 import { SourceFavorites } from "./SourceFavorites";
 import { SourceOrderLimit } from "./SourceOrderLimit";
 
+import type { RecordSource, SchemaInfo } from "~/lib/screen-model";
 import type { AppLimits } from "~/lib/screen-policy";
 
 interface SourceInputProps {
