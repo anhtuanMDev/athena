@@ -1,6 +1,7 @@
 import type { ImageEntry } from "~/components/MultiImageUploadField";
 import type { IconUpload } from "~/lib/ability-icons";
 import type { DiffEntry } from "~/lib/diff";
+import type { NormalizedField } from "~/lib/form-defaults";
 import type { heroRecordSchema } from "~/lib/record-schema";
 import type { DynamicField, DynamicSchemaFile } from "~/schemas/dynamic-schema";
 import type { GlobalEnum } from "~/schemas/enum";
@@ -37,7 +38,11 @@ export interface HeroSave {
 
 /** Edit's review of a save: what changes, the hero to write, and the pictures it uploads. */
 export interface HeroPreview {
+  /** Everything the save changes: the record is written when there's any. */
   diffs: DiffEntry[];
+  /** The user's edits, apart from what the save normalizes. */
+  edits: DiffEntry[];
+  normalized: NormalizedField[];
   heroJson: string;
   sha: string;
   portraitUploads: (IconUpload & { key: string })[];

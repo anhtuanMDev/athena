@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { FormProvider, useFieldArray, useForm } from "react-hook-form";
 
+import { enumFormDefaults } from "~/lib/form-defaults";
 import { useAutoGenerateId } from "~/lib/use-auto-generate-id";
 import { EnumSchema } from "~/schemas/enum";
 
@@ -30,7 +31,7 @@ const NEW_ENUM: GlobalEnum = { id: "", name: "", description: "", options: [{ id
  * as it was left, picked icons and all.
  */
 export function EnumForm({ game, stored }: EnumFormProps) {
-  const methods = useForm<GlobalEnum>({ resolver: zodResolver(EnumSchema), defaultValues: stored ? { ...stored.content } : NEW_ENUM, mode: stored ? "onChange" : "onSubmit" });
+  const methods = useForm<GlobalEnum>({ resolver: zodResolver(EnumSchema), defaultValues: stored ? enumFormDefaults(stored.content) : NEW_ENUM, mode: stored ? "onChange" : "onSubmit" });
   const options = useFieldArray({ control: methods.control, name: "options" });
   // The options the enum was saved with (their form keys): their ids never follow a label.
   const [loadedOptions] = useState(() => new Set(stored ? options.fields.map((field) => field.id) : []));

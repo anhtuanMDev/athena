@@ -1,6 +1,7 @@
 import { abilityLists, applyAbilityIcons, iconKeyProblem, portraitForSave } from "~/lib/ability-icons";
 import { asStored } from "~/lib/as-stored";
 import { computeDiff } from "~/lib/diff";
+import { reviewOfSave } from "~/lib/form-defaults";
 import { getFile, listDirectory, pruneReplacedAssets, saveRecord } from "~/lib/github";
 import { modeOverrideProblem } from "~/lib/hero-form";
 import { keepUnknownKeys } from "~/lib/unknown-keys";
@@ -50,10 +51,12 @@ export async function createHero(save: HeroSave, notify: boolean): Promise<{ pus
  * (keepUnknownKeys), and what the form filled in for keys it had no value for
  * doesn't count as an edit (asStored).
  */
-export async function previewHero(save: HeroSave, stored: StoredHero): Promise<HeroPreview> {
+export async function previewHero(save: HeroSave, stored: StoredHero, opened: Record<string, unknown>): Promise<HeroPreview> {
   const { parsed, portraitUploads, abilityUploads } = await preparedHero(save, stored.content.portrait, `${save.game}/heroes/${stored.id}`);
   const saved = asStored(stored.content, keepUnknownKeys(stored.content, parsed, save.schema), save.schema);
-  return { diffs: computeDiff(stored.content, saved), heroJson: JSON.stringify(saved), sha: stored.sha, portraitUploads, abilityUploads };
+  // The user's edits apart from what the save normalizes (form-defaults.ts): `opened` is the form as it opened.
+  const { edits, normalized } = reviewOfSave({ stored: stored.content, opened, saved, schema: save.schema });
+  return { diffs: computeDiff(stored.content, saved), edits, normalized, heroJson: JSON.stringify(saved), sha: stored.sha, portraitUploads, abilityUploads };
 }
 
 /**
