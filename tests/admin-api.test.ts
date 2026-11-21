@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
 
-import { assetSeenKey } from "../app/lib/asset-headers";
 import { logout } from "../app/lib/auth";
 import { SESSION_TTL_SECONDS, SESSION_VERSION_KEY, createSessionToken } from "../app/lib/session";
 
@@ -234,7 +233,7 @@ describe("a write GitHub refuses", () => {
     call("/api/data/file", {
       method: "POST",
       headers: { ...cookie(await createSessionToken(SECRET, "0")), "Content-Type": "application/json" },
-      body: JSON.stringify({ path: "public/assets/overwatch/x.png", content: PNG, isBase64: true }),
+      body: JSON.stringify({ path: "data/overwatch/heroes/x.json", content: { id: "x", name: "X" } }),
       kv: recordingKv().kv,
     });
   const refused = (status: number, message: string) => () =>
@@ -242,7 +241,7 @@ describe("a write GitHub refuses", () => {
 
   it("is a conflict to reload when the file changed or was created meanwhile", async () => {
     for (const [status, message, says] of [
-      [409, "x.png does not match 0123abc", /modified/],
+      [409, "x.json does not match 0123abc", /modified/],
       [422, 'Invalid request.\n\n"sha" wasn\'t supplied.', /already exists/],
       [422, "Invalid request.\n\nsha is not valid for this file.", /modified or removed/],
     ] as const) {
@@ -261,55 +260,32 @@ describe("a write GitHub refuses", () => {
     assert.equal(res.status, 413);
     let body = (await res.json()) as { error: string; conflict?: boolean };
     assert.equal(body.conflict, undefined);
-    assert.match(body.error, /public\/assets\/overwatch\/x\.png is too large for GitHub: File is too large/);
+    assert.match(body.error, /data\/overwatch\/heroes\/x\.json is too large for GitHub: File is too large/);
 
     putAnswer = refused(422, "Invalid request.\n\nFor 'properties/content', 5 is not a string.");
     res = await save();
     assert.equal(res.status, 400);
     body = (await res.json()) as { error: string; conflict?: boolean };
     assert.equal(body.conflict, undefined);
-    assert.equal(body.error, "GitHub refused public/assets/overwatch/x.png: Invalid request. For 'properties/content', 5 is not a string.");
+    assert.equal(body.error, "GitHub refused data/overwatch/heroes/x.json: Invalid request. For 'properties/content', 5 is not a string.");
     assert.doesNotMatch(body.error, /docs\.github\.com/);
   });
 });
 
-describe("an upload", () => {
-  it("forgets this data center's record of the picture, and nothing under /api/data/file", async () => {
+// Pictures aren't written through the per-file write any more (tests/games-api.test.ts):
+// a record's go with its save, the games page's icon with games.json.
+void describe("the per-file write's body", () => {
+  void it("is refused past 3 MiB before it's parsed, writing and forgetting nothing", async () => {
     const res = await call("/api/data/file", {
       method: "POST",
       headers: { ...cookie(await createSessionToken(SECRET, "0")), "Content-Type": "application/json" },
-      body: JSON.stringify({ path: "public/assets/overwatch/x.png", content: PNG, isBase64: true }),
+      body: JSON.stringify({ path: "data/overwatch/heroes/ana.json", content: "x".repeat(3 * 1024 * 1024) }),
       kv: recordingKv().kv,
     });
-    assert.equal(res.status, 200);
-    assert.deepEqual(deleted.sort(), ["https://api.internal/api/assets/overwatch/x.png", assetSeenKey("assets/overwatch/x.png")].sort());
-  });
-});
-
-describe("a picture sent to the per-file write (the games page's icon)", () => {
-  const send = async (body: Record<string, unknown> | string) =>
-    call("/api/data/file", {
-      method: "POST",
-      headers: { ...cookie(await createSessionToken(SECRET, "0")), "Content-Type": "application/json" },
-      body: typeof body === "string" ? body : JSON.stringify({ path: "public/assets/games/overwatch-icon.png", isBase64: true, ...body }),
-      kv: recordingKv().kv,
-    });
-
-  it("follows the picture rules, refusing before any GitHub request", async () => {
-    const big = Buffer.alloc(2 * 1024 * 1024 + 1);
-    big.set(Buffer.from(PNG, "base64"));
-    for (const [what, body, status] of [
-      ["one byte over 2 MiB", { content: big.toString("base64") }, 413],
-      ["an SVG", { path: "public/assets/games/overwatch-icon.svg", content: Buffer.from("<svg/>").toString("base64") }, 415],
-      ["an SVG named .png", { content: Buffer.from("<svg/>").toString("base64") }, 415],
-      ["JSON rather than base64", { isBase64: false, content: { not: "a picture" } }, 400],
-      ["a body over 3 MiB, before it's parsed", JSON.stringify({ path: "data/overwatch/heroes/ana.json", content: "x".repeat(3 * 1024 * 1024) }), 413],
-    ] as const) {
-      const res = await send(body);
-      assert.equal(res.status, status, what);
-      assert.equal(typeof ((await res.json()) as { error?: unknown }).error, "string", what);
-    }
-    assert.deepEqual(github, []);
+    const body: { error?: unknown } = await res.json();
+    assert.equal(res.status, 413);
+    assert.equal(typeof body.error, "string");
+    assert.deepEqual([github, deleted], [[], []]);
   });
 });
 

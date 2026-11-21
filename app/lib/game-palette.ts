@@ -48,6 +48,9 @@ export const LIGHT_BASE: Palette = {
   success: "#10B981",
   border: "#E2E8F0",
 };
+/** The colors a new game starts with on the games page: the light base's. */
+export const NEW_GAME_PALETTE: Palette = { ...LIGHT_BASE };
+
 /** The dark base the app draws a top-level color from when the game's isn't a hex color (colors.ts). */
 export { DARK_BASE };
 /** Light colors the app takes from the top-level palette when `light` leaves them out. */

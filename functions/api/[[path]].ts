@@ -1,4 +1,8 @@
 import { Octokit } from "@octokit/rest";
+
+import { commitChecked } from "../../app/lib/api/commit";
+import { PICTURES_ELSEWHERE, gameIconRequest, gamesSaveRequest, saveGames, uploadGameIcon } from "../../app/lib/api/games";
+
 import type { KVNamespace } from "@cloudflare/workers-types";
 import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
 import { jsonFileText } from "../../app/lib/json-file";
@@ -340,6 +344,12 @@ export async function onRequest(
       return await handleUploadPicture(context);
     if (path === "data/save-record" && request.method === "POST")
       return await handleSaveRecord(context);
+    if (path === "data/game-icon" && request.method === "POST") {
+      return await handleGameIcon(context);
+    }
+    if (path === "data/save-games" && request.method === "POST") {
+      return await handleSaveGames(context);
+    }
     if (path === "data/record-assets" && request.method === "GET")
       return await handleRecordAssets(context);
     if (path === "data/delete-record" && request.method === "POST")
@@ -529,11 +539,9 @@ async function handleWriteFile(context: PagesFunctionContext): Promise<Response>
     return json({ error: body }, BAD_REQUEST);
   }
   assertSafeFilePath(body.path);
-  // A picture follows the picture rules here too: the games page's icon still comes this way.
+  // A picture is never a commit of its own: it goes with its record's save or games.json's.
   if (body.path.startsWith("public/assets/")) {
-    if (body.isBase64 !== true) return json({ error: "A picture is sent as base64." }, 400);
-    const problem = pictureProblem(body.path, body.content);
-    if (problem) return json({ error: problem.error }, problem.status);
+    return json({ error: PICTURES_ELSEWHERE }, BAD_REQUEST);
   }
   // A schema's references and a screen's sources must name configured categories, which only then need reading.
   const categories = readsCategories(body.path)
@@ -672,6 +680,46 @@ async function handleUploadPicture(context: PagesFunctionContext): Promise<Respo
   }
 }
 
+// games.json's picked icon, uploaded on its own before the save as a blob, as
+// a record's pictures are (handleUploadPicture), at the game's own icon path
+// (app/lib/api/games.ts). 1 GitHub request.
+async function handleGameIcon(context: PagesFunctionContext): Promise<Response> {
+  await requireAuth(context);
+  const request = gameIconRequest(await readJsonBody(context.request, PICTURE_BODY_LIMIT, "The picture is over 2 MB; a picture can be at most 2 MB."));
+  if (typeof request === "string") {
+    return json({ error: request }, BAD_REQUEST);
+  }
+  assertSafeFilePath(request.path);
+  const answer = await uploadGameIcon(context.env, request);
+  return json(answer.body, answer.status);
+}
+
+// games.json and its picked icon in one commit, after the checks the per-file
+// write ran on games.json (app/lib/api/games.ts saveGames).
+async function handleSaveGames(context: PagesFunctionContext): Promise<Response> {
+  await requireAuth(context);
+  const request = gamesSaveRequest(await readJsonBody(context.request, SAVE_BODY_LIMIT));
+  if (typeof request === "string") {
+    return json({ error: request }, BAD_REQUEST);
+  }
+  if (request.icon) {
+    assertSafeFilePath(request.icon.path);
+  }
+  const answer = await saveGames(context.env, request);
+  if (answer.written) {
+    purgePaths(context, answer.written);
+  }
+  return json(answer.body, answer.status);
+}
+
+/** What a record's save says when the record isn't as its editor loaded it, or the branch kept moving. */
+const RECORD_CONFLICTS = {
+  exists: "a record with this id already exists.",
+  deleted: "the record was deleted since it was loaded.",
+  modified: "the record was modified since it was loaded.",
+  moving: "the data kept changing while saving. Save again.",
+} as const;
+
 /** The most a save's body may hold: the record, and its pictures' shas and tokens (never their bytes). */
 const SAVE_BODY_LIMIT = 1024 * 1024;
 
@@ -710,31 +758,18 @@ async function handleSaveRecord(context: PagesFunctionContext): Promise<Response
   const conflict = (error: string) => json({ error: `Conflict on ${record}: ${error}`, conflict: true }, 409);
   const changes = [...(content !== undefined ? [{ path: record, content }] : []), ...pictures.map((p) => ({ path: p.path, blob: p.sha }))];
   // The commit, and the files of the record's folder it was made on; or why there's none.
-  const commitSave = async (): Promise<{ commit: string | null; files: Record<string, string> } | Response> => {
-    for (let attempt = 1; ; attempt++) {
-      const snapshot = await repo.snapshot([record, recordAssetDir(game, folder, id)]);
-      const now = snapshot.files[record] ?? null;
-      if (request.sha === null && now !== null) return conflict("a record with this id already exists.");
-      if (request.sha !== null && now === null) return conflict("the record was deleted since it was loaded.");
-      if (request.sha !== null && now !== request.sha) return conflict("the record was modified since it was loaded.");
-      try {
-        return { commit: await repo.commitOn(snapshot.head, changes, request.message), files: snapshot.files };
-      } catch (err) {
-        if (!(err instanceof RepoError && err.moved)) throw err;
-        if (attempt === 2) return conflict("the data kept changing while saving. Save again.");
-      }
-    }
-  };
-  let saved: Awaited<ReturnType<typeof commitSave>>;
+  let saved: Awaited<ReturnType<typeof commitChecked>>;
   try {
-    saved = await commitSave();
+    saved = await commitChecked(repo, { path: record, sha: request.sha, reads: [recordAssetDir(game, folder, id)], changes, message: request.message });
   } catch (err) {
     if (err instanceof RepoError && err.status === 503) return json({ error: err.message }, 503);
     // A tree GitHub won't build: a picture's blob it doesn't have.
     if (err instanceof RepoError && err.status === 422) return json({ error: "GitHub refused the save's pictures. Pick them again and save." }, 400);
     throw err;
   }
-  if (saved instanceof Response) return saved;
+  if ("conflict" in saved) {
+    return conflict(RECORD_CONFLICTS[saved.conflict]);
+  }
 
   // Replaced pictures first: theirs are the copies that may be cached.
   const replaced = (path: string) => path in saved.files;
