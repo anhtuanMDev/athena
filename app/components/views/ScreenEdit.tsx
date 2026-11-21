@@ -1,6 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
-import { useBlocker, useParams } from "react-router";
+import { useParams } from "react-router";
 
 import { BlockPicker } from "~/components/screen-editor/BlockPicker";
 import { BlockRow } from "~/components/screen-editor/BlockRow";
@@ -11,9 +11,11 @@ import { PreviewPane } from "~/components/screen-editor/PreviewPane";
 import { ScreenHeader } from "~/components/screen-editor/ScreenHeader";
 import { ScreenIssues } from "~/components/screen-editor/ScreenIssues";
 import { ScreenSettings } from "~/components/screen-editor/ScreenSettings";
-import { useToast } from "~/components/ToastProvider";
+import { useLeaveGuard } from "~/components/screen-editor/useLeaveGuard";
+import { useSaveShortcut } from "~/components/screen-editor/useSaveShortcut";
+import { useScreenSave } from "~/components/screen-editor/useScreenSave";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
-import { isConflictError, listDirectory, updateFile } from "~/lib/github";
+import { listDirectory } from "~/lib/github";
 import { useCategories } from "~/lib/categories-context";
 import { enumOptions as optionsOf } from "~/lib/enum-options";
 import { detailScreenFor, referenceFolder, referenceLabels, referenceRecords } from "~/lib/reference-labels";
@@ -35,7 +37,6 @@ import {
 } from "~/lib/screen-model";
 import { APP_POLICY, validateScreenFile } from "~/lib/screen-policy";
 import { previewRecords } from "~/lib/screen-records";
-import { saveStep } from "~/lib/screen-save";
 import { githubSources } from "~/lib/screen-sources";
 import { createBlock, readScreen, screenDataFields } from "~/lib/screen-starters";
 import { useData } from "~/lib/use-data";
@@ -59,7 +60,6 @@ export default function ScreenEdit() {
   const folders = configured.map((c) => c.folder).join();
   const id = splat?.split("/")[1] ?? "";
   const screenPath = `data/${game}/screens/${id}.json`;
-  const { success: toastSuccess, error: toastError } = useToast();
 
   const { data: loaded, loading, error: loadError } = useData(
     // Each source read on its own: one that fails is left out and named (LoadFailuresNote), not the whole page.
@@ -199,20 +199,21 @@ export default function ScreenEdit() {
   const listedFileErrors = errorCount > 0 ? [] : fileErrors;
   const blockingCount = errorCount + jsonErrorList.length + listedFileErrors.length;
 
-  const blocker = useBlocker(
-    useCallback(
-      ({ currentLocation, nextLocation }: { currentLocation: { pathname: string }; nextLocation: { pathname: string } }) =>
-        dirty && currentLocation.pathname !== nextLocation.pathname,
-      [dirty],
-    ),
-  );
-
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  const blocker = useLeaveGuard(dirty);
+  const save = useScreenSave({
+    draft: { file: loaded?.file, screen, failed: loaded?.failed ?? [] },
+    target: { path: screenPath, id, sha },
+    state: { isDirty: dirty, isSubmitting: submitting, blockingCount },
+    flags: { setAttempted: setAttemptedSave, setSubmitting },
+    headingRef: issuesHeadingRef,
+    onSaved: (savedSnapshot, newSha) => {
+      if (newSha) {
+        setSha(newSha);
+      }
+      setSaved(savedSnapshot);
+    },
+  });
+  useSaveShortcut(save);
 
   useEffect(() => {
     if (!pendingFocus.current) return;
@@ -308,53 +309,6 @@ export default function ScreenEdit() {
     pendingFocus.current = `block-${blockId}-toggle`;
     requestAnimationFrame(() => document.getElementById(`block-${blockId}`)?.scrollIntoView({ block: "nearest" }));
   };
-
-  const save = async () => {
-    if (!loaded || !screen || submitting || !dirty) return;
-    // Checks run on what loaded: with a source missing, they can't vouch for the screen (LoadFailuresNote).
-    const step = saveStep({ isDirty: dirty, isSubmitting: submitting, failed: loaded.failed, blockingCount });
-    if (step.kind === "refused") {
-      toastError(step.reason);
-      return;
-    }
-    setAttemptedSave(true);
-    if (blockingCount > 0) {
-      requestAnimationFrame(() => issuesHeadingRef.current?.focus());
-      return;
-    }
-    setSubmitting(true);
-    const { id: _id, ...rest } = { ...(loaded.file as Record<string, unknown>), ...screen } as Record<string, unknown>;
-    const content = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
-    const savedSnapshot = JSON.stringify(screen);
-    try {
-      const newSha = await updateFile(screenPath, content, sha!, `Update screen: ${id}`);
-      if (newSha) setSha(newSha);
-      setSaved(savedSnapshot);
-      setAttemptedSave(false);
-      toastSuccess("Screen saved. The app picks it up on its next config refresh.");
-    } catch (err) {
-      toastError(
-        isConflictError(err)
-          ? "This screen changed on GitHub after you opened it. Reload the page to get the latest version, then redo your changes."
-          : (err as Error).message,
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const saveRef = useRef(save);
-  saveRef.current = save;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        saveRef.current();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   if (loading && !loaded) {
     return <ScreenEditSkeleton />;
