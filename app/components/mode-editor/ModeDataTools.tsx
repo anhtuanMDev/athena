@@ -18,7 +18,7 @@ interface ModeDataToolsProps {
 export function ModeDataTools({ game, schemas, currentId, form, onImported }: ModeDataToolsProps) {
   return (
     <>
-      <AiDataBar prompt={form.prompt} formatImported={(json) => importedRecord({ json, fields: form.fields, game, currentId, schemaId: form.schemaId })} schema={form.schema} onImported={onImported} />
+      <AiDataBar prompt={form.prompt} formatImported={(json) => importedRecord({ json, fields: form.fields, game, currentId, schemaId: form.schemaId })} schema={form.schema} onImported={onImported} entity="mode" />
       {schemas.length > 1 && <SchemaProfileSelect label="Mode Schema Profile" schemas={schemas} value={form.schemaId} onChange={form.switchSchema} />}
     </>
   );

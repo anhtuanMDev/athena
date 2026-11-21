@@ -2,6 +2,7 @@ import TextField from "@mui/material/TextField";
 import { forwardRef, useState, useCallback } from "react";
 
 import { focusHandlers } from "~/lib/field-focus";
+import { slotObject } from "~/lib/slot-props";
 
 import type { TextFieldProps } from "@mui/material/TextField";
 
@@ -48,12 +49,12 @@ export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(
           ...slotProps,
           inputLabel: {
             shrink,
-            ...(slotProps as any)?.inputLabel,
+            ...slotObject(slotProps?.inputLabel),
           },
           input: {
             // They call the field's own (register's onBlur), which this slot would otherwise replace.
             ...focusHandlers({ onFocus: props.onFocus, onBlur: props.onBlur, setShrink }),
-            ...(slotProps as any)?.input,
+            ...slotObject(slotProps?.input),
           },
           htmlInput: {
             step: props.type === "number" ? "any" : undefined,

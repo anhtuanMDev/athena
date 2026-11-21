@@ -89,55 +89,100 @@ function subrequest(what: string) {
 const realFetch = globalThis.fetch;
 const realCaches = (globalThis as { caches?: unknown }).caches;
 
-async function github(url: URL, method: string, body: Record<string, any> | undefined): Promise<Response> {
+/** A git data request's body, as the routes below read it: each reads its own keys. */
+interface GitBody {
+  content: string;
+  encoding: string;
+  base_tree: string;
+  /** A commit's tree, or a new tree's entries. */
+  tree: string | { path: string; sha?: string | null; content?: string }[];
+  parents: string[];
+  message: string;
+  sha: string;
+}
+
+const lastSegment = (route: string) => route.split("/").pop() ?? "";
+
+function commitTree(route: string): Response {
+  const commit = commits.get(lastSegment(route));
+  return commit ? Response.json({ tree: { sha: commit.tree } }) : Response.json({ message: "Not Found" }, { status: 404 });
+}
+
+function treeEntries(route: string): Response {
+  const tree = trees.get(lastSegment(route)) ?? new Map<string, string>();
+  return Response.json({ truncated: false, tree: [...tree].map(([path, sha]) => ({ path, type: "blob", sha })) });
+}
+
+function postBlob(body: GitBody): Response {
+  blobPosts.push({ content: body.content, encoding: body.encoding });
+  return Response.json({ sha: store(Buffer.from(body.content, body.encoding === "base64" ? "base64" : "utf8")) }, { status: 201 });
+}
+
+function postTree(body: GitBody): Response {
+  const tree = new Map(trees.get(body.base_tree));
+  for (const entry of body.tree as { path: string; sha?: string | null; content?: string }[]) {
+    if (entry.sha === null) {
+      tree.delete(entry.path);
+    } else if (entry.content !== undefined) {
+      tree.set(entry.path, store(Buffer.from(entry.content)));
+    } else if (entry.sha !== undefined && blobs.has(entry.sha)) {
+      tree.set(entry.path, entry.sha);
+    } else {
+      return Response.json({ message: "BadObjectState" }, { status: 422 });
+    }
+  }
+  const id = `t${String(trees.size)}`;
+  trees.set(id, tree);
+  return Response.json({ sha: id }, { status: 201 });
+}
+
+function postCommit(body: GitBody): Response {
+  const id = `c${String(commits.size)}`;
+  commits.set(id, { tree: body.tree as string, parents: body.parents, message: body.message });
+  return Response.json({ sha: id }, { status: 201 });
+}
+
+function moveRef(body: GitBody): Response {
+  if (moves > 0) {
+    moves--;
+    head = commitFiles(head, outside, "Someone else's commit");
+  }
+  if (commits.get(body.sha)?.parents[0] !== head) {
+    return Response.json({ message: "Update is not a fast forward" }, { status: 422 });
+  }
+  head = body.sha;
+  return Response.json({ object: { sha: head } });
+}
+
+function fileContents(route: string): Response {
+  const path = decodeURIComponent(route.slice("/contents/".length));
+  const sha = filesAtHead().get(path);
+  const bytes = sha === undefined ? undefined : blobs.get(sha);
+  if (bytes === undefined) {
+    return Response.json({ message: "Not Found" }, { status: 404 });
+  }
+  return Response.json({ type: "file", encoding: "base64", content: bytes.toString("base64"), sha, path, name: path.split("/").pop() });
+}
+
+/** GitHub's API, by method and route. */
+const GIT_ROUTES: [string, (route: string) => boolean, (route: string, body: GitBody) => Response][] = [
+  ["GET", (route) => route === "/git/ref/heads/main", () => Response.json({ object: { sha: head } })],
+  ["GET", (route) => route.startsWith("/git/commits/"), (route) => commitTree(route)],
+  ["GET", (route) => route.startsWith("/git/trees/"), (route) => treeEntries(route)],
+  ["POST", (route) => route === "/git/blobs", (_route, body) => postBlob(body)],
+  ["POST", (route) => route === "/git/trees", (_route, body) => postTree(body)],
+  ["POST", (route) => route === "/git/commits", (_route, body) => postCommit(body)],
+  ["PATCH", (route) => route === "/git/refs/heads/main", (_route, body) => moveRef(body)],
+  ["GET", (route) => /^\/contents\/.+$/.test(route), (route) => fileContents(route)],
+];
+
+function github(url: URL, method: string, body: GitBody | undefined): Response {
   const route = url.pathname.replace(/^\/repos\/o\/r/, "");
-  if (method === "GET" && route === "/git/ref/heads/main") return Response.json({ object: { sha: head } });
-  if (method === "GET" && route.startsWith("/git/commits/")) {
-    const commit = commits.get(route.split("/").pop()!);
-    return commit ? Response.json({ tree: { sha: commit.tree } }) : Response.json({ message: "Not Found" }, { status: 404 });
+  const found = GIT_ROUTES.find(([verb, matches]) => verb === method && matches(route));
+  if (!found) {
+    throw new Error(`unexpected ${method} ${url.href}`);
   }
-  if (method === "GET" && route.startsWith("/git/trees/")) {
-    const tree = trees.get(route.split("/").pop()!)!;
-    return Response.json({ truncated: false, tree: [...tree].map(([path, sha]) => ({ path, type: "blob", sha })) });
-  }
-  if (method === "POST" && route === "/git/blobs") {
-    blobPosts.push({ content: body!.content, encoding: body!.encoding });
-    return Response.json({ sha: store(Buffer.from(body!.content, body!.encoding === "base64" ? "base64" : "utf8")) }, { status: 201 });
-  }
-  if (method === "POST" && route === "/git/trees") {
-    const tree = new Map(trees.get(body!.base_tree)!);
-    for (const entry of body!.tree as { path: string; sha?: string | null; content?: string }[]) {
-      if (entry.sha === null) tree.delete(entry.path);
-      else if (entry.content !== undefined) tree.set(entry.path, store(Buffer.from(entry.content)));
-      else if (!blobs.has(entry.sha!)) return Response.json({ message: "BadObjectState" }, { status: 422 });
-      else tree.set(entry.path, entry.sha!);
-    }
-    const id = `t${trees.size}`;
-    trees.set(id, tree);
-    return Response.json({ sha: id }, { status: 201 });
-  }
-  if (method === "POST" && route === "/git/commits") {
-    const id = `c${commits.size}`;
-    commits.set(id, { tree: body!.tree, parents: body!.parents, message: body!.message });
-    return Response.json({ sha: id }, { status: 201 });
-  }
-  if (method === "PATCH" && route === "/git/refs/heads/main") {
-    if (moves > 0) {
-      moves--;
-      head = commitFiles(head, outside, "Someone else's commit");
-    }
-    if (commits.get(body!.sha)!.parents[0] !== head) return Response.json({ message: "Update is not a fast forward" }, { status: 422 });
-    head = body!.sha;
-    return Response.json({ object: { sha: head } });
-  }
-  const file = /^\/contents\/(.+)$/.exec(route);
-  if (method === "GET" && file) {
-    const path = decodeURIComponent(file[1]);
-    const sha = filesAtHead().get(path);
-    if (!sha) return Response.json({ message: "Not Found" }, { status: 404 });
-    return Response.json({ type: "file", encoding: "base64", content: blobs.get(sha)!.toString("base64"), sha, path, name: path.split("/").pop() });
-  }
-  throw new Error(`unexpected ${method} ${url.href}`);
+  return found[2](route, body ?? ({} as GitBody));
 }
 
 beforeEach(() => {

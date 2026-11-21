@@ -11,10 +11,12 @@ interface AiDataBarProps {
   formatImported: (json: Record<string, unknown>) => Record<string, unknown>;
   schema: ZodType;
   onImported: (data: Record<string, unknown>) => void;
+  /** What the bar imports ("hero", "mode"): its toast and prompt file say so. */
+  entity: string;
 }
 
 /** "AI Data Generation": the prompt for an AI, and importing its answer. */
-export function AiDataBar({ prompt, formatImported, schema, onImported }: AiDataBarProps) {
+export function AiDataBar({ prompt, formatImported, schema, onImported, entity }: AiDataBarProps) {
   return (
     <div className="flex flex-wrap gap-3 items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded-xl mb-6">
       <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 text-sm font-medium">
@@ -22,8 +24,8 @@ export function AiDataBar({ prompt, formatImported, schema, onImported }: AiData
         AI Data Generation
       </div>
       <div className="flex items-center gap-3">
-        <AIPromptModalWrapper aiPromptMarkdown={prompt} />
-        <ImportDataModalWrapper formatImportedJson={formatImported} onImportSuccess={onImported} dynamicZodSchema={schema} />
+        <AIPromptModalWrapper aiPromptMarkdown={prompt} entity={entity} />
+        <ImportDataModalWrapper formatImportedJson={formatImported} onImportSuccess={onImported} dynamicZodSchema={schema} entity={entity} />
       </div>
     </div>
   );

@@ -13,7 +13,8 @@ import { useData } from "~/lib/use-data";
 import { useCategories } from "~/lib/categories-context";
 import { cellText, fieldOf, keyColumns, schemaColumns, schemaForRecord, type ColumnSchema } from "~/lib/record-columns";
 
-interface HeroRow {
+/** A hero as its list reads it (shape=summary): its own keys, and whatever else its schema gives it. */
+interface HeroRow extends Record<string, unknown> {
   id: string;
   name: string;
   roles: string[];
@@ -27,7 +28,7 @@ import { useMemo, useState } from "react";
 const EXCLUDE = ["id", "name", "game", "kit", "weapon", "abilities", "schema_id", "real_name", "bio", "portrait"];
 const headerOf = (key: string) => key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ");
 
-const baseColumns: Column<any>[] = [
+const baseColumns: Column<HeroRow>[] = [
   {
     key: "portrait",
     header: "Portrait",
@@ -116,7 +117,7 @@ export default function HeroesIndex() {
     if (fields) {
       return [
         ...baseColumns,
-        ...fields.map((field): Column<any> => ({
+        ...fields.map((field): Column<HeroRow> => ({
           key: field.key,
           header: field.label || headerOf(field.key),
           // A record of another schema reads the field as its own schema has it.
@@ -127,7 +128,7 @@ export default function HeroesIndex() {
     // No schema: the first keys the heroes hold, as before.
     return [
       ...baseColumns,
-      ...keyColumns(rows, EXCLUDE).map((k): Column<any> => ({ key: k, header: headerOf(k), render: (h) => cellText(undefined, h[k], []) })),
+      ...keyColumns(rows, EXCLUDE).map((k): Column<HeroRow> => ({ key: k, header: headerOf(k), render: (hero) => cellText(undefined, hero[k], []) })),
     ];
   }, [heroes, shape, category]);
 

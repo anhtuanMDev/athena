@@ -14,7 +14,7 @@ describe("list entries", () => {
     const heroSchema = fixture("schemas/hero-hero.json");
     const fields = heroSchema.fields.filter((f: DynamicField) => ["ages", "perk_level_xp"].includes(f.key));
     const ana = fixture("heroes/ana.json");
-    const parsed = buildDynamicZodSchema(fields, base).parse({ id: "ana", ages: ana.ages, perk_level_xp: ana.perk_level_xp }) as Record<string, any>;
+    const parsed = buildDynamicZodSchema(fields, base).parse({ id: "ana", ages: ana.ages, perk_level_xp: ana.perk_level_xp }) as { ages: unknown; perk_level_xp: Record<string, unknown>[] };
     assert.deepEqual(parsed.ages, [
       { context: "Overwatch", age: 60 },
       { context: "Overwatch 2", age: 62 },
@@ -43,7 +43,7 @@ describe("list entries", () => {
       type: "Ability",
       params: { keybind: "LSHIFT", cooldown: "5", cooldown_suffix: "s", healing: "", effect_type: "Movement", keywords: [{ keyword: "Movement" }] },
     };
-    const parsed = buildDynamicZodSchema(fields, base).parse({ id: "mauga", abilities: [overrun] }) as Record<string, any>;
+    const parsed = buildDynamicZodSchema(fields, base).parse({ id: "mauga", abilities: [overrun] }) as { abilities: { params: unknown }[] };
     // As saved: JSON leaves out the emptied number.
     assert.deepEqual(JSON.parse(JSON.stringify(parsed.abilities[0].params)), {
       keybind: "LSHIFT",

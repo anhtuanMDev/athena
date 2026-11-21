@@ -1,10 +1,16 @@
+import { Download, Sparkles, Upload } from "lucide-react";
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
-import { ClipboardPaste, Download, Sparkles, Upload } from "lucide-react";
-import { Button } from "~/components/ui/button";
-import { useToast } from "~/components/ToastProvider";
 
-export function AIPromptModalWrapper({ aiPromptMarkdown }: { aiPromptMarkdown: string }) {
+import { useToast } from "~/components/ToastProvider";
+import { Button } from "~/components/ui/button";
+import { importedMessage, promptFileName } from "~/lib/ai-data";
+
+import { AiPromptDialog } from "./AiPromptDialog";
+
+import type { ZodType } from "zod";
+
+export function AIPromptModalWrapper({ aiPromptMarkdown, entity }: { aiPromptMarkdown: string; entity: string }) {
   const [showPromptModal, setShowPromptModal] = useState(false);
   const { success: toastSuccess } = useToast();
 
@@ -18,7 +24,7 @@ export function AIPromptModalWrapper({ aiPromptMarkdown }: { aiPromptMarkdown: s
     const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = objectUrl;
-    a.download = "athena_hero_data_prompt.md";
+    a.download = promptFileName(entity);
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -40,36 +46,7 @@ export function AIPromptModalWrapper({ aiPromptMarkdown }: { aiPromptMarkdown: s
       {showPromptModal &&
         typeof document !== "undefined" &&
         createPortal(
-          <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-surface rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-border flex justify-between items-center">
-                <h3 className="text-lg font-bold text-ink flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-blue-500" /> AI Prompt Instructions
-                </h3>
-              </div>
-              <div className="p-6 overflow-y-auto max-h-[60vh]">
-                <p className="text-sm text-ink-muted mb-4">
-                  Use the following prompt to instruct an AI (like ChatGPT or Claude) to generate data for you. You can copy the text or download it as a file.
-                </p>
-                <textarea aria-label="AI prompt"
-                  readOnly
-                  value={aiPromptMarkdown}
-                  className="w-full h-64 rounded-lg border-border-strong bg-surface-raised p-4 text-xs font-mono text-ink focus:outline-none resize-none"
-                />
-              </div>
-              <div className="p-6 border-t border-border flex justify-end gap-3 bg-surface-raised">
-                <Button type="button" variant="ghost" onClick={() => setShowPromptModal(false)}>
-                  Close
-                </Button>
-                <Button type="button" variant="outline" onClick={handleDownloadPrompt} className="flex items-center gap-2">
-                  <Download className="w-4 h-4" /> Download .md
-                </Button>
-                <Button type="button" onClick={handleCopyPrompt} className="flex items-center gap-2">
-                  <ClipboardPaste className="w-4 h-4" /> Copy to Clipboard
-                </Button>
-              </div>
-            </div>
-          </div>,
+          <AiPromptDialog prompt={aiPromptMarkdown} onClose={() => { setShowPromptModal(false); }} onDownload={handleDownloadPrompt} onCopy={handleCopyPrompt} />,
           document.body,
         )}
     </>
@@ -80,38 +57,42 @@ export function ImportDataModalWrapper({
   formatImportedJson,
   onImportSuccess,
   dynamicZodSchema,
+  entity,
 }: {
-  formatImportedJson: (json: any) => any;
-  onImportSuccess: (data: any) => void;
-  dynamicZodSchema: any;
+  formatImportedJson: (json: Record<string, unknown>) => Record<string, unknown>;
+  onImportSuccess: (data: Record<string, unknown>) => void;
+  dynamicZodSchema: ZodType;
+  /** What's imported ("hero", "mode"), for the toast. */
+  entity: string;
 }) {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [pastedJson, setPastedJson] = useState("");
   const { success: toastSuccess } = useToast();
 
+  /** Checks an AI's answer as the form takes it, and imports it; or says why not. Whether it was imported. */
+  const importJson = (json: unknown, source: "file" | "pasted text"): boolean => {
+    if (typeof json !== "object" || json === null) {
+      setImportError("JSON must be an object, not a primitive or array.");
+      return false;
+    }
+    const parsed = dynamicZodSchema.safeParse(formatImportedJson(json as Record<string, unknown>));
+    if (!parsed.success) {
+      const errorMessage = parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("\n");
+      setImportError(`Validation failed:\n${errorMessage}`);
+      return false;
+    }
+    onImportSuccess(parsed.data as Record<string, unknown>);
+    toastSuccess(importedMessage(entity, source));
+    setShowImportModal(false);
+    setImportError(null);
+    return true;
+  };
+
   const handleImportPastedJson = () => {
     try {
-      const json = JSON.parse(pastedJson);
-      if (typeof json === "object" && json !== null) {
-        const formatted = formatImportedJson(json);
-        const parsed = dynamicZodSchema.safeParse(formatted);
-        
-        if (!parsed.success) {
-          const errorMessage = parsed.error.issues
-            .map((issue: any) => `${issue.path.join(".")}: ${issue.message}`)
-            .join("\n");
-          setImportError(`Validation failed:\n${errorMessage}`);
-          return;
-        }
-
-        onImportSuccess(parsed.data);
-        toastSuccess("Imported hero data from pasted text!");
-        setShowImportModal(false);
-        setImportError(null);
+      if (importJson(JSON.parse(pastedJson), "pasted text")) {
         setPastedJson("");
-      } else {
-        setImportError("JSON must be an object, not a primitive or array.");
       }
     } catch (e) {
       setImportError("Invalid JSON: could not parse the pasted text.");
@@ -124,26 +105,7 @@ export function ImportDataModalWrapper({
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const json = JSON.parse(event.target?.result as string);
-        if (typeof json === "object" && json !== null) {
-          const formatted = formatImportedJson(json);
-          const parsed = dynamicZodSchema.safeParse(formatted);
-
-          if (!parsed.success) {
-            const errorMessage = parsed.error.issues
-              .map((issue: any) => `${issue.path.join(".")}: ${issue.message}`)
-              .join("\n");
-            setImportError(`Validation failed:\n${errorMessage}`);
-            return;
-          }
-
-          onImportSuccess(parsed.data);
-          toastSuccess("Imported hero data from file!");
-          setShowImportModal(false);
-          setImportError(null);
-        } else {
-          setImportError("JSON must be an object, not a primitive or array.");
-        }
+        importJson(JSON.parse(event.target?.result as string), "file");
       } catch (err) {
         setImportError("Invalid JSON file: could not parse the file contents.");
       }

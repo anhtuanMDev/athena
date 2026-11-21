@@ -1,11 +1,14 @@
-import { Controller, type Control, type FieldErrors, type UseFormRegister } from "react-hook-form";
-import { type DynamicField } from "~/schemas/dynamic-schema";
-import { FormField } from "~/components/FormField";
+import { Controller } from "react-hook-form";
+
 import { DynamicSelectField } from "~/components/DynamicSelectField";
 import { EntityReferenceField } from "~/components/EntityReferenceField";
+import { FormField } from "~/components/FormField";
 import { AbilitiesField } from "~/components/views/AbilitiesField";
 import { ObjectArrayField } from "~/components/views/ObjectArrayField";
-import { type ImageEntry } from "~/components/MultiImageUploadField";
+
+import type { Control, FieldErrors, FieldValues, UseFormRegister } from "react-hook-form";
+import type { ImageEntry } from "~/components/MultiImageUploadField";
+import type { DynamicField } from "~/schemas/dynamic-schema";
 
 interface DynamicFieldsRendererProps {
   fields: DynamicField[];
@@ -13,9 +16,9 @@ interface DynamicFieldsRendererProps {
   /** Ability pictures, for the editors that save them (see AbilitiesField). */
   abilityIcons?: Record<string, ImageEntry[]>;
   setAbilityIcons?: React.Dispatch<React.SetStateAction<Record<string, ImageEntry[]>>>;
-  control: Control<any>;
-  register: UseFormRegister<any>;
-  errors: FieldErrors<any>;
+  control: Control;
+  register: UseFormRegister<FieldValues>;
+  errors: FieldErrors;
   skipFields?: string[];
 }
 

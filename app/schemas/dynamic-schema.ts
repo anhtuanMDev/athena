@@ -123,7 +123,7 @@ function entrySchema(subFields: DynamicField[] = []): z.ZodType {
 
 export function buildDynamicZodSchema(
   fields: DynamicField[],
-  baseSchema: z.ZodObject<any, any>,
+  baseSchema: z.ZodObject<z.ZodRawShape, z.core.$ZodObjectConfig>,
   excludeKeys: string[] = []
 ) {
   let shape: Record<string, z.ZodTypeAny> = {};
