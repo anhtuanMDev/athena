@@ -14,6 +14,11 @@ import { GameSchema } from "../app/schemas/game";
 // as Baptiste had when an edit in the form deleted them (zero-backend 93adb16).
 const fixture = (path: string) => JSON.parse(readFileSync(new URL(`./fixtures/overwatch/${path}`, import.meta.url), "utf8"));
 const ana: Record<string, unknown> = fixture("heroes/ana.json");
+/** Ana's values where these tests reach into them: her aliases, and her abilities with their params. */
+interface HeroValues extends Record<string, unknown> {
+  aliases: Record<string, unknown>[];
+  abilities: (Record<string, unknown> & { params: Record<string, unknown> })[];
+}
 const heroSchema = heroRecordSchema(fixture("schemas/hero-hero.json").fields);
 const LEGACY = ["passive_abilities", "weapons", "ultimate_ability"];
 
@@ -47,12 +52,12 @@ describe("saving an edited record", () => {
   });
 
   it("keeps extra keys of list entries and ability params, but never the form's _clientId on an ability", () => {
-    const values = structuredClone(ana) as Record<string, any>;
+    const values = structuredClone(ana) as HeroValues;
     values.aliases[0].source = "wiki";
     values.abilities[0].params.legacy_note = "kept";
     values.abilities[0]._clientId = "k3j9x";
     values.abilities[0].legacy_item_key = "dropped";
-    const saved = saveHero(ana, values) as Record<string, any>;
+    const saved = saveHero(ana, values) as HeroValues;
     assert.equal(saved.aliases[0].source, "wiki");
     assert.equal(saved.abilities[0].params.legacy_note, "kept");
     // An ability is a kit item: its own keys are the kit item's, so the editor's

@@ -1,13 +1,16 @@
 import { useFieldArray, Controller, useFormContext } from "react-hook-form";
-import type { ImageEntry } from "~/components/MultiImageUploadField";
-import { FormField } from "~/components/FormField";
-import { DynamicSelectField } from "~/components/DynamicSelectField";
-import { MultiImageUploadField } from "~/components/MultiImageUploadField";
-import type { DynamicField } from "~/schemas/dynamic-schema";
-import { slugify } from "~/lib/slug";
-import { abilityKey } from "~/lib/ability-icons";
 
+import { DynamicSelectField } from "~/components/DynamicSelectField";
 import { EntityReferenceField } from "~/components/EntityReferenceField";
+import { FormField } from "~/components/FormField";
+import { MultiImageUploadField } from "~/components/MultiImageUploadField";
+import { abilityKey } from "~/lib/ability-icons";
+import { errorAt } from "~/lib/form-errors";
+import { slugify } from "~/lib/slug";
+
+import type { ImageEntry } from "~/components/MultiImageUploadField";
+import type { ListFormValues } from "~/lib/form-errors";
+import type { DynamicField } from "~/schemas/dynamic-schema";
 
 export interface AbilityFieldData {
   /** The key its pictures are kept by while it's edited (see ability-icons.ts). */
@@ -18,7 +21,7 @@ export interface AbilityFieldData {
   name?: string;
   type?: string;
   description?: string;
-  params?: Record<string, any>;
+  params?: Record<string, unknown>;
 }
 
 interface AbilitiesFieldProps {
@@ -42,11 +45,12 @@ export function AbilitiesField({
   subFields,
   options,
 }: AbilitiesFieldProps) {
-  const { control, register, setValue, getValues, formState: { errors } } = useFormContext<any>();
+  const { control, register, setValue, getValues, formState: { errors } } = useFormContext<ListFormValues>();
   const { fields, append, remove } = useFieldArray({
     control,
     name,
   });
+  const listError = errorAt(errors, [name]);
 
   return (
     <div className="pt-6 border-t border-border">
@@ -54,15 +58,15 @@ export function AbilitiesField({
         {label || "Kit Abilities"}
       </h3>
 
-      {(errors[name] as any)?.message && (
+      {listError !== undefined && (
         <p className="text-sm text-red-500 mb-2">
-          {(errors[name] as any).message as string}
+          {listError}
         </p>
       )}
 
       <div className="space-y-4">
         {fields.map((field, i) => {
-          const abilityErrors = (errors[name] as any)?.[i];
+          const abilityError = (...path: string[]) => errorAt(errors, [name, i, ...path]);
           const dataId = abilityKey(name, getValues(`${name}.${i}`), i);
 
           return (
@@ -109,8 +113,8 @@ export function AbilitiesField({
                         <FormField
                           label="ID (kebab-case)"
                           {...field}
-                          error={!!abilityErrors?.id}
-                          helperText={abilityErrors?.id?.message as string}
+                          error={abilityError("id") !== undefined}
+                          helperText={abilityError("id")}
                         />
                       )}
                     />
@@ -128,8 +132,8 @@ export function AbilitiesField({
                           });
                         }
                       }}
-                      error={!!abilityErrors?.name}
-                      helperText={abilityErrors?.name?.message as string}
+                      error={abilityError("name") !== undefined}
+                      helperText={abilityError("name")}
                     />
                     {options && options.length > 0 ? (
                       // The schema lists the types (e.g. Ultimate, Ability, Weapon, Melee); the app shows the one picked.
@@ -141,8 +145,8 @@ export function AbilitiesField({
                             label="Type"
                             options={options}
                             currentValue={field.value}
-                            error={!!abilityErrors?.type}
-                            helperText={abilityErrors?.type?.message as string}
+                            error={abilityError("type") !== undefined}
+                            helperText={abilityError("type")}
                             {...field}
                           />
                         )}
@@ -151,16 +155,16 @@ export function AbilitiesField({
                       <FormField
                         label="Type"
                         {...register(`${name}.${i}.type` as const)}
-                        error={!!abilityErrors?.type}
-                        helperText={abilityErrors?.type?.message as string}
+                        error={abilityError("type") !== undefined}
+                        helperText={abilityError("type")}
                       />
                     )}
                   </div>
                   <FormField
                     label="Description (optional)"
                     {...register(`${name}.${i}.description` as const)}
-                    error={!!abilityErrors?.description}
-                    helperText={abilityErrors?.description?.message as string}
+                    error={abilityError("description") !== undefined}
+                    helperText={abilityError("description")}
                   />
 
                   {subFields && subFields.length > 0 && (
@@ -191,7 +195,7 @@ export function AbilitiesField({
                               </div>
                             );
                           }
-                          const paramError = abilityErrors?.params?.[sf.key];
+                          const paramError = abilityError("params", sf.key);
                           if (
                             sf.type === "reference" ||
                             sf.type === "reference_list" ||
@@ -226,7 +230,7 @@ export function AbilitiesField({
                                       sf.type === "list"
                                     }
                                     error={!!paramError}
-                                    helperText={paramError?.message as string}
+                                    helperText={paramError}
                                     currentValue={field.value}
                                     {...field}
                                   />
@@ -256,7 +260,7 @@ export function AbilitiesField({
                           }
                           if (sf.hasCustomSuffix) {
                             // The record's own unit, saved next to the value as params.<key>_suffix (F3).
-                            const suffixError = abilityErrors?.params?.[`${sf.key}_suffix`];
+                            const suffixError = abilityError("params", `${sf.key}_suffix`);
                             return (
                               <div className="flex gap-2 w-full" key={sf.key}>
                                 <div className="flex-1">
@@ -265,7 +269,7 @@ export function AbilitiesField({
                                     type={sf.type === "number" ? "number" : "text"}
                                     {...register(`${name}.${i}.params.${sf.key}`)}
                                     error={!!paramError}
-                                    helperText={paramError?.message as string}
+                                    helperText={paramError}
                                   />
                                 </div>
                                 <div className="w-1/3">
@@ -273,7 +277,7 @@ export function AbilitiesField({
                                     label="Unit/Suffix"
                                     {...register(`${name}.${i}.params.${sf.key}_suffix`)}
                                     error={!!suffixError}
-                                    helperText={suffixError?.message as string}
+                                    helperText={suffixError}
                                   />
                                 </div>
                               </div>
@@ -286,7 +290,7 @@ export function AbilitiesField({
                               type={sf.type === "number" ? "number" : "text"}
                               {...register(`${name}.${i}.params.${sf.key}`)}
                               error={!!paramError}
-                              helperText={paramError?.message as string}
+                              helperText={paramError}
                             />
                           );
                         })}

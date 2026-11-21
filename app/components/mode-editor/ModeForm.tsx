@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { abilityLists, withAbilityKeys } from "~/lib/ability-icons";
+import { openedMode } from "~/lib/form-defaults";
 import { editedAfterImport } from "~/lib/record-form";
 import { schemaOf } from "~/lib/record-schema";
 
@@ -17,7 +18,7 @@ interface ModeFormProps {
   stored?: StoredMode;
 }
 
-/** What a new mode starts with, or the loaded one with its schema and its abilities' keys. */
+/** What a new mode starts with, or the loaded one with its schema, its abilities' keys and its form's defaults. */
 function startingValues({ game, schemas, stored }: Omit<ModeFormProps, "enums">): Record<string, unknown> {
   const lists = abilityLists(schemas.flatMap((schema) => (Array.isArray(schema.fields) ? schema.fields : [])));
   const firstSchema = schemaOf(schemas, undefined)?.id ?? "";
@@ -25,7 +26,9 @@ function startingValues({ game, schemas, stored }: Omit<ModeFormProps, "enums">)
     return { game, id: "", schema_id: firstSchema, name: "", description: "" };
   }
   const own = stored.content.schema_id;
-  return withAbilityKeys({ game, ...stored.content, schema_id: typeof own === "string" && own !== "" ? own : firstSchema }, lists);
+  const values = withAbilityKeys({ game, ...stored.content, schema_id: typeof own === "string" && own !== "" ? own : firstSchema }, lists);
+  // Edit opens the mode as its form holds it (form-defaults.ts), so an untouched mode opens unchanged.
+  return openedMode(values, schemaOf(schemas, values.schema_id)?.fields ?? []);
 }
 
 /**

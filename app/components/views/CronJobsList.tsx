@@ -1,13 +1,17 @@
-import { Link, useParams } from "react-router";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import { ButtonLink } from "~/components/ui/button";
-import { listDirectory } from "~/lib/github";
-import { useData } from "~/lib/use-data";
-import { type CronJob } from "~/schemas/cron";
-import { deferralText, pendingDeferral, readRunLog, type RunLog } from "~/lib/importer/run-log";
 import { Clock } from "lucide-react";
+import { Link, useParams } from "react-router";
+
+import { ButtonLink } from "~/components/ui/button";
+import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { CardGridSkeleton } from "~/components/views/ViewSkeletons";
+import { listDirectory } from "~/lib/github";
+import { deferralText, pendingDeferral, readRunLog } from "~/lib/importer/run-log";
+import { useData } from "~/lib/use-data";
+
+import type { ImportState } from "~/lib/importer/run";
+import type { RunLog } from "~/lib/importer/run-log";
+import type { CronJob } from "~/schemas/cron";
 
 export default function CronJobsList() {
   const { game } = useParams();
@@ -15,9 +19,11 @@ export default function CronJobsList() {
   const { data, loading, error } = useData(async () => {
     try {
       const crons = await listDirectory<CronJob>(game!, "cron_jobs", true);
-      const syncs = await listDirectory<any>(game!, "syncs", true).catch(() => []);
+      // The jobs' sync states and run logs (syncs/): without them, the jobs show without their last run.
+      const [syncListing] = await Promise.allSettled([listDirectory<ImportState | null>(String(game), "syncs", true)]);
+      const syncs = syncListing.status === "fulfilled" ? syncListing.value : [];
 
-      const syncMap: Record<string, any> = {};
+      const syncMap: Record<string, ImportState | undefined> = {};
       syncs.forEach(s => {
         if (s && s.id) syncMap[s.id] = s;
       });
@@ -126,7 +132,7 @@ export default function CronJobsList() {
                       <p className="text-red-700 dark:text-red-400 mt-1">
                         <strong>Last Error:</strong> {job._sync.last_error} <br/>
                         <span className="opacity-75 text-xs mt-0.5 inline-block">
-                          {new Date(job._sync.last_sync_attempt).toLocaleString()}
+                          {new Date(String(job._sync.last_sync_attempt)).toLocaleString()}
                         </span>
                       </p>
                     )}

@@ -18,7 +18,7 @@ interface HeroDataToolsProps {
 export function HeroDataTools({ game, schemas, currentId, form, onImported }: HeroDataToolsProps) {
   return (
     <>
-      <AiDataBar prompt={form.prompt} formatImported={(json) => importedRecord({ json, fields: form.fields, game, currentId, schemaId: form.schemaId })} schema={form.schema} onImported={onImported} />
+      <AiDataBar prompt={form.prompt} formatImported={(json) => importedRecord({ json, fields: form.fields, game, currentId, schemaId: form.schemaId })} schema={form.schema} onImported={onImported} entity="hero" />
       {schemas.length > 1 && <SchemaProfileSelect label="Hero Schema Profile" hint="Changing the schema will update the available fields below." schemas={schemas} value={form.schemaId} onChange={form.switchSchema} />}
     </>
   );

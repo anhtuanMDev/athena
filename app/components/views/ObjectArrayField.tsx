@@ -1,7 +1,11 @@
 import { useFieldArray, Controller, useFormContext } from "react-hook-form";
-import { FormField } from "~/components/FormField";
+
 import { DynamicSelectField } from "~/components/DynamicSelectField";
 import { EntityReferenceField } from "~/components/EntityReferenceField";
+import { FormField } from "~/components/FormField";
+import { errorAt } from "~/lib/form-errors";
+
+import type { ListFormValues } from "~/lib/form-errors";
 import type { DynamicField } from "~/schemas/dynamic-schema";
 
 interface ObjectArrayFieldProps {
@@ -17,11 +21,12 @@ export function ObjectArrayField({
   game,
   subFields,
 }: ObjectArrayFieldProps) {
-  const { control, register, formState: { errors } } = useFormContext<any>();
+  const { control, register, formState: { errors } } = useFormContext<ListFormValues>();
   const { fields, append, remove } = useFieldArray({
     control,
     name,
   });
+  const listError = errorAt(errors, [name]);
 
   if (!subFields || subFields.length === 0) {
     return (
@@ -42,15 +47,15 @@ export function ObjectArrayField({
         {label}
       </h3>
 
-      {(errors[name] as any)?.message && (
+      {listError !== undefined && (
         <p className="text-sm text-red-500 mb-2">
-          {(errors[name] as any).message as string}
+          {listError}
         </p>
       )}
 
       <div className="space-y-4">
         {fields.map((field, i) => {
-          const itemErrors = (errors[name] as any)?.[i];
+          const itemError = (key: string) => errorAt(errors, [name, i, key]);
 
           return (
             <div
@@ -72,7 +77,7 @@ export function ObjectArrayField({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {subFields.map((sf) => {
-                  const error = itemErrors?.[sf.key];
+                  const error = itemError(sf.key);
                   if (sf.type === "boolean") {
                     return (
                       <div
@@ -127,7 +132,7 @@ export function ObjectArrayField({
                               sf.type === "reference_list" || sf.type === "list"
                             }
                             error={!!error}
-                            helperText={error?.message as string}
+                            helperText={error}
                             currentValue={field.value}
                             {...field}
                           />
@@ -168,7 +173,7 @@ export function ObjectArrayField({
                     );
                   }
                   if (sf.hasCustomSuffix) {
-                    const unitError = itemErrors?.[`${sf.key}_suffix`];
+                    const unitError = itemError(`${sf.key}_suffix`);
                     return (
                       <div className="flex gap-2 w-full" key={sf.key}>
                         <div className="flex-1">
@@ -177,7 +182,7 @@ export function ObjectArrayField({
                             type={sf.type === "number" ? "number" : "text"}
                             {...register(`${name}.${i}.${sf.key}`)}
                             error={!!error}
-                            helperText={error?.message as string}
+                            helperText={error}
                           />
                         </div>
                         <div className="w-1/3">
@@ -185,7 +190,7 @@ export function ObjectArrayField({
                             label="Unit/Suffix"
                             {...register(`${name}.${i}.${sf.key}_suffix`)}
                             error={!!unitError}
-                            helperText={unitError?.message as string}
+                            helperText={unitError}
                           />
                         </div>
                       </div>
@@ -199,7 +204,7 @@ export function ObjectArrayField({
                       type={sf.type === "number" ? "number" : "text"}
                       {...register(`${name}.${i}.${sf.key}`)}
                       error={!!error}
-                      helperText={error?.message as string}
+                      helperText={error}
                       slotProps={sf.unit ? {
                         input: {
                           endAdornment: (

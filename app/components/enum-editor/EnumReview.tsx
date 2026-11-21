@@ -1,4 +1,5 @@
 import { DiffView } from "~/components/DiffView";
+import { NormalizedNote } from "~/components/record-form/NormalizedNote";
 import { Button } from "~/components/ui/button";
 
 import type { EnumPreview } from "./types";
@@ -21,7 +22,8 @@ export function EnumReview({ preview, submitError, isCommitting, onEditAgain, on
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-ink tracking-tight">Review Changes</h2>
-      <DiffView diffs={preview.diffs} uploads={preview.pictures.map((picture) => picture.path)} />
+      <DiffView diffs={preview.edits} uploads={preview.pictures.map((picture) => picture.path)} />
+      <NormalizedNote fields={preview.normalized} />
       {submitError !== null && <div className="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/50 dark:text-red-200">{submitError}</div>}
       <form onSubmit={onSubmit} className="flex gap-4 pt-4 border-t border-border">
         <input type="hidden" name="_enumJson" value={preview.enumJson} />

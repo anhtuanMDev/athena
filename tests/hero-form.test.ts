@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { heroAiPrompt, modeOverrideProblem } from "../app/lib/hero-form";
-import { importedRecord } from "../app/lib/record-form";
+import { fieldsLeftBehind, importedRecord } from "../app/lib/record-form";
 import { heroRecordSchema } from "../app/lib/record-schema";
 
 import type { DynamicField } from "../app/schemas/dynamic-schema";
@@ -55,5 +55,20 @@ void describe("an ability's mode overrides", () => {
   void it("may name only the game's modes: the save names the ability and the mode", () => {
     assert.equal(modeOverrideProblem(FIELDS, record, new Set(["push"])), "Ability 'Blink' references invalid mode override: 'arena'");
     assert.equal(modeOverrideProblem(FIELDS, record, new Set(["push", "arena"])), null);
+  });
+});
+
+void describe("a hero switched to another schema", () => {
+  // The old schema had health as a number; the hero contract's own health is a record of numbers.
+  const BASE = [field("role", "enum", { globalEnumId: "role" }), field("health", "number")];
+  const OTHER = [field("form", "string")];
+  const hero = { id: "echo", game: "overwatch", name: "Echo", role: "damage", health: 200 };
+
+  void it("passes the new schema's check once the old schema's fields are left behind, as a mode does", () => {
+    assert.equal(heroRecordSchema(OTHER).safeParse(hero).success, false);
+    const left = new Set(fieldsLeftBehind(BASE, OTHER));
+    assert.deepEqual([...left], ["role", "health"]);
+    const kept = Object.fromEntries(Object.entries(hero).filter(([key]) => !left.has(key)));
+    assert.equal(heroRecordSchema(OTHER).safeParse(kept).success, true);
   });
 });

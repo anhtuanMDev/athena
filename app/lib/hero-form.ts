@@ -1,3 +1,5 @@
+import { recordFormDefaults } from "./form-defaults";
+
 import type { DynamicField } from "~/schemas/dynamic-schema";
 import type { GlobalEnum } from "~/schemas/enum";
 
@@ -72,4 +74,17 @@ export function modeOverrideProblem(fields: DynamicField[], record: Record<strin
     }
   }
   return null;
+}
+
+/** A hero's keys its form edits with inputs of its own, not as the schema's fields (DynamicFieldsRenderer skips them). */
+export const HERO_OWN_KEYS = ["id", "name", "real_name", "portrait"];
+
+/**
+ * A stored hero as its Edit form holds it when it opens (form-defaults.ts):
+ * the schema's fields it shows, its name and real name, and its portrait's
+ * URL field when the hero has no portrait pictures.
+ */
+export function openedHero(values: Record<string, unknown>, fields: readonly DynamicField[], { hasPortraitUrl }: { hasPortraitUrl: boolean }): Record<string, unknown> {
+  const shown = fields.filter((field) => !HERO_OWN_KEYS.includes(field.key));
+  return recordFormDefaults(values, shown, ["name", "real_name", ...(hasPortraitUrl ? ["portrait"] : [])]);
 }

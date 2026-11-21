@@ -3,7 +3,8 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { abilityIcons as loadAbilityIcons, abilityLists, abilityPicturesChanged, iconEntries, picturesChanged } from "~/lib/ability-icons";
-import { heroAiPrompt } from "~/lib/hero-form";
+import { heroAiPrompt, openedHero } from "~/lib/hero-form";
+import { fieldsLeftBehind } from "~/lib/record-form";
 import { heroRecordSchema, schemaOf } from "~/lib/record-schema";
 
 import type { StoredHero } from "../types";
@@ -36,16 +37,21 @@ export function useHeroForm({ schemas, enums, initData, stored }: HeroFormSetup)
   const [schemaId, setSchemaId] = useState(() => schemaOf(schemas, initData.schema_id)?.id ?? "");
   const fields = useMemo(() => schemaOf(schemas, schemaId)?.fields ?? [], [schemas, schemaId]);
   const schema = useMemo(() => heroRecordSchema(fields), [fields]);
-  const methods = useForm<Record<string, unknown>>({ resolver: zodResolver(schema), mode: "onChange", defaultValues: { ...initData } });
+  // Edit opens the hero as its form holds it (form-defaults.ts), so an untouched hero opens unchanged.
+  const [opened] = useState(() => (stored ? openedHero(initData, fields, { hasPortraitUrl: loadedPortraits.length === 0 }) : { ...initData }));
+  const methods = useForm<Record<string, unknown>>({ resolver: zodResolver(schema), mode: "onChange", defaultValues: opened });
   const prompt = useMemo(() => heroAiPrompt(fields, enums), [fields, enums]);
 
+  // A switch drops the values of fields only the old schema had: the strict check would refuse them (record-form.ts).
   const switchSchema = (nextId: string) => {
+    methods.unregister(fieldsLeftBehind(fields, schemaOf(schemas, nextId)?.fields ?? []));
     setSchemaId(nextId);
     methods.setValue("schema_id", nextId, { shouldDirty: true });
   };
 
   return {
     methods,
+    opened,
     fields,
     schema,
     schemaId,

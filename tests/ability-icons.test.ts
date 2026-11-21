@@ -25,7 +25,8 @@ function loadedHero(): Item {
 }
 /** A form's values: react-hook-form keeps _clientId; what it submits is the schema's output, which drops it. */
 const formOf = (hero: Item) => withAbilityKeys(hero, LISTS) as Record<string, Item[]>;
-const reader = (form: Record<string, unknown>) => (path: string) => path.split(".").reduce<any>((v, k) => v?.[k], form);
+const reader = (form: Record<string, unknown>) => (path: string) =>
+  path.split(".").reduce<unknown>((value, key) => (typeof value === "object" && value !== null ? (value as Record<string, unknown>)[key] : undefined), form);
 const picked = (name: string) => ({ id: `new-${name}`, key: "main", name, base64: "iVBORw0K", previewUrl: "data:image/png;base64,iVBORw0K" });
 /** The first bytes of a PNG, a JPEG and a WebP picture, as base64: a new picture's type, and so its file's extension. */
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]).toString("base64");

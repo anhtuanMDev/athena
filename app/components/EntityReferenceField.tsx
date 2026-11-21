@@ -14,10 +14,11 @@ interface EntityReferenceFieldProps extends Omit<React.InputHTMLAttributes<HTMLS
   referenceLabelKey?: string;
   multiple?: boolean;
   required?: boolean;
-  currentValue?: string | string[];
+  /** The form's value: ids, or one id. */
+  currentValue?: unknown;
   error?: boolean;
   helperText?: string;
-  value?: string | string[];
+  value?: unknown;
 }
 
 export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElement, EntityReferenceFieldProps>(
@@ -84,10 +85,10 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
     }, [options, searchQuery]);
 
     const actualValue = props.value !== undefined ? props.value : currentValue;
-    const valArray = Array.isArray(actualValue) ? actualValue : (actualValue ? [actualValue] : []);
+    const valArray: unknown[] = Array.isArray(actualValue) ? actualValue : [actualValue].filter(Boolean);
 
-    const handleCheckboxChange = (optId: string, isChecked: boolean, onChange?: (val: string[]) => void) => {
-      let newValue: string[];
+    const handleCheckboxChange = (optId: string, isChecked: boolean, onChange?: (values: unknown[]) => void) => {
+      let newValue: unknown[];
       if (isChecked) {
         newValue = [...valArray, optId];
       } else {
@@ -150,7 +151,7 @@ export const EntityReferenceField = forwardRef<HTMLSelectElement | HTMLInputElem
                       name={name}
                       value={opt.id}
                       checked={valArray.includes(opt.id)}
-                      onChange={(e) => handleCheckboxChange(opt.id, e.target.checked, props.onChange as any)}
+                      onChange={(e) => handleCheckboxChange(opt.id, e.target.checked, props.onChange as ((values: unknown[]) => void) | undefined)}
                       className={`rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${error ? 'border-red-500' : ''}`}
                     />
                     <span className="ml-2 text-sm text-ink truncate">{opt.name}</span>

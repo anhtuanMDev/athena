@@ -58,7 +58,7 @@ export default function EnumsIndex() {
         </CardHeader>
         <CardContent>
           <DataTable
-            columns={columns as any}
+            columns={columns}
             data={enums || []}
             baseUrl={`/${game}/enums`}
           />

@@ -86,6 +86,44 @@ Each item in these arrays **must** follow this exact shape. \`name\` and \`type\
 Use \`""\`, \`0\`, \`false\`, or \`[]\` for optional fields not found in the source. Return ONLY the JSON object with no extra commentary.`;
 }
 
+/** An AI's values that stand for nothing: an empty list, where a list is expected. */
+const BLANK_IMPORTS = new Set<unknown>(["", null, undefined, false, 0]);
+
+/** A JSON value as String() writes it: a list joined with commas, an object as [object Object]. */
+function importedText(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.join(",");
+  }
+  if (typeof value === "object" && value !== null) {
+    return Object.prototype.toString.call(value);
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value.toString();
+  }
+  return value === null ? "null" : "undefined";
+}
+
+/** Whether an AI's list item is an object, whose keys the form reads. */
+const isImportRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
+
+const LIST_FIELDS = new Set(["list", "reference_list"]);
+const ENTRY_FIELDS = new Set(["abilities", "weapon", "object_array"]);
+
+/** An AI's value for `field` as the form takes it: a list field's as a list of text, a list of entries' as a list. */
+function sanitizeValue(value: unknown, field: DynamicField): unknown {
+  const isList = LIST_FIELDS.has(field.type);
+  if (!isList && !ENTRY_FIELDS.has(field.type)) {
+    return value;
+  }
+  if (BLANK_IMPORTS.has(value)) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    return isList ? [importedText(value)] : [value];
+  }
+  return isList ? value.map(importedText) : value;
+}
+
 export function formatImportedJson(
   json: Record<string, unknown>,
   fields: DynamicField[],
@@ -103,35 +141,14 @@ export function formatImportedJson(
     }
   }
 
-  const sanitizeValue = (val: any, fieldDef: DynamicField) => {
-    if (fieldDef.type === "list" || fieldDef.type === "reference_list") {
-      if (val === "" || val === null || val === undefined || val === false || val === 0) {
-        return [];
-      }
-      if (!Array.isArray(val)) {
-        return [String(val)];
-      }
-      return val.map(String);
-    }
-    if (fieldDef.type === "abilities" || fieldDef.type === "weapon" || fieldDef.type === "object_array") {
-      if (val === "" || val === null || val === undefined || val === false || val === 0) {
-        return [];
-      }
-      if (!Array.isArray(val)) {
-        return [val];
-      }
-    }
-    return val;
-  };
-
   fields.forEach((f) => {
     if (formattedJson[f.key] !== undefined) {
       formattedJson[f.key] = sanitizeValue(formattedJson[f.key], f);
     }
 
     if (f.type === "object_array" && Array.isArray(formattedJson[f.key]) && f.subFields) {
-      (formattedJson[f.key] as any[]).forEach((item) => {
-        if (item && typeof item === "object") {
+      (formattedJson[f.key] as unknown[]).forEach((item) => {
+        if (isImportRecord(item)) {
           f.subFields!.forEach((sf) => {
             if (item[sf.key] !== undefined) {
               item[sf.key] = sanitizeValue(item[sf.key], sf);

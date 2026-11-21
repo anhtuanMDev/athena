@@ -41,7 +41,7 @@ export function useHeroSave({ game, stored, form, shouldNotify, setSubmitError }
     const save: HeroSave = { game, formData, fields: form.fields, schema: form.schema, portraits: form.portraits, abilityIcons: form.abilityIcons, getValue: (path) => form.methods.getValues(path) };
     try {
       if (stored) {
-        setPreview(await previewHero(save, stored));
+        setPreview(await previewHero(save, stored, form.opened));
       } else {
         await create(save);
       }

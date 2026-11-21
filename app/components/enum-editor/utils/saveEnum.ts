@@ -2,6 +2,7 @@ import { asStored } from "~/lib/as-stored";
 import { computeDiff } from "~/lib/diff";
 import { duplicateOptionIds } from "~/lib/enum-form";
 import { applyOptionIcons } from "~/lib/enum-icons";
+import { enumFormDefaults, reviewOfSave } from "~/lib/form-defaults";
 import { pruneReplacedAssets, saveRecord } from "~/lib/github";
 import { slugify } from "~/lib/slug";
 import { keepUnknownKeys } from "~/lib/unknown-keys";
@@ -41,7 +42,9 @@ export function reviewEnum({ game, data, keys, picks }: EnumSave, stored: Stored
   const parsed = EnumSchema.parse(data);
   const pictures = applyOptionIcons(parsed.options, keys, picks, game, stored.id);
   const saved = asStored(stored.content, keepUnknownKeys(stored.content, parsed, EnumSchema), EnumSchema);
-  return { diffs: computeDiff(stored.content, saved), enumJson: JSON.stringify(saved), sha: stored.sha, pictures };
+  // The user's edits apart from what the save normalizes: the form opened with enumFormDefaults.
+  const { edits, normalized } = reviewOfSave({ stored: stored.content, opened: enumFormDefaults(stored.content), saved, schema: EnumSchema });
+  return { diffs: computeDiff(stored.content, saved), edits, normalized, enumJson: JSON.stringify(saved), sha: stored.sha, pictures };
 }
 
 /**

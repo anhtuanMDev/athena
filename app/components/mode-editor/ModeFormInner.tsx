@@ -3,6 +3,7 @@ import { FormProvider } from "react-hook-form";
 import { useNotifyPlayers } from "~/components/NotifyPlayers";
 import { UnknownKeysNotice } from "~/components/UnknownKeysNotice";
 import { DynamicFieldsRenderer } from "~/components/views/DynamicFieldsRenderer";
+import { MODE_OWN_KEYS } from "~/lib/form-defaults";
 import { heldId } from "~/lib/record-form";
 import { unknownKeys } from "~/lib/unknown-keys";
 import { useAutoGenerateId } from "~/lib/use-auto-generate-id";
@@ -29,8 +30,6 @@ interface ModeFormInnerProps {
   hasImported: boolean;
   onImported: (data: Record<string, unknown>) => void;
 }
-
-const SKIP_FIELDS = ["id", "name", "description"];
 
 /** A mode's form: its name, description and id, its schema's fields, and saving it. */
 export function ModeFormInner({ game, schemas, enums, stored, initData, hasImported, onImported }: ModeFormInnerProps) {
@@ -60,7 +59,7 @@ export function ModeFormInner({ game, schemas, enums, stored, initData, hasImpor
             control={methods.control}
             register={methods.register}
             errors={methods.formState.errors}
-            skipFields={SKIP_FIELDS}
+            skipFields={MODE_OWN_KEYS}
           />
         </div>
         {stored && <ModeDeleteButton game={game} id={String(initData.id)} isSubmitting={saver.isSubmitting} />}

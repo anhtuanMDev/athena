@@ -3,7 +3,7 @@ import { z } from "zod";
 export const EnumParamSchema = z.object({
   id: z.string().min(1, "ID is required").regex(/^[a-z0-9_]+$/, "Must be lowercase alphanumeric and underscores"),
   label: z.string().min(1, "Label is required"),
-  value: z.any(),
+  value: z.unknown(),
   suffix: z.string().optional(),
   type: z.enum(["string", "number", "boolean"]),
 });

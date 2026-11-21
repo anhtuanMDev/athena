@@ -68,6 +68,8 @@ export const DynamicSelectField = forwardRef<HTMLInputElement & HTMLSelectElemen
     const generatedId = useId();
     const fieldId = (props.id as string | undefined) ?? generatedId;
     const labelId = `${fieldId}-label`;
+    // The form's own onChange (a Controller's field), which takes the checked values.
+    const onValues = props.onChange as ((values: unknown[]) => void) | undefined;
     const helpId = `${fieldId}-help`;
     
     return (
@@ -113,7 +115,7 @@ export const DynamicSelectField = forwardRef<HTMLInputElement & HTMLSelectElemen
                       } else {
                         newArray = newArray.filter(v => v !== opt);
                       }
-                      (props.onChange as any)(newArray);
+                      onValues?.(newArray);
                     }
                   }}
                 />
