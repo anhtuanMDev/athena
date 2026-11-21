@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 
 import { abilityIcons as loadAbilityIcons, abilityLists, abilityPicturesChanged, iconEntries, picturesChanged } from "~/lib/ability-icons";
 import { heroAiPrompt, openedHero } from "~/lib/hero-form";
+import { fieldsLeftBehind } from "~/lib/record-form";
 import { heroRecordSchema, schemaOf } from "~/lib/record-schema";
 
 import type { StoredHero } from "../types";
@@ -41,7 +42,9 @@ export function useHeroForm({ schemas, enums, initData, stored }: HeroFormSetup)
   const methods = useForm<Record<string, unknown>>({ resolver: zodResolver(schema), mode: "onChange", defaultValues: opened });
   const prompt = useMemo(() => heroAiPrompt(fields, enums), [fields, enums]);
 
+  // A switch drops the values of fields only the old schema had: the strict check would refuse them (record-form.ts).
   const switchSchema = (nextId: string) => {
+    methods.unregister(fieldsLeftBehind(fields, schemaOf(schemas, nextId)?.fields ?? []));
     setSchemaId(nextId);
     methods.setValue("schema_id", nextId, { shouldDirty: true });
   };
