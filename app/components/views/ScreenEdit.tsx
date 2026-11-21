@@ -6,15 +6,17 @@ import { Link, useBlocker, useParams } from "react-router";
 import { BlockPreview, type PreviewContext } from "~/components/layout-editor/BlockPreview";
 import { SourceInput } from "~/components/layout-editor/inputs/SourceInput";
 import { PropControl } from "~/components/layout-editor/PropControl";
+import { LoadFailuresNote } from "~/components/screen-editor/LoadFailuresNote";
 import { useToast } from "~/components/ToastProvider";
 import { Button } from "~/components/ui/button";
 import { inputBaseClass, inputClass } from "~/components/ui/input-classes";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
-import { getFile, isConflictError, listDirectory, listGames, listSummaries, updateFile } from "~/lib/github";
+import { isConflictError, listDirectory, updateFile } from "~/lib/github";
 import { useCategories } from "~/lib/categories-context";
 import { enumOptions as optionsOf } from "~/lib/enum-options";
 import { detailScreenFor, referenceFolder, referenceLabels, referenceRecords } from "~/lib/reference-labels";
 import { homeData as appHomeData } from "~/lib/screen-fields";
+import { loadScreenData } from "~/lib/screen-loader";
 import {
   SCREEN_TYPES,
   bindingPath,
@@ -24,29 +26,22 @@ import {
   iconOptions,
   isBinding,
   itemFieldsFor,
-  normalizeManifest,
-  normalizeSource,
   previewRecords,
   screenReferenceFolders,
   validateScreen,
   type FieldOption,
   type PrimitiveManifest,
   type RecordSource,
-  type SchemaInfo,
   type ScreenBlock,
   type ScreenFile,
   type ScreenIssue,
 } from "~/lib/screen-model";
-import { APP_POLICY, MANIFEST_PATH, appPolicy, validateScreenFile } from "~/lib/screen-policy";
-import { createBlock, readScreen, recordLabel, screenDataFields, screenRefsOf } from "~/lib/screen-starters";
+import { APP_POLICY, validateScreenFile } from "~/lib/screen-policy";
+import { saveStep } from "~/lib/screen-save";
+import { githubSources } from "~/lib/screen-sources";
+import { createBlock, readScreen, recordLabel, screenDataFields } from "~/lib/screen-starters";
 import { useData } from "~/lib/use-data";
 import { ScreenEditSkeleton } from "~/components/views/ViewSkeletons";
-
-interface EnumFile {
-  id: string;
-  /** Names, or { id, name, description, icon, params }: read through enum-options.ts. */
-  options?: unknown[];
-}
 
 const iconButtonClass =
   "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-40 pointer-coarse:size-11";
@@ -104,52 +99,8 @@ export default function ScreenEdit() {
   const { success: toastSuccess, error: toastError } = useToast();
 
   const { data: loaded, loading, error: loadError } = useData(
-    async () => {
-      const [file, schemas, enums, screenNames, screenFiles, manifestFile, games] = await Promise.all([
-        getFile<ScreenFile>(screenPath),
-        listDirectory<SchemaInfo>(game!, "schemas", true).catch(() => []),
-        listDirectory<EnumFile>(game!, "enums", true).catch(() => []),
-        listDirectory<string>(game!, "screens").catch(() => []),
-        // The screens themselves: which detail screen a linked reference opens (field_section linkReferences).
-        listDirectory<unknown>(game!, "screens", true).catch((): unknown[] => []),
-        getFile(MANIFEST_PATH).catch(() => null),
-        // The game as the app gets it, for "data.game…" on home and list screens.
-        listGames().catch(() => []),
-      ]);
-      if (!file) throw new Error(`Screen "${id}" was not found in data/${game}/screens.`);
-      const categories = [...new Set(schemas.map((s) => s.category))];
-      // The screen's own category whole (a detail screen shows a record in
-      // full); the others as their lists show them (shape=summary), which is
-      // all their labels and list previews read, and spares the page the
-      // bulk of every other category's records.
-      const wholeCategory = normalizeSource((file.content as { source?: unknown } | null)?.source)?.category;
-      const recordLists = await Promise.all(
-        categories.map(async (category) => {
-          const folder = folderFor(category, configured);
-          const load = (folder: string) =>
-            category === wholeCategory ? listDirectory<Record<string, unknown>>(game!, folder, true) : listSummaries<Record<string, unknown>>(game!, folder);
-          const records = folder ? await load(folder).catch(() => []) : [];
-          return [category, Array.isArray(records) ? records : []] as const;
-        }),
-      );
-      return {
-        file: file.content,
-        sha: file.sha,
-        schemas: schemas.filter((s) => s && typeof s === "object" && s.category),
-        enums,
-        screenIds: screenNames.filter((n) => typeof n === "string"),
-        // This screen as saved is replaced by the one being edited (see `reference`).
-        otherScreens: screenRefsOf(screenFiles).filter((ref) => ref.id !== id),
-        // Every screen of the game by id (the listing names them), this one included.
-        screens: screenRefsOf(screenFiles),
-        manifest: normalizeManifest(manifestFile?.content),
-        // The app's limits and own screens; today's when the manifest has none.
-        policy: appPolicy(manifestFile?.content),
-        records: Object.fromEntries(recordLists) as Record<string, Record<string, unknown>[]>,
-        wholeCategory,
-        game: games.find((g) => g.slug === game) as Record<string, unknown> | undefined,
-      };
-    },
+    // Each source read on its own: one that fails is left out and named (LoadFailuresNote), not the whole page.
+    async () => loadScreenData(githubSources(game ?? ""), { game: game ?? "", id, path: screenPath, categories: configured }),
     [game, id, folders],
     `${game}-screen-${id}-${folders}`,
   );
@@ -395,6 +346,12 @@ export default function ScreenEdit() {
 
   const save = async () => {
     if (!loaded || !screen || submitting || !dirty) return;
+    // Checks run on what loaded: with a source missing, they can't vouch for the screen (LoadFailuresNote).
+    const step = saveStep({ isDirty: dirty, isSubmitting: submitting, failed: loaded.failed, blockingCount });
+    if (step.kind === "refused") {
+      toastError(step.reason);
+      return;
+    }
     setAttemptedSave(true);
     if (blockingCount > 0) {
       requestAnimationFrame(() => issuesHeadingRef.current?.focus());
@@ -512,6 +469,8 @@ export default function ScreenEdit() {
           </p>
         </div>
       )}
+
+      <LoadFailuresNote failed={loaded.failed} />
 
       {attemptedSave && blockingCount > 0 && (
         <section aria-labelledby="screen-issues-heading" className="mt-6 rounded-xl border border-danger/40 bg-danger/5 p-4">
