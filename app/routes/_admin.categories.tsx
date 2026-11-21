@@ -1,11 +1,12 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+
 import { PushNotConfigured, usePushConfigured } from "~/components/NotifyPlayers";
 import { NotifyTemplateEditor } from "~/components/NotifyTemplateEditor";
-import { Button } from "~/components/ui/button";
-import { LoadErrorState } from "~/components/ui/LoadErrorState";
-import { inputClass } from "~/components/layout-editor/PropControl";
 import { useToast } from "~/components/ToastProvider";
+import { Button } from "~/components/ui/button";
+import { inputClass } from "~/components/ui/input-classes";
+import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { CATEGORIES_PATH, CATEGORY_ICONS, DEFAULT_CATEGORIES, MAX_CATEGORIES, categoriesFileFor, categoriesForEditing, normalizeCategories, type Category } from "~/lib/categories";
 import { useReloadCategories } from "~/lib/categories-context";
 import { createFile, getDashboardData, getFile, isConflictError, listDirectory, updateFile } from "~/lib/github";

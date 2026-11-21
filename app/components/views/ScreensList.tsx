@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
 import Dialog from "@mui/material/Dialog";
 import { ArrowDown, ArrowUp, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router";
+
 import { useToast } from "~/components/ToastProvider";
 import { Button } from "~/components/ui/button";
+import { inputBaseClass, inputClass } from "~/components/ui/input-classes";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
-import { inputBaseClass, inputClass } from "~/components/layout-editor/PropControl";
+import { ScreensListSkeleton } from "~/components/views/ViewSkeletons";
+import { useCategories } from "~/lib/categories-context";
 import { createFile, deleteFile, getFile, isConflictError, listDirectory, updateFile } from "~/lib/github";
-import { APP_POLICY, MANIFEST_PATH, appPolicy, validateNavigationFile } from "~/lib/screen-policy";
-import { useData } from "~/lib/use-data";
 import {
   SCREEN_ID,
   SCREEN_TYPES,
@@ -24,8 +25,8 @@ import {
   type ScreenFile,
   type ScreenType,
 } from "~/lib/screen-model";
-import { useCategories } from "~/lib/categories-context";
-import { ScreensListSkeleton } from "~/components/views/ViewSkeletons";
+import { APP_POLICY, MANIFEST_PATH, appPolicy, validateNavigationFile } from "~/lib/screen-policy";
+import { useData } from "~/lib/use-data";
 
 const iconButtonClass =
   "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-40 pointer-coarse:size-11";
