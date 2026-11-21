@@ -8,6 +8,9 @@ import { HEX_COLOR } from "./contract";
 /** How a color is written, for messages. */
 export const HEX_EXAMPLE = "a hex color such as #FF8200 or #F80";
 
+/** How a light palette color is written, for the games page's message. */
+export const LIGHT_HEX_EXAMPLE = "a hex color such as #1A2B3C";
+
 /** The dark base the app draws a top-level color from when the game's isn't a hex color (zms: defaultDarkColors). */
 export const DARK_BASE = {
   primary: "#818CF8",

@@ -99,9 +99,22 @@ export async function updateFile(path: string, content: unknown, sha: string, me
   return res.sha ?? null;
 }
 
-/** One picture, as a commit of its own: only the games page's icon still uploads this way (the editors use saveRecord). */
-export async function uploadAsset(path: string, base64Content: string, sha?: string, message?: string): Promise<void> {
-  await api("POST", "data/file", { path, content: base64Content, isBase64: true, sha, message });
+/** A game's icon uploaded as a blob for saveGames: where it goes, its blob, and the server's token for it. */
+export interface UploadedIcon {
+  path: string;
+  sha: string;
+  token: string;
+}
+
+/** Uploads a game's icon as a blob, which commits nothing: saveGames commits it with games.json. */
+export async function uploadGameIcon(slug: string, path: string, base64: string): Promise<UploadedIcon> {
+  return api<UploadedIcon>("POST", "data/game-icon", { slug, path, base64 });
+}
+
+/** games.json, at the sha it was read at, with its new icon if one was picked: one commit. Resolves to the file's new sha. */
+export async function saveGames(save: { sha: string; content: unknown; message: string; icon?: UploadedIcon }): Promise<string | null> {
+  const res = await api<{ sha?: string | null }>("POST", "data/save-games", save);
+  return res.sha ?? null;
 }
 
 /** A picture a save adds or replaces: where it goes in the data repo, and its bytes as base64. */
@@ -243,9 +256,4 @@ export async function listGames(): Promise<Game[]> {
 /** Every game, with its record count per configured category folder. */
 export async function getDashboardData(): Promise<{ games: (Game & { counts: Record<string, number> })[] }> {
   return api("GET", "data/dashboard");
-}
-
-export async function getFileSha(path: string): Promise<string | null> {
-  const file = await getFile(path);
-  return file?.sha ?? null;
 }

@@ -1,36 +1,19 @@
+import Drawer from "@mui/material/Drawer";
 import { Pencil, X } from "lucide-react";
 import { useState } from "react";
-import Drawer from "@mui/material/Drawer";
+
 import { FormField } from "~/components/FormField";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import {
-  conflictResponse,
-  getFile,
-  getFileSha,
-  isConflictError,
-  listGames,
-  updateFile,
-  uploadAsset,
-} from "~/lib/github";
-import { useData } from "~/lib/use-data";
-import type { Game } from "~/schemas/game";
-import { GameSchema } from "~/schemas/game";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
-import { keepUnknownKeys } from "~/lib/unknown-keys";
-import { isGameActive, withSavedGame } from "~/lib/games";
-import {
-  MIN_CONTRAST,
-  PALETTE_KEYS,
-  PALETTE_LABELS,
-  colorField,
-  contrastWarnings,
-  effectivePalette,
-  isHex,
-  lightFromGame,
-  lightToSave,
-  type PaletteKey,
-} from "~/lib/game-palette";
+import { MIN_CONTRAST, PALETTE_KEYS, PALETTE_LABELS, colorField, contrastWarnings, effectivePalette, isHex, lightFromGame, lightToSave } from "~/lib/game-palette";
+import { isGameActive } from "~/lib/games";
+import { readFileBase64, saveGame } from "~/lib/games-save";
+import { listGames } from "~/lib/github";
+import { useData } from "~/lib/use-data";
+
+import type { PaletteKey } from "~/lib/game-palette";
+import type { Game } from "~/schemas/game";
 
 /** What a dark color's field says when it isn't a hex color: all 14 are required. */
 const darkColorHelp = (value: string): string => (value.trim() === "" ? "Required" : "Not a hex color");
@@ -193,108 +176,20 @@ export default function GamesList() {
     e.preventDefault();
     setSubmitting(true);
     setFormErrors(null);
-
     try {
-      // Everything that can refuse the save is checked before the icon is
-      // uploaded, so a refused form leaves no unused picture commit behind
-      // (and a taken slug can't overwrite that game's icon).
-      const iconUrl = iconFile
-        ? `/api/assets/games/${slug || "game"}-icon.${iconFile.name.split(".").pop() || "png"}`
-        : icon;
-      const parsed = GameSchema.safeParse({
-        slug,
-        name,
-        developer,
-        icon: iconUrl,
-        // The 14 dark colors, trimmed: each is required (the app leaves out a game without them).
-        ...Object.fromEntries(PALETTE_KEYS.map((key) => [key, darkPalette[key].trim()])),
-        light: lightToSave(light),
-        active,
-      });
-
-      if (!parsed.success) {
-        const fieldErrors = parsed.error.flatten().fieldErrors;
-        // Only form-wide errors show up top; a bad light color is on the other tab.
-        if (fieldErrors.light) {
-          setPaletteTab("light");
-          setFormErrors({ ...fieldErrors, _form: ["A light color isn't a hex color such as #1A2B3C."] });
-          return;
-        }
-        const darkErrors = PALETTE_KEYS.filter((key) => fieldErrors[key]);
-        if (darkErrors.length > 0) {
-          setPaletteTab("dark");
-          setFormErrors({
-            ...fieldErrors,
-            _form: [`Every dark color is needed, as a hex color such as #FF8200 or #F80: the app draws the game with all 14. Check ${darkErrors.map((key) => PALETTE_LABELS[key]).join(", ")}.`],
-          });
-          return;
-        }
-        setFormErrors(fieldErrors);
-        return;
-      }
-
-      const file = await getFile<{ games: Game[] }>("data/_meta/games.json");
-      if (!file) {
-        setFormErrors({ _form: ["Could not read games.json"] });
-        return;
-      }
-
-      // An edited game keeps its slug: it names the game's data folder.
-      const saved = withSavedGame(file.content.games, parsed.data, modalMode === "edit" ? editOriginalSlug : null, (old, game) =>
-        keepUnknownKeys(old, game, GameSchema) as Game,
-      );
-      if ("error" in saved) {
-        setFormErrors(modalMode === "edit" ? { _form: [saved.error] } : { slug: [saved.error] });
-        return;
-      }
-      const updatedGames = saved.games;
-
-      // Uploaded at the address the saved game already names (iconUrl above).
-      if (iconFile) {
-        const base64Data = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(",")[1]);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(iconFile);
-        });
-
-        const ext = iconFile.name.split(".").pop() || "png";
-        const filename = `${slug || "game"}-icon.${ext}`;
-        const path = `public/assets/games/${filename}`;
-
-        const existingSha = await getFileSha(path);
-        await uploadAsset(
-          path,
-          base64Data,
-          existingSha || undefined,
-          `Upload icon for ${name || slug}`,
-        );
-      }
-
-      try {
-        await updateFile(
-          "data/_meta/games.json",
-          { ...file.content, games: updatedGames },
-          file.sha,
-          `${modalMode === "edit" ? "Edit" : "Add"} game: ${parsed.data.name}`,
-        );
+      const draft = { slug, name, developer, icon, palette: darkPalette, light, active };
+      const picked = iconFile ? { name: iconFile.name, base64: await readFileBase64(iconFile) } : undefined;
+      const outcome = await saveGame({ draft, editing: modalMode === "edit" ? editOriginalSlug : null, ...(picked && { iconFile: picked }) });
+      if ("saved" in outcome) {
         setModalMode(null);
-      } catch (err) {
-        if (isConflictError(err)) {
-          setFormErrors({ _form: conflictResponse().errors._form });
-          return;
-        }
-        throw err;
+        return;
       }
+      if (outcome.tab) {
+        setPaletteTab(outcome.tab);
+      }
+      setFormErrors(outcome.errors);
     } catch (err) {
-      if (isConflictError(err)) {
-        setFormErrors({ _form: conflictResponse().errors._form });
-      } else {
-        setFormErrors({ _form: [(err as Error).message] });
-      }
+      setFormErrors({ _form: [err instanceof Error ? err.message : String(err)] });
     } finally {
       setSubmitting(false);
     }
