@@ -1,11 +1,13 @@
-import { useId, useState } from "react";
 import { BellRing } from "lucide-react";
+import { useId, useState } from "react";
+
 import { Button } from "~/components/ui/button";
-import { inputClass } from "~/components/layout-editor/PropControl";
-import type { Category, NotifyConfig } from "~/lib/categories";
+import { inputClass } from "~/components/ui/input-classes";
 import { getFile, listDirectory } from "~/lib/github";
 import { BODY_LIMIT, TITLE_LIMIT, renderNotification } from "~/lib/notify-template";
 import { useData } from "~/lib/use-data";
+
+import type { Category, NotifyConfig } from "~/lib/categories";
 
 /**
  * A category's push notification on the Categories page: whether "Notify

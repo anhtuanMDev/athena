@@ -12,8 +12,9 @@ import { ANDROID_CHANNEL_ID, PUSH_TOPIC } from "../app/lib/push";
 import { RECORD_ID } from "../app/lib/record-schema";
 import { detailScreenFor } from "../app/lib/reference-labels";
 import { SAFE_ENTITY_ID, SAFE_SLUG } from "../app/lib/safe-path";
-import { SCREEN_ID, previewRecords, valueView, valueWithUnit, type FieldOption } from "../app/lib/screen-model";
+import { SCREEN_ID, previewRecords, type FieldOption } from "../app/lib/screen-model";
 import { APP_POLICY, validateScreenFile } from "../app/lib/screen-policy";
+import { valueView, valueWithUnit } from "../app/lib/screen-values";
 import { GameSchema } from "../app/schemas/game";
 import { HeroSchema } from "../app/schemas/hero";
 import { MapSchema } from "../app/schemas/map";
@@ -94,7 +95,7 @@ void describe("the contract: values with units", () => {
       if (expected.section === undefined) {
         continue;
       }
-      const view = valueView(field, value, names, record);
+      const view = valueView(field, value, { ...names, container: record });
       assert.equal(view?.kind === "text" ? view.text : null, expected.section, `${name} (section)`);
     }
   });

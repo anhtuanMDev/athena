@@ -1,36 +1,32 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Link, useBlocker, useParams } from "react-router";
 import Dialog from "@mui/material/Dialog";
 import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ChevronDown, Copy, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Link, useBlocker, useParams } from "react-router";
+
+import { BlockPreview, type PreviewContext } from "~/components/layout-editor/BlockPreview";
+import { SourceInput } from "~/components/layout-editor/inputs/SourceInput";
+import { PropControl } from "~/components/layout-editor/PropControl";
 import { useToast } from "~/components/ToastProvider";
 import { Button } from "~/components/ui/button";
+import { inputBaseClass, inputClass } from "~/components/ui/input-classes";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
-import { BlockPreview, type PreviewContext } from "~/components/layout-editor/BlockPreview";
-import { PropControl, SourceInput, inputBaseClass, inputClass, type PropContext } from "~/components/layout-editor/PropControl";
 import { getFile, isConflictError, listDirectory, listGames, listSummaries, updateFile } from "~/lib/github";
-import { enumOptions as optionsOf } from "~/lib/enum-options";
-import { APP_POLICY, MANIFEST_PATH, appPolicy, validateScreenFile } from "~/lib/screen-policy";
-import { useData } from "~/lib/use-data";
 import { useCategories } from "~/lib/categories-context";
+import { enumOptions as optionsOf } from "~/lib/enum-options";
 import { detailScreenFor, referenceFolder, referenceLabels, referenceRecords } from "~/lib/reference-labels";
+import { homeData as appHomeData } from "~/lib/screen-fields";
 import {
   SCREEN_TYPES,
   bindingPath,
-  createBlock,
   folderFor,
   formProps,
-  homeData as appHomeData,
   iconOptions,
   isBinding,
   itemFieldsFor,
   normalizeManifest,
   normalizeSource,
   previewRecords,
-  readScreen,
-  recordLabel,
-  screenDataFields,
   screenReferenceFolders,
-  screenRefsOf,
   validateScreen,
   type FieldOption,
   type PrimitiveManifest,
@@ -40,6 +36,9 @@ import {
   type ScreenFile,
   type ScreenIssue,
 } from "~/lib/screen-model";
+import { APP_POLICY, MANIFEST_PATH, appPolicy, validateScreenFile } from "~/lib/screen-policy";
+import { createBlock, readScreen, recordLabel, screenDataFields, screenRefsOf } from "~/lib/screen-starters";
+import { useData } from "~/lib/use-data";
 import { ScreenEditSkeleton } from "~/components/views/ViewSkeletons";
 
 interface EnumFile {
@@ -715,7 +714,7 @@ export default function ScreenEdit() {
                 // Issues that no prop field shows: block-wide ones, and props outside the form.
                 const blockNotes = blockIssues.filter((i) => !i.prop || !formNames.has(i.prop));
                 const strayProps = Object.keys(block.props).filter((n) => spec && !formNames.has(n));
-                const context: PropContext = {
+                const context = {
                   dataFields,
                   chipFields,
                   itemFields: spec?.list ? itemFieldsFor(block, screen, dataFields, schemas, recordsOf) : null,

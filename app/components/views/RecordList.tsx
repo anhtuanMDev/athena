@@ -1,15 +1,17 @@
 import { Link, useParams } from "react-router";
-import type { LucideIcon } from "lucide-react";
-import { Card, CardContent } from "~/components/ui/card";
+
 import { ButtonLink } from "~/components/ui/button";
+import { Card, CardContent } from "~/components/ui/card";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
+import { RecordListSkeleton } from "~/components/views/ViewSkeletons";
+import { useCategories } from "~/lib/categories-context";
 import { listDirectory, listSummaries } from "~/lib/github";
 import { assertSafeGameSlug } from "~/lib/safe-path";
-import { dateField, recordListOrder, summaryField, titleField } from "~/lib/screen-model";
-import { useCategories } from "~/lib/categories-context";
+import { dateField, recordListOrder, summaryField, titleField } from "~/lib/screen-starters";
 import { useData } from "~/lib/use-data";
+
+import type { LucideIcon } from "lucide-react";
 import type { DynamicSchemaFile } from "~/schemas/dynamic-schema";
-import { RecordListSkeleton } from "~/components/views/ViewSkeletons";
 
 /**
  * The records of a category without a form of its own (news, patches, items),

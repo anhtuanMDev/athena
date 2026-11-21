@@ -2,24 +2,28 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, it } from "node:test";
 
+import { DEFAULT_CATEGORIES } from "../app/lib/categories";
+import { referenceLabels } from "../app/lib/reference-labels";
+import * as fieldLib from "../app/lib/screen-fields";
+import { homeFields, sourceFields } from "../app/lib/screen-fields";
 import {
-  homeFields,
   normalizeManifest,
-  recordListOrder,
-  sourceFields,
-  starterScreens,
   validateScreen,
   type AppContext,
   type PrimitiveManifest,
   type SchemaInfo,
   type ScreenFile,
 } from "../app/lib/screen-model";
+// P2 additions, imported as a namespace so each missing rule fails its own test.
+import * as screenModel from "../app/lib/screen-model";
 import { validateScreenFile } from "../app/lib/screen-policy";
 import * as policyLib from "../app/lib/screen-policy";
-import { DEFAULT_CATEGORIES } from "../app/lib/categories";
-import { referenceLabels } from "../app/lib/reference-labels";
-// P2 additions, imported as a namespace so each missing rule fails its own test.
-import * as model from "../app/lib/screen-model";
+import { recordListOrder, starterScreens } from "../app/lib/screen-starters";
+import * as starterLib from "../app/lib/screen-starters";
+import * as values from "../app/lib/screen-values";
+
+/** screen-model with the fields split out of it (screen-fields.ts), as the one namespace the P2 tests read. */
+const model = { ...screenModel, ...fieldLib };
 
 const manifest: PrimitiveManifest = {
   promo_card: {
@@ -321,7 +325,7 @@ describe("starter screens for references", () => {
     const real = fixtureSchemas();
     for (const schema of real) {
       const references = schema.fields.filter((f) => f.type === "reference" || f.type === "reference_list").map((f) => `data.${f.key}`);
-      for (const { file } of model.starterScreens(schema)) {
+      for (const { file } of starterLib.starterScreens(schema)) {
         const bound = file.blocks.flatMap((b) => Object.values(b.props).filter((v): v is string => typeof v === "string"));
         assert.deepEqual(bound.filter((v) => references.includes(v)), [], schema.id);
       }
@@ -334,23 +338,23 @@ describe("values with their unit or custom suffix (F3, as the app shows them)", 
   const health = { key: "health", type: "number", unit: "HP" };
 
   it("show a record's own suffix in place of the field's unit", () => {
-    assert.equal(model.valueWithUnit(cooldown, 8, { cooldown: 8, cooldown_suffix: " s " }), "8 s");
-    assert.equal(model.valueWithUnit({ ...health, hasCustomSuffix: true }, 250, { health: 250, health_suffix: "pts" }), "250 pts");
-    assert.equal(model.valueWithUnit({ key: "trigger", type: "string", hasCustomSuffix: true }, "Hold", { trigger: "Hold", trigger_suffix: "x2" }), "Hold x2");
+    assert.equal(values.valueWithUnit(cooldown, 8, { cooldown: 8, cooldown_suffix: " s " }), "8 s");
+    assert.equal(values.valueWithUnit({ ...health, hasCustomSuffix: true }, 250, { health: 250, health_suffix: "pts" }), "250 pts");
+    assert.equal(values.valueWithUnit({ key: "trigger", type: "string", hasCustomSuffix: true }, "Hold", { trigger: "Hold", trigger_suffix: "x2" }), "Hold x2");
   });
 
   it("fall back to the unit when the suffix is empty, or the field has none", () => {
-    assert.equal(model.valueWithUnit({ ...health, hasCustomSuffix: true }, 250, { health: 250, health_suffix: "   " }), "250 HP");
-    assert.equal(model.valueWithUnit(health, 250, { health: 250, health_suffix: "pts" }), "250 HP");
-    assert.equal(model.valueWithUnit(health, "250", { health: "250" }), "250 HP");
-    assert.equal(model.valueWithUnit(cooldown, 8, { cooldown: 8, cooldown_suffix: "" }), 8);
+    assert.equal(values.valueWithUnit({ ...health, hasCustomSuffix: true }, 250, { health: 250, health_suffix: "   " }), "250 HP");
+    assert.equal(values.valueWithUnit(health, 250, { health: 250, health_suffix: "pts" }), "250 HP");
+    assert.equal(values.valueWithUnit(health, "250", { health: "250" }), "250 HP");
+    assert.equal(values.valueWithUnit(cooldown, 8, { cooldown: 8, cooldown_suffix: "" }), 8);
   });
 
   it("leave enums, text without a suffix, empty values and unknown fields as they are", () => {
-    assert.equal(model.valueWithUnit({ key: "role", type: "enum", hasCustomSuffix: true }, "Tank", { role: "Tank", role_suffix: "x" }), "Tank");
-    assert.equal(model.valueWithUnit({ key: "note", type: "string", unit: "HP" }, "Hold", { note: "Hold" }), "Hold");
-    assert.equal(model.valueWithUnit(health, "", { health: "" }), "");
-    assert.equal(model.valueWithUnit(undefined, 5, {}), 5);
+    assert.equal(values.valueWithUnit({ key: "role", type: "enum", hasCustomSuffix: true }, "Tank", { role: "Tank", role_suffix: "x" }), "Tank");
+    assert.equal(values.valueWithUnit({ key: "note", type: "string", unit: "HP" }, "Hold", { note: "Hold" }), "Hold");
+    assert.equal(values.valueWithUnit(health, "", { health: "" }), "");
+    assert.equal(values.valueWithUnit(undefined, 5, {}), 5);
   });
 });
 
@@ -413,7 +417,7 @@ const fieldOf = (schema: SchemaInfo, key: string) => schema.fields.find((f) => f
 
 describe("a field_section's list of entries, as the app shows it (zms FieldValue)", () => {
   // The preview's lookups (ScreenEdit): a hero by its record's label, an enum value by its option's name.
-  const names = (linked = false): model.ValueNames => ({
+  const names = (linked = false): values.ValueNames => ({
     reference: (field, id) => {
       const label = referenceLabels(heroRecords, field).get(id);
       return label === undefined ? undefined : { label, linked };
@@ -431,7 +435,7 @@ describe("a field_section's list of entries, as the app shows it (zms FieldValue
       },
       { hero: "nobody", ability_or_system_name: "Sleep Dart" },
     ];
-    assert.deepEqual(model.valueView(fieldOf(patchSchema, "hero_balance_changes"), value, names()), {
+    assert.deepEqual(values.valueView(fieldOf(patchSchema, "hero_balance_changes"), value, names()), {
       kind: "entries",
       entries: [
         {
@@ -462,7 +466,7 @@ describe("a field_section's list of entries, as the app shows it (zms FieldValue
   });
 
   it("links the entries' references where the section links them, and names enum values by their option", () => {
-    const view = model.valueView(fieldOf(patchSchema, "bug_fixes"), [{ category: "UI", description: "Fixed a menu.", related_hero: "baptiste" }], names(true));
+    const view = values.valueView(fieldOf(patchSchema, "bug_fixes"), [{ category: "UI", description: "Fixed a menu.", related_hero: "baptiste" }], names(true));
     assert.deepEqual(view, {
       kind: "entries",
       entries: [
@@ -479,7 +483,7 @@ describe("a field_section's list of entries, as the app shows it (zms FieldValue
 
   it("shows an ability's name, type and description, then its params in the record's units", () => {
     const value = [{ name: "Biotic Rifle", type: "Weapon", description: "Heals allies.", icon: "a.png", params: { cooldown: 1.25, cooldown_suffix: "s", is_removed: false, keybind: "" } }];
-    assert.deepEqual(model.valueView(fieldOf(heroSchema, "abilities"), value, names()), {
+    assert.deepEqual(values.valueView(fieldOf(heroSchema, "abilities"), value, names()), {
       kind: "entries",
       entries: [
         {
@@ -496,7 +500,7 @@ describe("a field_section's list of entries, as the app shows it (zms FieldValue
   });
 
   it("shows nothing for an empty list", () => {
-    assert.equal(model.valueView(fieldOf(patchSchema, "bug_fixes"), [], names()), null);
+    assert.equal(values.valueView(fieldOf(patchSchema, "bug_fixes"), [], names()), null);
   });
 });
 
@@ -628,15 +632,15 @@ void describe("a screen's categories, as categories.json configures them (C5)", 
   });
 
   void it("offers starters only for configured categories", () => {
-    assert.deepEqual(model.starterSchemas(withSkin, DEFAULT_CATEGORIES).map((schema) => schema.id), ["hero-hero"]);
+    assert.deepEqual(starterLib.starterSchemas(withSkin, DEFAULT_CATEGORIES).map((schema) => schema.id), ["hero-hero"]);
   });
 });
 
 void describe("what data. reads on each kind of screen (C4)", () => {
-  const { screenDataFields } = model;
+  const { screenDataFields } = starterLib;
 
   void it("is the game and the folders on list screens; the source's fields only feed the filter chips", () => {
-    assert.equal(typeof screenDataFields, "function", "screen-model exports screenDataFields");
+    assert.equal(typeof screenDataFields, "function", "screen-starters exports screenDataFields");
     const list = screenDataFields({ type: "list", source: { category: "hero" }, blocks: [] }, { schemas, categories: DEFAULT_CATEGORIES });
     assert.deepEqual(list.data.map((field) => field.key), homeFields(DEFAULT_CATEGORIES).map((field) => field.key));
     assert.ok(list.filter.some((field) => field.key === "role"));
