@@ -182,6 +182,15 @@ export function formProps(spec: PrimitiveSpec | undefined): [string, PropSpec][]
   return Object.entries(spec.props).filter(([name]) => !FORM_EXCLUDED_PROPS.has(name));
 }
 
+/**
+ * A block type's entry in the manifest. Only the manifest's own entries count: a
+ * layout's block type is data, and one named "constructor" or "__proto__" is an
+ * unknown block, not a member every object has.
+ */
+export function blockSpec(manifest: PrimitiveManifest | null, type: string): PrimitiveSpec | undefined {
+  return manifest && Object.hasOwn(manifest, type) ? manifest[type] : undefined;
+}
+
 export function normalizeManifest(raw: unknown): PrimitiveManifest | null {
   if (!raw || typeof raw !== "object") return null;
   const entries = Object.entries(raw as Record<string, unknown>).filter(
@@ -490,7 +499,7 @@ export function validateScreen(
     if (seenIds.has(block.id)) add({ kind: "duplicate-id", message: `Block id "${block.id}" is used more than once.` }, "error");
     seenIds.add(block.id);
 
-    const spec = manifest?.[block.type];
+    const spec = blockSpec(manifest, block.type);
     if (manifest && !spec) {
       add({ kind: "unknown-type", message: `"${block.type}" is not in mobile_primitives.json, so the app skips this block.` }, "warning");
     }

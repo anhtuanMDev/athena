@@ -18,6 +18,7 @@ import { homeData as appHomeData } from "~/lib/screen-fields";
 import {
   SCREEN_TYPES,
   bindingPath,
+  blockSpec,
   folderFor,
   formProps,
   iconOptions,
@@ -308,7 +309,7 @@ export default function ScreenEdit() {
   const setBlocks = (fn: (blocks: ScreenBlock[]) => ScreenBlock[]) =>
     setScreen((prev) => (prev ? { ...prev, blocks: fn(prev.blocks) } : prev));
   const blocks = screen?.blocks ?? [];
-  const nameOf = (block: ScreenBlock) => manifest?.[block.type]?.name ?? block.type;
+  const nameOf = (block: ScreenBlock) => blockSpec(manifest, block.type)?.name ?? block.type;
 
   const addBlock = (type: string) => {
     const block = createBlock(type);
@@ -316,7 +317,7 @@ export default function ScreenEdit() {
     setExpandedId(block.id);
     setPickerOpen(false);
     pendingFocus.current = `block-${block.id}-toggle`;
-    setAnnouncement(`Added ${manifest?.[type]?.name ?? type} as block ${blocks.length + 1}.`);
+    setAnnouncement(`Added ${blockSpec(manifest, type)?.name ?? type} as block ${String(blocks.length + 1)}.`);
   };
 
   const moveBlock = (index: number, delta: -1 | 1) => {
@@ -701,7 +702,7 @@ export default function ScreenEdit() {
           ) : (
             <ol className="space-y-2">
               {blocks.map((block, index) => {
-                const spec = manifest?.[block.type];
+                const spec = blockSpec(manifest, block.type);
                 const expanded = expandedId === block.id;
                 const blockIssues = visibleIssues(issues.filter((i) => i.sectionId === block.id));
                 const blockJsonErrors = jsonErrorList.filter(([key]) => key.startsWith(`${block.id}:`)).length;
@@ -927,7 +928,7 @@ export default function ScreenEdit() {
                   <BlockPreview
                     key={block.id}
                     block={block}
-                    spec={manifest?.[block.type]}
+                    spec={blockSpec(manifest, block.type)}
                     ctx={previewCtx}
                     selected={expandedId === block.id}
                     onSelect={() => revealBlock(block.id)}
