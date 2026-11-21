@@ -8,6 +8,12 @@ import { HEX_COLOR } from "./contract";
 /** How a color is written, for messages. */
 export const HEX_EXAMPLE = "a hex color such as #FF8200 or #F80";
 
+/** A screen's accent box hint: a detail screen can read its record's color, the others the game's. */
+export const ACCENT_HINTS = {
+  detail: "#FF8200, or data.color for a per-record color",
+  other: "#FF8200, or data.game.secondary for the game's color",
+};
+
 /** How a light palette color is written, for the games page's message. */
 export const LIGHT_HEX_EXAMPLE = "a hex color such as #1A2B3C";
 

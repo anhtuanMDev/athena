@@ -4,11 +4,11 @@ import {
   bindingPath,
   bindingScope,
   isBinding,
-  normalizeSource,
   type FieldOption,
   type RecordSource,
   type ScreenBlock,
 } from "~/lib/screen-model";
+import { normalizeSource } from "~/lib/screen-records";
 import { valueView, valueWithUnit, type ValueView } from "~/lib/screen-values";
 
 import { ownEntry } from "./own-entry";

@@ -1,89 +1,49 @@
-import Dialog from "@mui/material/Dialog";
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ChevronDown, Copy, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Link, useBlocker, useParams } from "react-router";
+import { AlertTriangle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { useParams } from "react-router";
 
-import { BlockPreview, type PreviewContext } from "~/components/layout-editor/BlockPreview";
-import { SourceInput } from "~/components/layout-editor/inputs/SourceInput";
-import { PropControl } from "~/components/layout-editor/PropControl";
-import { useToast } from "~/components/ToastProvider";
-import { Button } from "~/components/ui/button";
-import { inputBaseClass, inputClass } from "~/components/ui/input-classes";
+import { BlockPicker } from "~/components/screen-editor/BlockPicker";
+import { BlockRow } from "~/components/screen-editor/BlockRow";
+import { LeaveDialog } from "~/components/screen-editor/LeaveDialog";
+import { LoadFailuresNote } from "~/components/screen-editor/LoadFailuresNote";
+import { PaneToggle } from "~/components/screen-editor/PaneToggle";
+import { PreviewPane } from "~/components/screen-editor/PreviewPane";
+import { ScreenHeader } from "~/components/screen-editor/ScreenHeader";
+import { ScreenIssues } from "~/components/screen-editor/ScreenIssues";
+import { ScreenSettings } from "~/components/screen-editor/ScreenSettings";
+import { useLeaveGuard } from "~/components/screen-editor/useLeaveGuard";
+import { useSaveShortcut } from "~/components/screen-editor/useSaveShortcut";
+import { useScreenSave } from "~/components/screen-editor/useScreenSave";
 import { LoadErrorState } from "~/components/ui/LoadErrorState";
-import { getFile, isConflictError, listDirectory, listGames, listSummaries, updateFile } from "~/lib/github";
+import { listDirectory } from "~/lib/github";
 import { useCategories } from "~/lib/categories-context";
 import { enumOptions as optionsOf } from "~/lib/enum-options";
 import { detailScreenFor, referenceFolder, referenceLabels, referenceRecords } from "~/lib/reference-labels";
 import { homeData as appHomeData } from "~/lib/screen-fields";
+import { loadScreenData } from "~/lib/screen-loader";
 import {
-  SCREEN_TYPES,
-  bindingPath,
+  blockSpec,
   folderFor,
-  formProps,
   iconOptions,
-  isBinding,
   itemFieldsFor,
-  normalizeManifest,
-  normalizeSource,
-  previewRecords,
   screenReferenceFolders,
   validateScreen,
   type FieldOption,
   type PrimitiveManifest,
   type RecordSource,
-  type SchemaInfo,
   type ScreenBlock,
   type ScreenFile,
   type ScreenIssue,
 } from "~/lib/screen-model";
-import { APP_POLICY, MANIFEST_PATH, appPolicy, validateScreenFile } from "~/lib/screen-policy";
-import { createBlock, readScreen, recordLabel, screenDataFields, screenRefsOf } from "~/lib/screen-starters";
+import { APP_POLICY, validateScreenFile } from "~/lib/screen-policy";
+import { previewRecords } from "~/lib/screen-records";
+import { githubSources } from "~/lib/screen-sources";
+import { createBlock, readScreen, screenDataFields } from "~/lib/screen-starters";
 import { useData } from "~/lib/use-data";
 import { ScreenEditSkeleton } from "~/components/views/ViewSkeletons";
 
-interface EnumFile {
-  id: string;
-  /** Names, or { id, name, description, icon, params }: read through enum-options.ts. */
-  options?: unknown[];
-}
-
-const iconButtonClass =
-  "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-40 pointer-coarse:size-11";
-
-// The preview shows the screen in its own appearance, whatever the admin's theme is.
-const PREVIEW_PALETTES: Record<"light" | "dark", CSSProperties> = {
-  light: {
-    "--ds-page": "oklch(98.5% 0.002 247.839)",
-    "--ds-surface": "oklch(100% 0 0)",
-    "--ds-surface-raised": "oklch(96.7% 0.003 264.542)",
-    "--ds-border": "oklch(92.8% 0.006 264.531)",
-    "--ds-border-strong": "oklch(87.2% 0.01 258.338)",
-    "--ds-ink": "oklch(21% 0.034 264.665)",
-    "--ds-ink-muted": "oklch(55.1% 0.027 264.364)",
-  } as CSSProperties,
-  dark: {
-    "--ds-page": "oklch(13% 0.028 261.692)",
-    "--ds-surface": "oklch(21% 0.034 264.665)",
-    "--ds-surface-raised": "oklch(27.8% 0.033 256.848)",
-    "--ds-border": "oklch(27.8% 0.033 256.848)",
-    "--ds-border-strong": "oklch(37.3% 0.034 259.733)",
-    "--ds-ink": "oklch(98.5% 0.002 247.839)",
-    "--ds-ink-muted": "oklch(70.7% 0.022 261.325)",
-  } as CSSProperties,
-};
-
-function summarizeProps(block: ScreenBlock): string {
-  const parts = Object.entries(block.props)
-    .filter(([, value]) => value !== undefined && (typeof value !== "object" || Array.isArray(value) || isBinding(value)))
-    .slice(0, 3)
-    .map(([name, value]) => {
-      if (isBinding(value)) return `${name} ← ${value}`;
-      if (Array.isArray(value)) return `${name}: ${value.length} ${value.length === 1 ? "entry" : "entries"}`;
-      const text = typeof value === "string" ? `"${value}"` : JSON.stringify(value);
-      return `${name}: ${text.length > 24 ? `${text.slice(0, 23)}…` : text}`;
-    });
-  return parts.length > 0 ? parts.join(" · ") : "No props set";
-}
+/** What the preview reads, as its pane takes it. */
+type PreviewContext = ComponentProps<typeof PreviewPane>["preview"]["ctx"];
 
 /** Folders whose records label a screen's references, as the app loads at most (zms's screen scope). */
 const MAX_REFERENCE_FOLDERS = 3;
@@ -100,55 +60,10 @@ export default function ScreenEdit() {
   const folders = configured.map((c) => c.folder).join();
   const id = splat?.split("/")[1] ?? "";
   const screenPath = `data/${game}/screens/${id}.json`;
-  const { success: toastSuccess, error: toastError } = useToast();
 
   const { data: loaded, loading, error: loadError } = useData(
-    async () => {
-      const [file, schemas, enums, screenNames, screenFiles, manifestFile, games] = await Promise.all([
-        getFile<ScreenFile>(screenPath),
-        listDirectory<SchemaInfo>(game!, "schemas", true).catch(() => []),
-        listDirectory<EnumFile>(game!, "enums", true).catch(() => []),
-        listDirectory<string>(game!, "screens").catch(() => []),
-        // The screens themselves: which detail screen a linked reference opens (field_section linkReferences).
-        listDirectory<unknown>(game!, "screens", true).catch((): unknown[] => []),
-        getFile(MANIFEST_PATH).catch(() => null),
-        // The game as the app gets it, for "data.game…" on home and list screens.
-        listGames().catch(() => []),
-      ]);
-      if (!file) throw new Error(`Screen "${id}" was not found in data/${game}/screens.`);
-      const categories = [...new Set(schemas.map((s) => s.category))];
-      // The screen's own category whole (a detail screen shows a record in
-      // full); the others as their lists show them (shape=summary), which is
-      // all their labels and list previews read, and spares the page the
-      // bulk of every other category's records.
-      const wholeCategory = normalizeSource((file.content as { source?: unknown } | null)?.source)?.category;
-      const recordLists = await Promise.all(
-        categories.map(async (category) => {
-          const folder = folderFor(category, configured);
-          const load = (folder: string) =>
-            category === wholeCategory ? listDirectory<Record<string, unknown>>(game!, folder, true) : listSummaries<Record<string, unknown>>(game!, folder);
-          const records = folder ? await load(folder).catch(() => []) : [];
-          return [category, Array.isArray(records) ? records : []] as const;
-        }),
-      );
-      return {
-        file: file.content,
-        sha: file.sha,
-        schemas: schemas.filter((s) => s && typeof s === "object" && s.category),
-        enums,
-        screenIds: screenNames.filter((n) => typeof n === "string"),
-        // This screen as saved is replaced by the one being edited (see `reference`).
-        otherScreens: screenRefsOf(screenFiles).filter((ref) => ref.id !== id),
-        // Every screen of the game by id (the listing names them), this one included.
-        screens: screenRefsOf(screenFiles),
-        manifest: normalizeManifest(manifestFile?.content),
-        // The app's limits and own screens; today's when the manifest has none.
-        policy: appPolicy(manifestFile?.content),
-        records: Object.fromEntries(recordLists) as Record<string, Record<string, unknown>[]>,
-        wholeCategory,
-        game: games.find((g) => g.slug === game) as Record<string, unknown> | undefined,
-      };
-    },
+    // Each source read on its own: one that fails is left out and named (LoadFailuresNote), not the whole page.
+    async () => loadScreenData(githubSources(game ?? ""), { game: game ?? "", id, path: screenPath, categories: configured }),
     [game, id, folders],
     `${game}-screen-${id}-${folders}`,
   );
@@ -175,7 +90,9 @@ export default function ScreenEdit() {
   // Take the file on first load and after our own saves; a refetch that lands
   // while edits are unsaved is ignored, so a stale sha surfaces as a conflict.
   const dirtyRef = useRef(dirty);
-  dirtyRef.current = dirty;
+  useEffect(() => {
+    dirtyRef.current = dirty;
+  });
   useEffect(() => {
     if (!loaded || dirtyRef.current) return;
     const next = readScreen(loaded.file);
@@ -208,7 +125,7 @@ export default function ScreenEdit() {
   const recordsFor = useCallback(
     (source: RecordSource | undefined) =>
       source && loaded
-        ? previewRecords(records[source.category] ?? [], source, loaded.schemas.filter((s) => s.category === source.category), loaded.policy.limits)
+        ? previewRecords(records[source.category] ?? [], source, { schemas: loaded.schemas.filter((schema) => schema.category === source.category), limits: loaded.policy.limits })
         : [],
     [loaded, records],
   );
@@ -282,20 +199,21 @@ export default function ScreenEdit() {
   const listedFileErrors = errorCount > 0 ? [] : fileErrors;
   const blockingCount = errorCount + jsonErrorList.length + listedFileErrors.length;
 
-  const blocker = useBlocker(
-    useCallback(
-      ({ currentLocation, nextLocation }: { currentLocation: { pathname: string }; nextLocation: { pathname: string } }) =>
-        dirty && currentLocation.pathname !== nextLocation.pathname,
-      [dirty],
-    ),
-  );
-
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  const blocker = useLeaveGuard(dirty);
+  const save = useScreenSave({
+    draft: { file: loaded?.file, screen, failed: loaded?.failed ?? [] },
+    target: { path: screenPath, id, sha },
+    state: { isDirty: dirty, isSubmitting: submitting, blockingCount },
+    flags: { setAttempted: setAttemptedSave, setSubmitting },
+    headingRef: issuesHeadingRef,
+    onSaved: (savedSnapshot, newSha) => {
+      if (newSha) {
+        setSha(newSha);
+      }
+      setSaved(savedSnapshot);
+    },
+  });
+  useSaveShortcut(save);
 
   useEffect(() => {
     if (!pendingFocus.current) return;
@@ -308,7 +226,7 @@ export default function ScreenEdit() {
   const setBlocks = (fn: (blocks: ScreenBlock[]) => ScreenBlock[]) =>
     setScreen((prev) => (prev ? { ...prev, blocks: fn(prev.blocks) } : prev));
   const blocks = screen?.blocks ?? [];
-  const nameOf = (block: ScreenBlock) => manifest?.[block.type]?.name ?? block.type;
+  const nameOf = (block: ScreenBlock) => blockSpec(manifest, block.type)?.name ?? block.type;
 
   const addBlock = (type: string) => {
     const block = createBlock(type);
@@ -316,7 +234,7 @@ export default function ScreenEdit() {
     setExpandedId(block.id);
     setPickerOpen(false);
     pendingFocus.current = `block-${block.id}-toggle`;
-    setAnnouncement(`Added ${manifest?.[type]?.name ?? type} as block ${blocks.length + 1}.`);
+    setAnnouncement(`Added ${blockSpec(manifest, type)?.name ?? type} as block ${String(blocks.length + 1)}.`);
   };
 
   const moveBlock = (index: number, delta: -1 | 1) => {
@@ -392,47 +310,6 @@ export default function ScreenEdit() {
     requestAnimationFrame(() => document.getElementById(`block-${blockId}`)?.scrollIntoView({ block: "nearest" }));
   };
 
-  const save = async () => {
-    if (!loaded || !screen || submitting || !dirty) return;
-    setAttemptedSave(true);
-    if (blockingCount > 0) {
-      requestAnimationFrame(() => issuesHeadingRef.current?.focus());
-      return;
-    }
-    setSubmitting(true);
-    const { id: _id, ...rest } = { ...(loaded.file as Record<string, unknown>), ...screen } as Record<string, unknown>;
-    const content = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
-    const savedSnapshot = JSON.stringify(screen);
-    try {
-      const newSha = await updateFile(screenPath, content, sha!, `Update screen: ${id}`);
-      if (newSha) setSha(newSha);
-      setSaved(savedSnapshot);
-      setAttemptedSave(false);
-      toastSuccess("Screen saved. The app picks it up on its next config refresh.");
-    } catch (err) {
-      toastError(
-        isConflictError(err)
-          ? "This screen changed on GitHub after you opened it. Reload the page to get the latest version, then redo your changes."
-          : (err as Error).message,
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const saveRef = useRef(save);
-  saveRef.current = save;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        saveRef.current();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
   if (loading && !loaded) {
     return <ScreenEditSkeleton />;
   }
@@ -464,43 +341,35 @@ export default function ScreenEdit() {
   };
   const summaryIssues = visibleIssues(issues).filter((i) => i.level === "error");
   const screenIssues = visibleIssues(issues).filter((i) => !i.sectionId);
-  const categoriesWithSchemas = configured.filter((c) => schemas.some((s) => s.category === c.category));
+
+  const blockName = (blockId: string) => {
+    const block = blocks.find((entry) => entry.id === blockId);
+    return block ? nameOf(block) : undefined;
+  };
+  const blockActions = {
+    toggle: (blockId: string) => setExpandedId((current) => (current === blockId ? null : blockId)),
+    patch: patchBlock,
+    move: moveBlock,
+    updateProp,
+    removeProps,
+    duplicate: duplicateBlock,
+    remove: removeBlock,
+    reportJson,
+  };
+  const contextOf = (block: ScreenBlock) => ({
+    dataFields,
+    chipFields,
+    itemFields: blockSpec(manifest, block.type)?.list ? itemFieldsFor(block, screen, dataFields, schemas, recordsOf) : null,
+    schemas,
+    screenIds: loaded.screenIds,
+    appScreens: loaded.policy.appScreens,
+    limits: loaded.policy.limits,
+    icons,
+  });
 
   return (
     <div className="w-full pb-32 pt-2">
-      <header className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
-        <div className="min-w-0">
-          <Link
-            to={`/${game}/screens`}
-            className="mb-3 inline-flex items-center gap-1 rounded text-sm font-medium text-ink-muted transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          >
-            <ArrowLeft aria-hidden="true" className="size-4" />
-            App screens
-          </Link>
-          <h1 className="text-3xl font-bold tracking-tight text-balance text-ink">Screen: {screen.title || id}</h1>
-          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-muted">
-            <span className="font-mono text-xs">{screenPath}</span>
-            <span aria-live="polite" className="inline-flex items-center gap-1.5">
-              {dirty ? (
-                <>
-                  <span aria-hidden="true" className="size-2 rounded-full bg-warning" />
-                  Unsaved changes
-                </>
-              ) : (
-                "Saved"
-              )}
-            </span>
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <span className="hidden text-xs text-ink-muted lg:inline">
-            <kbd className="font-sans">⌘S</kbd> to save
-          </span>
-          <Button type="button" onClick={save} disabled={submitting || !dirty}>
-            {submitting ? "Saving…" : "Save screen"}
-          </Button>
-        </div>
-      </header>
+      <ScreenHeader game={game} title={screen.title} id={id} path={screenPath} isDirty={dirty} isSubmitting={submitting} onSave={save} />
 
       {!manifest && (
         <div role="note" className="mt-6 flex gap-3 rounded-xl border border-border bg-surface-raised p-4 text-sm text-ink">
@@ -512,180 +381,30 @@ export default function ScreenEdit() {
         </div>
       )}
 
+      <LoadFailuresNote failed={loaded.failed} />
+
       {attemptedSave && blockingCount > 0 && (
-        <section aria-labelledby="screen-issues-heading" className="mt-6 rounded-xl border border-danger/40 bg-danger/5 p-4">
-          <h2 id="screen-issues-heading" ref={issuesHeadingRef} tabIndex={-1} className="text-sm font-semibold text-ink focus:outline-none">
-            Fix {blockingCount === 1 ? "1 problem" : `${blockingCount} problems`} before saving
-          </h2>
-          <ul className="mt-2 space-y-1 text-sm">
-            {summaryIssues.map((issue, i) => {
-              const block = blocks.find((b) => b.id === issue.sectionId);
-              return (
-                <li key={`${issue.sectionId}-${issue.prop ?? i}`}>
-                  <button
-                    type="button"
-                    onClick={() => revealBlock(issue.sectionId)}
-                    className="rounded text-left text-danger-ink underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-                  >
-                    {block ? nameOf(block) : "Screen settings"}: {issue.message}
-                  </button>
-                </li>
-              );
-            })}
-            {listedFileErrors.map((message) => (
-              <li key={message} className="text-danger-ink">
-                {message}
-              </li>
-            ))}
-            {jsonErrorList.map(([key, message]) => {
-              const [blockId, prop] = key.split(":");
-              const block = blocks.find((b) => b.id === blockId);
-              return (
-                <li key={key}>
-                  <button
-                    type="button"
-                    onClick={() => revealBlock(blockId)}
-                    className="rounded text-left text-danger-ink underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-                  >
-                    {block ? nameOf(block) : blockId}, {prop}: {message}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+        <ScreenIssues
+          count={blockingCount}
+          problems={{ issues: summaryIssues, fileErrors: listedFileErrors, jsonErrors: jsonErrorList }}
+          blockName={blockName}
+          onReveal={revealBlock}
+          headingRef={issuesHeadingRef}
+        />
       )}
 
-      <div className="mt-6 flex justify-end xl:hidden">
-        <div role="group" aria-label="Show" className="inline-flex rounded-lg bg-surface-raised p-1">
-          {(["blocks", "preview"] as const).map((pane) => (
-            <button
-              key={pane}
-              type="button"
-              aria-pressed={mobilePane === pane}
-              onClick={() => setMobilePane(pane)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus ${
-                mobilePane === pane ? "bg-surface text-ink shadow-sm" : "text-ink-muted hover:text-ink"
-              }`}
-            >
-              {pane === "blocks" ? "Blocks" : "Preview"}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PaneToggle pane={mobilePane} onPane={setMobilePane} />
 
       <div className="mt-4 items-start gap-8 xl:grid xl:grid-cols-[minmax(0,1fr)_375px]">
         <section aria-labelledby="blocks-heading" className={mobilePane === "preview" ? "hidden xl:block" : ""}>
-          {/* Screen settings */}
-          <div className={`mb-4 rounded-xl border bg-surface ${settingsOpen ? "border-border-strong" : "border-border"}`}>
-            <button
-              type="button"
-              aria-expanded={settingsOpen}
-              aria-controls="screen-settings"
-              onClick={() => setSettingsOpen((o) => !o)}
-              className="flex w-full items-center gap-2 rounded-xl px-4 py-3 text-left transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-            >
-              <ChevronDown aria-hidden="true" className={`size-4 text-ink-muted transition-transform duration-150 motion-reduce:transition-none ${settingsOpen ? "" : "-rotate-90"}`} />
-              <span className="flex-1">
-                <span className="block text-sm font-medium text-ink">Screen settings</span>
-                <span className="block text-xs text-ink-muted">
-                  {SCREEN_TYPES.find((t) => t.value === screen.type)?.label} · {screen.appearance === "dark" ? "Dark" : "Light"}
-                  {screen.source ? ` · ${configured.find((c) => c.category === screen.source?.category)?.label ?? screen.source.category}` : ""}
-                </span>
-              </span>
-              {screenIssues.length > 0 && (
-                <span className="rounded-full bg-danger/10 px-1.5 text-xs font-medium text-danger-ink">{screenIssues.length}</span>
-              )}
-            </button>
-            <div id="screen-settings" hidden={!settingsOpen} className="grid gap-4 border-t border-border p-4 md:grid-cols-2">
-              {settingsOpen && (
-                <>
-                  <label className="block text-xs font-medium text-ink">
-                    Title
-                    <input value={screen.title ?? ""} onChange={(e) => update({ title: e.target.value || undefined })} className={`${inputClass} mt-1.5`} />
-                  </label>
-                  <label className="block text-xs font-medium text-ink">
-                    Type
-                    <select value={screen.type} onChange={(e) => update({ type: e.target.value as ScreenFile["type"] })} className={`${inputClass} mt-1.5`}>
-                      {SCREEN_TYPES.map((t) => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}: {t.hint}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="text-xs font-medium text-ink">
-                    Appearance
-                    <div role="group" aria-label="Appearance" className="mt-1.5 inline-flex rounded-lg bg-surface-raised p-1">
-                      {(["light", "dark"] as const).map((a) => (
-                        <button
-                          key={a}
-                          type="button"
-                          aria-pressed={screen.appearance === a}
-                          onClick={() => update({ appearance: a })}
-                          className={`rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus ${
-                            screen.appearance === a ? "bg-surface text-ink shadow-sm" : "text-ink-muted hover:text-ink"
-                          }`}
-                        >
-                          {a}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {screen.type === "list" && (
-                    // The records the screen's list blocks show unless they set their own (zms useSourceRecords).
-                    <div className="text-xs font-medium text-ink md:col-span-2">
-                      <label htmlFor="screen-source">Records listed</label>
-                      <div className="mt-1.5">
-                        <SourceInput
-                          id="screen-source"
-                          value={screen.source}
-                          onChange={(source) => update({ source: source as RecordSource | undefined })}
-                          schemas={schemas}
-                          limits={loaded.policy.limits}
-                          emptyLabel="Choose a category…"
-                        />
-                      </div>
-                    </div>
-                  )}
-                  {screen.type === "detail" && (
-                    <label className="block text-xs font-medium text-ink">
-                      Record shown
-                      <select
-                        value={screen.source?.category ?? ""}
-                        // A detail screen shows the record it was opened with, so only the category counts.
-                        onChange={(e) => update({ source: e.target.value ? { category: e.target.value } : undefined })}
-                        className={`${inputClass} mt-1.5`}
-                        aria-invalid={screenIssues.length > 0 ? true : undefined}
-                      >
-                        <option value="">Choose a category…</option>
-                        {categoriesWithSchemas.map((c) => (
-                          <option key={c.category} value={c.category}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                  {/* The app reads the accent on every screen type (zms ScreenView). */}
-                  <label className="block text-xs font-medium text-ink md:col-span-2">
-                    Accent color
-                    <input
-                      value={screen.accent ?? ""}
-                      placeholder={screen.type === "detail" ? "#FF8200, or data.color for a per-record color" : "#FF8200, or data.game.secondary for the game's color"}
-                      onChange={(e) => update({ accent: e.target.value || undefined })}
-                      className={`${inputClass} mt-1.5 font-mono`}
-                    />
-                  </label>
-                  {screenIssues.map((i) => (
-                    <p key={i.message} className="text-xs text-danger-ink md:col-span-2">
-                      {i.message}
-                    </p>
-                  ))}
-                </>
-              )}
-            </div>
-          </div>
+          <ScreenSettings
+            screen={screen}
+            isOpen={settingsOpen}
+            onToggle={() => setSettingsOpen((open) => !open)}
+            issues={screenIssues}
+            sources={{ categories: configured, schemas, limits: loaded.policy.limits }}
+            onUpdate={update}
+          />
 
           <h2 id="blocks-heading" className="sr-only">
             Blocks
@@ -700,282 +419,38 @@ export default function ScreenEdit() {
             </div>
           ) : (
             <ol className="space-y-2">
-              {blocks.map((block, index) => {
-                const spec = manifest?.[block.type];
-                const expanded = expandedId === block.id;
-                const blockIssues = visibleIssues(issues.filter((i) => i.sectionId === block.id));
-                const blockJsonErrors = jsonErrorList.filter(([key]) => key.startsWith(`${block.id}:`)).length;
-                const errorCount = blockIssues.filter((i) => i.level === "error").length + blockJsonErrors;
-                const warnings = blockIssues.filter((i) => i.level === "warning" && !i.prop);
-                const hidden = block.visible === false;
-                const bodyId = `block-${block.id}-body`;
-                const name = nameOf(block);
-                const formNames = new Set(formProps(spec).map(([n]) => n));
-                // Issues that no prop field shows: block-wide ones, and props outside the form.
-                const blockNotes = blockIssues.filter((i) => !i.prop || !formNames.has(i.prop));
-                const strayProps = Object.keys(block.props).filter((n) => spec && !formNames.has(n));
-                const context = {
-                  dataFields,
-                  chipFields,
-                  itemFields: spec?.list ? itemFieldsFor(block, screen, dataFields, schemas, recordsOf) : null,
-                  schemas,
-                  screenIds: loaded.screenIds,
-                  appScreens: loaded.policy.appScreens,
-                  limits: loaded.policy.limits,
-                  icons,
-                };
-
-                return (
-                  <li key={block.id} id={`block-${block.id}`} className={`rounded-xl border bg-surface ${expanded ? "border-border-strong" : "border-border"}`}>
-                    <div className="flex items-center gap-1 py-1.5 pl-3 pr-1.5">
-                      <span aria-hidden="true" className="w-5 shrink-0 font-mono text-xs tabular-nums text-ink-muted">
-                        {index + 1}
-                      </span>
-                      <button
-                        type="button"
-                        id={`block-${block.id}-toggle`}
-                        aria-expanded={expanded}
-                        aria-controls={bodyId}
-                        onClick={() => setExpandedId(expanded ? null : block.id)}
-                        className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-                      >
-                        <ChevronDown aria-hidden="true" className={`size-4 shrink-0 text-ink-muted transition-transform duration-150 motion-reduce:transition-none ${expanded ? "" : "-rotate-90"}`} />
-                        <span className="min-w-0 flex-1">
-                          <span className={`block truncate text-sm font-medium ${hidden ? "text-ink-muted" : "text-ink"}`}>
-                            {name}
-                            <span className="sr-only">, block {index + 1} of {blocks.length}</span>
-                          </span>
-                          <span className="flex min-w-0 items-center gap-1.5">
-                            {hidden && <span className="shrink-0 rounded-full bg-surface-raised px-1.5 text-xs font-medium text-ink-muted">Hidden</span>}
-                            {block.tab && <span className="shrink-0 rounded-full bg-surface-raised px-1.5 text-xs font-medium text-ink-muted">Tab: {block.tab}</span>}
-                            {errorCount > 0 && (
-                              <span className="shrink-0 rounded-full bg-danger/10 px-1.5 text-xs font-medium text-danger-ink">
-                                {errorCount} {errorCount === 1 ? "problem" : "problems"}
-                              </span>
-                            )}
-                            {errorCount === 0 && warnings.length > 0 && <AlertTriangle aria-label="Has warnings" className="size-3.5 shrink-0 text-ink-muted" />}
-                            <span className="truncate font-mono text-xs text-ink-muted">{summarizeProps(block)}</span>
-                          </span>
-                        </span>
-                      </button>
-                      <button type="button" onClick={() => patchBlock(block.id, { visible: hidden ? true : false })} aria-label={hidden ? `Show ${name} in the app` : `Hide ${name} in the app`} className={iconButtonClass}>
-                        {hidden ? <EyeOff aria-hidden="true" className="size-4" /> : <Eye aria-hidden="true" className="size-4" />}
-                      </button>
-                      <button type="button" id={`block-${block.id}-up`} onClick={() => moveBlock(index, -1)} disabled={index === 0} aria-label={`Move ${name} up`} className={iconButtonClass}>
-                        <ArrowUp aria-hidden="true" className="size-4" />
-                      </button>
-                      <button type="button" id={`block-${block.id}-down`} onClick={() => moveBlock(index, 1)} disabled={index === blocks.length - 1} aria-label={`Move ${name} down`} className={iconButtonClass}>
-                        <ArrowDown aria-hidden="true" className="size-4" />
-                      </button>
-                    </div>
-
-                    <div id={bodyId} hidden={!expanded} className="space-y-5 border-t border-border px-4 py-4 md:px-5">
-                      {expanded && (
-                        <>
-                          {blockNotes.map((note) => (
-                            <p
-                              key={note.message}
-                              className={`flex gap-2 rounded-lg px-3 py-2 text-xs ${note.level === "error" ? "bg-danger/10 text-danger-ink" : "bg-surface-raised text-ink"}`}
-                            >
-                              <AlertTriangle aria-hidden="true" className="mt-px size-3.5 shrink-0" />
-                              {note.message}
-                            </p>
-                          ))}
-                          {strayProps.length > 0 && (
-                            <Button type="button" variant="ghost" size="small" onClick={() => removeProps(block.id, strayProps)}>
-                              Remove {strayProps.join(", ")}
-                            </Button>
-                          )}
-                          {spec?.list && (
-                            <p className="text-xs text-ink-muted">
-                              This block repeats for each{" "}
-                              {isBinding(block.props.items) ? `entry of ${bindingPath(block.props.items)}` : "record"}; pick fields under
-                              “Each entry” for its item props.
-                            </p>
-                          )}
-                          {tabs.length > 0 && block.type !== "tab_bar" && (
-                            <label className="block max-w-xs text-xs font-medium text-ink">
-                              Shown on tab
-                              <select
-                                value={block.tab ?? ""}
-                                onChange={(e) => patchBlock(block.id, { tab: e.target.value || undefined })}
-                                className={`${inputClass} mt-1.5`}
-                              >
-                                <option value="">Every tab</option>
-                                {block.tab && !tabs.includes(block.tab) && <option value={block.tab}>{block.tab} (no such tab)</option>}
-                                {tabs.map((t) => (
-                                  <option key={t} value={t}>
-                                    {t}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          )}
-                          {formProps(spec).length > 0 && (
-                            <div className="grid gap-x-6 gap-y-5 md:grid-cols-2">
-                              {formProps(spec).map(([propName, propSpec]) => (
-                                <PropControl
-                                  key={propName}
-                                  idBase={`block-${block.id}`}
-                                  name={propName}
-                                  spec={propSpec}
-                                  value={block.props[propName]}
-                                  context={context}
-                                  error={blockIssues.find((i) => i.prop === propName)?.message}
-                                  onChange={(value) => updateProp(block.id, propName, value)}
-                                  onJsonValidity={reportJson(`${block.id}:${propName}`)}
-                                />
-                              ))}
-                            </div>
-                          )}
-                          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-                            <p className="font-mono text-xs text-ink-muted">
-                              {block.type} · id {block.id}
-                            </p>
-                            <div className="flex gap-2">
-                              <Button type="button" variant="ghost" size="small" onClick={() => duplicateBlock(index)}>
-                                <Copy aria-hidden="true" className="mr-1.5 size-4" />
-                                Duplicate
-                              </Button>
-                              <Button type="button" variant="ghost" size="small" color="error" onClick={() => removeBlock(index)}>
-                                <Trash2 aria-hidden="true" className="mr-1.5 size-4" />
-                                Remove
-                              </Button>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
+              {blocks.map((block, index) => (
+                <BlockRow
+                  key={block.id}
+                  block={block}
+                  position={{ index, count: blocks.length }}
+                  spec={blockSpec(manifest, block.type)}
+                  issues={visibleIssues(issues.filter((issue) => issue.sectionId === block.id))}
+                  form={{ isExpanded: expandedId === block.id, context: contextOf(block), tabs, jsonErrorCount: jsonErrorList.filter(([key]) => key.startsWith(`${block.id}:`)).length }}
+                  actions={blockActions}
+                />
+              ))}
             </ol>
           )}
 
-          <div className="mt-3">
-            <button
-              type="button"
-              id="add-block-button"
-              aria-expanded={pickerOpen}
-              aria-controls="block-picker"
-              onClick={() => setPickerOpen((open) => !open)}
-              disabled={!manifest}
-              className="inline-flex items-center gap-2 rounded-lg border border-dashed border-border-strong px-3 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50"
-            >
-              <Plus aria-hidden="true" className="size-4" />
-              Add block
-            </button>
-            {pickerOpen && manifest && (
-              <ul id="block-picker" aria-label="Block types" className="mt-2 grid gap-2 rounded-xl border border-border bg-surface p-2 sm:grid-cols-2">
-                {Object.entries(manifest).map(([type, spec]) => {
-                  const required = Object.entries(spec.props).filter(([, p]) => p.required && p.type !== "node").map(([n]) => n);
-                  return (
-                    <li key={type}>
-                      <button
-                        type="button"
-                        onClick={() => addBlock(type)}
-                        className="w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-                      >
-                        <span className="block text-sm font-medium text-ink">{spec.name}</span>
-                        <span className="block truncate text-xs text-ink-muted">
-                          {spec.list ? "Repeats per record · " : ""}
-                          {required.length > 0 ? `Needs ${required.join(", ")}` : "No required props"}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
+          <BlockPicker manifest={manifest} isOpen={pickerOpen} onToggle={() => setPickerOpen((open) => !open)} onAdd={addBlock} />
         </section>
 
-        <aside aria-labelledby="preview-heading" className={`xl:sticky xl:top-0 ${mobilePane === "blocks" ? "hidden xl:block" : ""}`}>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 id="preview-heading" className="text-sm font-semibold text-ink">
-              Preview
-            </h2>
-            {screen.type === "detail" && detailRecords.length > 1 && (
-              <div className="flex items-center gap-2 text-xs text-ink-muted">
-                <label htmlFor="preview-record">Record</label>
-                <select id="preview-record" value={Math.min(sampleIndex, detailRecords.length - 1)} onChange={(e) => setSampleIndex(Number(e.target.value))} className={`${inputBaseClass} w-auto max-w-44 py-1 text-xs`}>
-                  {detailRecords.map((record, i) => (
-                    <option key={String(record.id ?? i)} value={i}>
-                      {recordLabel(record)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {tabs.length > 0 && (
-              <div className="flex items-center gap-2 text-xs text-ink-muted">
-                <label htmlFor="preview-tab">Tab</label>
-                <select id="preview-tab" value={activePreviewTab} onChange={(e) => setPreviewTab(e.target.value)} className={`${inputBaseClass} w-auto py-1 text-xs`}>
-                  {tabs.map((t) => (
-                    <option key={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-          <div style={PREVIEW_PALETTES[screen.appearance ?? "light"]} className="mx-auto w-full max-w-[375px] overflow-hidden rounded-2xl border border-border-strong bg-page text-ink">
-            <div className="max-h-[calc(100dvh-12rem)] space-y-5 overflow-y-auto p-4">
-              {previewBlocks.length === 0 ? (
-                <p className="py-16 text-center text-sm text-ink-muted">Nothing to show yet</p>
-              ) : (
-                previewBlocks.map((block) => (
-                  <BlockPreview
-                    key={block.id}
-                    block={block}
-                    spec={manifest?.[block.type]}
-                    ctx={previewCtx}
-                    selected={expandedId === block.id}
-                    onSelect={() => revealBlock(block.id)}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-          <p className="mt-2 text-xs text-ink-muted">
-            {screen.type === "detail"
-              ? sample
-                ? `Showing ${recordLabel(sample)}. `
-                : "No records of this category yet, so bound values appear as field names. "
-              : ""}
-            A sketch of each block; the app applies its own styling.
-            {hiddenCount > 0 && ` ${hiddenCount} hidden ${hiddenCount === 1 ? "block is" : "blocks are"} left out.`}
-          </p>
-        </aside>
+        <PreviewPane
+          isHidden={mobilePane === "blocks"}
+          screen={screen}
+          sample={{ records: detailRecords, index: sampleIndex, onIndex: setSampleIndex, record: sample }}
+          tabs={{ list: tabs, active: activePreviewTab, onTab: setPreviewTab }}
+          preview={{ blocks: previewBlocks, hiddenCount, manifest, ctx: previewCtx }}
+          selection={{ selectedId: expandedId, onSelect: revealBlock }}
+        />
       </div>
 
       <div aria-live="polite" className="sr-only">
         {announcement}
       </div>
 
-      <Dialog
-        open={blocker.state === "blocked"}
-        onClose={() => blocker.reset?.()}
-        aria-labelledby="leave-screen-title"
-        aria-describedby="leave-screen-description"
-        slotProps={{ paper: { sx: { width: "100%", maxWidth: 420, m: 2, borderRadius: "16px", border: "1px solid var(--ds-border)" } } }}
-      >
-        <div className="p-6">
-          <h2 id="leave-screen-title" className="text-lg font-semibold text-ink">
-            Leave without saving?
-          </h2>
-          <p id="leave-screen-description" className="mt-1 text-sm text-ink-muted">
-            Your changes to this screen haven't been saved to GitHub and will be lost.
-          </p>
-          <div className="mt-6 flex justify-end gap-2">
-            <Button type="button" variant="secondary" autoFocus onClick={() => blocker.reset?.()}>
-              Keep editing
-            </Button>
-            <Button type="button" variant="destructive" onClick={() => blocker.proceed?.()}>
-              Discard changes
-            </Button>
-          </div>
-        </div>
-      </Dialog>
+      <LeaveDialog blocker={blocker} />
     </div>
   );
 }

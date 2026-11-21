@@ -12,8 +12,9 @@ import { ANDROID_CHANNEL_ID, PUSH_TOPIC } from "../app/lib/push";
 import { RECORD_ID } from "../app/lib/record-schema";
 import { detailScreenFor } from "../app/lib/reference-labels";
 import { SAFE_ENTITY_ID, SAFE_SLUG } from "../app/lib/safe-path";
-import { SCREEN_ID, previewRecords, type FieldOption } from "../app/lib/screen-model";
+import { SCREEN_ID, type FieldOption } from "../app/lib/screen-model";
 import { APP_POLICY, validateScreenFile } from "../app/lib/screen-policy";
+import { previewRecords } from "../app/lib/screen-records";
 import { valueView, valueWithUnit } from "../app/lib/screen-values";
 import { GameSchema } from "../app/schemas/game";
 import { HeroSchema } from "../app/schemas/hero";
@@ -113,7 +114,7 @@ void describe("the contract: pictures", () => {
 void describe("the contract: lists", () => {
   void it("are sorted, narrowed and capped as the app lists them", () => {
     for (const { name, records, source, schemas, expected } of cases.lists) {
-      const shown = previewRecords(records, source as never, schemas.map((id) => ({ id })));
+      const shown = previewRecords(records, source as never, { schemas: schemas.map((id) => ({ id })) });
       assert.deepEqual(shown.map((record) => record.id), expected, name);
     }
   });
