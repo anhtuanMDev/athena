@@ -11,6 +11,7 @@ import { PreviewPane } from "~/components/screen-editor/PreviewPane";
 import { ScreenHeader } from "~/components/screen-editor/ScreenHeader";
 import { ScreenIssues } from "~/components/screen-editor/ScreenIssues";
 import { ScreenSettings } from "~/components/screen-editor/ScreenSettings";
+import { useBlockEditing } from "~/components/screen-editor/useBlockEditing";
 import { useLeaveGuard } from "~/components/screen-editor/useLeaveGuard";
 import { useSaveShortcut } from "~/components/screen-editor/useSaveShortcut";
 import { useScreenSave } from "~/components/screen-editor/useScreenSave";
@@ -38,7 +39,7 @@ import {
 import { APP_POLICY, validateScreenFile } from "~/lib/screen-policy";
 import { previewRecords } from "~/lib/screen-records";
 import { githubSources } from "~/lib/screen-sources";
-import { createBlock, readScreen, screenDataFields } from "~/lib/screen-starters";
+import { readScreen, screenDataFields } from "~/lib/screen-starters";
 import { useData } from "~/lib/use-data";
 import { ScreenEditSkeleton } from "~/components/views/ViewSkeletons";
 
@@ -71,18 +72,16 @@ export default function ScreenEdit() {
   const [screen, setScreen] = useState<ScreenFile | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [sha, setSha] = useState<string | undefined>();
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<"blocks" | "preview">("blocks");
   const [sampleIndex, setSampleIndex] = useState(0);
   const [previewTab, setPreviewTab] = useState<string | undefined>();
-  const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
   const [attemptedSave, setAttemptedSave] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [announcement, setAnnouncement] = useState("");
-  const pendingFocus = useRef<string | null>(null);
   const issuesHeadingRef = useRef<HTMLHeadingElement>(null);
+  // Which block is open, the picker, the JSON boxes that don't parse, and the operations on blocks.
+  const editing = useBlockEditing({ screen, setScreen, manifest: loaded?.manifest ?? null, show: { settings: () => { setSettingsOpen(true); }, blocks: () => { setMobilePane("blocks"); } } });
+  const { jsonErrors } = editing;
 
   const snapshot = screen ? JSON.stringify(screen) : null;
   const dirty = saved !== null && snapshot !== saved;
@@ -215,100 +214,8 @@ export default function ScreenEdit() {
   });
   useSaveShortcut(save);
 
-  useEffect(() => {
-    if (!pendingFocus.current) return;
-    const el = document.getElementById(pendingFocus.current) as HTMLElement | null;
-    pendingFocus.current = null;
-    el?.focus();
-  });
-
   const update = (patch: Partial<ScreenFile>) => setScreen((prev) => (prev ? { ...prev, ...patch } : prev));
-  const setBlocks = (fn: (blocks: ScreenBlock[]) => ScreenBlock[]) =>
-    setScreen((prev) => (prev ? { ...prev, blocks: fn(prev.blocks) } : prev));
   const blocks = screen?.blocks ?? [];
-  const nameOf = (block: ScreenBlock) => blockSpec(manifest, block.type)?.name ?? block.type;
-
-  const addBlock = (type: string) => {
-    const block = createBlock(type);
-    setBlocks((current) => [...current, block]);
-    setExpandedId(block.id);
-    setPickerOpen(false);
-    pendingFocus.current = `block-${block.id}-toggle`;
-    setAnnouncement(`Added ${blockSpec(manifest, type)?.name ?? type} as block ${String(blocks.length + 1)}.`);
-  };
-
-  const moveBlock = (index: number, delta: -1 | 1) => {
-    const target = index + delta;
-    if (target < 0 || target >= blocks.length) return;
-    const block = blocks[index];
-    setBlocks((current) => {
-      const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
-    const edge = target === 0 || target === blocks.length - 1;
-    pendingFocus.current = `block-${block.id}-${edge ? (delta < 0 ? "down" : "up") : delta < 0 ? "up" : "down"}`;
-    setAnnouncement(`Moved ${nameOf(block)} to position ${target + 1} of ${blocks.length}.`);
-  };
-
-  const patchBlock = (blockId: string, patch: Partial<ScreenBlock>) =>
-    setBlocks((current) => current.map((b) => (b.id === blockId ? { ...b, ...patch } : b)));
-
-  const updateProp = (blockId: string, name: string, value: unknown) =>
-    setBlocks((current) =>
-      current.map((b) => {
-        if (b.id !== blockId) return b;
-        const props = { ...b.props };
-        if (value === undefined) delete props[name];
-        else props[name] = value;
-        return { ...b, props };
-      }),
-    );
-
-  /** Drops props the app won't take (styles, callbacks, props the block doesn't have). */
-  const removeProps = (blockId: string, names: string[]) =>
-    setBlocks((current) =>
-      current.map((b) => (b.id === blockId ? { ...b, props: Object.fromEntries(Object.entries(b.props).filter(([n]) => !names.includes(n))) } : b)),
-    );
-
-  const duplicateBlock = (index: number) => {
-    const original = blocks[index];
-    const copy = { ...createBlock(original.type), props: structuredClone(original.props), visible: original.visible, tab: original.tab };
-    setBlocks((current) => [...current.slice(0, index + 1), copy, ...current.slice(index + 1)]);
-    setExpandedId(copy.id);
-    pendingFocus.current = `block-${copy.id}-toggle`;
-    setAnnouncement(`Duplicated ${nameOf(original)} as block ${index + 2}.`);
-  };
-
-  const removeBlock = (index: number) => {
-    const block = blocks[index];
-    setBlocks((current) => current.filter((b) => b.id !== block.id));
-    setJsonErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => !key.startsWith(`${block.id}:`))));
-    const neighbour = blocks[index + 1] ?? blocks[index - 1];
-    pendingFocus.current = neighbour ? `block-${neighbour.id}-toggle` : "add-block-button";
-    setAnnouncement(`Removed ${nameOf(block)}.`);
-  };
-
-  const reportJson = (key: string) => (error: string | null) =>
-    setJsonErrors((prev) => {
-      if (error === null) {
-        if (!(key in prev)) return prev;
-        const { [key]: _removed, ...rest } = prev;
-        return rest;
-      }
-      return prev[key] === error ? prev : { ...prev, [key]: error };
-    });
-
-  const revealBlock = (blockId: string) => {
-    if (!blockId) {
-      setSettingsOpen(true);
-      return;
-    }
-    setExpandedId(blockId);
-    setMobilePane("blocks");
-    pendingFocus.current = `block-${blockId}-toggle`;
-    requestAnimationFrame(() => document.getElementById(`block-${blockId}`)?.scrollIntoView({ block: "nearest" }));
-  };
 
   if (loading && !loaded) {
     return <ScreenEditSkeleton />;
@@ -342,20 +249,6 @@ export default function ScreenEdit() {
   const summaryIssues = visibleIssues(issues).filter((i) => i.level === "error");
   const screenIssues = visibleIssues(issues).filter((i) => !i.sectionId);
 
-  const blockName = (blockId: string) => {
-    const block = blocks.find((entry) => entry.id === blockId);
-    return block ? nameOf(block) : undefined;
-  };
-  const blockActions = {
-    toggle: (blockId: string) => setExpandedId((current) => (current === blockId ? null : blockId)),
-    patch: patchBlock,
-    move: moveBlock,
-    updateProp,
-    removeProps,
-    duplicate: duplicateBlock,
-    remove: removeBlock,
-    reportJson,
-  };
   const contextOf = (block: ScreenBlock) => ({
     dataFields,
     chipFields,
@@ -387,8 +280,8 @@ export default function ScreenEdit() {
         <ScreenIssues
           count={blockingCount}
           problems={{ issues: summaryIssues, fileErrors: listedFileErrors, jsonErrors: jsonErrorList }}
-          blockName={blockName}
-          onReveal={revealBlock}
+          blockName={editing.blockName}
+          onReveal={editing.revealBlock}
           headingRef={issuesHeadingRef}
         />
       )}
@@ -426,14 +319,14 @@ export default function ScreenEdit() {
                   position={{ index, count: blocks.length }}
                   spec={blockSpec(manifest, block.type)}
                   issues={visibleIssues(issues.filter((issue) => issue.sectionId === block.id))}
-                  form={{ isExpanded: expandedId === block.id, context: contextOf(block), tabs, jsonErrorCount: jsonErrorList.filter(([key]) => key.startsWith(`${block.id}:`)).length }}
-                  actions={blockActions}
+                  form={{ isExpanded: editing.expandedId === block.id, context: contextOf(block), tabs, jsonErrorCount: jsonErrorList.filter(([key]) => key.startsWith(`${block.id}:`)).length }}
+                  actions={editing.actions}
                 />
               ))}
             </ol>
           )}
 
-          <BlockPicker manifest={manifest} isOpen={pickerOpen} onToggle={() => setPickerOpen((open) => !open)} onAdd={addBlock} />
+          <BlockPicker manifest={manifest} isOpen={editing.isPickerOpen} onToggle={editing.togglePicker} onAdd={editing.addBlock} />
         </section>
 
         <PreviewPane
@@ -442,12 +335,12 @@ export default function ScreenEdit() {
           sample={{ records: detailRecords, index: sampleIndex, onIndex: setSampleIndex, record: sample }}
           tabs={{ list: tabs, active: activePreviewTab, onTab: setPreviewTab }}
           preview={{ blocks: previewBlocks, hiddenCount, manifest, ctx: previewCtx }}
-          selection={{ selectedId: expandedId, onSelect: revealBlock }}
+          selection={{ selectedId: editing.expandedId, onSelect: editing.revealBlock }}
         />
       </div>
 
       <div aria-live="polite" className="sr-only">
-        {announcement}
+        {editing.announcement}
       </div>
 
       <LeaveDialog blocker={blocker} />
