@@ -1,15 +1,15 @@
 import { Octokit } from "@octokit/rest";
 
 import { commitChecked } from "../../app/lib/api/commit";
+import { dataReader, type ApiContext as PagesFunctionContext, type Env } from "../../app/lib/api/env";
 import { PICTURES_ELSEWHERE, gameIconRequest, gamesSaveRequest, saveGames, uploadGameIcon } from "../../app/lib/api/games";
-
-import type { KVNamespace } from "@cloudflare/workers-types";
+import { BAD_REQUEST, HttpError, SAVE_BODY_LIMIT, SMALL_BODY_LIMIT, WRITE_BODY_LIMIT, assertSafeFilePath, fieldsOf, isJsonObject, json, optionalText, readJsonBody } from "../../app/lib/api/http";
+import { purgePaths, triggerCachePurge } from "../../app/lib/api/purge";
 import { decodeUtf8Base64, encodeUtf8Base64 } from "../../app/lib/utf8-base64";
 import { jsonFileText } from "../../app/lib/json-file";
-import { bumpCacheVersion, mobileVersionKeyForPath } from "../../app/lib/mobile-cache-version";
 import { octokitHeaders, readRepoTree } from "../../app/lib/github-tree";
 import { APP_POLICY, dataWriteProblems, needsAppPolicy, readAppPolicy } from "../../app/lib/screen-policy";
-import { ASSET_VERSION, assetSeenKey, gitBlobSha, serveAsset } from "../../app/lib/asset-headers";
+import { ASSET_VERSION, gitBlobSha, serveAsset } from "../../app/lib/asset-headers";
 import { checkLoginAttempts, recordLoginAttempt } from "../../app/lib/login-attempts";
 import { PasswordConfigError, verifyAdminPassword } from "../../app/lib/password";
 import { GAMES_PATH, gamesWriteProblems } from "../../app/lib/games-guard";
@@ -34,19 +34,6 @@ import { listSummary } from "../../app/lib/record-columns";
 import { pushAfterWrite, readServiceAccount, type PushEnv } from "../../app/lib/push";
 
 const SESSION_KEY = "__admin_session";
-
-export interface Env {
-  RATE_LIMIT_KV?: KVNamespace;
-  GITHUB_TOKEN: string;
-  GITHUB_OWNER: string;
-  GITHUB_REPO: string;
-  GITHUB_BRANCH?: string;
-  ADMIN_PASSWORD_HASH?: string;
-  SESSION_SECRET: string;
-  COOKIE_SECURE?: string;
-  /** A Firebase service account's JSON key; without it, publishing never notifies players. */
-  FCM_SERVICE_ACCOUNT?: string;
-}
 
 function getSessionCookie(request: Request): string | null {
   const cookieHeader = request.headers.get("Cookie");
@@ -89,31 +76,6 @@ function destroySessionCookie(): string {
   return `${SESSION_KEY}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 }
 
-// Safe path validation allows `data/...` and `public/assets/...`
-const SAFE_FILE_PATH =
-  /^(data\/|public\/assets\/)[A-Za-z0-9_-][A-Za-z0-9_.-]*(\/[A-Za-z0-9_-][A-Za-z0-9_.-]*)*\.[A-Za-z0-9]+$/;
-
-function assertSafeFilePath(path: string): void {
-  const decoded = decodeURIComponent(path);
-  if (
-    decoded.includes("..") ||
-    decoded.startsWith("/") ||
-    decoded.includes("\0")
-  ) {
-    throw new Response(null, { status: 400 });
-  }
-  if (!SAFE_FILE_PATH.test(decoded)) {
-    throw new Response(null, { status: 400 });
-  }
-}
-
-function json(data: unknown, status = 200, headers: HeadersInit = {}): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json", ...headers },
-  });
-}
-
 class AuthError extends Error {
   constructor() {
     super("unauthorized");
@@ -127,120 +89,10 @@ function requireAuth(context: PagesFunctionContext): Promise<void> {
   });
 }
 
-interface PagesFunctionContext {
-  request: Request;
-  env: Env;
-  params: Record<string, string>;
-  next: () => Promise<Response>;
-  waitUntil?: (promise: Promise<unknown>) => void;
-}
-
-function triggerCachePurge(context: PagesFunctionContext, path: string) {
-  purgePaths(context, [path]);
-}
-
-/**
- * Pictures whose cached copies one write forgets in this data center: two
- * cache deletes each, of a Function's 50 subrequests (Workers Free). Any
- * others' expire on their own, within 5 minutes (asset-headers.ts); the app's
- * picture URLs carry their content hash, so only plain-path previews wait.
- */
-const PURGED_PICTURES = 12;
-
-// After a write: forgets this data center's copies of the pictures written,
-// the first PURGED_PICTURES of `paths` (so callers put replaced pictures
-// first), and bumps the mobile cache version of each kind of path once, not
-// per path: KV takes one write a second per key, and 1,000 a day.
-function purgePaths(context: PagesFunctionContext, paths: string[]) {
-  const cache = caches.default;
-  
-  // Use a constant origin to bypass any Vite proxy Host header discrepancies
-  const internalOrigin = "https://api.internal";
-
-  const urlsToPurge = paths
-    .filter((path) => path.startsWith("public/assets/"))
-    .slice(0, PURGED_PICTURES)
-    .flatMap((path) => {
-      const encodedAssetPath = path.slice("public/assets/".length).split('/').map(encodeURIComponent).join('/');
-      // And what this data center last saw of it (a 404, an older hash), so the
-      // new picture shows here at once; elsewhere within a minute.
-      return [`${internalOrigin}/api/assets/${encodedAssetPath}`, assetSeenKey(`assets/${encodedAssetPath}`)];
-    });
-
-  // Mobile payloads are cached in every data center, so they are invalidated by
-  // bumping the version in their cache key rather than by cache.delete().
-  // The webhook bumps it again for the same commit (about 40 writes a day),
-  // kept as a safety net for when a delivery fails.
-  const versionKeys = [...new Set(paths.map(mobileVersionKeyForPath).filter((key) => key !== null))];
-
-  const promise = Promise.all([
-    ...urlsToPurge.map(u => cache.delete(u)),
-    ...versionKeys.map((key) => bumpCacheVersion(context.env.RATE_LIMIT_KV, key)),
-  ]).catch(err => console.error("Cache purge failed:", err));
-
-  if (context.waitUntil) {
-    context.waitUntil(promise);
-  }
-}
-
-/** The most a data/file write's body may hold: any data file, or a picture at its limit as base64. */
-const WRITE_BODY_LIMIT = 3 * 1024 * 1024;
-
-/**
- * The request's JSON body, or {} when it isn't JSON (the handler then says
- * what's missing). Read only up to `limit` bytes: a larger body is refused
- * (413) before any of it is parsed, so it can't spend the Function's CPU or
- * memory (10 ms and 128 MB on Workers Free).
- */
-async function readJsonBody(request: Request, limit: number, tooLargeError = "The request is too large."): Promise<unknown> {
-  const tooLarge = () => json({ error: tooLargeError }, 413);
-  if (Number(request.headers.get("Content-Length")) > limit) throw tooLarge();
-  if (!request.body) return {};
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > limit) {
-      await reader.cancel().catch(() => {});
-      throw tooLarge();
-    }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(size);
-  let at = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, at);
-    at += chunk.byteLength;
-  }
-  try {
-    return JSON.parse(new TextDecoder().decode(bytes));
-  } catch {
-    return {};
-  }
-}
-
 // The bodies the routes take, checked before a handler uses them: a field of
 // the wrong type is a 400 that says which, never a 500 from deep in a
 // handler, nor a value sent on to GitHub. Each parser takes whatever the body
 // parsed to (an object, but also null, a list or a string).
-
-/** The most a small request's body may hold: a sign-in, or deleting one file. */
-const SMALL_BODY_LIMIT = 65_536;
-const BAD_REQUEST = 400;
-
-/** A body's fields: none when it isn't a JSON object. */
-const fieldsOf = (body: unknown): Record<string, unknown> => (isJsonObject(body) ? body : {});
-
-/** An optional text field: undefined when left out, null when it's something else. */
-function optionalText(value: unknown): string | undefined | null {
-  if (value === undefined) {
-    return undefined;
-  }
-  return typeof value === "string" ? value : null;
-}
 
 /** POST data/file: a file's new content, as JSON or base64. */
 interface WriteRequest {
@@ -383,6 +235,9 @@ export async function onRequest(
     return json({ error: "Not found" }, 404);
   } catch (err) {
     if (err instanceof AuthError) return json({ error: "Unauthorized" }, 401);
+    if (err instanceof HttpError) {
+      return err.response;
+    }
     if (err instanceof Response) return err;
     const message =
       err instanceof Error ? err.message : "Internal server error";
@@ -720,9 +575,6 @@ const RECORD_CONFLICTS = {
   moving: "the data kept changing while saving. Save again.",
 } as const;
 
-/** The most a save's body may hold: the record, and its pictures' shas and tokens (never their bytes). */
-const SAVE_BODY_LIMIT = 1024 * 1024;
-
 // A record and its new or replaced pictures, in one commit: a save lands whole
 // or not at all, and the push webhook fires once. The pictures were uploaded
 // before as blobs (handleUploadPicture); only those whose token is the
@@ -956,11 +808,6 @@ async function handleImport(context: PagesFunctionContext, action: string): Prom
   }
 }
 
-/** The data repo as the API reads it; folders through GraphQL when the token allows (mobile-payload.ts). */
-function dataReader(env: Env): RepoReader {
-  return githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, env.GITHUB_BRANCH ?? "main", { token: env.GITHUB_TOKEN });
-}
-
 function pushEnv(env: Env): PushEnv {
   const reader = dataReader(env);
   return { credentials: env.FCM_SERVICE_ACCOUNT, kv: env.RATE_LIMIT_KV, read: (path) => reader.read(path) };
@@ -998,9 +845,6 @@ async function handlePushStatus(context: PagesFunctionContext): Promise<Response
   const configured = (await readServiceAccount(context.env.FCM_SERVICE_ACCOUNT)) !== null;
   return json({ configured }, 200, { "Cache-Control": "no-store" });
 }
-
-/** A JSON object: not null, not a list. */
-const isJsonObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
 async function handleListDirectory(
   context: PagesFunctionContext,
