@@ -368,6 +368,324 @@ function literalIssues(name: string, value: unknown, policy: AppPolicy): Pick<Sc
   ];
 }
 
+/** A block rule's finding: its issue without the block, at the block's level unless it sets its own. */
+type Finding = Omit<ScreenIssue, "sectionId" | "level"> & { level?: ScreenIssue["level"] };
+
+/** What validateScreen checks a screen against, worked out once for its rules. */
+interface ScreenCheck {
+  screen: ScreenFile;
+  manifest: PrimitiveManifest | null;
+  dataFields: FieldOption[];
+  schemas: SchemaInfo[];
+  screenIds: string[];
+  recordsOf?: (category: string) => Record<string, unknown>[];
+  app: AppContext;
+  policy: AppPolicy;
+  /** The game's screens with this one as edited (editedScreens); undefined without them. */
+  screenRefs: ScreenRef[] | undefined;
+  /** The keys of this screen's data. */
+  dataKnown: Set<string>;
+  /** The categories some schema has. */
+  categories: Set<string>;
+}
+
+/** The block a block rule checks: its place, its spec and, for a list block, the fields of its items. */
+interface BlockCheck {
+  block: ScreenBlock;
+  index: number;
+  spec: PrimitiveSpec | undefined;
+  itemFields: FieldOption[] | null;
+}
+
+/** One prop of the block being checked. */
+interface PropCheck {
+  name: string;
+  value: unknown;
+}
+
+type ScreenRule = (check: ScreenCheck) => ScreenIssue[];
+type BlockRule = (check: ScreenCheck, target: BlockCheck) => Finding[];
+type PropRule = (check: ScreenCheck, target: BlockCheck, prop: PropCheck) => Finding[];
+
+/** The policy a screen is checked against: the app's, as far as `app` gives it. */
+function policyOf(app: AppContext): AppPolicy {
+  return {
+    limits: app.limits ?? APP_POLICY.limits,
+    appScreens: app.appScreens ?? APP_POLICY.appScreens,
+    imageHosts: app.imageHosts ?? APP_POLICY.imageHosts,
+    imageVariants: app.imageVariants ?? APP_POLICY.imageVariants,
+  };
+}
+
+/** A prop's spec, looked up as the block's spec object has it (inherited names included, as before). */
+function propSpecOf(spec: PrimitiveSpec | undefined, name: string): PropSpec | undefined {
+  return spec?.props[name];
+}
+
+/** Whether the app has `target`: one of this game's screens, or one it provides itself. */
+function opens({ policy, screenIds }: ScreenCheck, target: string): boolean {
+  return target.startsWith("app:") ? isAppScreen(target, policy) : screenIds.includes(target);
+}
+
+/** Why the app can't show `source` as set, if it can't: a limit past its list size, or favorites nobody can save. */
+function sourceProblems({ policy, app }: ScreenCheck, source: RecordSource, name: string): Pick<ScreenIssue, "kind" | "message">[] {
+  const { listItems } = policy.limits;
+  const category = app.categories?.find((entry) => entry.category === source.category);
+  const isOverLimit = typeof source.limit === "number" && source.limit > listItems;
+  const isUnfavoritable = source.favorites === true && category !== undefined && !category.favoritable;
+  return [
+    ...(isOverLimit ? [{ kind: "over-limit" as const, message: `${name} asks for ${String(source.limit)} records; the app shows at most ${String(listItems)}.` }] : []),
+    ...(isUnfavoritable ? [{ kind: "not-favoritable" as const, message: `${name} lists the player's favorites of "${source.category}", which players can't favorite: the list would always be empty.` }] : []),
+  ];
+}
+
+/** A binding to a field the screen's data or a list's records don't have. */
+const UNKNOWN_FIELD = "unknown-field" satisfies ScreenIssue["kind"];
+
+const screenIssue = (level: ScreenIssue["level"], kind: ScreenIssue["kind"], message: string): ScreenIssue => ({ sectionId: "", level, kind, message });
+
+// ─── The screen's rules, in the order their issues are listed ─────────────────
+
+/** No visible block: the app shows its placeholder. */
+function emptyScreen({ screen }: ScreenCheck): ScreenIssue[] {
+  return screen.blocks.some((block) => block.visible !== false) ? [] : [screenIssue("warning", "empty-screen", "No visible blocks: the app shows “Nothing to show here yet”.")];
+}
+
+/** More blocks than the app shows. */
+function tooManyBlocks({ screen, policy }: ScreenCheck): ScreenIssue[] {
+  const max = policy.limits.blocksPerScreen;
+  return screen.blocks.length > max ? [screenIssue("error", "too-many-blocks", `A screen can have at most ${String(max)} blocks; the app ignores the rest.`)] : [];
+}
+
+/** The screen's category: not in categories.json when it's given, else in no schema (C5). */
+function screenCategory({ screen, app, categories }: ScreenCheck): ScreenIssue[] {
+  const category = screen.source?.category;
+  if (category === undefined) {
+    return [];
+  }
+  const message = unconfiguredMessage(category, "The screen", app.categories) ?? (categories.has(category) ? undefined : `No schema has category "${category}".`);
+  return message === undefined ? [] : [screenIssue("error", "unknown-category", message)];
+}
+
+/** Another detail screen of the same category (C9). */
+function secondDetail({ screen, app, screenRefs }: ScreenCheck): ScreenIssue[] {
+  return secondDetailIssues(screen, app.screenId, screenRefs);
+}
+
+/** The screen's own source, as the app can show it. */
+function screenSource(check: ScreenCheck): ScreenIssue[] {
+  const { source } = check.screen;
+  return source ? sourceProblems(check, source, "The screen").map((problem) => ({ sectionId: "", level: "error", ...problem })) : [];
+}
+
+/** The accent, which the app reads on every screen type: the record on detail screens, the game and lists elsewhere. */
+function screenAccent({ screen, dataKnown }: ScreenCheck): ScreenIssue[] {
+  const { accent } = screen;
+  if (!isBinding(accent) || dataKnown.size === 0 || isKnownPath(bindingPath(accent), dataKnown)) {
+    return [];
+  }
+  return [screenIssue("error", UNKNOWN_FIELD, `The accent is read from "${bindingPath(accent)}", which this screen's data doesn't have.`)];
+}
+
+const SCREEN_RULES: ScreenRule[] = [emptyScreen, tooManyBlocks, screenCategory, secondDetail, screenSource, screenAccent];
+
+// ─── What a binding, a text or an action of a block leads to ──────────────────
+
+/** Whether `binding` ("data.<path>", "item.<path>") names a field this block can read. */
+function bindingFindings({ dataKnown }: ScreenCheck, { itemFields }: BlockCheck, { name, binding }: { name: string; binding: string }): Finding[] {
+  const path = bindingPath(binding);
+  if (bindingScope(binding) === "data") {
+    return dataKnown.size > 0 && !isKnownPath(path, dataKnown) ? [{ prop: name, kind: UNKNOWN_FIELD, message: `${name} is bound to "${path}", which this screen's data doesn't have.` }] : [];
+  }
+  if (!itemFields) {
+    return [{ prop: name, kind: UNKNOWN_FIELD, message: `${name} uses "item.", which only list blocks have.` }];
+  }
+  const itemKnown = new Set(itemFields.map((field) => field.key));
+  return itemKnown.size > 0 && !isKnownPath(path, itemKnown) ? [{ prop: name, kind: UNKNOWN_FIELD, message: `${name} is bound to item "${path}", which these records don't have.` }] : [];
+}
+
+/**
+ * A list of entries bound where the app shows it as text, which reads
+ * "[object Object]": only a list block's items and a field section show one.
+ */
+function textFindings({ dataFields }: ScreenCheck, { block, itemFields }: BlockCheck, { name, binding, what }: { name: string; binding: string; what: string }): Finding[] {
+  if (name === "items" || (block.type === "field_section" && name === "field")) {
+    return [];
+  }
+  const path = bindingPath(binding);
+  const field = (bindingScope(binding) === "item" ? itemFields ?? [] : dataFields).find((entry) => entry.key === path);
+  return isEntryList(field) ? [{ prop: name, kind: "list-as-text", message: `${what} is bound to "${path}", a list of entries, which the app shows as "[object Object]": show it with a field_section block.`, level: "warning" }] : [];
+}
+
+/** An action to a detail screen from a block that can't show what was tapped (F9). */
+function targetFindings({ screen, screenRefs }: ScreenCheck, { block, spec }: BlockCheck, { name, target, what }: { name: string; target: string; what: string }): Finding[] {
+  if (!screenRefs) {
+    return [];
+  }
+  const origin = { what, isList: Boolean(spec?.list), items: block.props.items, category: normalizeSource(block.props.source)?.category ?? screen.source?.category };
+  const problem = detailActionProblem(target, screenRefs, origin);
+  return problem === undefined ? [] : [{ prop: name, kind: "wrong-record", message: problem }];
+}
+
+/** Where `action` leads, if the app can't follow it: a screen it doesn't have, or a link it won't open. */
+function actionFindings(check: ScreenCheck, target: BlockCheck, { name, action, what }: { name: string; action: ScreenAction; what: string }): Finding[] {
+  if (action.screen) {
+    const where = action.screen.startsWith("app:") ? "which the app doesn't have" : "which isn't a screen of this game";
+    const unknown: Finding[] = opens(check, action.screen) ? [] : [{ prop: name, kind: "unknown-screen", message: `${what} opens "${action.screen}", ${where}.` }];
+    return [...unknown, ...targetFindings(check, target, { name, target: action.screen, what })];
+  }
+  if (action.url === undefined) {
+    return [];
+  }
+  // A link read from the record is checked by the app when tapped; here only its field is.
+  if (BOUND_LINK.test(action.url)) {
+    return bindingFindings(check, target, { name, binding: action.url });
+  }
+  return isAllowedLink(action.url) ? [] : [{ prop: name, kind: "unsafe-link", message: `${what} links to a site the app won't open: use https on an allowed site.`, level: "error" }];
+}
+
+/** A tile's or a row's findings: its label, and where a tile leads. */
+function entryIssues(check: ScreenCheck, target: BlockCheck, { name, entry, place, isTile }: { name: string; entry: unknown; place: number; isTile: boolean }): Finding[] {
+  const fields = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
+  const { label } = fields;
+  const unlabeled: Finding[] = typeof label !== "string" || !label.trim() ? [{ prop: name, kind: "required", message: `${isTile ? "Tile" : "Row"} ${String(place)} needs a label: the app leaves it out without one.` }] : [];
+  if (!isTile) {
+    return unlabeled;
+  }
+  const action = { screen: typeof fields.screen === "string" ? fields.screen : undefined, url: typeof fields.url === "string" ? fields.url : undefined };
+  return [...unlabeled, ...actionFindings(check, target, { name, action, what: `Tile ${String(place)}` })];
+}
+
+/** A row of info_rows bound to a field this screen's data doesn't have, or to a list shown as text. */
+function rowIssues(check: ScreenCheck, target: BlockCheck, { name, row }: { name: string; row: unknown }): Finding[] {
+  // As the file has it: a row's label is text.
+  const fields = (row !== null && typeof row === "object" ? row : {}) as { label?: string; value?: unknown };
+  const bound = fields.value;
+  if (!isBinding(bound)) {
+    return [];
+  }
+  const what = `Row "${fields.label ?? ""}"`;
+  const path = bindingPath(bound);
+  const unknown: Finding[] = check.dataKnown.size > 0 && !isKnownPath(path, check.dataKnown) ? [{ prop: name, kind: UNKNOWN_FIELD, message: `${what} is bound to "${path}", which this screen's data doesn't have.` }] : [];
+  return [...unknown, ...textFindings(check, target, { name, binding: bound, what })];
+}
+
+// ─── A prop's rules, in the order their issues are listed ─────────────────────
+
+/** A binding: the field it names, and a list it would show as text. */
+function boundProp(check: ScreenCheck, target: BlockCheck, { name, value }: PropCheck): Finding[] {
+  if (!isBinding(value)) {
+    return [];
+  }
+  return [...bindingFindings(check, target, { name, binding: value }), ...textFindings(check, target, { name, binding: value, what: name })];
+}
+
+/** A literal picture the app won't load, or a color that isn't hex (F3, C7). */
+function literalProp({ policy }: ScreenCheck, _target: BlockCheck, { name, value }: PropCheck): Finding[] {
+  return literalIssues(name, value, policy).map((issue) => ({ prop: name, ...issue }));
+}
+
+/** Text the app cuts short (zms policy.ts clampText). */
+function longTexts({ policy }: ScreenCheck, _target: BlockCheck, { name, value }: PropCheck): Finding[] {
+  const max = policy.limits.text;
+  return textsIn(value, name)
+    .filter(({ text }) => text.length > max)
+    .map(({ path, text }) => ({ prop: name, kind: "long-text", message: `${path} is ${String(text.length)} characters long; the app cuts it at ${String(max)}.`, level: "warning" }));
+}
+
+/** Tiles and rows: the app shows the first ones, and leaves out entries without a label (zms sanitize.ts). */
+function entryList(check: ScreenCheck, target: BlockCheck, { name, value }: PropCheck): Finding[] {
+  const type = propSpecOf(target.spec, name)?.type;
+  if (type !== "shortcuts" && type !== "info_rows") {
+    return [];
+  }
+  const entries: unknown[] = Array.isArray(value) ? value : [];
+  const isTile = type === "shortcuts";
+  const max = check.policy.limits.smallList;
+  const tooMany: Finding[] = entries.length > max ? [{ prop: name, kind: "too-many-entries", message: `${name} has ${String(entries.length)} ${isTile ? "tile" : "row"}s; the app shows the first ${String(max)}.` }] : [];
+  return [...tooMany, ...entries.flatMap((entry, i) => entryIssues(check, target, { name, entry, place: i + 1, isTile }))];
+}
+
+/** Rows bound to the screen's data. */
+function boundRows(check: ScreenCheck, target: BlockCheck, { name, value }: PropCheck): Finding[] {
+  if (propSpecOf(target.spec, name)?.type !== "info_rows" || !Array.isArray(value)) {
+    return [];
+  }
+  return (value as unknown[]).flatMap((row) => rowIssues(check, target, { name, row }));
+}
+
+/** An action prop: where it leads. */
+function actionProp(check: ScreenCheck, target: BlockCheck, { name, value }: PropCheck): Finding[] {
+  if (propSpecOf(target.spec, name)?.type !== "action" || !value || typeof value !== "object") {
+    return [];
+  }
+  return actionFindings(check, target, { name, action: value, what: name });
+}
+
+/** A source's category the app shows nothing for (C5). */
+function sourceCategoryProp(check: ScreenCheck, target: BlockCheck, { name, value }: PropCheck): Finding[] {
+  if (propSpecOf(target.spec, name)?.type !== "source") {
+    return [];
+  }
+  const message = blockCategoryMessage(name, normalizeSource(value), { configured: check.app.categories, schemas: check.categories });
+  return message === undefined ? [] : [{ prop: name, kind: "unknown-category", message }];
+}
+
+/** A source the app can't show as set. */
+function sourceLimitsProp(check: ScreenCheck, target: BlockCheck, { name, value }: PropCheck): Finding[] {
+  const source = propSpecOf(target.spec, name)?.type === "source" ? normalizeSource(value) : undefined;
+  return source ? sourceProblems(check, source, name).map((problem) => ({ prop: name, ...problem })) : [];
+}
+
+const PROP_RULES: PropRule[] = [boundProp, literalProp, longTexts, entryList, boundRows, actionProp, sourceCategoryProp, sourceLimitsProp];
+
+// ─── A block's rules, in the order their issues are listed ────────────────────
+
+/** An id an earlier block has. */
+function duplicateId({ screen }: ScreenCheck, { block, index }: BlockCheck): Finding[] {
+  const isTaken = screen.blocks.slice(0, index).some((earlier) => earlier.id === block.id);
+  return isTaken ? [{ kind: "duplicate-id", message: `Block id "${block.id}" is used more than once.`, level: "error" }] : [];
+}
+
+/** A type the manifest doesn't have: the app skips the block. */
+function unknownType({ manifest }: ScreenCheck, { block, spec }: BlockCheck): Finding[] {
+  return manifest && !spec ? [{ kind: "unknown-type", message: `"${block.type}" is not in mobile_primitives.json, so the app skips this block.`, level: "warning" }] : [];
+}
+
+/** A required prop left empty. */
+function requiredProps(_check: ScreenCheck, { block, spec }: BlockCheck): Finding[] {
+  return Object.entries(spec?.props ?? {})
+    .filter(([name, propSpec]) => propSpec.required && isConfigurable(propSpec) && isEmptyValue(block.props[name]))
+    .map(([name]) => ({ prop: name, kind: "required", message: `${name} is required.` }));
+}
+
+/** Each prop: one the app never takes stops there; any other goes through the prop rules. */
+function propFindings(check: ScreenCheck, target: BlockCheck): Finding[] {
+  return Object.entries(target.block.props).flatMap(([name, value]): Finding[] =>
+    BLOCKED_PROP.test(name)
+      ? [{ prop: name, kind: "blocked-prop", message: `"${name}" isn't allowed: the app never takes styles or callbacks from a screen.`, level: "error" }]
+      : PROP_RULES.flatMap((rule) => rule(check, target, { name, value })),
+  );
+}
+
+/** Props the block's spec doesn't have (blocked ones aside): the app ignores them. */
+function ignoredProps(_check: ScreenCheck, { block, spec }: BlockCheck): Finding[] {
+  const ignored = Object.keys(block.props).filter((name) => !BLOCKED_PROP.test(name) && spec !== undefined && propSpecOf(spec, name) === undefined);
+  return ignored.length > 0 ? [{ kind: "ignored-prop", message: `The app ignores ${ignored.join(", ")}: these aren't props of this block.`, level: "warning" }] : [];
+}
+
+const BLOCK_RULES: BlockRule[] = [duplicateId, unknownType, requiredProps, propFindings, ignoredProps];
+
+/** A block's issues: its rules' findings, at the block's level (a hidden block's are warnings) unless a rule sets its own. */
+function blockIssues(check: ScreenCheck, block: ScreenBlock, index: number): ScreenIssue[] {
+  const spec = blockSpec(check.manifest, block.type);
+  const itemFields = spec?.list ? itemFieldsFor(block, check.screen, check.dataFields, check.schemas, check.recordsOf) : null;
+  const target: BlockCheck = { block, index, spec, itemFields };
+  const level = block.visible === false ? "warning" : "error";
+  return BLOCK_RULES.flatMap((rule) => rule(check, target)).map(({ level: own, ...finding }) => ({ sectionId: block.id, level: own ?? level, ...finding }));
+}
+
+/** What the app won't show of `screen` as set, as issues: the screen's rules first, then each block's, in the order of their tables above. */
 export function validateScreen(
   screen: ScreenFile,
   manifest: PrimitiveManifest | null,
@@ -377,202 +695,20 @@ export function validateScreen(
   recordsOf?: (category: string) => Record<string, unknown>[],
   app: AppContext = {},
 ): ScreenIssue[] {
-  const issues: ScreenIssue[] = [];
-  const limits = app.limits ?? APP_POLICY.limits;
-  const policy: AppPolicy = {
-    limits,
-    appScreens: app.appScreens ?? APP_POLICY.appScreens,
-    imageHosts: app.imageHosts ?? APP_POLICY.imageHosts,
-    imageVariants: app.imageVariants ?? APP_POLICY.imageVariants,
+  const check: ScreenCheck = {
+    screen,
+    manifest,
+    dataFields,
+    schemas,
+    screenIds,
+    recordsOf,
+    app,
+    policy: policyOf(app),
+    screenRefs: editedScreens(screen, app),
+    dataKnown: new Set(dataFields.map((field) => field.key)),
+    categories: new Set(schemas.map((schema) => schema.category)),
   };
-  const screenRefs = editedScreens(screen, app);
-  const dataKnown = new Set(dataFields.map((f) => f.key));
-  const seenIds = new Set<string>();
-  const categories = new Set(schemas.map((s) => s.category));
-  /** Why the app can't show `source` as set, if it can't: a limit past its list size, or favorites nobody can save. */
-  const sourceProblems = (source: RecordSource, name: string): Pick<ScreenIssue, "kind" | "message">[] => {
-    const problems: Pick<ScreenIssue, "kind" | "message">[] = [];
-    if (typeof source.limit === "number" && source.limit > limits.listItems) {
-      problems.push({ kind: "over-limit", message: `${name} asks for ${source.limit} records; the app shows at most ${limits.listItems}.` });
-    }
-    const category = app.categories?.find((c) => c.category === source.category);
-    if (source.favorites && category && !category.favoritable) {
-      problems.push({ kind: "not-favoritable", message: `${name} lists the player's favorites of "${source.category}", which players can't favorite: the list would always be empty.` });
-    }
-    return problems;
-  };
-  /** Whether the app has `screen`: one of this game's, or one it provides itself. */
-  const opens = (screen: string) => (screen.startsWith("app:") ? isAppScreen(screen, policy) : screenIds.includes(screen));
-
-  const shown = screen.blocks.filter((b) => b.visible !== false);
-  if (shown.length === 0) {
-    issues.push({ sectionId: "", level: "warning", kind: "empty-screen", message: "No visible blocks: the app shows “Nothing to show here yet”." });
-  }
-  if (screen.blocks.length > limits.blocksPerScreen) {
-    issues.push({
-      sectionId: "",
-      level: "error",
-      kind: "too-many-blocks",
-      message: `A screen can have at most ${limits.blocksPerScreen} blocks; the app ignores the rest.`,
-    });
-  }
-  const screenCategory = screen.source?.category;
-  if (screenCategory !== undefined) {
-    const message = unconfiguredMessage(screenCategory, "The screen", app.categories) ?? (categories.has(screenCategory) ? undefined : `No schema has category "${screenCategory}".`);
-    if (message !== undefined) {
-      issues.push({ sectionId: "", level: "error", kind: "unknown-category", message });
-    }
-  }
-  issues.push(...secondDetailIssues(screen, app.screenId, screenRefs));
-  if (screen.source) {
-    for (const problem of sourceProblems(screen.source, "The screen")) issues.push({ sectionId: "", level: "error", ...problem });
-  }
-  // The app reads the accent on every screen type: the record on detail screens, the game and lists elsewhere.
-  if (isBinding(screen.accent) && dataKnown.size > 0 && !isKnownPath(bindingPath(screen.accent), dataKnown)) {
-    issues.push({
-      sectionId: "",
-      level: "error",
-      kind: "unknown-field",
-      message: `The accent is read from "${bindingPath(screen.accent)}", which this screen's data doesn't have.`,
-    });
-  }
-
-  for (const block of screen.blocks) {
-    const level = block.visible === false ? "warning" : "error";
-    const add = (issue: Omit<ScreenIssue, "sectionId" | "level">, issueLevel: ScreenIssue["level"] = level) =>
-      issues.push({ sectionId: block.id, level: issueLevel, ...issue });
-
-    if (seenIds.has(block.id)) add({ kind: "duplicate-id", message: `Block id "${block.id}" is used more than once.` }, "error");
-    seenIds.add(block.id);
-
-    const spec = blockSpec(manifest, block.type);
-    if (manifest && !spec) {
-      add({ kind: "unknown-type", message: `"${block.type}" is not in mobile_primitives.json, so the app skips this block.` }, "warning");
-    }
-
-    for (const [name, propSpec] of Object.entries(spec?.props ?? {})) {
-      if (propSpec.required && isConfigurable(propSpec) && isEmptyValue(block.props[name])) {
-        add({ prop: name, kind: "required", message: `${name} is required.` });
-      }
-    }
-
-    const itemFields = spec?.list ? itemFieldsFor(block, screen, dataFields, schemas, recordsOf) : null;
-    const itemKnown = itemFields ? new Set(itemFields.map((f) => f.key)) : null;
-    /** Whether `binding` ("data.<path>", "item.<path>") names a field this block can read. */
-    const checkBinding = (name: string, binding: string) => {
-      const path = bindingPath(binding);
-      if (bindingScope(binding) === "item") {
-        if (!itemKnown) {
-          add({ prop: name, kind: "unknown-field", message: `${name} uses "item.", which only list blocks have.` });
-        } else if (itemKnown.size > 0 && !isKnownPath(path, itemKnown)) {
-          add({ prop: name, kind: "unknown-field", message: `${name} is bound to item "${path}", which these records don't have.` });
-        }
-      } else if (dataKnown.size > 0 && !isKnownPath(path, dataKnown)) {
-        add({ prop: name, kind: "unknown-field", message: `${name} is bound to "${path}", which this screen's data doesn't have.` });
-      }
-    };
-    /**
-     * A list of entries bound where the app shows it as text, which reads
-     * "[object Object]": only a list block's items and a field section show one.
-     */
-    const checkText = (name: string, binding: string, what: string) => {
-      if (name === "items" || (block.type === "field_section" && name === "field")) return;
-      const path = bindingPath(binding);
-      const field = (bindingScope(binding) === "item" ? itemFields ?? [] : dataFields).find((f) => f.key === path);
-      if (isEntryList(field)) {
-        add({ prop: name, kind: "list-as-text", message: `${what} is bound to "${path}", a list of entries, which the app shows as "[object Object]": show it with a field_section block.` }, "warning");
-      }
-    };
-    /** Where `action` leads, if the app can't follow it: a screen it doesn't have, or a link it won't open. */
-    const checkAction = (name: string, action: ScreenAction, what: string) => {
-      if (action.screen) {
-        if (!opens(action.screen)) {
-          add({
-            prop: name,
-            kind: "unknown-screen",
-            message: action.screen.startsWith("app:")
-              ? `${what} opens "${action.screen}", which the app doesn't have.`
-              : `${what} opens "${action.screen}", which isn't a screen of this game.`,
-          });
-        }
-        checkTarget(name, action.screen, what);
-        return;
-      }
-      if (action.url !== undefined) {
-        // A link read from the record is checked by the app when tapped; here only its field is.
-        if (BOUND_LINK.test(action.url)) checkBinding(name, action.url);
-        else if (!isAllowedLink(action.url)) {
-          add({ prop: name, kind: "unsafe-link", message: `${what} links to a site the app won't open: use https on an allowed site.` }, "error");
-        }
-      }
-    };
-    /** An action to a detail screen from a block that can't show what was tapped (F9). */
-    const checkTarget = (name: string, target: string, what: string) => {
-      const origin = { what, isList: Boolean(spec?.list), items: block.props.items, category: normalizeSource(block.props.source)?.category ?? screen.source?.category };
-      const problem = screenRefs ? detailActionProblem(target, screenRefs, origin) : undefined;
-      if (problem !== undefined) {
-        add({ prop: name, kind: "wrong-record", message: problem });
-      }
-    };
-    const ignored: string[] = [];
-    for (const [name, value] of Object.entries(block.props)) {
-      if (BLOCKED_PROP.test(name)) {
-        add({ prop: name, kind: "blocked-prop", message: `"${name}" isn't allowed: the app never takes styles or callbacks from a screen.` }, "error");
-        continue;
-      }
-      if (spec && !spec.props[name]) ignored.push(name);
-      if (isBinding(value)) {
-        checkBinding(name, value);
-        checkText(name, value, name);
-      }
-      for (const issue of literalIssues(name, value, policy)) {
-        add({ prop: name, ...issue });
-      }
-      // The app cuts longer text short (zms policy.ts clampText).
-      for (const { path, text } of textsIn(value, name)) {
-        if (text.length > limits.text) {
-          add({ prop: name, kind: "long-text", message: `${path} is ${text.length} characters long; the app cuts it at ${limits.text}.` }, "warning");
-        }
-      }
-      const entries = spec?.props[name]?.type === "shortcuts" || spec?.props[name]?.type === "info_rows" ? (Array.isArray(value) ? value : []) : null;
-      if (entries) {
-        const noun = spec?.props[name]?.type === "shortcuts" ? "tile" : "row";
-        // The app shows the first ones, and leaves out entries without a label (zms sanitize.ts).
-        if (entries.length > limits.smallList) {
-          add({ prop: name, kind: "too-many-entries", message: `${name} has ${entries.length} ${noun}s; the app shows the first ${limits.smallList}.` });
-        }
-        entries.forEach((entry: unknown, i: number) => {
-          const e = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
-          if (typeof e.label !== "string" || !e.label.trim()) {
-            add({ prop: name, kind: "required", message: `${noun === "tile" ? "Tile" : "Row"} ${i + 1} needs a label: the app leaves it out without one.` });
-          }
-          if (noun === "tile") checkAction(name, { screen: typeof e.screen === "string" ? e.screen : undefined, url: typeof e.url === "string" ? e.url : undefined }, `Tile ${i + 1}`);
-        });
-      }
-      if (spec?.props[name]?.type === "info_rows" && Array.isArray(value)) {
-        for (const row of value as { label?: string; value?: unknown }[]) {
-          if (isBinding(row?.value) && dataKnown.size > 0 && !isKnownPath(bindingPath(row.value), dataKnown)) {
-            add({ prop: name, kind: "unknown-field", message: `Row "${row.label ?? ""}" is bound to "${bindingPath(row.value)}", which this screen's data doesn't have.` });
-          }
-          if (isBinding(row?.value)) checkText(name, row.value, `Row "${row.label ?? ""}"`);
-        }
-      }
-      const action = value && typeof value === "object" ? (value as ScreenAction) : undefined;
-      if (spec?.props[name]?.type === "action" && action) checkAction(name, action, name);
-      const unknownCategory = spec?.props[name]?.type === "source" ? blockCategoryMessage(name, normalizeSource(value), { configured: app.categories, schemas: categories }) : undefined;
-      if (unknownCategory !== undefined) {
-        add({ prop: name, kind: "unknown-category", message: unknownCategory });
-      }
-      if (spec?.props[name]?.type === "source") {
-        const source = normalizeSource(value);
-        if (source) for (const problem of sourceProblems(source, name)) add({ prop: name, ...problem });
-      }
-    }
-    if (ignored.length > 0) {
-      add({ kind: "ignored-prop", message: `The app ignores ${ignored.join(", ")}: these aren't props of this block.` }, "warning");
-    }
-  }
-  return issues;
+  return [...SCREEN_RULES.flatMap((rule) => rule(check)), ...screen.blocks.flatMap((block, index) => blockIssues(check, block, index))];
 }
 
 export { SCREEN_ID } from "./contract";
