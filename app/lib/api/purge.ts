@@ -47,7 +47,3 @@ export function purgePaths(context: Pick<ApiContext, "env" | "waitUntil">, paths
     context.waitUntil(promise);
   }
 }
-
-export function triggerCachePurge(context: Pick<ApiContext, "env" | "waitUntil">, path: string): void {
-  purgePaths(context, [path]);
-}

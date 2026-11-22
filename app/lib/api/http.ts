@@ -14,9 +14,26 @@ export const WRITE_BODY_LIMIT = WRITE_MIB * MIB;
 /** The most a save's body may hold: the record, and its pictures' shas and tokens (never their bytes). */
 export const SAVE_BODY_LIMIT = MIB;
 
-export const BAD_REQUEST = 400;
+/** The statuses the admin API answers with. */
+export const STATUS = {
+  ok: 200,
+  badRequest: 400,
+  unauthorized: 401,
+  forbidden: 403,
+  notFound: 404,
+  conflict: 409,
+  payloadTooLarge: 413,
+  unsupportedMedia: 415,
+  unprocessable: 422,
+  tooManyRequests: 429,
+  serverError: 500,
+  badGateway: 502,
+  unavailable: 503,
+} as const;
 
-const PAYLOAD_TOO_LARGE = 413;
+export const BAD_REQUEST = STATUS.badRequest;
+
+const PAYLOAD_TOO_LARGE = STATUS.payloadTooLarge;
 
 // Safe path validation allows `data/...` and `public/assets/...`
 const SAFE_FILE_PATH = /^(data\/|public\/assets\/)[A-Za-z0-9_-][A-Za-z0-9_.-]*(\/[A-Za-z0-9_-][A-Za-z0-9_.-]*)*\.[A-Za-z0-9]+$/;
@@ -32,7 +49,7 @@ export class HttpError extends Error {
   }
 }
 
-export function json(data: unknown, status = 200, headers: Record<string, string> = {}): Response {
+export function json(data: unknown, status: number = STATUS.ok, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { "Content-Type": "application/json", ...headers },
@@ -117,3 +134,11 @@ export async function readJsonBody(request: Request, limit: number, tooLargeErro
     throw error;
   }
 }
+
+/** An error's HTTP status, when it carries one (Octokit's RequestError does). */
+export function statusOf(error: unknown): unknown {
+  return typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
+}
+
+/** Answers that say the request needs no caching. */
+export const NO_STORE = { "Cache-Control": "no-store" };

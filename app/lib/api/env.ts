@@ -2,6 +2,7 @@ import { Octokit } from "@octokit/rest";
 
 import { githubReader, type RepoReader } from "../mobile-payload";
 
+import type { PushEnv } from "../push";
 import type { KVNamespace } from "@cloudflare/workers-types";
 
 /** The admin API's settings and bindings (Cloudflare Pages). */
@@ -43,4 +44,14 @@ export function dataBranch(env: Env): string {
 /** The data repo as the API reads it; folders through GraphQL when the token allows (mobile-payload.ts). */
 export function dataReader(env: Env): RepoReader {
   return githubReader(new Octokit({ auth: env.GITHUB_TOKEN }), env.GITHUB_OWNER, env.GITHUB_REPO, dataBranch(env), { token: env.GITHUB_TOKEN });
+}
+
+export function pushEnv(env: Env): PushEnv {
+  const reader = dataReader(env);
+  return { credentials: env.FCM_SERVICE_ACCOUNT, kv: env.RATE_LIMIT_KV, read: (path) => reader.read(path) };
+}
+
+/** The data repo through Octokit, on the data branch. */
+export function octokitOf(env: Env): Octokit {
+  return new Octokit({ auth: env.GITHUB_TOKEN });
 }
