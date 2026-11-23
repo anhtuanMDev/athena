@@ -19,7 +19,7 @@ import { LoadErrorState } from "~/components/ui/LoadErrorState";
 import { listDirectory } from "~/lib/github";
 import { useCategories } from "~/lib/categories-context";
 import { enumOptions as optionsOf } from "~/lib/enum-options";
-import { detailScreenFor, referenceFolder, referenceLabels, referenceRecords } from "~/lib/reference-labels";
+import { referenceLookup } from "~/lib/reference-lookup";
 import { homeData as appHomeData } from "~/lib/screen-fields";
 import { loadScreenData } from "~/lib/screen-loader";
 import {
@@ -51,49 +51,51 @@ const MAX_REFERENCE_FOLDERS = 3;
 
 
 function tabsOf(screen: ScreenFile): string[] {
-  const bar = screen.blocks.find((b) => b.type === "tab_bar" && b.visible !== false);
-  return typeof bar?.props.tabs === "string" ? bar.props.tabs.split(",").map((t) => t.trim()).filter(Boolean) : [];
+  const tabBar = screen.blocks.find((block) => block.type === "tab_bar" && block.visible !== false);
+  return typeof tabBar?.props.tabs === "string" ? tabBar.props.tabs.split(",").map((t) => t.trim()).filter(Boolean) : [];
 }
 
 export default function ScreenEdit() {
   const { game, "*": splat } = useParams();
   const configured = useCategories();
-  const folders = configured.map((c) => c.folder).join();
+  const folders = configured.map((category) => category.folder).join();
   const id = splat?.split("/")[1] ?? "";
-  const screenPath = `data/${game}/screens/${id}.json`;
+  const screenPath = `data/${String(game)}/screens/${id}.json`;
 
-  const { data: loaded, loading, error: loadError } = useData(
+  const { data: loaded, loading: isLoading, error: loadError } = useData(
     // Each source read on its own: one that fails is left out and named (LoadFailuresNote), not the whole page.
     async () => loadScreenData(githubSources(game ?? ""), { game: game ?? "", id, path: screenPath, categories: configured }),
     [game, id, folders],
-    `${game}-screen-${id}-${folders}`,
+    `${String(game)}-screen-${id}-${folders}`,
   );
 
   const [screen, setScreen] = useState<ScreenFile | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [sha, setSha] = useState<string | undefined>();
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isSettingsOpen, setSettingsOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<"blocks" | "preview">("blocks");
   const [sampleIndex, setSampleIndex] = useState(0);
   const [previewTab, setPreviewTab] = useState<string | undefined>();
-  const [attemptedSave, setAttemptedSave] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [hasAttemptedSave, setAttemptedSave] = useState(false);
+  const [isSubmitting, setSubmitting] = useState(false);
   const issuesHeadingRef = useRef<HTMLHeadingElement>(null);
   // Which block is open, the picker, the JSON boxes that don't parse, and the operations on blocks.
   const editing = useBlockEditing({ screen, setScreen, manifest: loaded?.manifest ?? null, show: { settings: () => { setSettingsOpen(true); }, blocks: () => { setMobilePane("blocks"); } } });
   const { jsonErrors } = editing;
 
   const snapshot = screen ? JSON.stringify(screen) : null;
-  const dirty = saved !== null && snapshot !== saved;
+  const isDirty = saved !== null && snapshot !== saved;
 
   // Take the file on first load and after our own saves; a refetch that lands
   // while edits are unsaved is ignored, so a stale sha surfaces as a conflict.
-  const dirtyRef = useRef(dirty);
+  const dirtyRef = useRef(isDirty);
   useEffect(() => {
-    dirtyRef.current = dirty;
+    dirtyRef.current = isDirty;
   });
   useEffect(() => {
-    if (!loaded || dirtyRef.current) return;
+    if (!loaded || dirtyRef.current) {
+      return;
+    }
     const next = readScreen(loaded.file);
     setScreen(next);
     setSaved(JSON.stringify(next));
@@ -113,7 +115,7 @@ export default function ScreenEdit() {
   const { data: otherWhole } = useData(
     async () => (otherWholeFolder ? listDirectory<Record<string, unknown>>(game!, otherWholeFolder, true).catch(() => null) : null),
     [game, otherWholeFolder],
-    `${game}-screen-whole-records`,
+    `${String(game)}-screen-whole-records`,
   );
   const records = useMemo<Record<string, Record<string, unknown>[]>>(() => {
     const read = loaded?.records ?? {};
@@ -144,9 +146,13 @@ export default function ScreenEdit() {
   // An enum field's options as the app reads them, descriptions and params included (field_section shows them).
   const enumOptions = useCallback(
     (field: FieldOption | undefined) => {
-      if (!field) return [];
-      if (field.globalEnumId) return optionsOf(loaded?.enums.find((e) => e.id === field.globalEnumId));
-      return (field.options ?? []).map((o) => ({ id: o, name: o }));
+      if (!field) {
+        return [];
+      }
+      if (field.globalEnumId) {
+        return optionsOf(loaded?.enums.find((e) => e.id === field.globalEnumId));
+      }
+      return (field.options ?? []).map((option) => ({ id: option, name: option }));
     },
     [loaded],
   );
@@ -169,27 +175,12 @@ export default function ScreenEdit() {
         : [],
     [screen, dataFields, schemas, recordsOf, configured],
   );
-  const reference = useMemo<PreviewContext["reference"]>(() => {
-    const built = new Map<FieldOption, { labels: Map<string, string>; records: Map<string, Record<string, unknown>> }>();
-    return (field, id) => {
-      const folder = referenceFolder(field, configured);
-      const category = configured.find((c) => c.folder === folder)?.category;
-      if (!folder || !category || !referenceFoldersShown.includes(folder)) return undefined;
-      let found = built.get(field);
-      if (!found) {
-        const shown = records[category] ?? [];
-        found = { labels: referenceLabels(shown, field), records: referenceRecords(shown, field) };
-        built.set(field, found);
-      }
-      const label = found.labels.get(id);
-      if (label === undefined) return undefined;
-      // The app opens the record (linkReferences) when it has an id and one detail screen shows its category.
-      const target = found.records.get(id)?.id;
-      const linked = typeof target === "string" && target !== "" && !!detailScreenFor([...(loaded?.otherScreens ?? []), screen], category);
-      return { label, linked };
-    };
-  }, [configured, referenceFoldersShown, loaded, records, screen]);
-  const visibleIssues = (list: ScreenIssue[]) => list.filter((i) => attemptedSave || i.kind !== "required");
+  // A reference's label, and whether the app opens its record (linkReferences): one detail screen of the game, this one as edited, shows its category.
+  const reference = useMemo<PreviewContext["reference"]>(
+    () => referenceLookup({ categories: configured, shownFolders: referenceFoldersShown, records, screens: [...(loaded?.otherScreens ?? []), screen] }),
+    [configured, referenceFoldersShown, loaded, records, screen],
+  );
+  const visibleIssues = (list: ScreenIssue[]) => list.filter((i) => hasAttemptedSave || i.kind !== "required");
   const jsonErrorList = Object.entries(jsonErrors);
   // The same structural check the write API runs, so a save never fails there unexpectedly.
   const fileErrors = useMemo(() => (screen && policy ? validateScreenFile(screen, policy, configured) : []), [screen, policy, configured]);
@@ -198,11 +189,11 @@ export default function ScreenEdit() {
   const listedFileErrors = errorCount > 0 ? [] : fileErrors;
   const blockingCount = errorCount + jsonErrorList.length + listedFileErrors.length;
 
-  const blocker = useLeaveGuard(dirty);
+  const blocker = useLeaveGuard(isDirty);
   const save = useScreenSave({
     draft: { file: loaded?.file, screen, failed: loaded?.failed ?? [] },
     target: { path: screenPath, id, sha },
-    state: { isDirty: dirty, isSubmitting: submitting, blockingCount },
+    state: { isDirty, isSubmitting, blockingCount },
     flags: { setAttempted: setAttemptedSave, setSubmitting },
     headingRef: issuesHeadingRef,
     onSaved: (savedSnapshot, newSha) => {
@@ -217,7 +208,7 @@ export default function ScreenEdit() {
   const update = (patch: Partial<ScreenFile>) => setScreen((prev) => (prev ? { ...prev, ...patch } : prev));
   const blocks = screen?.blocks ?? [];
 
-  if (loading && !loaded) {
+  if (isLoading && !loaded) {
     return <ScreenEditSkeleton />;
   }
 
@@ -233,8 +224,8 @@ export default function ScreenEdit() {
 
   const tabs = tabsOf(screen);
   const activePreviewTab = previewTab && tabs.includes(previewTab) ? previewTab : tabs[0];
-  const previewBlocks = blocks.filter((b) => b.visible !== false && (!b.tab || !activePreviewTab || b.tab === activePreviewTab));
-  const hiddenCount = blocks.filter((b) => b.visible === false).length;
+  const previewBlocks = blocks.filter((block) => block.visible !== false && (!block.tab || !activePreviewTab || block.tab === activePreviewTab));
+  const hiddenCount = blocks.filter((block) => block.visible === false).length;
   const previewCtx: PreviewContext = {
     data: screen.type === "detail" ? sample : homeData,
     recordsFor,
@@ -262,7 +253,7 @@ export default function ScreenEdit() {
 
   return (
     <div className="w-full pb-32 pt-2">
-      <ScreenHeader game={game} title={screen.title} id={id} path={screenPath} isDirty={dirty} isSubmitting={submitting} onSave={save} />
+      <ScreenHeader game={game} title={screen.title} id={id} path={screenPath} isDirty={isDirty} isSubmitting={isSubmitting} onSave={save} />
 
       {!manifest && (
         <div role="note" className="mt-6 flex gap-3 rounded-xl border border-border bg-surface-raised p-4 text-sm text-ink">
@@ -276,7 +267,7 @@ export default function ScreenEdit() {
 
       <LoadFailuresNote failed={loaded.failed} />
 
-      {attemptedSave && blockingCount > 0 && (
+      {hasAttemptedSave && blockingCount > 0 && (
         <ScreenIssues
           count={blockingCount}
           problems={{ issues: summaryIssues, fileErrors: listedFileErrors, jsonErrors: jsonErrorList }}
@@ -292,7 +283,7 @@ export default function ScreenEdit() {
         <section aria-labelledby="blocks-heading" className={mobilePane === "preview" ? "hidden xl:block" : ""}>
           <ScreenSettings
             screen={screen}
-            isOpen={settingsOpen}
+            isOpen={isSettingsOpen}
             onToggle={() => setSettingsOpen((open) => !open)}
             issues={screenIssues}
             sources={{ categories: configured, schemas, limits: loaded.policy.limits }}

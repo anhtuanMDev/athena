@@ -30,7 +30,7 @@ export function MapIdentityFields({ stage }: MapIdentityFieldsProps) {
       <input type="hidden" {...register("game")} />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormField label="Name" placeholder="e.g. King's Row" {...register("name")} error={errors.name !== undefined} helperText={message("name")} />
-        <FormField label="Generated ID" placeholder="kings-row" {...register("id")} error={errors.id !== undefined} helperText={message("id")} slotProps={{ htmlInput: { readOnly: false } }} />
+        <FormField label="Generated ID" placeholder="king-s-row" {...register("id")} error={errors.id !== undefined} helperText={message("id")} slotProps={{ htmlInput: { readOnly: false } }} />
       </div>
     </>
   );
