@@ -143,7 +143,7 @@ export const SCREEN_TYPES: { value: ScreenType; label: string; hint: string }[] 
 export type Categories = readonly Pick<Category, "category" | "folder" | "label">[];
 
 export function folderFor(category: string, categories: Categories = DEFAULT_CATEGORIES): string | null {
-  return categories.find((c) => c.category === category)?.folder ?? null;
+  return categories.find((entry) => entry.category === category)?.folder ?? null;
 }
 
 // "data.<path>" reads the screen's record (detail) or { game, heroes, maps… } (home, list);
@@ -151,12 +151,13 @@ export function folderFor(category: string, categories: Categories = DEFAULT_CAT
 export const DATA_PREFIX = "data.";
 export const ITEM_PREFIX = "item.";
 
+/** Whether `value` starts with `prefix` and has a path after it. */
+function hasPathAfter(value: string, prefix: string): boolean {
+  return value.startsWith(prefix) && value.length > prefix.length;
+}
+
 export function isBinding(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    ((value.startsWith(DATA_PREFIX) && value.length > DATA_PREFIX.length) ||
-      (value.startsWith(ITEM_PREFIX) && value.length > ITEM_PREFIX.length))
-  );
+  return typeof value === "string" && (hasPathAfter(value, DATA_PREFIX) || hasPathAfter(value, ITEM_PREFIX));
 }
 
 export function bindingScope(value: string): "data" | "item" {
@@ -179,7 +180,9 @@ export function isConfigurable(spec: PropSpec): boolean {
 export const FORM_EXCLUDED_PROPS = new Set(["style"]);
 
 export function formProps(spec: PrimitiveSpec | undefined): [string, PropSpec][] {
-  if (!spec) return [];
+  if (!spec) {
+    return [];
+  }
   return Object.entries(spec.props).filter(([name]) => !FORM_EXCLUDED_PROPS.has(name));
 }
 
@@ -193,7 +196,9 @@ export function blockSpec(manifest: PrimitiveManifest | null, type: string): Pri
 }
 
 export function normalizeManifest(raw: unknown): PrimitiveManifest | null {
-  if (!raw || typeof raw !== "object") return null;
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
   const entries = Object.entries(raw as Record<string, unknown>).filter(
     ([, value]) => value && typeof value === "object" && typeof (value as PrimitiveSpec).props === "object",
   ) as [string, PrimitiveSpec][];
@@ -204,7 +209,9 @@ export function normalizeManifest(raw: unknown): PrimitiveManifest | null {
 export function iconOptions(manifest: PrimitiveManifest | null): string[] {
   for (const spec of Object.values(manifest ?? {})) {
     for (const [name, prop] of Object.entries(spec.props)) {
-      if (/icon$/i.test(name) && prop.options && prop.options.length > 0) return prop.options;
+      if (/icon$/i.test(name) && prop.options && prop.options.length > 0) {
+        return prop.options;
+      }
     }
   }
   return ["house", "users", "user", "crosshair", "map", "book-open", "play", "star"];
@@ -219,28 +226,57 @@ export function isListField(field: FieldOption): boolean {
   return ARRAY_FIELD_TYPES.has(field.type);
 }
 
+/** The fields a prop of each type can bind to; a prop of any other type can bind to every field. */
+const FIELDS_FOR_PROP_TYPE = new Map<string, (field: FieldOption) => boolean>([
+  ["array", (field) => ARRAY_FIELD_TYPES.has(field.type)],
+  ["number", (field) => field.type === "number"],
+  ["boolean", (field) => field.type === "boolean"],
+  ["string", (field) => !ARRAY_FIELD_TYPES.has(field.type) && !OBJECT_FIELD_TYPES.has(field.type)],
+]);
+
 export function fieldsForProp(fields: FieldOption[], spec: PropSpec): FieldOption[] {
-  switch (spec.type) {
-    case "array":
-      return fields.filter((f) => ARRAY_FIELD_TYPES.has(f.type));
-    case "number":
-      return fields.filter((f) => f.type === "number");
-    case "boolean":
-      return fields.filter((f) => f.type === "boolean");
-    case "string":
-      return fields.filter((f) => !ARRAY_FIELD_TYPES.has(f.type) && !OBJECT_FIELD_TYPES.has(f.type));
-    default:
-      return fields;
-  }
+  const isBindable = FIELDS_FOR_PROP_TYPE.get(spec.type);
+  return isBindable ? fields.filter((field) => isBindable(field)) : fields;
 }
 
-/** Fields "item.<path>" can bind to in a list block: entries of its bound list field, else its records. */
 /** Every binding ("data.<path>", "item.<path>") in a prop's value, nested ones (info_list rows) included, in order. */
 function bindingsIn(value: unknown, out: string[] = []): string[] {
-  if (isBinding(value)) out.push(value);
-  else if (Array.isArray(value)) for (const entry of value) bindingsIn(entry, out);
-  else if (value && typeof value === "object") for (const entry of Object.values(value)) bindingsIn(entry, out);
+  if (isBinding(value)) {
+    out.push(value);
+  } else if (Array.isArray(value)) {
+    for (const entry of value) {
+      bindingsIn(entry, out);
+    }
+  } else if (value && typeof value === "object") {
+    for (const entry of Object.values(value)) {
+      bindingsIn(entry, out);
+    }
+  }
   return out;
+}
+
+/** What screenReferenceFolders reads a screen's bindings against. */
+interface ReferenceScope {
+  screen: ScreenFile;
+  dataFields: FieldOption[];
+  schemas: SchemaInfo[];
+  categories: readonly Pick<Category, "folder">[];
+  max: number;
+  recordsOf?: (category: string) => Record<string, unknown>[];
+}
+
+/** The folders one block's bindings point into, in order, repeats included; "item." resolves as itemFieldsFor does, once a block. */
+function blockReferenceFolders(block: ScreenBlock, scope: ReferenceScope): string[] {
+  const folders: string[] = [];
+  let itemFields: FieldOption[] | undefined;
+  for (const binding of Object.values(block.props).flatMap((value) => bindingsIn(value))) {
+    const fields = bindingScope(binding) === "item" ? (itemFields ??= itemFieldsFor(block, scope.screen, scope.dataFields, scope.schemas, scope.recordsOf)) : scope.dataFields;
+    const field = fields.find((entry) => entry.key === bindingPath(binding));
+    if (field) {
+      folders.push(...referenceFolders(field, scope.categories, scope.max));
+    }
+  }
+  return folders;
 }
 
 /**
@@ -261,20 +297,19 @@ export function screenReferenceFolders(
   max: number,
   recordsOf?: (category: string) => Record<string, unknown>[],
 ): string[] {
+  const scope: ReferenceScope = { screen, dataFields, schemas, categories, max, recordsOf };
   const folders: string[] = [];
-  for (const block of screen.blocks) {
-    if (block.visible === false) continue;
-    let itemFields: FieldOption[] | undefined;
-    for (const binding of Object.values(block.props).flatMap((value) => bindingsIn(value))) {
-      const fields = bindingScope(binding) === "item" ? (itemFields ??= itemFieldsFor(block, screen, dataFields, schemas, recordsOf)) : dataFields;
-      const field = fields.find((f) => f.key === bindingPath(binding));
-      if (!field) continue;
-      for (const folder of referenceFolders(field, categories, max)) if (!folders.includes(folder)) folders.push(folder);
+  for (const block of screen.blocks.filter((entry) => entry.visible !== false)) {
+    for (const folder of blockReferenceFolders(block, scope)) {
+      if (!folders.includes(folder)) {
+        folders.push(folder);
+      }
     }
   }
   return folders.slice(0, max);
 }
 
+/** Fields "item.<path>" can bind to in a list block: entries of its bound list field, else its records. */
 export function itemFieldsFor(
   block: ScreenBlock,
   screen: ScreenFile,
@@ -284,7 +319,7 @@ export function itemFieldsFor(
 ): FieldOption[] {
   const items = block.props.items;
   if (isBinding(items) && bindingScope(items) === "data") {
-    return entryFields(dataFields.find((f) => f.key === bindingPath(items)));
+    return entryFields(dataFields.find((field) => field.key === bindingPath(items)));
   }
   const source = normalizeSource(block.props.source) ?? screen.source;
   return sourceFields(schemas, source, source ? recordsOf(source.category) : []);
@@ -293,7 +328,9 @@ export function itemFieldsFor(
 function isKnownPath(path: string, known: Set<string>): boolean {
   const parts = path.split(".");
   for (let i = 1; i <= parts.length; i++) {
-    if (known.has(parts.slice(0, i).join("."))) return true;
+    if (known.has(parts.slice(0, i).join("."))) {
+      return true;
+    }
   }
   // Numeric segments index into lists ("patches.0.title").
   return parts.length > 1 && /^\d+$/.test(parts[1]) && known.has(parts[0]);
@@ -315,9 +352,15 @@ export interface AppContext {
 
 /** Every text value inside `value`, with the path to it. */
 function textsIn(value: unknown, path: string, out: { path: string; text: string }[] = []) {
-  if (typeof value === "string") out.push({ path, text: value });
-  else if (Array.isArray(value)) value.forEach((entry, i) => textsIn(entry, `${path}[${i}]`, out));
-  else if (value && typeof value === "object") for (const [key, nested] of Object.entries(value)) textsIn(nested, `${path}.${key}`, out);
+  if (typeof value === "string") {
+    out.push({ path, text: value });
+  } else if (Array.isArray(value)) {
+    value.forEach((entry, i) => textsIn(entry, `${path}[${String(i)}]`, out));
+  } else if (value && typeof value === "object") {
+    for (const [key, nested] of Object.entries(value)) {
+      textsIn(nested, `${path}.${key}`, out);
+    }
+  }
   return out;
 }
 
